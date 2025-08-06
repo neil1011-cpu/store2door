@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -19,6 +20,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Mail, MoreHorizontal, Truck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+
 
 const shipments = [
   {
@@ -67,6 +81,8 @@ const shipments = [
   },
 ];
 
+type Shipment = typeof shipments[0];
+
 const getStatusVariant = (status: string) => {
     switch (status) {
         case 'In Transit':
@@ -84,12 +100,27 @@ const getStatusVariant = (status: string) => {
 
 export default function ShippingPage() {
   const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
+  const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
 
-  const handleEmailCustomer = (customerName: string, trackingId: string) => {
+  const handleOpenEmailDialog = (shipment: Shipment) => {
+    setSelectedShipment(shipment);
+    setEmailContent({
+      subject: `Update for your shipment: ${shipment.trackingId}`,
+      body: `Dear ${shipment.customer.name},\n\nHere's an update on your shipment ${shipment.trackingId}:\n\nThe current status is: ${shipment.status}.\n\nEstimated delivery: ${shipment.estimatedDelivery}.\n\nThank you for shipping with us!\nFrom Store 2 Door`,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSendEmail = () => {
+    if (!selectedShipment) return;
     toast({
       title: 'Email Sent',
-      description: `An email update for shipment ${trackingId} has been sent to ${customerName}.`,
+      description: `An email update for shipment ${selectedShipment.trackingId} has been sent to ${selectedShipment.customer.name}.`,
     });
+    setIsDialogOpen(false);
+    setSelectedShipment(null);
   };
 
   return (
@@ -135,7 +166,7 @@ export default function ShippingPage() {
                   <TableCell>{shipment.destination}</TableCell>
                   <TableCell>{shipment.estimatedDelivery}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="outline" size="sm" onClick={() => handleEmailCustomer(shipment.customer.name, shipment.trackingId)}>
+                    <Button variant="outline" size="sm" onClick={() => handleOpenEmailDialog(shipment)}>
                       <Mail className="mr-2 h-4 w-4" />
                       Email Customer
                     </Button>
@@ -146,6 +177,45 @@ export default function ShippingPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+          <DialogHeader>
+            <DialogTitle>Customize Email</DialogTitle>
+            <DialogDescription>
+              Edit the email content before sending it to the customer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="subject" className="text-right">
+                Subject
+              </Label>
+              <Input
+                id="subject"
+                value={emailContent.subject}
+                onChange={(e) => setEmailContent({ ...emailContent, subject: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="body" className="text-right">
+                Body
+              </Label>
+              <Textarea
+                id="body"
+                value={emailContent.body}
+                onChange={(e) => setEmailContent({ ...emailContent, body: e.target.value })}
+                className="col-span-3 min-h-[200px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSendEmail}>Send Email</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
