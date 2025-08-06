@@ -1,6 +1,10 @@
+'use client';
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { PackageCheck, Warehouse, Plane, Truck, Home } from 'lucide-react';
+import { PackageCheck, Warehouse, Plane, Truck, Home, Mail } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 const shipmentData = {
   trackingId: 'SR-123456789',
@@ -8,6 +12,10 @@ const shipmentData = {
   origin: 'New York, USA',
   destination: 'London, UK',
   estimatedDelivery: 'July 30, 2024',
+  customer: {
+    name: 'Jane Doe',
+    email: 'jane.d@example.com',
+  },
   history: [
     {
       status: 'Delivered',
@@ -108,13 +116,28 @@ const StatusStep = ({
 
 export default function ShippingPage() {
   const currentStatusIndex = shipmentData.history.findIndex((item) => item.current);
+  const { toast } = useToast();
+
+  const handleNotify = () => {
+    toast({
+        title: 'Email Sent',
+        description: `An update has been sent to ${shipmentData.customer.email}.`,
+    });
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Shipping Status</h1>
-        <p className="text-muted-foreground">Track your shipment in real-time.</p>
+      <div className="flex items-center justify-between">
+        <div>
+            <h1 className="text-3xl font-bold tracking-tight">Shipping Status</h1>
+            <p className="text-muted-foreground">Track your shipment and notify customers.</p>
+        </div>
+        <Button onClick={handleNotify}>
+            <Mail className="mr-2 h-4 w-4" />
+            Notify Customer
+        </Button>
       </div>
+
 
       <Card>
         <CardHeader>
