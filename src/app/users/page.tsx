@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -30,27 +31,53 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
 
 type User = {
-  id: number;
+  id: string;
   name: string;
   email: string;
   address: string;
+  mailboxNumber: number;
 };
 
-const initialUsers: User[] = [
-    { id: 1, name: 'John Doe', email: 'john.d@example.com', address: '123 Main St, Orlando, FL 32801, Mailbox #101' },
-    { id: 2, name: 'Jane Smith', email: 'jane.s@example.com', address: '123 Main St, Orlando, FL 32801, Mailbox #102' },
-];
-
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [open, setOpen] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
   const [baseAddress, setBaseAddress] = useState('123 Main St, Orlando, FL 32801');
   const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
 
-  const handleAddUser = () => {
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setLoading(true);
+      try {
+        const usersCollection = collection(db, 'users');
+        const q = query(usersCollection, orderBy('mailboxNumber'));
+        const usersSnapshot = await getDocs(q);
+        const usersList = usersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as User[];
+        setUsers(usersList);
+      } catch (error) {
+        console.error("Error fetching users: ", error);
+        toast({
+            title: 'Error fetching users',
+            description: 'Could not load user data from the database.',
+            variant: 'destructive',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [toast]);
+
+  const handleAddUser = async () => {
     if(!newUser.name || !newUser.email) {
         toast({
             title: 'Missing Fields',
@@ -59,20 +86,34 @@ export default function UsersPage() {
         });
         return;
     }
-    const nextMailboxNumber = users.length > 0 ? Math.max(...users.map(u => parseInt(u.address.split('#')[1] || '100'))) + 1 : 101;
-    const newAddress = `${baseAddress}, Mailbox #${nextMailboxNumber}`;
-    const userToAdd: User = {
-        id: users.length + 1,
-        ...newUser,
-        address: newAddress,
-    };
-    setUsers([...users, userToAdd]);
-    setOpen(false);
-    setNewUser({ name: '', email: '' });
-    toast({
-        title: 'User Added',
-        description: `${newUser.name} has been added with address: ${newAddress}`,
-    });
+    try {
+        const nextMailboxNumber = users.length > 0 ? Math.max(...users.map(u => u.mailboxNumber)) + 1 : 101;
+        const newAddress = `${baseAddress}, Mailbox #${nextMailboxNumber}`;
+        
+        const userToAdd = {
+            name: newUser.name,
+            email: newUser.email,
+            address: newAddress,
+            mailboxNumber: nextMailboxNumber,
+        };
+
+        const docRef = await addDoc(collection(db, 'users'), userToAdd);
+
+        setUsers([...users, { ...userToAdd, id: docRef.id }]);
+        setOpen(false);
+        setNewUser({ name: '', email: '' });
+        toast({
+            title: 'User Added',
+            description: `${newUser.name} has been added with address: ${newAddress}`,
+        });
+    } catch(error) {
+        console.error("Error adding user: ", error);
+        toast({
+            title: 'Error Adding User',
+            description: 'There was a problem saving the new user.',
+            variant: 'destructive',
+        });
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -160,25 +201,35 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                        <span>{user.address}</span>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyToClipboard(user.address)}>
-                            <Copy className="h-4 w-4" />
-                        </Button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+              {loading ? (
+                 <TableRow>
+                    <TableCell colSpan={4} className="text-center">Loading users...</TableCell>
                 </TableRow>
-              ))}
+              ) : users.length === 0 ? (
+                <TableRow>
+                    <TableCell colSpan={4} className="text-center">No users found.</TableCell>
+                </TableRow>
+              ) : (
+                users.map((user) => (
+                    <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                        <div className="flex items-center gap-2">
+                            <span>{user.address}</span>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyToClipboard(user.address)}>
+                                <Copy className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                        <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                    </TableCell>
+                    </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
