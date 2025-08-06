@@ -22,6 +22,7 @@ import {
   Route,
   User,
   Settings,
+  Users,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -101,6 +102,14 @@ export default function RootLayout({
                     <Link href="/finance">
                       <Banknote />
                       Profit/Loss
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                 <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Users">
+                    <Link href="/users">
+                      <Users />
+                      Users
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
