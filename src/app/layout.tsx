@@ -84,10 +84,10 @@ export default function RootLayout({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="AI Pre-Alerts">
+                  <SidebarMenuButton asChild tooltip="Pre-Alerts">
                     <Link href="/pre-alerts">
                       <ScanText />
-                      AI Pre-Alerts
+                      Pre-Alerts
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

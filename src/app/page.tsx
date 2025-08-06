@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 
 const features = [
   {
-    title: 'AI Pre-Alerts',
+    title: 'Pre-Alerts',
     description: 'Generate delivery address from a receipt image.',
     icon: <ScanText className="h-8 w-8 text-primary" />,
     href: '/pre-alerts',
@@ -47,7 +47,7 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
-          Welcome to SwiftRoute
+          From Store to Door Admin Panel
         </h1>
         <p className="text-muted-foreground">
           Your all-in-one solution for courier management.

@@ -78,7 +78,7 @@ export default function PreAlertsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">AI Pre-Alerts</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Pre-Alerts</h1>
         <p className="text-muted-foreground">
           View and manage incoming pre-alerts from customers.
         </p>
