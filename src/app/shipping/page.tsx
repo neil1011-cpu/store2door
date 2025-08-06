@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -18,7 +17,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Truck } from 'lucide-react';
+import { Mail, MoreHorizontal, Truck } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const shipments = [
   {
@@ -83,6 +83,15 @@ const getStatusVariant = (status: string) => {
 }
 
 export default function ShippingPage() {
+  const { toast } = useToast();
+
+  const handleEmailCustomer = (customerName: string, trackingId: string) => {
+    toast({
+      title: 'Email Sent',
+      description: `An email update for shipment ${trackingId} has been sent to ${customerName}.`,
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
        <div>
@@ -126,8 +135,9 @@ export default function ShippingPage() {
                   <TableCell>{shipment.destination}</TableCell>
                   <TableCell>{shipment.estimatedDelivery}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="h-4 w-4" />
+                    <Button variant="outline" size="sm" onClick={() => handleEmailCustomer(shipment.customer.name, shipment.trackingId)}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Email Customer
                     </Button>
                   </TableCell>
                 </TableRow>
