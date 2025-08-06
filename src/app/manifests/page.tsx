@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -15,9 +18,27 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-const manifests = [
+const initialManifests = [
   {
     flightNumber: 'SR-235',
     date: '2024-07-28',
@@ -55,14 +76,114 @@ const manifests = [
   },
 ];
 
+type Manifest = {
+  flightNumber: string;
+  date: string;
+  origin: string;
+  destination: string;
+  status: 'Open' | 'Closed' | 'Scheduled';
+};
+
 export default function ManifestsPage() {
+  const [manifests, setManifests] = useState<Manifest[]>(initialManifests);
+  const [open, setOpen] = useState(false);
+  const [newManifest, setNewManifest] = useState<Omit<Manifest, 'flightNumber'>>({
+    date: '',
+    origin: '',
+    destination: '',
+    status: 'Scheduled',
+  });
+  const [flightNumber, setFlightNumber] = useState('');
+
+  const handleCreateManifest = () => {
+    if (!flightNumber) return;
+    const manifestToAdd: Manifest = {
+        flightNumber,
+        ...newManifest,
+    };
+    setManifests([...manifests, manifestToAdd]);
+    setOpen(false);
+    setFlightNumber('');
+    setNewManifest({
+        date: '',
+        origin: '',
+        destination: '',
+        status: 'Scheduled',
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Flight Manifests</h1>
-        <p className="text-muted-foreground">
-          View and manage flight manifest documents.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Flight Manifests</h1>
+          <p className="text-muted-foreground">
+            View and manage flight manifest documents.
+          </p>
+        </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create Manifest
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Create New Manifest</DialogTitle>
+              <DialogDescription>
+                Enter the details for the new flight manifest.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="flightNumber" className="text-right">
+                  Flight #
+                </Label>
+                <Input id="flightNumber" value={flightNumber} onChange={(e) => setFlightNumber(e.target.value)} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="date" className="text-right">
+                  Date
+                </Label>
+                <Input id="date" type="date" value={newManifest.date} onChange={(e) => setNewManifest({...newManifest, date: e.target.value})} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="origin" className="text-right">
+                  Origin
+                </Label>
+                <Input id="origin" value={newManifest.origin} onChange={(e) => setNewManifest({...newManifest, origin: e.target.value})} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="destination" className="text-right">
+                  Destination
+                </Label>
+                <Input id="destination" value={newManifest.destination} onChange={(e) => setNewManifest({...newManifest, destination: e.target.value})} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="status" className="text-right">
+                  Status
+                </Label>
+                 <Select
+                  onValueChange={(value: Manifest['status']) => setNewManifest({...newManifest, status: value})}
+                  defaultValue={newManifest.status}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Open">Open</SelectItem>
+                    <SelectItem value="Closed">Closed</SelectItem>
+                    <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" onClick={handleCreateManifest}>Save Manifest</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>
