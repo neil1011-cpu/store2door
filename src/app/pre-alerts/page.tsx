@@ -17,6 +17,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import Image from 'next/image';
 
 const preAlerts = [
   {
@@ -25,6 +35,7 @@ const preAlerts = [
     contents: 'Electronics',
     status: 'Pending',
     date: '2024-07-29',
+    invoiceUrl: 'https://placehold.co/600x800.png',
   },
   {
     customer: 'Jane Smith',
@@ -32,6 +43,7 @@ const preAlerts = [
     contents: 'Clothing',
     status: 'Processed',
     date: '2024-07-28',
+    invoiceUrl: 'https://placehold.co/600x800.png',
   },
   {
     customer: 'Carlos Garcia',
@@ -39,26 +51,28 @@ const preAlerts = [
     contents: 'Books',
     status: 'Pending',
     date: '2024-07-29',
+    invoiceUrl: 'https://placehold.co/600x800.png',
   },
-   {
+  {
     customer: 'Maria Rodriguez',
     trackingNumber: 'JM212',
     contents: 'Home Goods',
     status: 'Processed',
     date: '2024-07-27',
+    invoiceUrl: 'https://placehold.co/600x800.png',
   },
 ];
 
 const getStatusVariant = (status: string) => {
-    switch (status) {
-        case 'Pending':
-            return 'destructive';
-        case 'Processed':
-            return 'secondary';
-        default:
-            return 'default';
-    }
-}
+  switch (status) {
+    case 'Pending':
+      return 'destructive';
+    case 'Processed':
+      return 'secondary';
+    default:
+      return 'default';
+  }
+};
 
 export default function PreAlertsPage() {
   return (
@@ -78,7 +92,7 @@ export default function PreAlertsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-           <Table>
+          <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Customer</TableHead>
@@ -86,17 +100,49 @@ export default function PreAlertsPage() {
                 <TableHead>Contents</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Invoice</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {preAlerts.map((alert) => (
                 <TableRow key={alert.trackingNumber}>
-                  <TableCell className="font-medium">{alert.customer}</TableCell>
+                  <TableCell className="font-medium">
+                    {alert.customer}
+                  </TableCell>
                   <TableCell>{alert.trackingNumber}</TableCell>
                   <TableCell>{alert.contents}</TableCell>
                   <TableCell>{alert.date}</TableCell>
                   <TableCell>
-                     <Badge variant={getStatusVariant(alert.status)}>{alert.status}</Badge>
+                    <Badge variant={getStatusVariant(alert.status)}>
+                      {alert.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline">View Invoice</Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-3xl">
+                        <DialogHeader>
+                          <DialogTitle>
+                            Invoice for {alert.trackingNumber}
+                          </DialogTitle>
+                           <DialogDescription>
+                            Invoice submitted by {alert.customer}.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="p-4">
+                          <Image
+                            src={alert.invoiceUrl}
+                            alt={`Invoice for ${alert.trackingNumber}`}
+                            width={800}
+                            height={1000}
+                            className="w-full h-auto"
+                            data-ai-hint="invoice document"
+                          />
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </TableCell>
                 </TableRow>
               ))}
