@@ -32,7 +32,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
 
 type User = {
   id: string;
@@ -40,6 +40,7 @@ type User = {
   email: string;
   address: string;
   mailboxNumber: number;
+  createdAt: { seconds: number, nanoseconds: number } | Date;
 };
 
 export default function UsersPage() {
@@ -95,11 +96,18 @@ export default function UsersPage() {
             email: newUser.email,
             address: newAddress,
             mailboxNumber: nextMailboxNumber,
+            createdAt: serverTimestamp(),
         };
 
         const docRef = await addDoc(collection(db, 'users'), userToAdd);
+        
+        const optimisticNewUser: User = { 
+            ...userToAdd, 
+            id: docRef.id,
+            createdAt: new Date(), // Use local date for optimistic update
+        };
 
-        setUsers([...users, { ...userToAdd, id: docRef.id }]);
+        setUsers([...users, optimisticNewUser]);
         setOpen(false);
         setNewUser({ name: '', email: '' });
         toast({

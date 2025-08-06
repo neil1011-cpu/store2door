@@ -20,7 +20,7 @@ import {
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, limit, orderBy, query, Timestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
@@ -55,8 +55,15 @@ type Activity = {
   id: string;
   type: 'user' | 'alert';
   text: string;
-  date: string;
   timestamp: Date;
+};
+
+// Helper function to convert Firestore timestamp to Date
+const toDate = (timestamp: Timestamp | Date): Date => {
+  if (timestamp instanceof Date) {
+    return timestamp;
+  }
+  return timestamp.toDate();
 };
 
 export default function DashboardPage() {
@@ -68,7 +75,7 @@ export default function DashboardPage() {
       setLoading(true);
       try {
         const usersCollection = collection(db, 'users');
-        const usersQuery = query(usersCollection, orderBy('mailboxNumber', 'desc'), limit(3));
+        const usersQuery = query(usersCollection, orderBy('createdAt', 'desc'), limit(3));
         const usersSnapshot = await getDocs(usersQuery);
         const usersActivities = usersSnapshot.docs.map(doc => {
             const data = doc.data();
@@ -76,31 +83,29 @@ export default function DashboardPage() {
                 id: doc.id,
                 type: 'user' as const,
                 text: `${data.name} was added as a new user.`,
-                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                 // Using a placeholder date for now, will be fixed when a timestamp is added to user data
-                timestamp: new Date(2024, 6, 30),
+                timestamp: toDate(data.createdAt),
             }
         });
 
         // Placeholder for pre-alerts until it's connected to Firestore
-        const preAlertsActivities: Activity[] = [
+        const preAlertsActivities: Omit<Activity, 'id'>[] = [
             {
-                id: '1',
                 type: 'alert',
                 text: 'New pre-alert from John Doe (JM456).',
-                date: 'Jul 29',
-                timestamp: new Date(2024, 6, 29)
+                timestamp: new Date(new Date().setDate(new Date().getDate() - 1))
             },
             {
-                id: '2',
                 type: 'alert',
                 text: 'New pre-alert from Jane Smith (JM789).',
-                date: 'Jul 28',
-                timestamp: new Date(2024, 6, 28)
+                timestamp: new Date(new Date().setDate(new Date().getDate() - 2))
             }
         ];
         
-        const combinedActivities = [...usersActivities, ...preAlertsActivities];
+        const combinedActivities = [
+            ...usersActivities, 
+            ...preAlertsActivities.map((act, i) => ({...act, id: `pa-${i}`}))
+        ];
+
         combinedActivities.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
         
         setActivities(combinedActivities.slice(0, 5));
@@ -125,6 +130,19 @@ export default function DashboardPage() {
         return null;
     }
   }
+
+ const formatActivityDate = (date: Date) => {
+    const now = new Date();
+    const diffDays = Math.round((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return 'Today';
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else {
+       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
 
 
   return (
@@ -197,7 +215,7 @@ export default function DashboardPage() {
                             <div className="flex-1">
                                 <p className="text-sm">{activity.text}</p>
                             </div>
-                            <time className="text-sm text-muted-foreground">{activity.date}</time>
+                            <time className="text-sm text-muted-foreground">{formatActivityDate(activity.timestamp)}</time>
                         </div>
                     ))}
                 </div>
