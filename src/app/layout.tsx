@@ -25,6 +25,7 @@ import {
   Settings,
   Users,
   Bell,
+  LogOut,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -126,27 +127,34 @@ export default function RootLayout({
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Settings">
-                    <Link href="#">
-                      <Settings />
-                      Settings
-                    </Link>
+               <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton>
+                     <Avatar className="size-7">
+                      <AvatarImage src="https://placehold.co/40x40" alt="User avatar" />
+                      <AvatarFallback>SR</AvatarFallback>
+                    </Avatar>
+                    <span>Admin User</span>
                   </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Account">
-                    <Link href="#">
-                       <Avatar className="size-7">
-                        <AvatarImage src="https://placehold.co/40x40" alt="User avatar" />
-                        <AvatarFallback>SR</AvatarFallback>
-                      </Avatar>
-                      <span>Admin User</span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 mb-2 ml-2">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                     <Link href="/settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
                     </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                     <Link href="/auth/signin">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Sign Out</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </SidebarFooter>
           </Sidebar>
           <SidebarInset>
@@ -179,13 +187,33 @@ export default function RootLayout({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="ghost" size="icon">
-                <Settings className="h-5 w-5" />
-              </Button>
-               <Avatar>
-                  <AvatarImage src="https://placehold.co/40x40" alt="User avatar" />
-                  <AvatarFallback>SR</AvatarFallback>
-                </Avatar>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" asChild size="icon">
+                     <Avatar>
+                        <AvatarImage src="https://placehold.co/40x40" alt="User avatar" />
+                        <AvatarFallback>SR</AvatarFallback>
+                      </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                   <DropdownMenuItem asChild>
+                     <Link href="/auth/signin">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Sign Out</span>
+                     </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </header>
             <main className="flex-1 overflow-auto p-4 md:p-6">
               {children}
@@ -198,4 +226,4 @@ export default function RootLayout({
   );
 }
 
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "@/components/ui/toaster";
