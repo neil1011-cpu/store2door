@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import {
@@ -23,9 +24,18 @@ import {
   User,
   Settings,
   Users,
+  Bell,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export const metadata: Metadata = {
   title: 'SwiftRoute',
@@ -145,6 +155,30 @@ export default function RootLayout({
               <div className="flex-1">
                 {/* Header content can go here */}
               </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Bell className="h-5 w-5" />
+                     <span className="sr-only">Toggle notifications</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <Link href="/pre-alerts" className="flex items-center gap-2">
+                      <ScanText className="h-4 w-4" />
+                      <span>New pre-alert from John Doe (JM456)</span>
+                    </Link>
+                  </DropdownMenuItem>
+                   <DropdownMenuItem>
+                    <Link href="/pre-alerts" className="flex items-center gap-2">
+                      <ScanText className="h-4 w-4" />
+                      <span>New pre-alert from Jane Smith (JM789)</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="ghost" size="icon">
                 <Settings className="h-5 w-5" />
               </Button>
