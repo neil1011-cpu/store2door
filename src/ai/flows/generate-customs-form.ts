@@ -10,7 +10,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const GenerateCustomsFormInputSchema = z.object({
+const GenerateCustomsFormInputSchema = z.object({
   trackingNumber: z.string().describe('The tracking number for the shipment, in JMXXX format.'),
   contentsDescription: z.string().describe('A description of the items in the package.'),
   weight: z.string().describe('The weight of the package, including units (e.g., lbs).'),
@@ -22,7 +22,7 @@ export const GenerateCustomsFormInputSchema = z.object({
 });
 export type GenerateCustomsFormInput = z.infer<typeof GenerateCustomsFormInputSchema>;
 
-export const GenerateCustomsFormOutputSchema = z.object({
+const GenerateCustomsFormOutputSchema = z.object({
   customsForm: z.object({
       trackingNumber: z.string().describe('The tracking number for the shipment.'),
       contentsDescription: z.string().describe('The description of the package contents.'),
