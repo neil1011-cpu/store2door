@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -31,8 +31,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import Link from 'next/link';
 
 type User = {
@@ -41,43 +39,33 @@ type User = {
   email: string;
   address: string;
   mailboxNumber: number;
-  createdAt: { seconds: number, nanoseconds: number } | Date;
 };
 
+const initialUsers: User[] = [
+    {
+        id: '1',
+        name: 'Alicia Keys',
+        email: 'alicia@example.com',
+        address: '123 Main St, Orlando, FL 32801, Mailbox #101',
+        mailboxNumber: 101,
+    },
+    {
+        id: '2',
+        name: 'Bob Marley',
+        email: 'bob@example.com',
+        address: '123 Main St, Orlando, FL 32801, Mailbox #102',
+        mailboxNumber: 102,
+    }
+]
+
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>(initialUsers);
   const [open, setOpen] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
   const [baseAddress, setBaseAddress] = useState('123 Main St, Orlando, FL 32801');
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      try {
-        const usersCollection = collection(db, 'users');
-        const q = query(usersCollection, orderBy('mailboxNumber'));
-        const usersSnapshot = await getDocs(q);
-        const usersList = usersSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as User[];
-        setUsers(usersList);
-      } catch (error) {
-        console.error("Error fetching users: ", error);
-        toast({
-            title: 'Error fetching users',
-            description: 'Could not load user data from the database.',
-            variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUsers();
-  }, [toast]);
 
   const handleAddUser = async () => {
     if(!newUser.name || !newUser.email) {
@@ -88,41 +76,24 @@ export default function UsersPage() {
         });
         return;
     }
-    try {
-        const nextMailboxNumber = users.length > 0 ? Math.max(...users.map(u => u.mailboxNumber)) + 1 : 101;
-        const newAddress = `${baseAddress}, Mailbox #${nextMailboxNumber}`;
-        
-        const userToAdd = {
-            name: newUser.name,
-            email: newUser.email,
-            address: newAddress,
-            mailboxNumber: nextMailboxNumber,
-            createdAt: serverTimestamp(),
-        };
+    const nextMailboxNumber = users.length > 0 ? Math.max(...users.map(u => u.mailboxNumber)) + 1 : 101;
+    const newAddress = `${baseAddress}, Mailbox #${nextMailboxNumber}`;
+    
+    const userToAdd: User = {
+        id: (users.length + 1).toString(),
+        name: newUser.name,
+        email: newUser.email,
+        address: newAddress,
+        mailboxNumber: nextMailboxNumber,
+    };
 
-        const docRef = await addDoc(collection(db, 'users'), userToAdd);
-        
-        const optimisticNewUser: User = { 
-            ...userToAdd, 
-            id: docRef.id,
-            createdAt: new Date(), // Use local date for optimistic update
-        };
-
-        setUsers([...users, optimisticNewUser]);
-        setOpen(false);
-        setNewUser({ name: '', email: '' });
-        toast({
-            title: 'User Added',
-            description: `${newUser.name} has been added with address: ${newAddress}`,
-        });
-    } catch(error) {
-        console.error("Error adding user: ", error);
-        toast({
-            title: 'Error Adding User',
-            description: 'There was a problem saving the new user.',
-            variant: 'destructive',
-        });
-    }
+    setUsers([...users, userToAdd]);
+    setOpen(false);
+    setNewUser({ name: '', email: '' });
+    toast({
+        title: 'User Added',
+        description: `${newUser.name} has been added with address: ${newAddress}`,
+    });
   };
 
   const copyToClipboard = (text: string) => {

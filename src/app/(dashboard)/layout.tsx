@@ -1,6 +1,7 @@
 
 'use client';
 import DashboardLayout from '../dashboard-layout';
+import { AuthProvider } from '@/lib/auth';
 
 export default function ProtectedLayout({
   children,
@@ -8,6 +9,8 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   return (
-      <DashboardLayout>{children}</DashboardLayout>
+      <AuthProvider>
+        <DashboardLayout>{children}</DashboardLayout>
+      </AuthProvider>
   );
 }

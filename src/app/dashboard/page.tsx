@@ -19,8 +19,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, limit, orderBy, query, Timestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
@@ -58,62 +56,26 @@ type Activity = {
   timestamp: Date;
 };
 
-// Helper function to convert Firestore timestamp to Date
-const toDate = (timestamp: Timestamp | Date): Date => {
-  if (timestamp instanceof Date) {
-    return timestamp;
-  }
-  return timestamp.toDate();
-};
+const mockActivities: Activity[] = [
+    { id: '1', type: 'alert', text: 'New pre-alert from John Doe (JM456).', timestamp: new Date(new Date().setDate(new Date().getDate() - 1))},
+    { id: '2', type: 'user', text: 'Alicia Keys was added as a new user.', timestamp: new Date(new Date().setDate(new Date().getDate() - 2))},
+    { id: '3', type: 'alert', text: 'New pre-alert from Jane Smith (JM789).', timestamp: new Date(new Date().setDate(new Date().getDate() - 3))},
+    { id: '4', type: 'user', text: 'Bob Marley was added as a new user.', timestamp: new Date(new Date().setDate(new Date().getDate() - 4))},
+    { id: '5', type: 'alert', text: 'New pre-alert from Peter Tosh (JM101).', timestamp: new Date(new Date().setDate(new Date().getDate() - 5))},
+]
 
 export default function DashboardPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchActivities = async () => {
+    const fetchActivities = () => {
       setLoading(true);
-      try {
-        const usersCollection = collection(db, 'users');
-        const usersQuery = query(usersCollection, orderBy('createdAt', 'desc'), limit(3));
-        const usersSnapshot = await getDocs(usersQuery);
-        const usersActivities = usersSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                type: 'user' as const,
-                text: `${data.name} was added as a new user.`,
-                timestamp: toDate(data.createdAt),
-            }
-        });
-
-        const preAlertsCollection = collection(db, 'pre-alerts');
-        const preAlertsQuery = query(preAlertsCollection, orderBy('createdAt', 'desc'), limit(3));
-        const preAlertsSnapshot = await getDocs(preAlertsQuery);
-        const preAlertsActivities = preAlertsSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                type: 'alert' as const,
-                text: `New pre-alert from ${data.customer} (${data.trackingNumber}).`,
-                timestamp: toDate(data.createdAt),
-            }
-        });
-        
-        const combinedActivities = [
-            ...usersActivities, 
-            ...preAlertsActivities,
-        ];
-
-        combinedActivities.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
-        
-        setActivities(combinedActivities.slice(0, 5));
-
-      } catch (error) {
-        console.error("Error fetching activities: ", error);
-      } finally {
+      // Simulate fetching data
+      setTimeout(() => {
+        setActivities(mockActivities);
         setLoading(false);
-      }
+      }, 1000);
     };
 
     fetchActivities();

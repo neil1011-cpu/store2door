@@ -27,15 +27,12 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-  DialogClose,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
 import { PlusCircle, ArrowLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
 
@@ -47,8 +44,28 @@ type PreAlert = {
   status: 'Pending' | 'Processed';
   date: string;
   invoiceUrl: string;
-  createdAt: Timestamp;
 };
+
+const initialPreAlerts: PreAlert[] = [
+    {
+        id: '1',
+        customer: 'John Doe',
+        trackingNumber: 'JM456',
+        contents: 'Laptop',
+        status: 'Pending',
+        date: new Date().toLocaleDateString('en-US'),
+        invoiceUrl: 'https://placehold.co/600x800.png',
+    },
+    {
+        id: '2',
+        customer: 'Jane Smith',
+        trackingNumber: 'JM789',
+        contents: 'Books',
+        status: 'Processed',
+        date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'),
+        invoiceUrl: 'https://placehold.co/600x800.png',
+    }
+]
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -62,8 +79,8 @@ const getStatusVariant = (status: string) => {
 };
 
 export default function PreAlertsPage() {
-  const [preAlerts, setPreAlerts] = useState<PreAlert[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [preAlerts, setPreAlerts] = useState<PreAlert[]>(initialPreAlerts);
+  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const [newAlert, setNewAlert] = useState({
@@ -72,52 +89,6 @@ export default function PreAlertsPage() {
     contents: '',
     status: 'Pending' as 'Pending' | 'Processed',
   });
-
-  const toDate = (timestamp: Timestamp | Date): Date => {
-    if (!timestamp) {
-        return new Date();
-    }
-    if (timestamp instanceof Date) {
-      return timestamp;
-    }
-    return timestamp.toDate();
-  };
-
-  useEffect(() => {
-    const fetchPreAlerts = async () => {
-      setLoading(true);
-      try {
-        const alertsCollection = collection(db, 'pre-alerts');
-        const q = query(alertsCollection, orderBy('createdAt', 'desc'));
-        const alertsSnapshot = await getDocs(q);
-        const alertsList = alertsSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            customer: data.customer,
-            trackingNumber: data.trackingNumber,
-            contents: data.contents,
-            status: data.status,
-            date: toDate(data.createdAt).toLocaleDateString('en-US'),
-            invoiceUrl: 'https://placehold.co/600x800.png', // Placeholder
-            createdAt: data.createdAt,
-          }
-        }) as PreAlert[];
-        setPreAlerts(alertsList);
-      } catch (error) {
-        console.error("Error fetching pre-alerts: ", error);
-        toast({
-          title: 'Error fetching pre-alerts',
-          description: 'Could not load data from the database.',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPreAlerts();
-  }, [toast]);
 
   const handleCreateAlert = async () => {
     if (!newAlert.customer || !newAlert.trackingNumber || !newAlert.contents) {
@@ -128,36 +99,21 @@ export default function PreAlertsPage() {
       });
       return;
     }
-    try {
-      const alertToAdd = {
+    
+    const newPreAlert: PreAlert = {
+        id: (preAlerts.length + 1).toString(),
         ...newAlert,
-        createdAt: serverTimestamp(),
-      };
-      const docRef = await addDoc(collection(db, 'pre-alerts'), alertToAdd);
-      
-      const optimisticNewAlert: PreAlert = {
-          id: docRef.id,
-          ...newAlert,
-          date: new Date().toLocaleDateString('en-US'),
-          invoiceUrl: 'https://placehold.co/600x800.png',
-          createdAt: Timestamp.now(),
-      };
+        date: new Date().toLocaleDateString('en-US'),
+        invoiceUrl: 'https://placehold.co/600x800.png',
+    };
 
-      setPreAlerts([optimisticNewAlert, ...preAlerts]);
-      setOpen(false);
-      setNewAlert({ customer: '', trackingNumber: '', contents: '', status: 'Pending' });
-      toast({
-        title: 'Pre-Alert Created',
-        description: `Pre-alert for ${newAlert.trackingNumber} has been successfully created.`,
-      });
-    } catch (error) {
-       console.error("Error creating pre-alert: ", error);
-        toast({
-            title: 'Error Creating Pre-Alert',
-            description: 'There was a problem saving the new pre-alert.',
-            variant: 'destructive',
-        });
-    }
+    setPreAlerts([newPreAlert, ...preAlerts]);
+    setOpen(false);
+    setNewAlert({ customer: '', trackingNumber: '', contents: '', status: 'Pending' });
+    toast({
+      title: 'Pre-Alert Created',
+      description: `Pre-alert for ${newAlert.trackingNumber} has been successfully created.`,
+    });
   };
 
 
