@@ -14,14 +14,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Route } from 'lucide-react';
-import { useAuth } from '@/lib/auth.tsx';
-import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { app } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+
+const auth = getAuth(app);
 
 export default function SignInPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { signIn } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -29,7 +31,7 @@ export default function SignInPage() {
   const handleSignIn = async () => {
     setLoading(true);
     try {
-      await signIn(email, password);
+      await signInWithEmailAndPassword(auth, email, password);
       router.push('/dashboard');
     } catch (error: any) {
       toast({

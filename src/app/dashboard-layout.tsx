@@ -38,8 +38,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth.tsx';
-import { useEffect } from 'react';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -53,27 +51,12 @@ export default function DashboardLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { user, loading, signOut } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth/signin');
-    }
-  }, [user, loading, router]);
-
   const handleSignOut = async () => {
-    await signOut();
+    // Basic sign out, will be improved with Firebase
     router.push('/auth/signin');
   };
-
-  if (loading || !user) {
-    return (
-        <div className="flex min-h-screen items-center justify-center">
-            <p>Loading...</p>
-        </div>
-    );
-  }
 
   return (
         <SidebarProvider>
@@ -141,10 +124,10 @@ export default function DashboardLayout({
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton>
                      <Avatar className="size-7">
-                      <AvatarImage src={user.photoURL || "https://placehold.co/40x40"} alt="User avatar" />
-                      <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                      <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
+                      <AvatarFallback>U</AvatarFallback>
                     </Avatar>
-                    <span>{user.displayName || user.email}</span>
+                    <span>Guest User</span>
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 mb-2 ml-2">
@@ -199,8 +182,8 @@ export default function DashboardLayout({
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" asChild size="icon">
                      <Avatar>
-                        <AvatarImage src={user.photoURL || "https://placehold.co/40x40"} alt="User avatar" />
-                        <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                        <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
+                        <AvatarFallback>U</AvatarFallback>
                       </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
