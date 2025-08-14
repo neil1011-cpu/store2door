@@ -46,6 +46,7 @@ type PreAlert = {
   status: 'Pending' | 'Processed';
   date: string;
   invoiceUrl: string;
+  createdAt: Timestamp;
 };
 
 const getStatusVariant = (status: string) => {
@@ -95,6 +96,7 @@ export default function PreAlertsPage() {
             status: data.status,
             date: toDate(data.createdAt).toLocaleDateString('en-US'),
             invoiceUrl: 'https://placehold.co/600x800.png', // Placeholder
+            createdAt: data.createdAt,
           }
         }) as PreAlert[];
         setPreAlerts(alertsList);
@@ -134,6 +136,7 @@ export default function PreAlertsPage() {
           ...newAlert,
           date: new Date().toLocaleDateString('en-US'),
           invoiceUrl: 'https://placehold.co/600x800.png',
+          createdAt: Timestamp.now(),
       };
 
       setPreAlerts([optimisticNewAlert, ...preAlerts]);
