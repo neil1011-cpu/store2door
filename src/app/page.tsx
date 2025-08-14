@@ -87,23 +87,22 @@ export default function DashboardPage() {
             }
         });
 
-        // Placeholder for pre-alerts until it's connected to Firestore
-        const preAlertsActivities: Omit<Activity, 'id'>[] = [
-            {
-                type: 'alert',
-                text: 'New pre-alert from John Doe (JM456).',
-                timestamp: new Date(new Date().setDate(new Date().getDate() - 1))
-            },
-            {
-                type: 'alert',
-                text: 'New pre-alert from Jane Smith (JM789).',
-                timestamp: new Date(new Date().setDate(new Date().getDate() - 2))
+        const preAlertsCollection = collection(db, 'pre-alerts');
+        const preAlertsQuery = query(preAlertsCollection, orderBy('createdAt', 'desc'), limit(3));
+        const preAlertsSnapshot = await getDocs(preAlertsQuery);
+        const preAlertsActivities = preAlertsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                type: 'alert' as const,
+                text: `New pre-alert from ${data.customer} (${data.trackingNumber}).`,
+                timestamp: toDate(data.createdAt),
             }
-        ];
+        });
         
         const combinedActivities = [
             ...usersActivities, 
-            ...preAlertsActivities.map((act, i) => ({...act, id: `pa-${i}`}))
+            ...preAlertsActivities,
         ];
 
         combinedActivities.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -125,7 +124,7 @@ export default function DashboardPage() {
       case 'user':
         return <Users className="h-4 w-4" />;
       case 'alert':
-        return <Bell className="h-4 w-4" />;
+        return <ScanText className="h-4 w-4" />;
       default:
         return null;
     }

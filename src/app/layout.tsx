@@ -174,16 +174,16 @@ export default function RootLayout({
                   <DropdownMenuLabel>Notifications</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
-                    <Link href="/pre-alerts" className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <ScanText className="h-4 w-4" />
                       <span>New pre-alert from John Doe (JM456)</span>
-                    </Link>
+                    </div>
                   </DropdownMenuItem>
                    <DropdownMenuItem>
-                    <Link href="/pre-alerts" className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <ScanText className="h-4 w-4" />
                       <span>New pre-alert from Jane Smith (JM789)</span>
-                    </Link>
+                    </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
