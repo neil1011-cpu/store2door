@@ -73,6 +73,9 @@ export default function PreAlertsPage() {
   });
 
   const toDate = (timestamp: Timestamp | Date): Date => {
+    if (!timestamp) {
+        return new Date();
+    }
     if (timestamp instanceof Date) {
       return timestamp;
     }
