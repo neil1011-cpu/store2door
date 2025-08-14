@@ -1,7 +1,7 @@
 
 'use client';
 
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider } from "@/lib/auth.tsx";
 
 export default function AuthLayout({
   children,
