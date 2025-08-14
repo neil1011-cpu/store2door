@@ -1,3 +1,4 @@
+
 import {
   Card,
   CardContent,
@@ -13,7 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowUpRight, ArrowDownRight, DollarSign } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { ArrowUpRight, ArrowDownRight, DollarSign, ArrowLeft } from 'lucide-react';
 import { FinanceChart } from '@/components/finance-chart';
 
 const financeData = {
@@ -35,11 +38,19 @@ const financeData = {
 export default function FinancePage() {
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Profit & Loss</h1>
-        <p className="text-muted-foreground">
-          View your financial statements and performance.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Profit & Loss</h1>
+          <p className="text-muted-foreground">
+            View your financial statements and performance.
+          </p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href="/dashboard">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Link>
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">

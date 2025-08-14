@@ -30,13 +30,14 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, ArrowLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Link from 'next/link';
 
 type PreAlert = {
   id: string;
@@ -169,62 +170,70 @@ export default function PreAlertsPage() {
             View and manage incoming pre-alerts from customers.
           </p>
         </div>
-         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create Pre-Alert
+        <div className="flex gap-2">
+            <Button variant="outline" asChild>
+                <Link href="/dashboard">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Dashboard
+                </Link>
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Create New Pre-Alert</DialogTitle>
-              <DialogDescription>
-                Enter the details for the new pre-alert.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="customer" className="text-right">
-                  Customer
-                </Label>
-                <Input id="customer" value={newAlert.customer} onChange={(e) => setNewAlert({...newAlert, customer: e.target.value})} className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="trackingNumber" className="text-right">
-                  Tracking #
-                </Label>
-                <Input id="trackingNumber" value={newAlert.trackingNumber} onChange={(e) => setNewAlert({...newAlert, trackingNumber: e.target.value})} className="col-span-3" />
-              </div>
-               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="contents" className="text-right">
-                  Contents
-                </Label>
-                <Input id="contents" value={newAlert.contents} onChange={(e) => setNewAlert({...newAlert, contents: e.target.value})} className="col-span-3" />
-              </div>
-               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="status" className="text-right">
-                  Status
-                </Label>
-                 <Select
-                  onValueChange={(value: PreAlert['status']) => setNewAlert({...newAlert, status: value})}
-                  defaultValue={newAlert.status}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Pending">Pending</SelectItem>
-                    <SelectItem value="Processed">Processed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" onClick={handleCreateAlert}>Save Pre-Alert</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create Pre-Alert
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                <DialogTitle>Create New Pre-Alert</DialogTitle>
+                <DialogDescription>
+                    Enter the details for the new pre-alert.
+                </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="customer" className="text-right">
+                    Customer
+                    </Label>
+                    <Input id="customer" value={newAlert.customer} onChange={(e) => setNewAlert({...newAlert, customer: e.target.value})} className="col-span-3" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="trackingNumber" className="text-right">
+                    Tracking #
+                    </Label>
+                    <Input id="trackingNumber" value={newAlert.trackingNumber} onChange={(e) => setNewAlert({...newAlert, trackingNumber: e.target.value})} className="col-span-3" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="contents" className="text-right">
+                    Contents
+                    </Label>
+                    <Input id="contents" value={newAlert.contents} onChange={(e) => setNewAlert({...newAlert, contents: e.target.value})} className="col-span-3" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="status" className="text-right">
+                    Status
+                    </Label>
+                    <Select
+                    onValueChange={(value: PreAlert['status']) => setNewAlert({...newAlert, status: value})}
+                    defaultValue={newAlert.status}
+                    >
+                    <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="Processed">Processed</SelectItem>
+                    </SelectContent>
+                    </Select>
+                </div>
+                </div>
+                <DialogFooter>
+                <Button type="submit" onClick={handleCreateAlert}>Save Pre-Alert</Button>
+                </DialogFooter>
+            </DialogContent>
+            </Dialog>
+        </div>
       </div>
 
 

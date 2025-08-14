@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -18,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, MoreHorizontal, Truck } from 'lucide-react';
+import { Mail, ArrowLeft, Truck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -32,6 +33,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import Link from 'next/link';
 
 
 const shipments = [
@@ -125,9 +127,17 @@ export default function ShippingPage() {
 
   return (
     <div className="flex flex-col gap-6">
-       <div>
-            <h1 className="text-3xl font-bold tracking-tight">Shipping Status</h1>
-            <p className="text-muted-foreground">Track all current shipments.</p>
+       <div className="flex items-center justify-between">
+            <div>
+                <h1 className="text-3xl font-bold tracking-tight">Shipping Status</h1>
+                <p className="text-muted-foreground">Track all current shipments.</p>
+            </div>
+             <Button variant="outline" asChild>
+                <Link href="/dashboard">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Dashboard
+                </Link>
+            </Button>
         </div>
       <Card>
         <CardHeader>
