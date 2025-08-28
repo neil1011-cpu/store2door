@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -20,6 +21,11 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [apiKey, setApiKey] = useState('');
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -70,27 +76,35 @@ export default function SettingsPage() {
         <CardContent>
           <div className="space-y-2">
             <Label>Theme</Label>
-            <RadioGroup
-              value={theme}
-              onValueChange={setTheme}
-              className="grid max-w-md grid-cols-3 gap-4"
-            >
-              <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer", theme === 'light' && "border-primary")}>
-                <Sun className="h-5 w-5"/>
-                <RadioGroupItem value="light" id="light" className="sr-only" />
-                <span>Light</span>
-              </Label>
-              <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer", theme === 'dark' && "border-primary")}>
-                <Moon className="h-5 w-5" />
-                <RadioGroupItem value="dark" id="dark" className="sr-only" />
-                <span>Dark</span>
-              </Label>
-              <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer", theme === 'system' && "border-primary")}>
-                <Laptop className="h-5 w-5" />
-                <RadioGroupItem value="system" id="system" className="sr-only" />
-                <span>System</span>
-              </Label>
-            </RadioGroup>
+            {mounted ? (
+                <RadioGroup
+                value={theme}
+                onValueChange={setTheme}
+                className="grid max-w-md grid-cols-3 gap-4"
+                >
+                <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer", theme === 'light' && "border-primary")}>
+                    <Sun className="h-5 w-5"/>
+                    <RadioGroupItem value="light" id="light" className="sr-only" />
+                    <span>Light</span>
+                </Label>
+                <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer", theme === 'dark' && "border-primary")}>
+                    <Moon className="h-5 w-5" />
+                    <RadioGroupItem value="dark" id="dark" className="sr-only" />
+                    <span>Dark</span>
+                </Label>
+                <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer", theme === 'system' && "border-primary")}>
+                    <Laptop className="h-5 w-5" />
+                    <RadioGroupItem value="system" id="system" className="sr-only" />
+                    <span>System</span>
+                </Label>
+                </RadioGroup>
+            ) : (
+                <div className="grid max-w-md grid-cols-3 gap-4">
+                    <Skeleton className="h-[98px]" />
+                    <Skeleton className="h-[98px]" />
+                    <Skeleton className="h-[98px]" />
+                </div>
+            )}
           </div>
         </CardContent>
       </Card>
