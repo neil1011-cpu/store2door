@@ -37,8 +37,14 @@ type User = {
   id: string;
   name: string;
   email: string;
-  address: string;
-  mailboxNumber: number;
+  address: {
+    address1: string;
+    address2: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
+  mailboxNumber: string;
 };
 
 const initialUsers: User[] = [
@@ -46,15 +52,27 @@ const initialUsers: User[] = [
         id: '1',
         name: 'Alicia Keys',
         email: 'alicia@example.com',
-        address: '123 Main St, Orlando, FL 32801, Mailbox #101',
-        mailboxNumber: 101,
+        address: {
+            address1: '4350 NE 5th Terrace Bay #3',
+            address2: 'FSTD101 -FSTD',
+            city: 'Oakland Park',
+            state: 'Florida',
+            zip: '33334',
+        },
+        mailboxNumber: 'FSTD101',
     },
     {
         id: '2',
         name: 'Bob Marley',
         email: 'bob@example.com',
-        address: '123 Main St, Orlando, FL 32801, Mailbox #102',
-        mailboxNumber: 102,
+        address: {
+            address1: '4350 NE 5th Terrace Bay #3',
+            address2: 'FSTD102 -FSTD',
+            city: 'Oakland Park',
+            state: 'Florida',
+            zip: '33334',
+        },
+        mailboxNumber: 'FSTD102',
     }
 ]
 
@@ -62,10 +80,8 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [open, setOpen] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
-  const [baseAddress, setBaseAddress] = useState('123 Main St, Orlando, FL 32801');
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-
 
   const handleAddUser = async () => {
     if(!newUser.name || !newUser.email) {
@@ -76,14 +92,20 @@ export default function UsersPage() {
         });
         return;
     }
-    const nextMailboxNumber = users.length > 0 ? Math.max(...users.map(u => u.mailboxNumber)) + 1 : 101;
-    const newAddress = `${baseAddress}, Mailbox #${nextMailboxNumber}`;
+    const lastMailboxNum = users.length > 0 ? parseInt(users[users.length - 1].mailboxNumber.replace('FSTD', '')) : 100;
+    const nextMailboxNumber = `FSTD${lastMailboxNum + 1}`;
     
     const userToAdd: User = {
         id: (users.length + 1).toString(),
         name: newUser.name,
         email: newUser.email,
-        address: newAddress,
+        address: {
+            address1: '4350 NE 5th Terrace Bay #3',
+            address2: `${nextMailboxNumber} -FSTD`,
+            city: 'Oakland Park',
+            state: 'Florida',
+            zip: '33334',
+        },
         mailboxNumber: nextMailboxNumber,
     };
 
@@ -92,12 +114,17 @@ export default function UsersPage() {
     setNewUser({ name: '', email: '' });
     toast({
         title: 'User Added',
-        description: `${newUser.name} has been added with address: ${newAddress}`,
+        description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
     });
   };
+  
+  const formatAddress = (address: User['address']) => {
+    return `${address.address1}, ${address.address2}, ${address.city}, ${address.state} ${address.zip}`;
+  };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = (address: User['address']) => {
+    const addressString = `Address 1: ${address.address1}\nAddress 2: ${address.address2}\nCity: ${address.city}\nState/Province: ${address.state}\nZip/Postal Code: ${address.zip}`;
+    navigator.clipboard.writeText(addressString);
     toast({
         title: 'Copied to Clipboard',
         description: 'Address has been copied.',
@@ -155,19 +182,6 @@ export default function UsersPage() {
             </Dialog>
         </div>
       </div>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Base Address</CardTitle>
-          <CardDescription>This is the base address for all new users.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <div className="flex items-center gap-2">
-                 <Input value={baseAddress} onChange={(e) => setBaseAddress(e.target.value)} />
-                 <Button>Save</Button>
-            </div>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
@@ -182,6 +196,7 @@ export default function UsersPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Mailbox #</TableHead>
                 <TableHead>Address</TableHead>
                 <TableHead>
                   <span className="sr-only">Actions</span>
@@ -191,21 +206,22 @@ export default function UsersPage() {
             <TableBody>
               {loading ? (
                  <TableRow>
-                    <TableCell colSpan={4} className="text-center">Loading users...</TableCell>
+                    <TableCell colSpan={5} className="text-center">Loading users...</TableCell>
                 </TableRow>
               ) : users.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={4} className="text-center">No users found.</TableCell>
+                    <TableCell colSpan={5} className="text-center">No users found.</TableCell>
                 </TableRow>
               ) : (
                 users.map((user) => (
                     <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.mailboxNumber}</TableCell>
                     <TableCell>
                         <div className="flex items-center gap-2">
-                            <span>{user.address}</span>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyToClipboard(user.address)}>
+                            <span>{formatAddress(user.address)}</span>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => copyToClipboard(user.address)}>
                                 <Copy className="h-4 w-4" />
                             </Button>
                         </div>

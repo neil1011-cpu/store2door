@@ -51,6 +51,12 @@ const features = [
     href: '/finance',
   },
   {
+    title: 'Users',
+    description: 'Manage users and their addresses.',
+    icon: <Users className="h-8 w-8 text-primary" />,
+    href: '/users',
+  },
+  {
     title: 'Courier Rates',
     description: 'Manage your shipping rates.',
     icon: <DollarSign className="h-8 w-8 text-primary" />,
