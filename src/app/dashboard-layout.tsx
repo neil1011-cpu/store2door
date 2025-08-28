@@ -78,7 +78,7 @@ export default function DashboardLayout({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Pre-Alerts">
+                  <SidebarMenuButton asChild tooltip="Pre-Alerts" size="sm">
                     <Link href="/pre-alerts">
                       <ScanText />
                       Pre-Alerts
@@ -86,7 +86,7 @@ export default function DashboardLayout({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Shipping Status">
+                  <SidebarMenuButton asChild tooltip="Shipping Status" size="sm">
                     <Link href="/shipping">
                       <Truck />
                       Shipping Status
@@ -94,7 +94,7 @@ export default function DashboardLayout({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Flight Manifests">
+                  <SidebarMenuButton asChild tooltip="Flight Manifests" size="sm">
                     <Link href="/manifests">
                       <FileText />
                       Flight Manifests
