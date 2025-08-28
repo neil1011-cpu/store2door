@@ -47,7 +47,7 @@ export default function CustomsCalculatorPage() {
     const taxableValueForGCT = cif + importDuty + customsAdminFee;
     const gct = taxableValueForGCT * GCT_RATE;
     
-    const total = cif + importDuty + customsAdminFee + gct;
+    const total = importDuty + customsAdminFee + gct;
 
     setCalculation({
       cif,
@@ -145,7 +145,7 @@ export default function CustomsCalculatorPage() {
                   <span className="font-medium">{formatCurrency(calculation.importDuty)}</span>
                 </div>
                 <div className="flex justify-between items-center border-b pb-2">
-                  <span className="text-muted-foreground">Customs Admin Fee (5%)</span>
+                  <span className="text-muted-foreground">Customs Admin Fee (CAF) (5%)</span>
                   <span className="font-medium">{formatCurrency(calculation.customsAdminFee)}</span>
                 </div>
                 <div className="flex justify-between items-center border-b pb-2">
@@ -153,11 +153,11 @@ export default function CustomsCalculatorPage() {
                   <span className="font-medium">{formatCurrency(calculation.gct)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-4 text-lg">
-                  <span className="font-bold">Estimated Total</span>
+                  <span className="font-bold">Total Estimated Duties</span>
                   <span className="font-bold text-primary">{formatCurrency(calculation.total)}</span>
                 </div>
                  <p className="text-xs text-muted-foreground pt-4">
-                    Disclaimer: This is an estimate only. Actual charges may vary. The calculation does not include local courier fees.
+                    Disclaimer: This is an estimate only and does not include freight or local courier fees. Actual charges from Jamaica Customs Agency may vary.
                 </p>
               </div>
             ) : (
