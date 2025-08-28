@@ -26,6 +26,7 @@ import {
   Users,
   Bell,
   LogOut,
+  DollarSign,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { useAuth } from '@/lib/auth';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -53,9 +54,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const router = useRouter();
+  const { signOut, user } = useAuth();
 
   const handleSignOut = async () => {
-    // Basic sign out, will be improved with Firebase
+    await signOut();
     router.push('/auth/signin');
   };
 
@@ -110,6 +112,14 @@ export default function DashboardLayout({
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Courier Rates">
+                    <Link href="/rates">
+                      <DollarSign />
+                      Courier Rates
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                  <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Users">
                     <Link href="/users">
@@ -133,10 +143,10 @@ export default function DashboardLayout({
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton>
                      <Avatar className="size-7">
-                      <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
+                      <AvatarImage src={user?.photoURL ?? "https://placehold.co/40x40"} alt="User avatar" />
                       <AvatarFallback>U</AvatarFallback>
                     </Avatar>
-                    <span>Guest User</span>
+                    <span>{user?.displayName ?? user?.email ?? 'Guest User'}</span>
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 mb-2 ml-2">
@@ -192,7 +202,7 @@ export default function DashboardLayout({
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" asChild size="icon">
                      <Avatar>
-                        <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
+                        <AvatarImage src={user?.photoURL ?? "https://placehold.co/40x40"} alt="User avatar" />
                         <AvatarFallback>U</AvatarFallback>
                       </Avatar>
                   </Button>

@@ -16,6 +16,7 @@ import {
   ArrowRight,
   Users,
   Bell,
+  DollarSign,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,12 @@ const features = [
     icon: <Banknote className="h-8 w-8 text-primary" />,
     href: '/finance',
   },
+  {
+    title: 'Courier Rates',
+    description: 'Manage your shipping rates.',
+    icon: <DollarSign className="h-8 w-8 text-primary" />,
+    href: '/rates',
+  }
 ];
 
 type Activity = {
@@ -116,7 +123,7 @@ export default function DashboardPage() {
           Your all-in-one solution for courier management.
         </p>
       </div>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
         {features.map((feature) => (
           <Card
             key={feature.title}

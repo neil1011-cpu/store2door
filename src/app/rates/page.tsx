@@ -1,0 +1,80 @@
+
+'use client';
+
+import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+
+export default function RatesPage() {
+  const { toast } = useToast();
+  const [ratePerPound, setRatePerPound] = useState(5);
+  const [roundToNearestPound, setRoundToNearestPound] = useState(true);
+
+  const handleSaveRates = () => {
+    toast({
+      title: 'Courier Rates Saved',
+      description: 'Your new courier rates have been saved.',
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Courier Rate Management</h1>
+          <p className="text-muted-foreground">Adjust pricing per pound and rounding options.</p>
+        </div>
+        <Button variant="outline" asChild>
+            <Link href="/dashboard">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Dashboard
+            </Link>
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rates and Rounding</CardTitle>
+          <CardDescription>Set your courier rates and rounding preferences.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+            <div className="space-y-2">
+                <Label htmlFor="rate-per-pound">Rate per Pound ($)</Label>
+                 <div className="flex items-center gap-2 max-w-sm">
+                    <Input
+                        id="rate-per-pound"
+                        type="number"
+                        value={ratePerPound}
+                        onChange={(e) => setRatePerPound(Number(e.target.value))}
+                        min="0"
+                        step="0.01"
+                    />
+                 </div>
+            </div>
+             <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="round-off" className="text-base">
+                  Round to Nearest Pound
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                    If enabled, the total weight will be rounded up to the nearest whole pound.
+                </p>
+              </div>
+              <Switch
+                id="round-off"
+                checked={roundToNearestPound}
+                onCheckedChange={setRoundToNearestPound}
+              />
+            </div>
+            <Button onClick={handleSaveRates}>Save Rates</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
