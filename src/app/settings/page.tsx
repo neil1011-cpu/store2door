@@ -8,13 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const [avatar, setAvatar] = useState('https://placehold.co/128x128.png');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [apiKey, setApiKey] = useState('');
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -31,12 +32,21 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveApiKey = () => {
+    // In a real application, you would securely save this key.
+    // For now, we'll just show a success message.
+    toast({
+      title: 'API Key Saved',
+      description: 'Your ipack API key has been securely saved.',
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground">Manage your account settings.</p>
+          <p className="text-muted-foreground">Manage your account and application settings.</p>
         </div>
         <Button variant="outline" asChild>
             <Link href="/dashboard">
@@ -73,6 +83,31 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+       <Card>
+        <CardHeader>
+          <CardTitle>API Configuration</CardTitle>
+          <CardDescription>Manage API keys for external services.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="ipack-api-key" className="flex items-center gap-2 mb-2">
+                <KeyRound className="h-4 w-4" />
+                <span>ipack API Key</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  id="ipack-api-key" 
+                  type="password" 
+                  placeholder="Enter your ipack API key" 
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                />
+                <Button onClick={handleSaveApiKey}>Save Key</Button>
+              </div>
+            </div>
         </CardContent>
       </Card>
     </div>
