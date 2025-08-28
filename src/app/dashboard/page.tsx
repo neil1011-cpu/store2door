@@ -17,6 +17,7 @@ import {
   Users,
   Bell,
   DollarSign,
+  Settings,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,12 @@ const features = [
     description: 'Manage your shipping rates.',
     icon: <DollarSign className="h-8 w-8 text-primary" />,
     href: '/rates',
+  },
+  {
+    title: 'Settings',
+    description: 'Manage application settings.',
+    icon: <Settings className="h-8 w-8 text-primary" />,
+    href: '/settings',
   }
 ];
 
@@ -123,7 +130,7 @@ export default function DashboardPage() {
           Your all-in-one solution for courier management.
         </p>
       </div>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {features.map((feature) => (
           <Card
             key={feature.title}
