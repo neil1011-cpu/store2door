@@ -163,7 +163,7 @@ export default function DashboardLayout({
               <div className="flex-1">
                 {/* Header content can go here */}
               </div>
-               <ThemeToggle />
+              
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">

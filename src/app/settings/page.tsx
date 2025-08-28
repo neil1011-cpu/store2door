@@ -8,14 +8,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound } from 'lucide-react';
+import { ArrowLeft, KeyRound, Moon, Sun, Laptop } from 'lucide-react';
 import Link from 'next/link';
+import { useTheme } from 'next-themes';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const [avatar, setAvatar] = useState('https://placehold.co/128x128.png');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [apiKey, setApiKey] = useState('');
+  const { theme, setTheme } = useTheme();
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -55,6 +59,41 @@ export default function SettingsPage() {
             </Link>
         </Button>
       </div>
+
+       <Card>
+        <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription>
+            Customize the look and feel of the application.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label>Theme</Label>
+            <RadioGroup
+              value={theme}
+              onValueChange={setTheme}
+              className="grid max-w-md grid-cols-3 gap-4"
+            >
+              <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer", theme === 'light' && "border-primary")}>
+                <Sun className="h-5 w-5"/>
+                <RadioGroupItem value="light" id="light" className="sr-only" />
+                <span>Light</span>
+              </Label>
+              <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer", theme === 'dark' && "border-primary")}>
+                <Moon className="h-5 w-5" />
+                <RadioGroupItem value="dark" id="dark" className="sr-only" />
+                <span>Dark</span>
+              </Label>
+              <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer", theme === 'system' && "border-primary")}>
+                <Laptop className="h-5 w-5" />
+                <RadioGroupItem value="system" id="system" className="sr-only" />
+                <span>System</span>
+              </Label>
+            </RadioGroup>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
