@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -162,6 +163,7 @@ export default function DashboardLayout({
               <div className="flex-1">
                 {/* Header content can go here */}
               </div>
+               <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">
