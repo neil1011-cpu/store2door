@@ -70,62 +70,7 @@ const features = [
   }
 ];
 
-type Activity = {
-  id: string;
-  type: 'user' | 'alert';
-  text: string;
-  timestamp: Date;
-};
-
-const mockActivities: Activity[] = [
-    { id: '1', type: 'alert', text: 'New pre-alert from John Doe (JM456).', timestamp: new Date(new Date().setDate(new Date().getDate() - 1))},
-    { id: '2', type: 'user', text: 'Alicia Keys was added as a new user.', timestamp: new Date(new Date().setDate(new Date().getDate() - 2))},
-    { id: '3', type: 'alert', text: 'New pre-alert from Jane Smith (JM789).', timestamp: new Date(new Date().setDate(new Date().getDate() - 3))},
-    { id: '4', type: 'user', text: 'Bob Marley was added as a new user.', timestamp: new Date(new Date().setDate(new Date().getDate() - 4))},
-    { id: '5', type: 'alert', text: 'New pre-alert from Peter Tosh (JM101).', timestamp: new Date(new Date().setDate(new Date().getDate() - 5))},
-]
-
 export default function DashboardPage() {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchActivities = () => {
-      setLoading(true);
-      // Simulate fetching data
-      setTimeout(() => {
-        setActivities(mockActivities);
-        setLoading(false);
-      }, 1000);
-    };
-
-    fetchActivities();
-  }, []);
-
-  const renderIcon = (type: 'user' | 'alert') => {
-    switch(type) {
-      case 'user':
-        return <Users className="h-4 w-4" />;
-      case 'alert':
-        return <ScanText className="h-4 w-4" />;
-      default:
-        return null;
-    }
-  }
-
- const formatActivityDate = (date: Date) => {
-    const now = new Date();
-    const diffDays = Math.round((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) {
-      return 'Today';
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else {
-       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-  };
-
 
   return (
     <div className="flex flex-col gap-6">
@@ -166,44 +111,6 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            An overview of the latest events in your system.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-            {loading ? (
-                <div className="flex h-48 items-center justify-center">
-                    <p className="text-sm text-muted-foreground">Loading activity...</p>
-                </div>
-            ) : activities.length === 0 ? (
-                <div className="flex h-48 items-center justify-center rounded-md border-2 border-dashed">
-                    <p className="text-sm text-muted-foreground">
-                    No recent activity to show.
-                    </p>
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {activities.map(activity => (
-                        <div key={activity.id} className="flex items-center gap-4">
-                            <Avatar className="h-9 w-9">
-                                <AvatarFallback className="bg-primary/10 text-primary">
-                                    {renderIcon(activity.type)}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1">
-                                <p className="text-sm">{activity.text}</p>
-                            </div>
-                            <time className="text-sm text-muted-foreground">{formatActivityDate(activity.timestamp)}</time>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
