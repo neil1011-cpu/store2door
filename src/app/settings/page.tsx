@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound, Moon, Sun, Laptop, PoundSterling } from 'lucide-react';
+import { ArrowLeft, KeyRound, Moon, Sun, Laptop } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
