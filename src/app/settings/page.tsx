@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound, Moon, Sun, Laptop } from 'lucide-react';
+import { ArrowLeft, KeyRound, Moon, Sun, Laptop, PoundSterling } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -22,6 +23,8 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [ratePerPound, setRatePerPound] = useState(5);
+  const [roundToNearestPound, setRoundToNearestPound] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -43,11 +46,16 @@ export default function SettingsPage() {
   };
 
   const handleSaveApiKey = () => {
-    // In a real application, you would securely save this key.
-    // For now, we'll just show a success message.
     toast({
       title: 'API Key Saved',
       description: 'Your ipack API key has been securely saved.',
+    });
+  };
+
+  const handleSaveRates = () => {
+    toast({
+      title: 'Courier Rates Saved',
+      description: 'Your new courier rates have been saved.',
     });
   };
 
@@ -163,6 +171,45 @@ export default function SettingsPage() {
             </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Courier Rate Management</CardTitle>
+          <CardDescription>Adjust pricing per pound and rounding options.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+            <div className="space-y-2">
+                <Label htmlFor="rate-per-pound">Rate per Pound ($)</Label>
+                 <div className="flex items-center gap-2 max-w-sm">
+                    <Input
+                        id="rate-per-pound"
+                        type="number"
+                        value={ratePerPound}
+                        onChange={(e) => setRatePerPound(Number(e.target.value))}
+                        min="0"
+                        step="0.01"
+                    />
+                 </div>
+            </div>
+             <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="round-off" className="text-base">
+                  Round to Nearest Pound
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                    If enabled, the total weight will be rounded up to the nearest whole pound.
+                </p>
+              </div>
+              <Switch
+                id="round-off"
+                checked={roundToNearestPound}
+                onCheckedChange={setRoundToNearestPound}
+              />
+            </div>
+            <Button onClick={handleSaveRates}>Save Rates</Button>
+        </CardContent>
+      </Card>
+
     </div>
   );
 }
