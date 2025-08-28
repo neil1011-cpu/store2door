@@ -20,9 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Calculator } from 'lucide-react';
+import { ArrowLeft, Calculator, Dices } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 
 // Note: These are simplified, estimated rates for demonstration purposes,
 // reflecting common categories under Jamaican customs policy.
@@ -36,6 +37,7 @@ const CUSTOMS_RATES = {
 };
 const CUSTOMS_ADMIN_FEE_RATE = 0.075; // Standard CAF is 7.5%
 const ASSUMED_INSURANCE_RATE = 0.01; // Assume 1% of item cost for insurance
+const USD_TO_JMD_RATE = 157.5; // Static exchange rate for conversion
 
 type Category = keyof typeof CUSTOMS_RATES;
 
@@ -44,6 +46,7 @@ export default function CustomsCalculatorPage() {
   const [weight, setWeight] = useState('');
   const [shipping, setShipping] = useState('');
   const [category, setCategory] = useState<Category>('GENERAL');
+  const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('USD');
 
   const [calculation, setCalculation] = useState({
     cif: 0,
@@ -85,7 +88,8 @@ export default function CustomsCalculatorPage() {
   };
 
   const formatCurrency = (value: number) => {
-    return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    const finalValue = displayCurrency === 'JMD' ? value * USD_TO_JMD_RATE : value;
+    return finalValue.toLocaleString('en-US', { style: 'currency', currency: displayCurrency });
   };
 
   return (
@@ -177,6 +181,22 @@ export default function CustomsCalculatorPage() {
           <CardContent className="flex-1">
             {calculation.calculated ? (
               <div className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="currency-toggle" className="text-base">
+                      Display in {displayCurrency}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                        Toggle to switch between USD and JMD.
+                    </p>
+                  </div>
+                  <Switch
+                    id="currency-toggle"
+                    checked={displayCurrency === 'JMD'}
+                    onCheckedChange={(checked) => setDisplayCurrency(checked ? 'JMD' : 'USD')}
+                  />
+                </div>
+
                 <div className="flex justify-between items-center border-b pb-2 text-sm">
                   <span className="text-muted-foreground">CIF Value (Cost, Insurance, Freight)</span>
                   <span className="font-medium">{formatCurrency(calculation.cif)}</span>
@@ -204,7 +224,7 @@ export default function CustomsCalculatorPage() {
                   <span className="font-bold text-primary">{formatCurrency(calculation.total)}</span>
                 </div>
                  <p className="text-xs text-muted-foreground pt-4">
-                    Disclaimer: This is an estimate only and does not include local freight or courier fees. Actual charges from the Jamaica Customs Agency may vary. Insurance is estimated at 1% of the item price.
+                    Disclaimer: This is an estimate only and does not include local freight or courier fees. Actual charges from the Jamaica Customs Agency may vary. Insurance is estimated at 1% of the item price. Exchange rate is an estimate.
                 </p>
               </div>
             ) : (
