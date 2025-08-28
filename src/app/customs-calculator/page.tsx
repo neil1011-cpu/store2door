@@ -37,7 +37,7 @@ const CUSTOMS_RATES = {
 };
 const CUSTOMS_ADMIN_FEE_RATE = 0.075; // Standard CAF is 7.5%
 const ASSUMED_INSURANCE_RATE = 0.01; // Assume 1% of item cost for insurance
-const USD_TO_JMD_RATE = 157.5; // Static exchange rate for conversion
+const USD_TO_JMD_RATE = 156; // Static exchange rate for conversion
 
 type Category = keyof typeof CUSTOMS_RATES;
 
