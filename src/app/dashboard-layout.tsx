@@ -27,6 +27,7 @@ import {
   Bell,
   LogOut,
   DollarSign,
+  Calculator,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -117,6 +118,14 @@ export default function DashboardLayout({
                     <Link href="/rates">
                       <DollarSign />
                       Courier Rates
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Customs Calculator">
+                    <Link href="/customs-calculator">
+                      <Calculator />
+                      Customs Calculator
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
