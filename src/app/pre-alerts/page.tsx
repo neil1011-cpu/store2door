@@ -46,27 +46,6 @@ type PreAlert = {
   invoiceUrl: string;
 };
 
-const initialPreAlerts: PreAlert[] = [
-    {
-        id: '1',
-        customer: 'John Doe',
-        trackingNumber: 'JM456',
-        contents: 'Laptop',
-        status: 'Pending',
-        date: new Date().toLocaleDateString('en-US'),
-        invoiceUrl: 'https://placehold.co/600x800.png',
-    },
-    {
-        id: '2',
-        customer: 'Jane Smith',
-        trackingNumber: 'JM789',
-        contents: 'Books',
-        status: 'Processed',
-        date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'),
-        invoiceUrl: 'https://placehold.co/600x800.png',
-    }
-]
-
 const getStatusVariant = (status: string) => {
   switch (status) {
     case 'Pending':
@@ -79,8 +58,8 @@ const getStatusVariant = (status: string) => {
 };
 
 export default function PreAlertsPage() {
-  const [preAlerts, setPreAlerts] = useState<PreAlert[]>(initialPreAlerts);
-  const [loading, setLoading] = useState(false);
+  const [preAlerts, setPreAlerts] = useState<PreAlert[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const [newAlert, setNewAlert] = useState({
@@ -89,6 +68,29 @@ export default function PreAlertsPage() {
     contents: '',
     status: 'Pending' as 'Pending' | 'Processed',
   });
+
+  useEffect(() => {
+    const fetchPreAlerts = async () => {
+      try {
+        const response = await fetch('/api/warehouse/intake');
+        if (!response.ok) {
+          throw new Error('Failed to fetch pre-alerts');
+        }
+        const data = await response.json();
+        setPreAlerts(data);
+      } catch (error) {
+        toast({
+            title: 'Error',
+            description: (error as Error).message,
+            variant: 'destructive'
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPreAlerts();
+  }, [toast]);
+
 
   const handleCreateAlert = async () => {
     if (!newAlert.customer || !newAlert.trackingNumber || !newAlert.contents) {
@@ -100,20 +102,40 @@ export default function PreAlertsPage() {
       return;
     }
     
-    const newPreAlert: PreAlert = {
-        id: (preAlerts.length + 1).toString(),
-        ...newAlert,
-        date: new Date().toLocaleDateString('en-US'),
-        invoiceUrl: 'https://placehold.co/600x800.png',
-    };
+    setLoading(true);
+    try {
+      const response = await fetch('/api/warehouse/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            customerName: newAlert.customer,
+            trackingId: newAlert.trackingNumber,
+            contents: newAlert.contents,
+            status: newAlert.status
+        }),
+      });
 
-    setPreAlerts([newPreAlert, ...preAlerts]);
-    setOpen(false);
-    setNewAlert({ customer: '', trackingNumber: '', contents: '', status: 'Pending' });
-    toast({
-      title: 'Pre-Alert Created',
-      description: `Pre-alert for ${newAlert.trackingNumber} has been successfully created.`,
-    });
+      if (!response.ok) {
+        throw new Error('Failed to create pre-alert');
+      }
+
+      const newPreAlert = await response.json();
+      setPreAlerts([newPreAlert, ...preAlerts]);
+      setOpen(false);
+      setNewAlert({ customer: '', trackingNumber: '', contents: '', status: 'Pending' });
+      toast({
+        title: 'Pre-Alert Created',
+        description: `Pre-alert for ${newAlert.trackingNumber} has been successfully created.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error creating pre-alert',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -185,7 +207,9 @@ export default function PreAlertsPage() {
                 </div>
                 </div>
                 <DialogFooter>
-                <Button type="submit" onClick={handleCreateAlert}>Save Pre-Alert</Button>
+                <Button type="submit" onClick={handleCreateAlert} disabled={loading}>
+                    {loading ? 'Saving...' : 'Save Pre-Alert'}
+                </Button>
                 </DialogFooter>
             </DialogContent>
             </Dialog>
@@ -253,8 +277,8 @@ export default function PreAlertsPage() {
                             <Image
                               src={alert.invoiceUrl}
                               alt={`Invoice for ${alert.trackingNumber}`}
-                              width={800}
-                              height={1000}
+                              width={600}
+                              height={800}
                               className="w-full h-auto"
                               data-ai-hint="invoice document"
                             />
