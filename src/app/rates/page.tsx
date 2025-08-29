@@ -1,27 +1,75 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RatesPage() {
   const { toast } = useToast();
   const [ratePerPound, setRatePerPound] = useState(5);
   const [roundToNearestPound, setRoundToNearestPound] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  const handleSaveRates = () => {
-    toast({
-      title: 'Courier Rates Saved',
-      description: 'Your new courier rates have been saved.',
-    });
-  };
+  useEffect(() => {
+    try {
+      const savedRate = localStorage.getItem('ratePerPound');
+      const savedRounding = localStorage.getItem('roundToNearestPound');
+
+      if (savedRate) {
+        setRatePerPound(JSON.parse(savedRate));
+      }
+      if (savedRounding) {
+        setRoundToNearestPound(JSON.parse(savedRounding));
+      }
+    } catch (error) {
+        toast({
+            title: 'Error loading settings',
+            description: 'Could not load your saved settings. Reverting to defaults.',
+            variant: 'destructive'
+        })
+    }
+    setIsLoaded(true);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    try {
+      localStorage.setItem('ratePerPound', JSON.stringify(ratePerPound));
+      toast({
+        title: 'Rate Updated',
+        description: `Rate per pound is now $${ratePerPound.toFixed(2)}.`,
+      });
+    } catch (error) {
+        toast({
+            title: 'Error saving rate',
+            variant: 'destructive'
+        })
+    }
+  }, [ratePerPound, isLoaded, toast]);
+  
+  useEffect(() => {
+    if (!isLoaded) return;
+    try {
+        localStorage.setItem('roundToNearestPound', JSON.stringify(roundToNearestPound));
+        toast({
+            title: 'Rounding Setting Updated',
+            description: `Rounding is now ${roundToNearestPound ? 'enabled' : 'disabled'}.`
+        });
+    } catch (error) {
+         toast({
+            title: 'Error saving rounding preference',
+            variant: 'destructive'
+        })
+    }
+  }, [roundToNearestPound, isLoaded, toast]);
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,7 +89,7 @@ export default function RatesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Rates and Rounding</CardTitle>
-          <CardDescription>Set your courier rates and rounding preferences.</CardDescription>
+          <CardDescription>Set your courier rates and rounding preferences. Changes are saved automatically.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
             <div className="space-y-2">
@@ -51,9 +99,10 @@ export default function RatesPage() {
                         id="rate-per-pound"
                         type="number"
                         value={ratePerPound}
-                        onChange={(e) => setRatePerPound(Number(e.target.value))}
+                        onChange={(e) => setRatePerPound(Number(e.target.value) || 0)}
                         min="0"
                         step="0.01"
+                        disabled={!isLoaded}
                     />
                  </div>
             </div>
@@ -70,9 +119,9 @@ export default function RatesPage() {
                 id="round-off"
                 checked={roundToNearestPound}
                 onCheckedChange={setRoundToNearestPound}
+                disabled={!isLoaded}
               />
             </div>
-            <Button onClick={handleSaveRates}>Save Rates</Button>
         </CardContent>
       </Card>
     </div>
