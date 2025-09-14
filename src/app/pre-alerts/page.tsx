@@ -71,6 +71,7 @@ export default function PreAlertsPage() {
 
   useEffect(() => {
     const fetchPreAlerts = async () => {
+      setLoading(true);
       try {
         const response = await fetch('/api/warehouse/intake');
         if (!response.ok) {
@@ -116,7 +117,8 @@ export default function PreAlertsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create pre-alert');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create pre-alert');
       }
 
       const newPreAlert = await response.json();
@@ -150,7 +152,7 @@ export default function PreAlertsPage() {
         </div>
         <div className="flex gap-2">
             <Button variant="outline" asChild>
-                <Link href="/dashboard">
+                <Link href="/">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Dashboard
                 </Link>

@@ -21,7 +21,7 @@ let preAlerts: PreAlert[] = [
         contents: 'Laptop from Amazon',
         status: 'Pending',
         date: new Date().toLocaleDateString('en-US'),
-        invoiceUrl: 'https://picsum.photos/600/800',
+        invoiceUrl: 'https://picsum.photos/seed/1/600/800',
     },
     {
         id: '2',
@@ -30,7 +30,7 @@ let preAlerts: PreAlert[] = [
         contents: 'Books from eBay',
         status: 'Processed',
         date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'),
-        invoiceUrl: 'https://picsum.photos/600/800',
+        invoiceUrl: 'https://picsum.photos/seed/2/600/800',
     }
 ];
 
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       contents: contents,
       status: status,
       date: new Date().toLocaleDateString('en-US'),
-      invoiceUrl: 'https://picsum.photos/600/800', // Generate a random placeholder
+      invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Generate a random placeholder
     };
 
     // In a real app, you'd save to your database here.
