@@ -13,7 +13,7 @@ import Link from 'next/link';
 
 export default function RatesPage() {
   const { toast } = useToast();
-  const [ratePerPound, setRatePerPound] = useState(5);
+  const [ratePerPound, setRatePerPound] = useState(4.81);
   const [roundToNearestPound, setRoundToNearestPound] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -93,7 +93,7 @@ export default function RatesPage() {
         </CardHeader>
         <CardContent className="space-y-6">
             <div className="space-y-2">
-                <Label htmlFor="rate-per-pound">Rate per Pound ($)</Label>
+                <Label htmlFor="rate-per-pound">Rate per Pound ($ USD)</Label>
                  <div className="flex items-center gap-2 max-w-sm">
                     <Input
                         id="rate-per-pound"

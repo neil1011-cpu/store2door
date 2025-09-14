@@ -9,12 +9,16 @@ import { Label } from '@/components/ui/label';
 import { DollarSign, Weight, ShoppingCart, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
+const USD_TO_JMD_RATE = 156;
+
 export default function RatesPage() {
-  const [ratePerPound, setRatePerPound] = useState(5);
+  const [ratePerPoundUSD, setRatePerPoundUSD] = useState(4.81);
   const [roundToNearestPound, setRoundToNearestPound] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [weight, setWeight] = useState('');
   const [estimatedCost, setEstimatedCost] = useState<number | null>(null);
+
+  const ratePerPoundJMD = ratePerPoundUSD * USD_TO_JMD_RATE;
 
   useEffect(() => {
     // In a real application, these rates would be fetched from a backend API.
@@ -25,7 +29,7 @@ export default function RatesPage() {
       const savedRounding = localStorage.getItem('roundToNearestPound');
 
       if (savedRate) {
-        setRatePerPound(JSON.parse(savedRate));
+        setRatePerPoundUSD(JSON.parse(savedRate));
       }
       if (savedRounding) {
         setRoundToNearestPound(JSON.parse(savedRounding));
@@ -44,12 +48,12 @@ export default function RatesPage() {
     const weightNum = parseFloat(weight);
     if (weightNum > 0) {
         const effectiveWeight = roundToNearestPound ? Math.ceil(weightNum) : weightNum;
-        const cost = effectiveWeight * ratePerPound;
+        const cost = effectiveWeight * ratePerPoundJMD;
         setEstimatedCost(cost);
     } else {
         setEstimatedCost(0);
     }
-  }, [weight, ratePerPound, roundToNearestPound]);
+  }, [weight, ratePerPoundJMD, roundToNearestPound]);
 
   return (
     <div className="container mx-auto py-12 px-4 md:px-6">
@@ -73,7 +77,8 @@ export default function RatesPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-baseline justify-center text-center p-6 bg-muted rounded-lg">
-                <span className="text-5xl font-bold">${ratePerPound.toFixed(2)}</span>
+                <span className="text-2xl font-bold mr-1">JMD</span>
+                <span className="text-5xl font-bold">${ratePerPoundJMD.toFixed(2)}</span>
                 <span className="text-xl text-muted-foreground">/lb</span>
             </div>
              <div className="text-sm text-muted-foreground space-y-2">
@@ -123,7 +128,7 @@ export default function RatesPage() {
                     {estimatedCost !== null && (
                         <div className="pt-4 text-center">
                             <p className="text-muted-foreground">Estimated Shipping Cost:</p>
-                            <p className="text-4xl font-bold text-primary">${estimatedCost.toFixed(2)}</p>
+                            <p className="text-4xl font-bold text-primary">JMD ${estimatedCost.toFixed(2)}</p>
                              <p className="text-xs text-muted-foreground mt-2">(Excludes customs, duties, and other local fees)</p>
                         </div>
                     )}
