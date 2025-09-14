@@ -1,17 +1,21 @@
 
-'use client';
-
+import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from "@/components/ui/toaster";
-import { UserHeader } from '@/components/user-header';
+import { AppContent } from '@/components/app-content';
 
+export const metadata: Metadata = {
+  title: 'FromStore2Door',
+  description: 'Your Bridge Between Florida & Jamaica',
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -29,10 +33,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="flex flex-col min-h-screen">
-            <UserHeader />
-            <main className="flex-1">{children}</main>
-          </div>
+          <AppContent>
+            {children}
+          </AppContent>
           <Toaster />
         </ThemeProvider>
       </body>
