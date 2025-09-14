@@ -4,30 +4,42 @@ import { z } from 'zod';
 
 type Message = {
   id: string;
+  conversationId: string;
   customerName: string;
   subject: string;
   message: string;
   date: string;
-  status: 'New' | 'Read';
+  sender: 'user' | 'agent';
 };
 
 // Using an in-memory store for now. In a real app, you'd use a database.
 let messages: Message[] = [
     {
         id: '1',
+        conversationId: 'conv1',
         customerName: 'Bob Marley',
         subject: 'Question about my last shipment',
         message: 'Hi there, I was just wondering about the status of my last package, tracking number JM789. It seems to be stuck in customs. Can you provide an update? Thanks!',
-        date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'),
-        status: 'New',
+        date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
+        sender: 'user',
+    },
+    {
+        id: '1a',
+        conversationId: 'conv1',
+        customerName: 'Bob Marley',
+        subject: 'Question about my last shipment',
+        message: 'Hello! Thanks for reaching out. We see that your package is currently undergoing standard customs inspection. This usually takes 2-3 business days. We will notify you as soon as it clears.',
+        date: new Date().toISOString(),
+        sender: 'agent',
     },
     {
         id: '2',
+        conversationId: 'conv2',
         customerName: 'Alicia Keys',
         subject: 'Address Update',
         message: 'Hello, I need to update my delivery address for future shipments. Please let me know what information you need from me. Best, Alicia',
-        date: new Date(new Date().setDate(new Date().getDate() - 2)).toLocaleDateString('en-US'),
-        status: 'Read',
+        date: new Date(new Date().setDate(new Date().getDate() - 2)).toISOString(),
+        sender: 'user',
     }
 ];
 
@@ -35,13 +47,15 @@ const messageSchema = z.object({
   customerName: z.string(),
   subject: z.string(),
   message: z.string(),
+  conversationId: z.string().optional(),
+  sender: z.enum(['user', 'agent']),
 });
 
 // GET handler to fetch all messages
 export async function GET() {
   try {
     // In a real app, you'd fetch from your database here.
-    return NextResponse.json(messages.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    return NextResponse.json(messages.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
   } catch (error) {
     return NextResponse.json({ message: 'Failed to fetch messages', error }, { status: 500 });
   }
@@ -57,15 +71,18 @@ export async function POST(request: Request) {
       return NextResponse.json(validation.error.errors, { status: 400 });
     }
 
-    const { customerName, subject, message } = validation.data;
+    const { customerName, subject, message, sender, conversationId } = validation.data;
+    
+    const newConversationId = conversationId || `conv${Date.now()}`;
     
     const newMessage: Message = {
       id: (messages.length + 1).toString(),
+      conversationId: newConversationId,
       customerName,
       subject,
       message,
-      status: 'New',
-      date: new Date().toLocaleDateString('en-US'),
+      sender,
+      date: new Date().toISOString(),
     };
 
     messages.unshift(newMessage);
@@ -75,5 +92,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Failed to create message', error }, { status: 500 });
   }
 }
-
-    

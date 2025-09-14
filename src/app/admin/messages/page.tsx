@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,16 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -28,18 +21,30 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/ui/textarea';
+
 
 type Message = {
   id: string;
-  customerName: string;
-  subject: string;
-  message: string;
-  date: string;
-  status: 'New' | 'Read';
+  conversationId: string;
+  sender: 'user' | 'agent';
+  text: string;
+  timestamp: string;
 };
 
+type Conversation = {
+    id: string;
+    subject: string;
+    customerName: string;
+    status: 'Open' | 'Closed';
+    messages: Message[];
+    lastUpdate: string;
+}
+
 export default function MessagesPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -51,7 +56,39 @@ export default function MessagesPage() {
         throw new Error('Failed to fetch messages');
       }
       const data = await response.json();
-      setMessages(data);
+      
+      // Group messages by conversation ID
+      const groupedConversations: {[key: string]: Conversation} = {};
+      data.forEach((msg: any) => {
+          if (!groupedConversations[msg.conversationId]) {
+              groupedConversations[msg.conversationId] = {
+                  id: msg.conversationId,
+                  customerName: msg.customerName,
+                  subject: msg.subject,
+                  status: 'Open', // This could be dynamic in a real app
+                  messages: [],
+                  lastUpdate: msg.date,
+              };
+          }
+          groupedConversations[msg.conversationId].messages.push({
+            id: msg.id,
+            conversationId: msg.conversationId,
+            sender: msg.sender,
+            text: msg.message,
+            timestamp: msg.date,
+          });
+          // Sort messages within conversation by date
+          groupedConversations[msg.conversationId].messages.sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          
+          // Update lastUpdate time
+           const latestMessageDate = new Date(groupedConversations[msg.conversationId].messages[groupedConversations[msg.conversationId].messages.length - 1].timestamp);
+           if (new Date(groupedConversations[msg.conversationId].lastUpdate) < latestMessageDate) {
+                groupedConversations[msg.conversationId].lastUpdate = latestMessageDate.toLocaleString();
+           }
+      });
+      
+      setConversations(Object.values(groupedConversations).sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime()));
+
     } catch (error) {
       toast({
         title: 'Error',
@@ -65,7 +102,7 @@ export default function MessagesPage() {
 
   useEffect(() => {
     fetchMessages();
-  }, [toast]);
+  }, []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -97,43 +134,69 @@ export default function MessagesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Inbox</CardTitle>
-          <CardDescription>A list of all messages from customers.</CardDescription>
+          <CardDescription>A list of all message threads from customers.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center items-center h-48">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : messages.length === 0 ? (
+          ) : conversations.length === 0 ? (
             <p className="text-center text-muted-foreground py-12">
               You have no messages.
             </p>
           ) : (
             <Accordion type="single" collapsible className="w-full">
-              {messages.map((message) => (
-                <AccordionItem value={message.id} key={message.id}>
+              {conversations.map((conv) => (
+                <AccordionItem value={conv.id} key={conv.id}>
                   <AccordionTrigger>
                     <div className="flex items-center justify-between w-full pr-4">
                       <div className="flex items-center gap-4">
                         <Badge
-                          variant={message.status === 'New' ? 'destructive' : 'secondary'}
+                          variant={conv.status === 'Open' ? 'destructive' : 'secondary'}
                         >
-                          {message.status}
+                          {conv.status}
                         </Badge>
-                        <span className="font-medium">{message.customerName}</span>
+                        <span className="font-medium">{conv.customerName}</span>
                         <span className="text-muted-foreground hidden md:inline">
-                          - {message.subject}
+                          - {conv.subject}
                         </span>
                       </div>
                       <span className="text-sm text-muted-foreground">
-                        {message.date}
+                        {new Date(conv.lastUpdate).toLocaleString()}
                       </span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="p-4 bg-muted rounded-md">
-                      <p className="text-sm">{message.message}</p>
-                    </div>
+                        <div className="p-4 space-y-4">
+                            {conv.messages.map(msg => (
+                                <div key={msg.id} className={cn("flex items-start gap-3", msg.sender === 'agent' ? "justify-end" : "justify-start")}>
+                                     {msg.sender === 'user' && (
+                                        <Avatar className="h-9 w-9">
+                                            <AvatarFallback>{conv.customerName.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                     )}
+                                     <div className={cn("rounded-lg p-3 max-w-lg", msg.sender === 'agent' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
+                                        <p className="text-sm">{msg.text}</p>
+                                        <p className="text-xs mt-1 opacity-70 text-right">{new Date(msg.timestamp).toLocaleTimeString()}</p>
+                                     </div>
+                                      {msg.sender === 'agent' && (
+                                        <Avatar className="h-9 w-9">
+                                             <AvatarImage src="https://picsum.photos/seed/support/40/40" alt="Support Agent" />
+                                            <AvatarFallback>SA</AvatarFallback>
+                                        </Avatar>
+                                     )}
+                                </div>
+                            ))}
+                             <div className="pt-4 border-t">
+                                <Label className="mb-2">Reply to {conv.customerName}</Label>
+                                <Textarea placeholder="Write a reply..." className="mb-2" />
+                                <Button size="sm">
+                                    <Send className="mr-2 h-4 w-4" />
+                                    Send Reply
+                                </Button>
+                             </div>
+                        </div>
                   </AccordionContent>
                 </AccordionItem>
               ))}
@@ -144,5 +207,3 @@ export default function MessagesPage() {
     </div>
   );
 }
-
-    

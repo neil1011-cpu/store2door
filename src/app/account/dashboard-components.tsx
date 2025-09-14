@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState } from 'react';
@@ -6,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard, MoreHorizontal, FileText, Download } from 'lucide-react';
+import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare } from 'lucide-react';
 import { AccountDetails, Shipment } from './page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,8 +15,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import Image from 'next/image';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 // A mock list of shipments for the user. In a real app, this would be fetched.
 const userShipments: Shipment[] = [
@@ -296,11 +300,52 @@ export function PackagesTab() {
 }
 
 
+type Message = {
+    id: string;
+    conversationId: string;
+    sender: 'user' | 'agent';
+    text: string;
+    timestamp: string;
+};
+
+type Conversation = {
+    id: string;
+    subject: string;
+    status: 'Open' | 'Closed';
+    messages: Message[];
+    lastUpdate: string;
+}
+
+const mockConversations: Conversation[] = [
+    {
+        id: 'conv1',
+        subject: 'Question about my last shipment',
+        status: 'Open',
+        lastUpdate: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleString(),
+        messages: [
+            { id: 'msg1', conversationId: 'conv1', sender: 'user', text: 'Hi there, I was just wondering about the status of my last package, tracking number JM789. It seems to be stuck in customs. Can you provide an update? Thanks!', timestamp: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleString() },
+            { id: 'msg2', conversationId: 'conv1', sender: 'agent', text: 'Hello! Thanks for reaching out. We see that your package is currently undergoing standard customs inspection. This usually takes 2-3 business days. We will notify you as soon as it clears.', timestamp: new Date().toLocaleString() },
+        ],
+    },
+    {
+        id: 'conv2',
+        subject: 'Address Update',
+        status: 'Closed',
+        lastUpdate: new Date(new Date().setDate(new Date().getDate() - 3)).toLocaleString(),
+        messages: [
+            { id: 'msg3', conversationId: 'conv2', sender: 'user', text: 'Hello, I need to update my delivery address for future shipments. Please let me know what information you need from me. Best, Alicia', timestamp: new Date(new Date().setDate(new Date().getDate() - 3)).toLocaleString() },
+        ]
+    }
+]
+
+
 export function SupportTab({ customerName }: { customerName: string }) {
   const { toast } = useToast();
+  const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
+  const [loading, setLoading] = useState(false);
+  const [openNewMessageDialog, setOpenNewMessageDialog] = useState(false);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const handleSendMessage = async () => {
     if (!subject || !message) {
@@ -309,19 +354,27 @@ export function SupportTab({ customerName }: { customerName: string }) {
     }
     setLoading(true);
     try {
-      const response = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerName, subject, message }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send message.');
-      }
-
+      // In a real app, this would send to your backend.
+      // We will simulate creating a new conversation.
+      const newConversation: Conversation = {
+        id: `conv${conversations.length + 1}`,
+        subject: subject,
+        status: 'Open',
+        lastUpdate: new Date().toLocaleString(),
+        messages: [{
+            id: `msg${Math.random()}`,
+            conversationId: `conv${conversations.length + 1}`,
+            sender: 'user',
+            text: message,
+            timestamp: new Date().toLocaleString()
+        }]
+      };
+      
+      setConversations([newConversation, ...conversations]);
       toast({ title: 'Message Sent!', description: 'Our support team will get back to you shortly.' });
       setSubject('');
       setMessage('');
+      setOpenNewMessageDialog(false);
     } catch (error) {
       toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
     } finally {
@@ -331,25 +384,94 @@ export function SupportTab({ customerName }: { customerName: string }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Contact Support</CardTitle>
-        <CardDescription>Have a question or issue? Send us a message.</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+            <CardTitle>Support Inbox</CardTitle>
+            <CardDescription>View your conversations with our support team.</CardDescription>
+        </div>
+        <Dialog open={openNewMessageDialog} onOpenChange={setOpenNewMessageDialog}>
+            <DialogTrigger asChild>
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    New Message
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Compose a new message</DialogTitle>
+                    <DialogDescription>Our support team will respond as soon as possible.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="subject">Subject</Label>
+                        <Input id="subject" placeholder="e.g., Question about my package" value={subject} onChange={e => setSubject(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="message">Message</Label>
+                        <Textarea id="message" placeholder="Please describe your issue in detail..." className="min-h-[150px]" value={message} onChange={e => setMessage(e.target.value)} />
+                    </div>
+                </div>
+                 <DialogFooter>
+                    <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                    </DialogClose>
+                    <Button onClick={handleSendMessage} disabled={loading}>
+                        {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</> : <><Send className="mr-2 h-4 w-4" /> Send Message</>}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="subject">Subject</Label>
-          <Input id="subject" placeholder="e.g., Question about my package" value={subject} onChange={e => setSubject(e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="message">Message</Label>
-          <Textarea id="message" placeholder="Please describe your issue in detail..." className="min-h-[150px]" value={message} onChange={e => setMessage(e.target.value)} />
-        </div>
+      <CardContent>
+         <Accordion type="single" collapsible className="w-full">
+            {conversations.map(conv => (
+                <AccordionItem value={conv.id} key={conv.id}>
+                    <AccordionTrigger>
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between w-full pr-4 text-left">
+                            <div className="flex items-center gap-4">
+                               <Badge variant={conv.status === 'Open' ? 'destructive' : 'secondary'}>{conv.status}</Badge>
+                               <span className="font-medium">{conv.subject}</span>
+                            </div>
+                            <span className="text-sm text-muted-foreground mt-1 md:mt-0">
+                                Last updated: {conv.lastUpdate}
+                            </span>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        <div className="p-4 space-y-4">
+                            {conv.messages.map(msg => (
+                                <div key={msg.id} className={cn("flex items-start gap-3", msg.sender === 'user' ? "justify-end" : "justify-start")}>
+                                     {msg.sender === 'agent' && (
+                                        <Avatar className="h-9 w-9">
+                                            <AvatarImage src="https://picsum.photos/seed/support/40/40" alt="Support Agent" />
+                                            <AvatarFallback>SA</AvatarFallback>
+                                        </Avatar>
+                                     )}
+                                     <div className={cn("rounded-lg p-3 max-w-lg", msg.sender === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
+                                        <p className="text-sm">{msg.text}</p>
+                                        <p className="text-xs mt-1 opacity-70 text-right">{new Date(msg.timestamp).toLocaleTimeString()}</p>
+                                     </div>
+                                      {msg.sender === 'user' && (
+                                        <Avatar className="h-9 w-9">
+                                            <AvatarFallback>{customerName.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                     )}
+                                </div>
+                            ))}
+                             <div className="pt-4">
+                                <Textarea placeholder="Write a reply..." className="mb-2" />
+                                <Button size="sm">
+                                    <Send className="mr-2 h-4 w-4" />
+                                    Reply
+                                </Button>
+                             </div>
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+            ))}
+         </Accordion>
       </CardContent>
-      <CardFooter>
-        <Button onClick={handleSendMessage} disabled={loading}>
-          {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</> : <><Send className="mr-2 h-4 w-4" /> Send Message</>}
-        </Button>
-      </CardFooter>
     </Card>
   );
 }
