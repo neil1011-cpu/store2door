@@ -4,6 +4,7 @@
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from "@/components/ui/toaster";
+import { UserHeader } from '@/components/user-header';
 
 
 export default function RootLayout({
@@ -28,7 +29,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-            {children}
+          <div className="flex flex-col min-h-screen">
+            <UserHeader />
+            <main className="flex-1">{children}</main>
+          </div>
           <Toaster />
         </ThemeProvider>
       </body>
