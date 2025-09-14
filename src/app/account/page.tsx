@@ -84,10 +84,6 @@ export default function AccountPage() {
                     <h1 className="text-3xl font-bold">Welcome, {details.fullName}!</h1>
                     <p className="text-muted-foreground">Manage your shipments and account details here.</p>
                 </div>
-                <Button variant="outline" onClick={handleSignOut}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                </Button>
             </div>
              <Tabs defaultValue="dashboard" className="flex flex-col md:flex-row gap-6">
                 <TabsList className="flex md:flex-col h-auto p-2 md:w-1/5">
@@ -119,13 +115,15 @@ export default function AccountPage() {
                         <PackagesTab />
                     </TabsContent>
                     <TabsContent value="support">
-                        <SupportTab />
+                        <SupportTab customerName={details.fullName} />
                     </TabsContent>
                     <TabsContent value="account">
-                        <AccountTab details={details} />
+                        <AccountTab details={details} onSignOut={handleSignOut} />
                     </TabsContent>
                 </div>
             </Tabs>
         </div>
     );
 }
+
+    

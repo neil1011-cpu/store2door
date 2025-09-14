@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2 } from 'lucide-react';
+import { Copy, Check, Send, FileUp, Package, Loader2, LogOut } from 'lucide-react';
 import { AccountDetails, Shipment } from './page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -212,20 +212,38 @@ export function PackagesTab() {
 }
 
 
-export function SupportTab() {
-    const { toast } = useToast();
-    const [subject, setSubject] = useState('');
-    const [message, setMessage] = useState('');
+export function SupportTab({ customerName }: { customerName: string }) {
+  const { toast } = useToast();
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-    const handleSendMessage = () => {
-        if(!subject || !message) {
-            toast({ title: "Missing Fields", description: "Please provide a subject and message.", variant: 'destructive'});
-            return;
-        }
-        toast({ title: 'Message Sent!', description: 'Our support team will get back to you shortly.' });
-        setSubject('');
-        setMessage('');
+  const handleSendMessage = async () => {
+    if (!subject || !message) {
+      toast({ title: "Missing Fields", description: "Please provide a subject and message.", variant: 'destructive' });
+      return;
     }
+    setLoading(true);
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerName, subject, message }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message.');
+      }
+
+      toast({ title: 'Message Sent!', description: 'Our support team will get back to you shortly.' });
+      setSubject('');
+      setMessage('');
+    } catch (error) {
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Card>
@@ -235,22 +253,24 @@ export function SupportTab() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-            <Label htmlFor="subject">Subject</Label>
-            <Input id="subject" placeholder="e.g., Question about my package" value={subject} onChange={e => setSubject(e.target.value)} />
+          <Label htmlFor="subject">Subject</Label>
+          <Input id="subject" placeholder="e.g., Question about my package" value={subject} onChange={e => setSubject(e.target.value)} />
         </div>
-         <div className="space-y-2">
-            <Label htmlFor="message">Message</Label>
-            <Textarea id="message" placeholder="Please describe your issue in detail..." className="min-h-[150px]" value={message} onChange={e => setMessage(e.target.value)} />
+        <div className="space-y-2">
+          <Label htmlFor="message">Message</Label>
+          <Textarea id="message" placeholder="Please describe your issue in detail..." className="min-h-[150px]" value={message} onChange={e => setMessage(e.target.value)} />
         </div>
       </CardContent>
       <CardFooter>
-        <Button onClick={handleSendMessage}><Send className="mr-2 h-4 w-4" /> Send Message</Button>
+        <Button onClick={handleSendMessage} disabled={loading}>
+          {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</> : <><Send className="mr-2 h-4 w-4" /> Send Message</>}
+        </Button>
       </CardFooter>
     </Card>
   );
 }
 
-export function AccountTab({ details }: { details: AccountDetails }) {
+export function AccountTab({ details, onSignOut }: { details: AccountDetails, onSignOut: () => void }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
     const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.address.zip}`;
@@ -314,6 +334,14 @@ export function AccountTab({ details }: { details: AccountDetails }) {
                     </div>
                 </div>
             </CardContent>
+             <CardFooter className="justify-end">
+                <Button variant="outline" onClick={onSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                </Button>
+            </CardFooter>
         </Card>
     )
 }
+
+    

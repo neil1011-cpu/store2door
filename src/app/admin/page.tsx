@@ -19,6 +19,7 @@ import {
   DollarSign,
   Settings,
   Calculator,
+  Inbox,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,12 @@ const features = [
     description: 'Manage and view flight manifest documents.',
     icon: <FileText className="h-8 w-8 text-primary" />,
     href: '/admin/manifests',
+  },
+  {
+    title: 'Messages',
+    description: 'View messages from customers.',
+    icon: <Inbox className="h-8 w-8 text-primary" />,
+    href: '/admin/messages',
   },
   {
     title: 'Profit/Loss',
@@ -118,3 +125,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

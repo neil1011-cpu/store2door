@@ -27,6 +27,7 @@ import {
   Bell,
   DollarSign,
   Calculator,
+  Inbox,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,14 @@ export default function AdminLayout({
                         <Link href="/admin/manifests">
                         <FileText />
                         Flight Manifests
+                        </Link>
+                    </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Messages" size="sm">
+                        <Link href="/admin/messages">
+                        <Inbox />
+                        Messages
                         </Link>
                     </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -190,3 +199,5 @@ export default function AdminLayout({
         </SidebarProvider>
   );
 }
+
+    
