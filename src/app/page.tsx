@@ -1,54 +1,120 @@
 
-'use client'
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Route } from 'lucide-react';
+'use client';
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  ScanText,
+  Truck,
+  FileText,
+  Banknote,
+  ArrowRight,
+  Users,
+  Bell,
+  DollarSign,
+  Settings,
+  Calculator,
+} from 'lucide-react';
 import Link from 'next/link';
-import { useAuth } from '@/lib/auth';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 
-export default function Home() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, loading, router]);
-
-
-  if (loading) {
-    return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-background">
-            <p>Loading...</p>
-        </div>
-    );
+const features = [
+  {
+    title: 'Pre-Alerts',
+    description: 'Generate delivery address from a receipt image.',
+    icon: <ScanText className="h-8 w-8 text-primary" />,
+    href: '/pre-alerts',
+  },
+  {
+    title: 'Shipping Status',
+    description: 'Track your shipments in real-time.',
+    icon: <Truck className="h-8 w-8 text-primary" />,
+    href: '/shipping',
+  },
+  {
+    title: 'Flight Manifests',
+    description: 'Manage and view flight manifest documents.',
+    icon: <FileText className="h-8 w-8 text-primary" />,
+    href: '/manifests',
+  },
+  {
+    title: 'Profit/Loss',
+    description: 'View your financial statements.',
+    icon: <Banknote className="h-8 w-8 text-primary" />,
+    href: '/finance',
+  },
+  {
+    title: 'Users',
+    description: 'Manage users and their addresses.',
+    icon: <Users className="h-8 w-8 text-primary" />,
+    href: '/users',
+  },
+  {
+    title: 'Courier Rates',
+    description: 'Manage your shipping rates.',
+    icon: <DollarSign className="h-8 w-8 text-primary" />,
+    href: '/rates',
+  },
+  {
+    title: 'Customs Calculator',
+    description: 'Estimate customs fees.',
+    icon: <Calculator className="h-8 w-8 text-primary" />,
+    href: '/customs-calculator',
+  },
+  {
+    title: 'Settings',
+    description: 'Manage application settings.',
+    icon: <Settings className="h-8 w-8 text-primary" />,
+    href: '/settings',
   }
+];
 
-  if (user) {
-    return null;
-  }
+export default function DashboardPage() {
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
-          <div className="flex justify-center items-center gap-2 mb-4">
-            <Route className="size-12 text-primary" />
-          </div>
-          <CardTitle className="text-3xl font-bold">Welcome to SwiftRoute</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground">
-            Please sign in to access the dashboard.
-          </p>
-          <Button asChild>
-            <Link href="/auth/signin">Sign In</Link>
-          </Button>
-        </CardContent>
-      </Card>
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          From Store 2 Door Admin Panel
+        </h1>
+        <p className="text-muted-foreground">
+          Your all-in-one solution for courier management.
+        </p>
+      </div>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {features.map((feature) => (
+          <Card
+            key={feature.title}
+            className="group transition-all hover:shadow-lg hover:-translate-y-1"
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                {feature.title}
+              </CardTitle>
+              {feature.icon}
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                {feature.description}
+              </p>
+              <Button
+                variant="link"
+                className="mt-4 p-0"
+                asChild
+              >
+                <Link href={feature.href}>
+                  Go to {feature.title} <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
-    );
+  );
 }

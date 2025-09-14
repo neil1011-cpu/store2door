@@ -25,7 +25,6 @@ import {
   Settings,
   Users,
   Bell,
-  LogOut,
   DollarSign,
   Calculator,
 } from 'lucide-react';
@@ -39,9 +38,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
-import { useEffect } from 'react';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -56,29 +52,6 @@ export default function DashboardLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { user, loading, signOut } = useAuth();
-  const router = useRouter();
-
-   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth/signin');
-    }
-  }, [user, loading, router]);
-
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/auth/signin');
-  };
-
-  if (loading || !user) {
-    return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-background">
-            <p>Loading...</p>
-        </div>
-    );
-  }
-
   return (
         <SidebarProvider>
           <Sidebar>
@@ -92,7 +65,7 @@ export default function DashboardLayout({
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Dashboard">
-                    <Link href="/dashboard">
+                    <Link href="/">
                       <LayoutDashboard />
                       Dashboard
                     </Link>
@@ -165,32 +138,13 @@ export default function DashboardLayout({
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter>
-               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton>
-                     <Avatar className="size-7">
-                      <AvatarImage src={user?.photoURL ?? "https://placehold.co/40x40"} alt="User avatar" />
-                      <AvatarFallback>U</AvatarFallback>
+                <SidebarMenuButton>
+                    <Avatar className="size-7">
+                    <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
+                    <AvatarFallback>U</AvatarFallback>
                     </Avatar>
-                    <span>{user?.displayName ?? user?.email ?? 'Guest User'}</span>
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 mb-2 ml-2">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                     <Link href="/settings">
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Sign Out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <span>Guest User</span>
+                </SidebarMenuButton>
             </SidebarFooter>
           </Sidebar>
           <SidebarInset>
@@ -224,31 +178,10 @@ export default function DashboardLayout({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" asChild size="icon">
-                     <Avatar>
-                        <AvatarImage src={user?.photoURL ?? "https://placehold.co/40x40"} alt="User avatar" />
-                        <AvatarFallback>U</AvatarFallback>
-                      </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings">
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                   <DropdownMenuItem onClick={handleSignOut}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>Sign Out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Avatar>
+                <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
+                <AvatarFallback>U</AvatarFallback>
+              </Avatar>
             </header>
             <main className="flex-1 overflow-auto p-4 md:p-6">
               {children}
