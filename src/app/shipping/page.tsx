@@ -133,7 +133,7 @@ export default function ShippingPage() {
                 <p className="text-muted-foreground">Track all current shipments.</p>
             </div>
              <Button variant="outline" asChild>
-                <Link href="/dashboard">
+                <Link href="/">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Dashboard
                 </Link>
