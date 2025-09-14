@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Bell, ScanText, Truck, CircleDot } from 'lucide-react';
 import { Badge } from './ui/badge';
+import Link from 'next/link';
 
 type Notification = {
   id: string;
@@ -21,6 +22,7 @@ type Notification = {
   description: string;
   isRead: boolean;
   timestamp: string;
+  href: string;
 };
 
 const getNotificationIcon = (type: Notification['type']) => {
@@ -82,12 +84,14 @@ export function Notifications() {
           <DropdownMenuItem>No new notifications</DropdownMenuItem>
         ) : (
           notifications.map((notification) => (
-            <DropdownMenuItem key={notification.id} className="flex items-start gap-3">
-              <div className="mt-1">{getNotificationIcon(notification.type)}</div>
-              <div className="flex flex-col">
-                <span className="font-medium">{notification.title}</span>
-                <span className="text-xs text-muted-foreground">{notification.description}</span>
-              </div>
+            <DropdownMenuItem key={notification.id} asChild>
+                <Link href={notification.href} className="flex items-start gap-3">
+                    <div className="mt-1">{getNotificationIcon(notification.type)}</div>
+                    <div className="flex flex-col">
+                        <span className="font-medium">{notification.title}</span>
+                        <span className="text-xs text-muted-foreground">{notification.description}</span>
+                    </div>
+                </Link>
             </DropdownMenuItem>
           ))
         )}

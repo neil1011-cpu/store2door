@@ -8,6 +8,7 @@ type Notification = {
   description: string;
   isRead: boolean;
   timestamp: string;
+  href: string;
 };
 
 // Mock data simulating notifications from iPack or other systems
@@ -19,6 +20,7 @@ const notifications: Notification[] = [
     description: 'Package JM789 from John Smith has arrived at the Florida warehouse.',
     isRead: false,
     timestamp: new Date().toISOString(),
+    href: '/admin/shipping'
   },
   {
     id: '2',
@@ -27,6 +29,7 @@ const notifications: Notification[] = [
     description: 'John Doe submitted a pre-alert for tracking number JM456.',
     isRead: false,
     timestamp: new Date(new Date().setHours(new Date().getHours() - 1)).toISOString(),
+    href: '/admin/pre-alerts'
   },
   {
     id: '3',
@@ -35,6 +38,7 @@ const notifications: Notification[] = [
     description: 'Package JM101 for Alicia Keys has cleared customs in Jamaica.',
     isRead: true,
     timestamp: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
+    href: '/admin/shipping'
   },
 ];
 

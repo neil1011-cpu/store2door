@@ -23,6 +23,7 @@ type Notification = {
   description: string;
   isRead: boolean;
   timestamp: string;
+  href: string;
 };
 
 const getNotificationIcon = (type: Notification['type']) => {
@@ -111,31 +112,32 @@ export default function NotificationsPage() {
           ) : (
             <div className="space-y-4">
               {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={cn(
-                    'flex items-start gap-4 rounded-lg border p-4 transition-colors',
-                    !notification.isRead && 'bg-accent'
-                  )}
-                >
-                  <div className="flex-shrink-0 pt-1">
-                    {getNotificationIcon(notification.type)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-center">
-                        <h3 className="font-semibold">{notification.title}</h3>
-                        {!notification.isRead && (
-                            <Badge variant="destructive">New</Badge>
-                        )}
+                <Link href={notification.href} key={notification.id} className="block">
+                  <div
+                    className={cn(
+                      'flex items-start gap-4 rounded-lg border p-4 transition-colors hover:bg-accent',
+                      !notification.isRead && 'bg-accent/50'
+                    )}
+                  >
+                    <div className="flex-shrink-0 pt-1">
+                      {getNotificationIcon(notification.type)}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {notification.description}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {new Date(notification.timestamp).toLocaleString()}
-                    </p>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center">
+                          <h3 className="font-semibold">{notification.title}</h3>
+                          {!notification.isRead && (
+                              <Badge variant="destructive">New</Badge>
+                          )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {notification.description}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {new Date(notification.timestamp).toLocaleString()}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
