@@ -34,12 +34,14 @@ export function UserHeader() {
       const storedDetails = localStorage.getItem('accountDetails');
       if (storedDetails) {
         setIsLoggedIn(true);
+      } else {
+        setIsLoggedIn(false);
       }
     } catch (error) {
       console.error("Could not read from local storage", error);
       setIsLoggedIn(false);
     }
-  }, []);
+  }, [pathname]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
