@@ -89,23 +89,29 @@ export default function AccountPage() {
                 </div>
             </div>
              <Tabs defaultValue="dashboard" className="flex flex-col md:flex-row gap-6">
-                <TabsList className="flex md:flex-col h-auto p-2 md:w-1/5">
-                    <TabsTrigger value="dashboard" className="w-full justify-start gap-2">
-                        <LayoutDashboard className="h-5 w-5" /> Dashboard
-                    </TabsTrigger>
-                    <TabsTrigger value="pre-alert" className="w-full justify-start gap-2">
-                        <FileUp className="h-5 w-5" /> Pre-Alert
-                    </TabsTrigger>
-                    <TabsTrigger value="packages" className="w-full justify-start gap-2">
-                        <Package className="h-5 w-5" /> My Packages
-                    </TabsTrigger>
-                    <TabsTrigger value="support" className="w-full justify-start gap-2">
-                        <MessageSquare className="h-5 w-5" /> Support
-                    </TabsTrigger>
-                    <TabsTrigger value="account" className="w-full justify-start gap-2">
-                        <User className="h-5 w-5" /> My Account
-                    </TabsTrigger>
-                </TabsList>
+                <div className="flex flex-col gap-2 md:w-1/5">
+                    <TabsList className="flex md:flex-col h-auto p-2">
+                        <TabsTrigger value="dashboard" className="w-full justify-start gap-2">
+                            <LayoutDashboard className="h-5 w-5" /> Dashboard
+                        </TabsTrigger>
+                        <TabsTrigger value="pre-alert" className="w-full justify-start gap-2">
+                            <FileUp className="h-5 w-5" /> Pre-Alert
+                        </TabsTrigger>
+                        <TabsTrigger value="packages" className="w-full justify-start gap-2">
+                            <Package className="h-5 w-5" /> My Packages
+                        </TabsTrigger>
+                        <TabsTrigger value="support" className="w-full justify-start gap-2">
+                            <MessageSquare className="h-5 w-5" /> Support
+                        </TabsTrigger>
+                        <TabsTrigger value="account" className="w-full justify-start gap-2">
+                            <User className="h-5 w-5" /> My Account
+                        </TabsTrigger>
+                    </TabsList>
+                     <Button variant="outline" onClick={handleSignOut} className="w-full justify-start gap-2 p-2 h-auto text-sm font-medium">
+                        <LogOut className="h-5 w-5" /> Sign Out
+                    </Button>
+                </div>
+
 
                 <div className="flex-1">
                     <TabsContent value="dashboard">
@@ -121,7 +127,7 @@ export default function AccountPage() {
                         <SupportTab customerName={details.fullName} />
                     </TabsContent>
                     <TabsContent value="account">
-                        <AccountTab details={details} onSignOut={handleSignOut} />
+                        <AccountTab details={details} />
                     </TabsContent>
                 </div>
             </Tabs>

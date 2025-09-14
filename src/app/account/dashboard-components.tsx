@@ -482,7 +482,7 @@ type PickupPerson = {
     idNumber: string;
 };
 
-export function AccountTab({ details, onSignOut }: { details: AccountDetails, onSignOut: () => void }) {
+export function AccountTab({ details }: { details: AccountDetails }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
     const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.address.zip}`;
@@ -638,12 +638,6 @@ export function AccountTab({ details, onSignOut }: { details: AccountDetails, on
                     </div>
                 </div>
             </CardContent>
-             <CardFooter className="justify-end">
-                <Button variant="outline" onClick={onSignOut}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                </Button>
-            </CardFooter>
         </Card>
     )
 }
