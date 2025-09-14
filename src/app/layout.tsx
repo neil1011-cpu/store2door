@@ -5,10 +5,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from "@/components/ui/toaster";
 import { AppContent } from '@/components/app-content';
 
-export const metadata: Metadata = {
-  title: 'FromStore2Door',
-  description: 'Your Bridge Between Florida & Jamaica',
-}
+
 
 export default function RootLayout({
   children,
