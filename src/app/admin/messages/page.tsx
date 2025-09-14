@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, RefreshCw, Send, Archive } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, Send, Archive, ArchiveRestore } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -116,6 +116,17 @@ export default function MessagesPage() {
     // In a real app, you would also make an API call to update the status on the backend.
   };
 
+  const handleReopenConversation = (conversationId: string) => {
+    setConversations(conversations.map(conv => 
+      conv.id === conversationId ? { ...conv, status: 'Open' } : conv
+    ));
+    toast({
+        title: 'Conversation Reopened',
+        description: `Conversation ${conversationId} has been marked as open.`,
+    });
+    // In a real app, you would also make an API call to update the status on the backend.
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -208,10 +219,15 @@ export default function MessagesPage() {
                                         <Send className="mr-2 h-4 w-4" />
                                         Send Reply
                                     </Button>
-                                    {conv.status === 'Open' && (
+                                    {conv.status === 'Open' ? (
                                         <Button variant="outline" size="sm" onClick={() => handleCloseConversation(conv.id)}>
                                             <Archive className="mr-2 h-4 w-4" />
                                             Close Conversation
+                                        </Button>
+                                    ) : (
+                                        <Button variant="outline" size="sm" onClick={() => handleReopenConversation(conv.id)}>
+                                            <ArchiveRestore className="mr-2 h-4 w-4" />
+                                            Reopen Conversation
                                         </Button>
                                     )}
                                 </div>
