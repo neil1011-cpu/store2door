@@ -9,28 +9,18 @@ import { Label } from '@/components/ui/label';
 import { DollarSign, Weight, ShoppingCart, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
-const USD_TO_JMD_RATE = 156;
-
 export default function RatesPage() {
-  const [ratePerPoundUSD, setRatePerPoundUSD] = useState(4.81);
+  const ratePerPoundJMD = 750;
   const [roundToNearestPound, setRoundToNearestPound] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [weight, setWeight] = useState('');
   const [estimatedCost, setEstimatedCost] = useState<number | null>(null);
 
-  const ratePerPoundJMD = ratePerPoundUSD * USD_TO_JMD_RATE;
 
   useEffect(() => {
-    // In a real application, these rates would be fetched from a backend API.
-    // For this prototype, we'll continue to read from localStorage if available,
-    // otherwise we use the default values.
     try {
-      const savedRate = localStorage.getItem('ratePerPound');
       const savedRounding = localStorage.getItem('roundToNearestPound');
 
-      if (savedRate) {
-        setRatePerPoundUSD(JSON.parse(savedRate));
-      }
       if (savedRounding) {
         setRoundToNearestPound(JSON.parse(savedRounding));
       }
@@ -86,7 +76,7 @@ export default function RatesPage() {
                     <span className="font-semibold text-foreground">Minimum Charge:</span> A minimum charge equivalent to 1lb applies to all shipments.
                 </p>
                 <p>
-                    <span className="font-semibold text-foreground">Rounding:</span> {roundToNearestPound ? 'The total weight is rounded up to the nearest whole pound.' : 'We use the exact weight for calculation.'}
+                    <span className="font-semibold text-foreground">Rounding:</span> {isLoaded && (roundToNearestPound ? 'The total weight is rounded up to the nearest whole pound.' : 'We use the exact weight for calculation.')}
                 </p>
                 <p>
                     <span className="font-semibold text-foreground">What's Included:</span> This rate covers the air freight from our Florida warehouse to Jamaica. It does not include local customs and duties.

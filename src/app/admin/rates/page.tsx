@@ -13,7 +13,7 @@ import Link from 'next/link';
 
 export default function RatesPage() {
   const { toast } = useToast();
-  const [ratePerPound, setRatePerPound] = useState(4.81);
+  const [ratePerPound, setRatePerPound] = useState(4.8077);
   const [roundToNearestPound, setRoundToNearestPound] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
 
