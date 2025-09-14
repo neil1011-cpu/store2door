@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2, LogOut } from 'lucide-react';
+import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard } from 'lucide-react';
 import { AccountDetails, Shipment } from './page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,9 +17,9 @@ import { Badge } from '@/components/ui/badge';
 
 // A mock list of shipments for the user. In a real app, this would be fetched.
 const userShipments: Shipment[] = [
-    { id: '1', trackingNumber: 'JM456', contents: 'Laptop from Amazon', status: 'In Transit', date: new Date().toLocaleDateString('en-US')},
-    { id: '2', trackingNumber: 'JM789', contents: 'Books from eBay', status: 'Customs', date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US')},
-    { id: '3', trackingNumber: 'JM101', contents: 'Shoes from Zappos', status: 'Delivered', date: new Date(new Date().setDate(new Date().getDate() - 5)).toLocaleDateString('en-US')},
+    { id: '1', trackingNumber: 'JM456', contents: 'Laptop from Amazon', status: 'In Transit', date: new Date().toLocaleDateString('en-US'), cost: 45.50, paymentStatus: 'Unpaid' },
+    { id: '2', trackingNumber: 'JM789', contents: 'Books from eBay', status: 'Customs', date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'), cost: 22.00, paymentStatus: 'Unpaid'},
+    { id: '3', trackingNumber: 'JM101', contents: 'Shoes from Zappos', status: 'Delivered', date: new Date(new Date().setDate(new Date().getDate() - 5)).toLocaleDateString('en-US'), cost: 30.00, paymentStatus: 'Paid' },
 ];
 
 
@@ -172,6 +172,17 @@ export function PreAlertTab({ customerName }: { customerName: string }) {
 }
 
 export function PackagesTab() {
+  const { toast } = useToast();
+
+  const handlePayNow = (shipment: Shipment) => {
+    // In a real application, this would redirect to a payment gateway (e.g., Stripe, PayPal).
+    // For this prototype, we'll just show a toast message.
+    toast({
+        title: "Payment Gateway",
+        description: `Redirecting to payment for shipment ${shipment.trackingNumber} - Total: $${shipment.cost?.toFixed(2)}`,
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -184,8 +195,9 @@ export function PackagesTab() {
             <TableRow>
               <TableHead>Tracking #</TableHead>
               <TableHead>Contents</TableHead>
-              <TableHead>Submitted</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="text-right">Cost</TableHead>
+              <TableHead className="text-center">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -193,15 +205,29 @@ export function PackagesTab() {
               <TableRow key={shipment.id}>
                 <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
                 <TableCell>{shipment.contents}</TableCell>
-                <TableCell>{shipment.date}</TableCell>
                 <TableCell>
                   <Badge variant={getStatusVariant(shipment.status)}>{shipment.status}</Badge>
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                    {shipment.cost ? `$${shipment.cost.toFixed(2)}` : 'N/A'}
+                </TableCell>
+                <TableCell className="text-center">
+                    {shipment.paymentStatus === 'Unpaid' && shipment.cost ? (
+                        <Button size="sm" onClick={() => handlePayNow(shipment)}>
+                            <CreditCard className="mr-2 h-4 w-4" />
+                            Pay Now
+                        </Button>
+                    ) : (
+                        <Badge variant={shipment.paymentStatus === 'Paid' ? 'outline' : 'secondary'}>
+                            {shipment.paymentStatus === 'Paid' ? 'Paid' : 'No Cost'}
+                        </Badge>
+                    )}
                 </TableCell>
               </TableRow>
             ))}
              {userShipments.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={4} className="text-center">You have no shipments yet.</TableCell>
+                    <TableCell colSpan={5} className="text-center">You have no shipments yet.</TableCell>
                 </TableRow>
              )}
           </TableBody>
@@ -343,5 +369,3 @@ export function AccountTab({ details, onSignOut }: { details: AccountDetails, on
         </Card>
     )
 }
-
-    

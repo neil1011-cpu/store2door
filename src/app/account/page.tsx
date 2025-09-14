@@ -29,6 +29,8 @@ export type Shipment = {
   contents: string;
   status: 'Pending' | 'Processed' | 'In Transit' | 'Customs' | 'Delivered';
   date: string;
+  cost?: number;
+  paymentStatus?: 'Paid' | 'Unpaid';
 };
 
 
