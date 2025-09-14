@@ -29,12 +29,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
-import { PlusCircle, ArrowLeft } from 'lucide-react';
+import { PlusCircle, ArrowLeft, FileText, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
+import { generateCustomsForm, GenerateCustomsFormOutput } from '@/ai/flows/generate-customs-form';
+import { Separator } from '@/components/ui/separator';
 
 type PreAlert = {
   id: string;
@@ -56,6 +58,130 @@ const getStatusVariant = (status: string) => {
       return 'default';
   }
 };
+
+function GeneratedDocsDialog({ trackingNumber, weight, contents, invoiceDataUri }: { trackingNumber: string, weight: string, contents: string, invoiceDataUri: string }) {
+    const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [result, setResult] = useState<GenerateCustomsFormOutput | null>(null);
+    const { toast } = useToast();
+
+    const handleGenerate = async () => {
+        setLoading(true);
+        setResult(null);
+        try {
+            const response = await generateCustomsForm({
+                trackingNumber,
+                weight,
+                contentsDescription: contents,
+                invoiceDataUri,
+            });
+            setResult(response);
+        } catch (error) {
+            toast({
+                title: 'Error Generating Documents',
+                description: (error as Error).message || "An unexpected error occurred.",
+                variant: 'destructive'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="secondary" size="sm">
+                    <FileText className="mr-2 h-4 w-4" />
+                    Generate Docs
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Generate Shipping Documents</DialogTitle>
+                    <DialogDescription>
+                        Use AI to generate a customs form and warehouse ticket for tracking number {trackingNumber}.
+                    </DialogDescription>
+                </DialogHeader>
+                
+                {!result && !loading && (
+                    <div className="flex flex-col items-center justify-center text-center p-8">
+                         <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                         <p className="text-muted-foreground mb-6">Click the button below to start the AI generation process.</p>
+                         <Button onClick={handleGenerate}>
+                            <FileText className="mr-2 h-4 w-4" />
+                            Generate Documents
+                        </Button>
+                    </div>
+                )}
+                
+                {loading && (
+                     <div className="flex items-center justify-center p-8">
+                        <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                        <p className="text-muted-foreground">AI is processing the invoice... Please wait.</p>
+                    </div>
+                )}
+
+                {result && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 max-h-[60vh] overflow-y-auto">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Jamaica Customs Form</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="font-medium text-muted-foreground">Tracking #</span>
+                                    <span>{result.customsForm.trackingNumber}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="font-medium text-muted-foreground">Weight</span>
+                                    <span>{result.customsForm.weight}</span>
+                                </div>
+                                 <Separator />
+                                 <div className="space-y-1">
+                                    <span className="font-medium text-muted-foreground">Contents</span>
+                                    <p className="text-right">{result.customsForm.contentsDescription}</p>
+                                </div>
+                                <Separator />
+                                <div className="space-y-1">
+                                    <span className="font-medium text-muted-foreground">Sender</span>
+                                    <p className="text-right">{result.customsForm.sender}</p>
+                                </div>
+                                 <Separator />
+                                <div className="space-y-1">
+                                    <span className="font-medium text-muted-foreground">Recipient</span>
+                                    <p className="text-right">{result.customsForm.recipient}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                         <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Warehouse Intake Ticket</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-sm">
+                               <div className="flex justify-between">
+                                    <span className="font-medium text-muted-foreground">Ticket ID</span>
+                                    <span className="font-mono">{result.warehouseTicket.ticketId}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="font-medium text-muted-foreground">Tracking #</span>
+                                    <span>{result.warehouseTicket.trackingNumber}</span>
+                                </div>
+                                 <div className="flex justify-between items-center">
+                                    <span className="font-medium text-muted-foreground">Status</span>
+                                    <Badge variant="default">{result.warehouseTicket.status}</Badge>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 
 export default function PreAlertsPage() {
   const [preAlerts, setPreAlerts] = useState<PreAlert[]>([]);
@@ -236,16 +362,17 @@ export default function PreAlertsPage() {
                 <TableHead>Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Invoice</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center">Loading pre-alerts...</TableCell>
+                    <TableCell colSpan={7} className="text-center">Loading pre-alerts...</TableCell>
                 </TableRow>
               ) : preAlerts.length === 0 ? (
                  <TableRow>
-                    <TableCell colSpan={6} className="text-center">No pre-alerts found.</TableCell>
+                    <TableCell colSpan={7} className="text-center">No pre-alerts found.</TableCell>
                 </TableRow>
               ) : (
                 preAlerts.map((alert) => (
@@ -264,7 +391,7 @@ export default function PreAlertsPage() {
                     <TableCell>
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button variant="outline">View Invoice</Button>
+                          <Button variant="outline" size="sm">View Invoice</Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-3xl">
                           <DialogHeader>
@@ -288,6 +415,14 @@ export default function PreAlertsPage() {
                         </DialogContent>
                       </Dialog>
                     </TableCell>
+                     <TableCell>
+                      <GeneratedDocsDialog 
+                        trackingNumber={alert.trackingNumber}
+                        weight="5 lbs"
+                        contents={alert.contents}
+                        invoiceDataUri={alert.invoiceUrl}
+                      />
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -298,3 +433,4 @@ export default function PreAlertsPage() {
     </div>
   );
 }
+
