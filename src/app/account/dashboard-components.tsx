@@ -6,20 +6,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard } from 'lucide-react';
+import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard, MoreHorizontal, FileText, Download } from 'lucide-react';
 import { AccountDetails, Shipment } from './page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import Image from 'next/image';
 
 // A mock list of shipments for the user. In a real app, this would be fetched.
 const userShipments: Shipment[] = [
-    { id: '1', trackingNumber: 'JM456', contents: 'Laptop from Amazon', status: 'In Transit', date: new Date().toLocaleDateString('en-US'), cost: 45.50, paymentStatus: 'Unpaid' },
-    { id: '2', trackingNumber: 'JM789', contents: 'Books from eBay', status: 'Customs', date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'), cost: 22.00, paymentStatus: 'Unpaid'},
-    { id: '3', trackingNumber: 'JM101', contents: 'Shoes from Zappos', status: 'Delivered', date: new Date(new Date().setDate(new Date().getDate() - 5)).toLocaleDateString('en-US'), cost: 30.00, paymentStatus: 'Paid' },
+    { id: '1', trackingNumber: 'JM456', contents: 'Laptop from Amazon', status: 'In Transit', date: new Date().toLocaleDateString('en-US'), cost: 45.50, paymentStatus: 'Unpaid', invoiceUrl: 'https://picsum.photos/seed/inv1/800/1100' },
+    { id: '2', trackingNumber: 'JM789', contents: 'Books from eBay', status: 'Customs', date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'), cost: 22.00, paymentStatus: 'Unpaid', invoiceUrl: 'https://picsum.photos/seed/inv2/800/1100'},
+    { id: '3', trackingNumber: 'JM101', contents: 'Shoes from Zappos', status: 'Delivered', date: new Date(new Date().setDate(new Date().getDate() - 5)).toLocaleDateString('en-US'), cost: 30.00, paymentStatus: 'Paid', invoiceUrl: 'https://picsum.photos/seed/inv3/800/1100' },
 ];
 
 
@@ -183,6 +185,22 @@ export function PackagesTab() {
     });
   };
 
+  const handleDownloadInvoice = (shipment: Shipment) => {
+    // This is a simple implementation for demonstration.
+    // In a real-world scenario, you might want to fetch a secure URL or a blob.
+    const link = document.createElement('a');
+    link.href = shipment.invoiceUrl;
+    link.download = `Invoice-${shipment.trackingNumber}.pdf`; // Assuming PDF, could be dynamic
+    link.target = '_blank'; // Open in new tab to prevent navigation issues
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({
+        title: "Downloading Invoice",
+        description: `Your invoice for ${shipment.trackingNumber} is downloading.`,
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -196,8 +214,9 @@ export function PackagesTab() {
               <TableHead>Tracking #</TableHead>
               <TableHead>Contents</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Cost</TableHead>
-              <TableHead className="text-center">Action</TableHead>
+              <TableHead>Cost</TableHead>
+              <TableHead>Payment</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -208,10 +227,10 @@ export function PackagesTab() {
                 <TableCell>
                   <Badge variant={getStatusVariant(shipment.status)}>{shipment.status}</Badge>
                 </TableCell>
-                <TableCell className="text-right font-medium">
+                <TableCell className="font-medium">
                     {shipment.cost ? `$${shipment.cost.toFixed(2)}` : 'N/A'}
                 </TableCell>
-                <TableCell className="text-center">
+                <TableCell>
                     {shipment.paymentStatus === 'Unpaid' && shipment.cost ? (
                         <Button size="sm" onClick={() => handlePayNow(shipment)}>
                             <CreditCard className="mr-2 h-4 w-4" />
@@ -223,11 +242,50 @@ export function PackagesTab() {
                         </Badge>
                     )}
                 </TableCell>
+                 <TableCell className="text-right">
+                    <Dialog>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">More actions</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DialogTrigger asChild>
+                                    <DropdownMenuItem>
+                                        <FileText className="mr-2 h-4 w-4" />
+                                        View Invoice
+                                    </DropdownMenuItem>
+                                </DialogTrigger>
+                                <DropdownMenuItem onClick={() => handleDownloadInvoice(shipment)}>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Download PDF
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <DialogContent className="sm:max-w-2xl">
+                            <DialogHeader>
+                                <DialogTitle>Invoice for {shipment.trackingNumber}</DialogTitle>
+                                <DialogDescription>Invoice for your shipment: {shipment.contents}.</DialogDescription>
+                            </DialogHeader>
+                            <div className="relative h-[600px] overflow-hidden rounded-md">
+                                <Image 
+                                    src={shipment.invoiceUrl} 
+                                    alt={`Invoice for ${shipment.trackingNumber}`} 
+                                    fill
+                                    className="object-contain"
+                                    data-ai-hint="invoice document"
+                                />
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                 </TableCell>
               </TableRow>
             ))}
              {userShipments.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={5} className="text-center">You have no shipments yet.</TableCell>
+                    <TableCell colSpan={6} className="text-center">You have no shipments yet.</TableCell>
                 </TableRow>
              )}
           </TableBody>

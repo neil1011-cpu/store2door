@@ -31,6 +31,7 @@ export type Shipment = {
   date: string;
   cost?: number;
   paymentStatus?: 'Paid' | 'Unpaid';
+  invoiceUrl: string;
 };
 
 
