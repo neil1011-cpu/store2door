@@ -72,7 +72,7 @@ export function UserHeader() {
                  </Button>
              ) : (
                 <Button asChild>
-                    <Link href="/signup">Sign In</Link>
+                    <Link href="/signin">Sign In</Link>
                 </Button>
              )}
         </div>

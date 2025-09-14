@@ -23,6 +23,7 @@ import Link from 'next/link';
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
   email: z.string().email({ message: 'Please enter a valid email address.' }),
+  password: z.string().min(8, { message: 'Password must be at least 8 characters.' }),
   phone: z.string().min(10, { message: 'Phone number must be at least 10 digits.' }),
   trn: z.string().min(9, { message: 'TRN must be 9 digits.' }).max(9, { message: 'TRN must be 9 digits.' }),
   idUpload: z.any().refine((files) => files?.length == 1, 'ID upload is required.'),
@@ -37,6 +38,7 @@ export default function SignUpPage() {
     defaultValues: {
       fullName: '',
       email: '',
+      password: '',
       phone: '',
       trn: '',
     },
@@ -60,7 +62,13 @@ export default function SignUpPage() {
     // For demonstration, we'll store the data in localStorage to pass it to the account page.
     // In a real app, you'd get this from your backend after successful registration.
     try {
-        localStorage.setItem('accountDetails', JSON.stringify({ ...values, mailboxNumber, address }));
+        // In a real app, you should not store all users in a single local storage item.
+        // This is for demonstration purposes only.
+        const existingUsers = JSON.parse(localStorage.getItem('users') || '[]');
+        const newUser = { ...values, mailboxNumber, address };
+        existingUsers.push(newUser);
+        localStorage.setItem('users', JSON.stringify(existingUsers));
+        localStorage.setItem('accountDetails', JSON.stringify(newUser));
     } catch (e) {
         console.error("Could not save to local storage", e)
     }
@@ -120,6 +128,19 @@ export default function SignUpPage() {
               />
               <FormField
                 control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••••" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
@@ -169,7 +190,7 @@ export default function SignUpPage() {
           </Form>
            <p className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link href="/admin" className="font-semibold text-primary hover:underline">
+            <Link href="/signin" className="font-semibold text-primary hover:underline">
                 Sign In
             </Link>
           </p>
