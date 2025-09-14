@@ -37,7 +37,7 @@ export default function HomePage() {
               Your Bridge Between Florida & Jamaica
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
-              SwiftRoute provides seamless, reliable, and affordable shipping services, connecting you to what matters most.
+              FromStore2Door provides seamless, reliable, and affordable shipping services, connecting you to what matters most.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" asChild>
@@ -60,7 +60,7 @@ export default function HomePage() {
                     How It Works
                 </h2>
                 <p className="text-muted-foreground text-lg">
-                    Shipping with SwiftRoute is as easy as 1-2-3.
+                    Shipping with FromStore2Door is as easy as 1-2-3.
                 </p>
                 <div className="space-y-6 pt-4">
                     <div className="flex items-start gap-4">
@@ -103,7 +103,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center max-w-3xl mx-auto mb-12">
              <h2 className="text-3xl font-bold tracking-tight text-foreground">
-              Why Choose SwiftRoute?
+              Why Choose FromStore2Door?
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
               We offer a premium shipping experience designed for your peace of mind.
@@ -127,7 +127,7 @@ export default function HomePage() {
 
       <footer className="py-12 bg-background">
          <div className="container mx-auto px-4 md:px-6 flex flex-col md:flex-row justify-between items-center text-center md:text-left">
-            <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} SwiftRoute. All rights reserved.</p>
+            <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} FromStore2Door. All rights reserved.</p>
              <div className="flex gap-4 mt-4 md:mt-0">
                 <Link href="#" className="text-sm text-muted-foreground hover:text-primary">Privacy Policy</Link>
                 <Link href="#" className="text-sm text-muted-foreground hover:text-primary">Terms of Service</Link>

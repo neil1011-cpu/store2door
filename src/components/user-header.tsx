@@ -19,7 +19,7 @@ const navLinks = [
 const AppLogo = () => (
   <Link href="/" className="flex items-center gap-2">
     <Route className="size-6 text-primary" />
-    <h1 className="text-lg font-bold">SwiftRoute</h1>
+    <h1 className="text-lg font-bold">FromStore2Door</h1>
   </Link>
 );
 
@@ -55,4 +55,3 @@ export function UserHeader() {
     </header>
   );
 }
-

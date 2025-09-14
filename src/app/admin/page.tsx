@@ -80,7 +80,7 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
-          From Store 2 Door Admin Panel
+          FromStore2Door Admin Panel
         </h1>
         <p className="text-muted-foreground">
           Your all-in-one solution for courier management.

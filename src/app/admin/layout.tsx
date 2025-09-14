@@ -42,7 +42,7 @@ import {
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
     <Route className="size-6 text-primary" />
-    <h1 className="text-lg font-bold text-primary-foreground">SwiftRoute</h1>
+    <h1 className="text-lg font-bold text-primary-foreground">FromStore2Door</h1>
   </div>
 );
 

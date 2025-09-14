@@ -110,7 +110,7 @@ export default function ShippingPage() {
     setSelectedShipment(shipment);
     setEmailContent({
       subject: `Update for your shipment: ${shipment.trackingId}`,
-      body: `Dear ${shipment.customer.name},\n\nHere's an update on your shipment ${shipment.trackingId}:\n\nThe current status is: ${shipment.status}.\n\nEstimated delivery: ${shipment.estimatedDelivery}.\n\nThank you for shipping with us!\nFrom Store 2 Door`,
+      body: `Dear ${shipment.customer.name},\n\nHere's an update on your shipment ${shipment.trackingId}:\n\nThe current status is: ${shipment.status}.\n\nEstimated delivery: ${shipment.estimatedDelivery}.\n\nThank you for shipping with us!\nFromStore2Door`,
     });
     setIsDialogOpen(true);
   };
