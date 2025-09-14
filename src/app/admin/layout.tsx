@@ -31,14 +31,7 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Notifications } from '@/components/notifications';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -163,30 +156,8 @@ export default function AdminLayout({
                     {/* Header content can go here */}
                 </div>
                 
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                        <Bell className="h-5 w-5" />
-                        <span className="sr-only">Toggle notifications</span>
-                    </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>
-                        <div className="flex items-center gap-2">
-                        <ScanText className="h-4 w-4" />
-                        <span>New pre-alert from John Doe (JM456)</span>
-                        </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                        <div className="flex items-center gap-2">
-                        <ScanText className="h-4 w-4" />
-                        <span>New pre-alert from Jane Smith (JM789)</span>
-                        </div>
-                    </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <Notifications />
+
                 <Avatar>
                     <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
                     <AvatarFallback>U</AvatarFallback>
@@ -199,5 +170,3 @@ export default function AdminLayout({
         </SidebarProvider>
   );
 }
-
-    
