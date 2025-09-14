@@ -3,14 +3,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check } from 'lucide-react';
-import Link from 'next/link';
+import { LayoutDashboard, FileUp, Package, MessageSquare, User } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
 
-type AccountDetails = {
+export type AccountDetails = {
     fullName: string;
     email: string;
     phone: string;
@@ -24,11 +23,19 @@ type AccountDetails = {
     }
 }
 
+export type Shipment = {
+  id: string;
+  trackingNumber: string;
+  contents: string;
+  status: 'Pending' | 'Processed' | 'In Transit' | 'Customs' | 'Delivered';
+  date: string;
+};
+
+
 export default function AccountPage() {
     const [details, setDetails] = useState<AccountDetails | null>(null);
     const router = useRouter();
     const { toast } = useToast();
-    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         try {
@@ -36,7 +43,6 @@ export default function AccountPage() {
             if (storedDetails) {
                 setDetails(JSON.parse(storedDetails));
             } else {
-                // If no details are found, redirect back to sign up.
                 router.push('/signup');
             }
         } catch (error) {
@@ -52,79 +58,50 @@ export default function AccountPage() {
             </div>
         );
     }
-
-    const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.address.zip}`;
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(fullAddress);
-        setCopied(true);
-        toast({
-            title: 'Address Copied!',
-            description: 'Your US address has been copied to the clipboard.',
-        });
-        setTimeout(() => setCopied(false), 2000); // Reset icon after 2 seconds
-    };
-
+    
     return (
-        <div className="container mx-auto py-12 px-4 md:px-6 max-w-3xl">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-3xl">Welcome, {details.fullName}!</CardTitle>
-                    <CardDescription>
-                        Your account has been successfully created. Here is your personal US shipping address.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div>
-                        <h3 className="font-semibold text-lg mb-2">Your New US Address</h3>
-                        <div className="relative rounded-lg border bg-muted p-4 space-y-1">
-                            <p className="font-mono">{details.address.address1}</p>
-                            <p className="font-mono font-bold text-primary">{details.address.address2}</p>
-                            <p className="font-mono">{details.address.city}, {details.address.state} {details.address.zip}</p>
-                             <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                className="absolute top-2 right-2 h-8 w-8"
-                                onClick={handleCopy}
-                            >
-                                {copied ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />}
-                             </Button>
-                        </div>
-                         <p className="text-sm text-muted-foreground mt-2">
-                            Use this address as your shipping destination when shopping from US stores.
-                        </p>
-                    </div>
+        <div className="container mx-auto py-12 px-4 md:px-6">
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold">Welcome, {details.fullName}!</h1>
+                <p className="text-muted-foreground">Manage your shipments and account details here.</p>
+            </div>
+             <Tabs defaultValue="dashboard" className="flex flex-col md:flex-row gap-6">
+                <TabsList className="flex md:flex-col h-auto p-2 md:w-1/5">
+                    <TabsTrigger value="dashboard" className="w-full justify-start gap-2">
+                        <LayoutDashboard className="h-5 w-5" /> Dashboard
+                    </TabsTrigger>
+                    <TabsTrigger value="pre-alert" className="w-full justify-start gap-2">
+                        <FileUp className="h-5 w-5" /> Pre-Alert
+                    </TabsTrigger>
+                    <TabsTrigger value="packages" className="w-full justify-start gap-2">
+                        <Package className="h-5 w-5" /> My Packages
+                    </TabsTrigger>
+                    <TabsTrigger value="support" className="w-full justify-start gap-2">
+                        <MessageSquare className="h-5 w-5" /> Support
+                    </TabsTrigger>
+                    <TabsTrigger value="account" className="w-full justify-start gap-2">
+                        <User className="h-5 w-5" /> My Account
+                    </TabsTrigger>
+                </TabsList>
 
-                    <Separator />
-
-                    <div>
-                        <h3 className="font-semibold text-lg mb-2">Account Details</h3>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Full Name:</span>
-                                <span>{details.fullName}</span>
-                            </div>
-                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Email:</span>
-                                <span>{details.email}</span>
-                            </div>
-                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Phone Number:</span>
-                                <span>{details.phone}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Mailbox Number:</span>
-                                <span className="font-mono">{details.mailboxNumber}</span>
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-                <CardFooter>
-                    <Button asChild>
-                        <Link href="/admin">Go to My Dashboard</Link>
-                    </Button>
-                </CardFooter>
-            </Card>
+                <div className="flex-1">
+                    <TabsContent value="dashboard">
+                        <DashboardTab details={details} />
+                    </TabsContent>
+                    <TabsContent value="pre-alert">
+                        <PreAlertTab customerName={details.fullName} />
+                    </TabsContent>
+                    <TabsContent value="packages">
+                        <PackagesTab />
+                    </TabsContent>
+                    <TabsContent value="support">
+                        <SupportTab />
+                    </TabsContent>
+                    <TabsContent value="account">
+                        <AccountTab details={details} />
+                    </TabsContent>
+                </div>
+            </Tabs>
         </div>
     );
 }
