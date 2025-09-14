@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { LayoutDashboard, FileUp, Package, MessageSquare, User } from 'lucide-react';
+import { LayoutDashboard, FileUp, Package, MessageSquare, User, LogOut } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
 
@@ -50,6 +50,24 @@ export default function AccountPage() {
              router.push('/signup');
         }
     }, [router]);
+
+    const handleSignOut = () => {
+        try {
+            localStorage.removeItem('accountDetails');
+            toast({
+                title: 'Signed Out',
+                description: 'You have been successfully signed out.',
+            });
+            router.push('/');
+        } catch (error) {
+            console.error("Could not sign out", error);
+            toast({
+                title: 'Sign Out Failed',
+                description: 'Something went wrong. Please try again.',
+                variant: 'destructive',
+            });
+        }
+    }
     
     if (!details) {
         return (
@@ -61,9 +79,15 @@ export default function AccountPage() {
     
     return (
         <div className="container mx-auto py-12 px-4 md:px-6">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold">Welcome, {details.fullName}!</h1>
-                <p className="text-muted-foreground">Manage your shipments and account details here.</p>
+            <div className="mb-8 flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold">Welcome, {details.fullName}!</h1>
+                    <p className="text-muted-foreground">Manage your shipments and account details here.</p>
+                </div>
+                <Button variant="outline" onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                </Button>
             </div>
              <Tabs defaultValue="dashboard" className="flex flex-col md:flex-row gap-6">
                 <TabsList className="flex md:flex-col h-auto p-2 md:w-1/5">
@@ -105,4 +129,3 @@ export default function AccountPage() {
         </div>
     );
 }
-
