@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare } from 'lucide-react';
+import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Users, Trash2 } from 'lucide-react';
 import { AccountDetails, Shipment } from './page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -476,10 +476,23 @@ export function SupportTab({ customerName }: { customerName: string }) {
   );
 }
 
+type PickupPerson = {
+    id: number;
+    name: string;
+    idNumber: string;
+};
+
 export function AccountTab({ details, onSignOut }: { details: AccountDetails, onSignOut: () => void }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
     const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.address.zip}`;
+
+    const [pickupPersonnel, setPickupPersonnel] = useState<PickupPerson[]>([
+        { id: 1, name: 'John Brown', idNumber: '123456-7' }
+    ]);
+    const [openAddPersonDialog, setOpenAddPersonDialog] = useState(false);
+    const [newPerson, setNewPerson] = useState({ name: '', idNumber: '' });
+
 
     const handleCopy = () => {
         navigator.clipboard.writeText(fullAddress);
@@ -489,6 +502,22 @@ export function AccountTab({ details, onSignOut }: { details: AccountDetails, on
             description: 'Your US address has been copied to the clipboard.',
         });
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleAddPerson = () => {
+        if (!newPerson.name || !newPerson.idNumber) {
+            toast({ title: "Missing Fields", description: "Please enter a name and ID number.", variant: 'destructive' });
+            return;
+        }
+        setPickupPersonnel([...pickupPersonnel, { ...newPerson, id: Date.now() }]);
+        setNewPerson({ name: '', idNumber: '' });
+        setOpenAddPersonDialog(false);
+        toast({ title: "Pickup Person Added", description: `${newPerson.name} can now pick up packages on your behalf.` });
+    };
+
+    const handleRemovePerson = (id: number) => {
+        setPickupPersonnel(pickupPersonnel.filter(p => p.id !== id));
+        toast({ title: "Pickup Person Removed" });
     };
 
     return (
@@ -537,6 +566,75 @@ export function AccountTab({ details, onSignOut }: { details: AccountDetails, on
                             <span className="text-muted-foreground">Mailbox Number:</span>
                             <span className="font-mono">{details.mailboxNumber}</span>
                         </div>
+                    </div>
+                </div>
+                 <Separator />
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-lg">Pickup Personnel</h3>
+                        <Dialog open={openAddPersonDialog} onOpenChange={setOpenAddPersonDialog}>
+                            <DialogTrigger asChild>
+                                <Button size="sm">
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    Add New Person
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add Pickup Person</DialogTitle>
+                                    <DialogDescription>
+                                        Add someone who is authorized to pick up packages on your behalf.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="pickup-name">Full Name</Label>
+                                        <Input id="pickup-name" placeholder="e.g., Jane Doe" value={newPerson.name} onChange={e => setNewPerson({ ...newPerson, name: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="pickup-id">Government Issued ID #</Label>
+                                        <Input id="pickup-id" placeholder="e.g., Driver's License or TRN" value={newPerson.idNumber} onChange={e => setNewPerson({ ...newPerson, idNumber: e.target.value })} />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                                    <Button onClick={handleAddPerson}>Add Person</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        Manage who can pick up packages for you. They must present their ID.
+                    </p>
+                    <div className="rounded-lg border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Name</TableHead>
+                                    <TableHead>ID Number</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {pickupPersonnel.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="text-center h-24">No pickup personnel added.</TableCell>
+                                    </TableRow>
+                                )}
+                                {pickupPersonnel.map(person => (
+                                    <TableRow key={person.id}>
+                                        <TableCell className="font-medium">{person.name}</TableCell>
+                                        <TableCell>{person.idNumber}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" onClick={() => handleRemovePerson(person.id)}>
+                                                <Trash2 className="h-4 w-4" />
+                                                <span className="sr-only">Remove</span>
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     </div>
                 </div>
             </CardContent>
