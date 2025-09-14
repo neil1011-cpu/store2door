@@ -10,6 +10,7 @@ type Message = {
   message: string;
   date: string;
   sender: 'user' | 'agent';
+  status: 'Open' | 'Closed';
 };
 
 // Using an in-memory store for now. In a real app, you'd use a database.
@@ -22,6 +23,7 @@ let messages: Message[] = [
         message: 'Hi there, I was just wondering about the status of my last package, tracking number JM789. It seems to be stuck in customs. Can you provide an update? Thanks!',
         date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
         sender: 'user',
+        status: 'Open',
     },
     {
         id: '1a',
@@ -31,6 +33,7 @@ let messages: Message[] = [
         message: 'Hello! Thanks for reaching out. We see that your package is currently undergoing standard customs inspection. This usually takes 2-3 business days. We will notify you as soon as it clears.',
         date: new Date().toISOString(),
         sender: 'agent',
+        status: 'Open',
     },
     {
         id: '2',
@@ -40,6 +43,7 @@ let messages: Message[] = [
         message: 'Hello, I need to update my delivery address for future shipments. Please let me know what information you need from me. Best, Alicia',
         date: new Date(new Date().setDate(new Date().getDate() - 2)).toISOString(),
         sender: 'user',
+        status: 'Closed',
     }
 ];
 
@@ -83,6 +87,7 @@ export async function POST(request: Request) {
       message,
       sender,
       date: new Date().toISOString(),
+      status: 'Open',
     };
 
     messages.unshift(newMessage);

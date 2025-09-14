@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, RefreshCw, Send } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, Send, Archive } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -66,7 +66,7 @@ export default function MessagesPage() {
                   id: msg.conversationId,
                   customerName: msg.customerName,
                   subject: msg.subject,
-                  status: 'Open', // This could be dynamic in a real app
+                  status: msg.status || 'Open',
                   messages: [],
                   lastUpdate: msg.date,
               };
@@ -104,6 +104,17 @@ export default function MessagesPage() {
   useEffect(() => {
     fetchMessages();
   }, []);
+
+  const handleCloseConversation = (conversationId: string) => {
+    setConversations(conversations.map(conv => 
+      conv.id === conversationId ? { ...conv, status: 'Closed' } : conv
+    ));
+    toast({
+        title: 'Conversation Closed',
+        description: `Conversation ${conversationId} has been marked as closed.`,
+    });
+    // In a real app, you would also make an API call to update the status on the backend.
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -192,10 +203,18 @@ export default function MessagesPage() {
                              <div className="pt-4 border-t">
                                 <Label className="mb-2">Reply to {conv.customerName}</Label>
                                 <Textarea placeholder="Write a reply..." className="mb-2" />
-                                <Button size="sm">
-                                    <Send className="mr-2 h-4 w-4" />
-                                    Send Reply
-                                </Button>
+                                <div className="flex justify-between items-center">
+                                    <Button size="sm">
+                                        <Send className="mr-2 h-4 w-4" />
+                                        Send Reply
+                                    </Button>
+                                    {conv.status === 'Open' && (
+                                        <Button variant="outline" size="sm" onClick={() => handleCloseConversation(conv.id)}>
+                                            <Archive className="mr-2 h-4 w-4" />
+                                            Close Conversation
+                                        </Button>
+                                    )}
+                                </div>
                              </div>
                         </div>
                   </AccordionContent>
