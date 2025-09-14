@@ -89,11 +89,19 @@ export default function AdminLayout({
                         </Link>
                     </SidebarMenuButton>
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
+                     <SidebarMenuItem>
                     <SidebarMenuButton asChild tooltip="Messages" size="sm">
                         <Link href="/admin/messages">
                         <Inbox />
                         Messages
+                        </Link>
+                    </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Notifications" size="sm">
+                        <Link href="/admin/notifications">
+                        <Bell />
+                        Notifications
                         </Link>
                     </SidebarMenuButton>
                     </SidebarMenuItem>

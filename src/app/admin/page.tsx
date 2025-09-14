@@ -50,6 +50,12 @@ const features = [
     href: '/admin/messages',
   },
   {
+    title: 'Notifications',
+    description: 'View system and warehouse notifications.',
+    icon: <Bell className="h-8 w-8 text-primary" />,
+    href: '/admin/notifications',
+  },
+  {
     title: 'Profit/Loss',
     description: 'View your financial statements.',
     icon: <Banknote className="h-8 w-8 text-primary" />,
@@ -125,5 +131,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
