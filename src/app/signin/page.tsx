@@ -18,6 +18,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -27,6 +29,7 @@ const formSchema = z.object({
 export default function SignInPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -36,43 +39,37 @@ export default function SignInPage() {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setLoading(true);
     try {
-      const storedUsers = localStorage.getItem('users');
-      if (storedUsers) {
-        const users = JSON.parse(storedUsers);
-        const foundUser = users.find(
-          (user: any) => user.email === values.email && user.password === values.password
-        );
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
 
-        if (foundUser) {
-          localStorage.setItem('accountDetails', JSON.stringify(foundUser));
-          toast({
-            title: 'Sign In Successful!',
-            description: 'Welcome back! Redirecting to your account...',
-          });
-          router.push('/account');
-        } else {
-          toast({
-            title: 'Invalid Credentials',
-            description: 'The email or password you entered is incorrect.',
-            variant: 'destructive',
-          });
-        }
-      } else {
-        toast({
-          title: 'No Accounts Found',
-          description: 'There are no user accounts. Please sign up first.',
-          variant: 'destructive',
-        });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'An error occurred.');
       }
-    } catch (error) {
-      console.error('Sign in error:', error);
+
+      localStorage.setItem('accountDetails', JSON.stringify(data.user));
+      
       toast({
-        title: 'An Error Occurred',
-        description: 'Something went wrong during sign-in. Please try again.',
+        title: 'Sign In Successful!',
+        description: 'Welcome back! Redirecting to your account...',
+      });
+      router.push('/account');
+
+    } catch (error) {
+      toast({
+        title: 'Sign In Failed',
+        description: (error as Error).message,
         variant: 'destructive',
       });
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -114,8 +111,8 @@ export default function SignInPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" size="lg" className="w-full">
-                Sign In
+              <Button type="submit" size="lg" className="w-full" disabled={loading}>
+                 {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing In...</> : 'Sign In'}
               </Button>
             </form>
           </Form>

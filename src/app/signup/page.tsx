@@ -19,6 +19,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -32,6 +34,7 @@ const formSchema = z.object({
 export default function SignUpPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -44,41 +47,61 @@ export default function SignUpPage() {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    // In a real app, you would handle the file upload and then send the data to your backend.
-    // We will simulate this process.
-    console.log(values);
-
-    // Generate a new US address and mailbox number.
-    const mailboxNumber = `FSTD${Math.floor(1000 + Math.random() * 9000)}`;
-    const address = {
-      address1: '4350 NE 5th Terrace Bay #3',
-      address2: `${mailboxNumber} -FSTD`,
-      city: 'Oakland Park',
-      state: 'Florida',
-      zip: '33334',
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setLoading(true);
+    // In a real app, you would handle the file upload properly.
+    // For this prototype, we're not sending the file, just the user data.
+    const userData = {
+        fullName: values.fullName,
+        email: values.email,
+        password: values.password,
+        phone: values.phone,
+        trn: values.trn,
     };
-
-    // For demonstration, we'll store the data in localStorage to pass it to the account page.
-    // In a real app, you'd get this from your backend after successful registration.
+    
     try {
-        // In a real app, you should not store all users in a single local storage item.
-        // This is for demonstration purposes only.
-        const existingUsers = JSON.parse(localStorage.getItem('users') || '[]');
-        const newUser = { ...values, mailboxNumber, address };
-        existingUsers.push(newUser);
-        localStorage.setItem('users', JSON.stringify(existingUsers));
-        localStorage.setItem('accountDetails', JSON.stringify(newUser));
-    } catch (e) {
-        console.error("Could not save to local storage", e)
+        const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to sign up.');
+        }
+
+        // After successful registration, we can sign the user in automatically
+        const loginResponse = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: values.email, password: values.password }),
+        });
+
+        const loginData = await loginResponse.json();
+
+        if (!loginResponse.ok) {
+            throw new Error(loginData.message || 'Failed to login after registration.');
+        }
+
+        localStorage.setItem('accountDetails', JSON.stringify(loginData.user));
+
+        toast({
+            title: 'Sign Up Successful!',
+            description: 'Your account has been created. Redirecting...',
+        });
+        
+        router.push('/account');
+    } catch(error) {
+         toast({
+            title: 'Sign Up Failed',
+            description: (error as Error).message,
+            variant: 'destructive',
+        });
+    } finally {
+        setLoading(false);
     }
-    
-    toast({
-      title: 'Sign Up Successful!',
-      description: 'Your account has been created. Redirecting...',
-    });
-    
-    router.push('/account');
   };
   
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {
@@ -183,8 +206,8 @@ export default function SignUpPage() {
                     </FormItem>
                 )}
                 />
-              <Button type="submit" size="lg" className="w-full">
-                Create Account & Get Address
+              <Button type="submit" size="lg" className="w-full" disabled={loading}>
+                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating Account...</> : 'Create Account & Get Address'}
               </Button>
             </form>
           </Form>
