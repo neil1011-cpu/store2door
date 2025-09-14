@@ -1,20 +1,120 @@
 
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  ScanText,
+  Truck,
+  FileText,
+  Banknote,
+  ArrowRight,
+  Users,
+  Bell,
+  DollarSign,
+  Settings,
+  Calculator,
+} from 'lucide-react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
-export default function HomePage() {
-  const router = useRouter();
+const features = [
+  {
+    title: 'Pre-Alerts',
+    description: 'Generate delivery address from a receipt image.',
+    icon: <ScanText className="h-8 w-8 text-primary" />,
+    href: '/pre-alerts',
+  },
+  {
+    title: 'Shipping Status',
+    description: 'Track your shipments in real-time.',
+    icon: <Truck className="h-8 w-8 text-primary" />,
+    href: '/shipping',
+  },
+  {
+    title: 'Flight Manifests',
+    description: 'Manage and view flight manifest documents.',
+    icon: <FileText className="h-8 w-8 text-primary" />,
+    href: '/manifests',
+  },
+  {
+    title: 'Profit/Loss',
+    description: 'View your financial statements.',
+    icon: <Banknote className="h-8 w-8 text-primary" />,
+    href: '/finance',
+  },
+  {
+    title: 'Users',
+    description: 'Manage users and their addresses.',
+    icon: <Users className="h-8 w-8 text-primary" />,
+    href: '/users',
+  },
+  {
+    title: 'Courier Rates',
+    description: 'Manage your shipping rates.',
+    icon: <DollarSign className="h-8 w-8 text-primary" />,
+    href: '/rates',
+  },
+  {
+    title: 'Customs Calculator',
+    description: 'Estimate customs fees.',
+    icon: <Calculator className="h-8 w-8 text-primary" />,
+    href: '/customs-calculator',
+  },
+  {
+    title: 'Settings',
+    description: 'Manage application settings.',
+    icon: <Settings className="h-8 w-8 text-primary" />,
+    href: '/settings',
+  }
+];
 
-  useEffect(() => {
-    router.replace('/dashboard');
-  }, [router]);
+export default function DashboardPage() {
 
   return (
-    <div className="flex h-screen items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin" />
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          From Store 2 Door Admin Panel
+        </h1>
+        <p className="text-muted-foreground">
+          Your all-in-one solution for courier management.
+        </p>
+      </div>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {features.map((feature) => (
+          <Card
+            key={feature.title}
+            className="group transition-all hover:shadow-lg hover:-translate-y-1"
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                {feature.title}
+              </CardTitle>
+              {feature.icon}
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                {feature.description}
+              </p>
+              <Button
+                variant="link"
+                className="mt-4 p-0"
+                asChild
+              >
+                <Link href={feature.href}>
+                  Go to {feature.title} <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
