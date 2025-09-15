@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check } from 'lucide-react';
+import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [apiKey, setApiKey] = useState('');
   const [isKeySaved, setIsKeySaved] = useState(false);
+  const [isKeyVisible, setIsKeyVisible] = useState(false);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
@@ -53,6 +54,7 @@ export default function SettingsPage() {
       return;
     }
     setIsKeySaved(true);
+    setIsKeyVisible(false);
     toast({
       title: 'API Key Saved',
       description: 'Your ipack API key has been securely saved.',
@@ -165,17 +167,23 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Input 
                   id="ipack-api-key" 
-                  type="password" 
+                  type={isKeySaved && !isKeyVisible ? 'password' : 'text'}
                   placeholder="Enter your ipack API key"
-                  value={isKeySaved ? '••••••••••••••••••••' : apiKey}
+                  value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   disabled={isKeySaved}
                   readOnly={isKeySaved}
                 />
                 {isKeySaved ? (
-                  <Button variant="secondary" onClick={handleEditApiKey}>
-                    <Edit className="mr-2 h-4 w-4" /> Edit
-                  </Button>
+                  <>
+                    <Button variant="ghost" size="icon" onClick={() => setIsKeyVisible(!isKeyVisible)}>
+                        {isKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        <span className="sr-only">{isKeyVisible ? 'Hide key' : 'Show key'}</span>
+                    </Button>
+                    <Button variant="secondary" onClick={handleEditApiKey}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                    </Button>
+                  </>
                 ) : (
                   <Button onClick={handleSaveApiKey}>
                     <Check className="mr-2 h-4 w-4" /> Save Key
