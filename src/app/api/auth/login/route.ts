@@ -2,32 +2,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { SignJWT } from 'jose';
-
-// This is a mock user store. In a real application, you would query a database.
-const users: any[] = [];
-if (typeof localStorage !== 'undefined') {
-    const storedUsers = localStorage.getItem('users');
-    if (storedUsers) {
-        users.push(...JSON.parse(storedUsers));
-    }
-} else {
-    // Mock data for environments where localStorage is not available (e.g. server-side during build)
-    users.push({
-        email: 'test@example.com',
-        password: 'password123',
-        fullName: 'Test User',
-        phone: '1234567890',
-        trn: '123456789',
-        mailboxNumber: 'FSTD1234',
-        address: {
-            address1: '4350 NE 5th Terrace Bay #3',
-            address2: 'FSTD1234 -FSTD',
-            city: 'Oakland Park',
-            state: 'Florida',
-            zip: '33334',
-        },
-    });
-}
+import { users } from '@/lib/mock-db';
 
 const loginSchema = z.object({
   email: z.string().email(),

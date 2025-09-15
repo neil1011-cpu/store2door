@@ -1,15 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-
-// This is a mock user store. In a real application, you would use a database.
-const users: any[] = [];
-if (typeof localStorage !== 'undefined') {
-    const storedUsers = localStorage.getItem('users');
-    if (storedUsers) {
-        users.push(...JSON.parse(storedUsers));
-    }
-}
+import { users, User } from '@/lib/mock-db';
 
 const registerSchema = z.object({
   fullName: z.string().min(2),
@@ -36,35 +28,29 @@ export async function POST(request: Request) {
     }
 
     // Generate a new US address and mailbox number.
-    const mailboxNumber = `FSTD${Math.floor(1000 + Math.random() * 9000)}`;
+    const lastMailboxNum = users.length > 0 ? parseInt(users[users.length - 1].mailboxNumber.replace('FSTD', ''), 10) : 1000;
+    const nextMailboxNumber = `FSTD${lastMailboxNum + 1}`;
     const address = {
       address1: '4350 NE 5th Terrace Bay #3',
-      address2: `${mailboxNumber} -FSTD`,
+      address2: `${nextMailboxNumber} -FSTD`,
       city: 'Oakland Park',
       state: 'Florida',
       zip: '33334',
     };
 
-    const newUser = {
+    const newUser: User = {
         id: (users.length + 1).toString(),
         fullName,
         email,
         password, // In a real app, you would hash this password
         phone,
         trn,
-        mailboxNumber,
+        mailboxNumber: nextMailboxNumber,
         address
     };
 
     users.push(newUser);
     
-    // In a real app, this would persist to a database. 
-    // localStorage is not available in this server context, but this simulates the update.
-    // In a real setup, you'd have a database driver call here.
-    if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('users', JSON.stringify(users));
-    }
-
     const { password: _, ...userWithoutPassword } = newUser;
 
     return NextResponse.json(userWithoutPassword, { status: 201 });
