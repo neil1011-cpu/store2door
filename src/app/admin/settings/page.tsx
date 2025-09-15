@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound, Moon, Sun, Laptop } from 'lucide-react';
+import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [avatar, setAvatar] = useState('https://placehold.co/128x128.png');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [apiKey, setApiKey] = useState('');
+  const [isKeySaved, setIsKeySaved] = useState(false);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
@@ -43,11 +44,24 @@ export default function SettingsPage() {
   };
 
   const handleSaveApiKey = () => {
+    if (!apiKey) {
+      toast({
+        title: 'API Key is empty',
+        description: 'Please enter an API key to save.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setIsKeySaved(true);
     toast({
       title: 'API Key Saved',
       description: 'Your ipack API key has been securely saved.',
     });
   };
+
+  const handleEditApiKey = () => {
+    setIsKeySaved(false);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -152,11 +166,21 @@ export default function SettingsPage() {
                 <Input 
                   id="ipack-api-key" 
                   type="password" 
-                  placeholder="Enter your ipack API key" 
-                  value={apiKey}
+                  placeholder="Enter your ipack API key"
+                  value={isKeySaved ? '••••••••••••••••••••' : apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
+                  disabled={isKeySaved}
+                  readOnly={isKeySaved}
                 />
-                <Button onClick={handleSaveApiKey}>Save Key</Button>
+                {isKeySaved ? (
+                  <Button variant="secondary" onClick={handleEditApiKey}>
+                    <Edit className="mr-2 h-4 w-4" /> Edit
+                  </Button>
+                ) : (
+                  <Button onClick={handleSaveApiKey}>
+                    <Check className="mr-2 h-4 w-4" /> Save Key
+                  </Button>
+                )}
               </div>
             </div>
         </CardContent>
