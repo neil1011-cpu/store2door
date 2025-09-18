@@ -1,8 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
+import { users, type User } from '@/lib/mock-db';
 
 const registerSchema = z.object({
   fullName: z.string().min(2),
@@ -24,37 +23,32 @@ export async function POST(request: Request) {
     const { email, fullName, password, phone, trn } = validation.data;
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    if (users.find(u => u.email === email)) {
         return NextResponse.json({ message: 'User with this email already exists' }, { status: 409 });
     }
 
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     // Generate a new US address and mailbox number.
-    const lastUser = await prisma.user.findFirst({
-        orderBy: { createdAt: 'desc' }
-    });
-
-    const lastMailboxNum = lastUser ? parseInt(lastUser.mailboxNumber.replace('FSTD', ''), 10) : 1000;
+    const lastMailboxNum = users.length > 0 ? parseInt(users[users.length - 1].mailboxNumber.replace('FSTD', '')) : 100;
     const nextMailboxNumber = `FSTD${lastMailboxNum + 1}`;
     
-    const newUser = await prisma.user.create({
-        data: {
-            fullName,
-            email,
-            password: hashedPassword,
-            phone,
-            trn,
-            mailboxNumber: nextMailboxNumber,
+    const newUser: User = {
+        id: (users.length + 1).toString(),
+        fullName,
+        email,
+        password, // In a real app, hash this!
+        phone,
+        trn,
+        mailboxNumber: nextMailboxNumber,
+        address: {
             address1: '4350 NE 5th Terrace Bay #3',
             address2: `${nextMailboxNumber} -FSTD`,
             city: 'Oakland Park',
             state: 'Florida',
             zip: '33334',
         }
-    });
+    };
+    
+    users.push(newUser);
     
     const { password: _, ...userWithoutPassword } = newUser;
 

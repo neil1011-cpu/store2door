@@ -1,9 +1,8 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { users, type User } from '@/lib/mock-db';
 import { SignJWT } from 'jose';
-import prisma from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -24,47 +23,24 @@ export async function POST(request: Request) {
 
     const { email, password } = validation.data;
 
-    // Find the user in the database
-    const user = await prisma.user.findUnique({ where: { email } });
+    // Find the user in our mock database
+    const user = users.find(u => u.email === email);
 
-    if (!user) {
+    if (!user || user.password !== password) {
       return NextResponse.json({ message: 'Invalid email or password' }, { status: 401 });
-    }
-
-    // Compare the provided password with the stored hash
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid) {
-        return NextResponse.json({ message: 'Invalid email or password' }, { status: 401 });
     }
 
     // Don't include the password in the token payload or the response
     const { password: _, ...userWithoutPassword } = user;
     
-    const tokenPayload = {
-      id: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      phone: user.phone,
-      mailboxNumber: user.mailboxNumber,
-      address: {
-        address1: user.address1,
-        address2: user.address2,
-        city: user.city,
-        state: user.state,
-        zip: user.zip,
-      }
-    };
-
-
     // Create the JWT
-    const token = await new SignJWT(tokenPayload)
+    const token = await new SignJWT(userWithoutPassword)
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime('1h') // Token expires in 1 hour
       .sign(secret);
 
-    return NextResponse.json({ user: tokenPayload, token });
+    return NextResponse.json({ user: userWithoutPassword, token });
 
   } catch (error) {
     console.error('Login error:', error);
