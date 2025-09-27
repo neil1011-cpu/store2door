@@ -1,0 +1,172 @@
+
+'use client';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
+import { Loader2, Mail, Phone, MapPin, Send } from 'lucide-react';
+import Image from 'next/image';
+import placeholderImages from '@/lib/placeholder-images.json';
+
+const formSchema = z.object({
+  fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
+  email: z.string().email({ message: 'Please enter a valid email address.' }),
+  subject: z.string().min(3, { message: 'Subject must be at least 3 characters.' }),
+  message: z.string().min(10, { message: 'Message must be at least 10 characters.' }),
+});
+
+export default function ContactPage() {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const mapImage = placeholderImages.contactMap;
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      fullName: '',
+      email: '',
+      subject: '',
+      message: '',
+    },
+  });
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setLoading(true);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    setLoading(false);
+    toast({
+      title: 'Message Sent!',
+      description: 'Thank you for contacting us. We will get back to you shortly.',
+    });
+    form.reset();
+  };
+
+  return (
+    <div className="container mx-auto py-12 px-4 md:px-6">
+       <div className="max-w-3xl mx-auto text-center mb-12">
+        <h1 className="text-4xl font-bold tracking-tight">Get in Touch</h1>
+        <p className="mt-4 text-lg text-muted-foreground">
+          Have questions? We'd love to hear from you.
+        </p>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <Card>
+            <CardHeader>
+                <CardTitle>Contact Form</CardTitle>
+                <CardDescription>Send us a message and we'll respond as soon as possible.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <FormField
+                        control={form.control}
+                        name="fullName"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Full Name</FormLabel>
+                            <FormControl>
+                            <Input placeholder="e.g., John Doe" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Email Address</FormLabel>
+                            <FormControl>
+                            <Input type="email" placeholder="you@example.com" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="subject"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Subject</FormLabel>
+                            <FormControl>
+                            <Input placeholder="e.g., Question about my shipment" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="message"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Message</FormLabel>
+                            <FormControl>
+                                <Textarea placeholder="Please type your message here..." className="min-h-[150px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <Button type="submit" size="lg" className="w-full" disabled={loading}>
+                        {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</> : <><Send className="mr-2 h-4 w-4" /> Send Message</>}
+                    </Button>
+                    </form>
+                </Form>
+            </CardContent>
+        </Card>
+
+        <div className="space-y-8">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Our Information</CardTitle>
+                    <CardDescription>You can also reach us via phone or email.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 text-muted-foreground">
+                    <div className="flex items-center gap-4">
+                        <Phone className="h-6 w-6 text-primary" />
+                        <span>(876) 555-DOOR / (876) 555-3667</span>
+                    </div>
+                     <div className="flex items-center gap-4">
+                        <Mail className="h-6 w-6 text-primary" />
+                        <span>support@fromstore2door.com</span>
+                    </div>
+                     <div className="flex items-start gap-4">
+                        <MapPin className="h-6 w-6 text-primary mt-1" />
+                        <span>Shop #123, Kingston Business Center<br />Kingston 5, Jamaica</span>
+                    </div>
+                </CardContent>
+            </Card>
+             <div className="relative h-64 md:h-80 w-full overflow-hidden rounded-lg">
+                <Image 
+                    src={mapImage.src}
+                    alt={mapImage.alt}
+                    fill
+                    className="object-cover"
+                    data-ai-hint={mapImage.hint}
+                />
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import placeholderImages from '@/lib/placeholder-images.json';
 
 
 type Message = {
@@ -48,6 +49,7 @@ export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const supportAvatar = placeholderImages.avatars.supportAgent;
 
   const fetchMessages = async () => {
     setLoading(true);
@@ -205,7 +207,7 @@ export default function MessagesPage() {
                                      </div>
                                       {msg.sender === 'agent' && (
                                         <Avatar className="h-9 w-9">
-                                             <AvatarImage src="https://picsum.photos/seed/support/40/40" alt="Support Agent" />
+                                             <AvatarImage src={supportAvatar.src} alt={supportAvatar.alt} />
                                             <AvatarFallback>SA</AvatarFallback>
                                         </Avatar>
                                      )}

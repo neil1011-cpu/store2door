@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Package, Ship, ShieldCheck, Zap } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import placeholderImages from '@/lib/placeholder-images.json';
 
 const features = [
   {
@@ -28,6 +29,7 @@ const features = [
 ];
 
 export default function HomePage() {
+  const howItWorksImage = placeholderImages.howItWorks;
   return (
     <div className="flex flex-col">
       <section className="relative w-full py-20 md:py-32 lg:py-40 bg-background">
@@ -88,11 +90,11 @@ export default function HomePage() {
             </div>
              <div className="relative h-[300px] md:h-[400px] lg:h-[500px]">
                 <Image 
-                    src="https://picsum.photos/seed/shipping/800/600"
-                    alt="Shipping process"
+                    src={howItWorksImage.src}
+                    alt={howItWorksImage.alt}
                     fill
                     className="object-cover rounded-lg"
-                    data-ai-hint="warehouse shipping boxes"
+                    data-ai-hint={howItWorksImage.hint}
                 />
             </div>
           </div>

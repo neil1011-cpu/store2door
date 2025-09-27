@@ -1,0 +1,40 @@
+{
+  "homeHero": {
+    "src": "https://picsum.photos/seed/hero-ship/1200/800",
+    "alt": "Cargo ship with containers",
+    "hint": "cargo ship"
+  },
+  "howItWorks": {
+    "src": "https://picsum.photos/seed/shipping/800/600",
+    "alt": "Shipping process with boxes in a warehouse",
+    "hint": "warehouse boxes"
+  },
+  "contactMap": {
+    "src": "https://picsum.photos/seed/map/800/600",
+    "alt": "Map showing the location of the business",
+    "hint": "street map"
+  },
+  "invoices": {
+    "inv1": {
+      "src": "https://picsum.photos/seed/inv1/800/1100",
+      "alt": "Invoice for shipment JM456",
+      "hint": "invoice document"
+    },
+    "inv2": {
+      "src": "https://picsum.photos/seed/inv2/800/1100",
+      "alt": "Invoice for shipment JM789",
+      "hint": "invoice document"
+    },
+    "inv3": {
+      "src": "https://picsum.photos/seed/inv3/800/1100",
+      "alt": "Invoice for shipment JM101",
+      "hint": "invoice document"
+    }
+  },
+  "avatars": {
+    "supportAgent": {
+      "src": "https://picsum.photos/seed/support/40/40",
+      "alt": "Support Agent Avatar"
+    }
+  }
+}

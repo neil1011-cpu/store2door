@@ -20,12 +20,13 @@ import Image from 'next/image';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import placeholderImages from '@/lib/placeholder-images.json';
 
 // A mock list of shipments for the user. In a real app, this would be fetched.
 const userShipments: Shipment[] = [
-    { id: '1', trackingNumber: 'JM456', contents: 'Laptop from Amazon', status: 'In Transit', date: new Date().toLocaleDateString('en-US'), cost: 45.50, paymentStatus: 'Unpaid', invoiceUrl: 'https://picsum.photos/seed/inv1/800/1100' },
-    { id: '2', trackingNumber: 'JM789', contents: 'Books from eBay', status: 'Customs', date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'), cost: 22.00, paymentStatus: 'Unpaid', invoiceUrl: 'https://picsum.photos/seed/inv2/800/1100'},
-    { id: '3', trackingNumber: 'JM101', contents: 'Shoes from Zappos', status: 'Delivered', date: new Date(new Date().setDate(new Date().getDate() - 5)).toLocaleDateString('en-US'), cost: 30.00, paymentStatus: 'Paid', invoiceUrl: 'https://picsum.photos/seed/inv3/800/1100' },
+    { id: '1', trackingNumber: 'JM456', contents: 'Laptop from Amazon', status: 'In Transit', date: new Date().toLocaleDateString('en-US'), cost: 45.50, paymentStatus: 'Unpaid', invoiceUrl: placeholderImages.invoices.inv1.src },
+    { id: '2', trackingNumber: 'JM789', contents: 'Books from eBay', status: 'Customs', date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'), cost: 22.00, paymentStatus: 'Unpaid', invoiceUrl: placeholderImages.invoices.inv2.src},
+    { id: '3', trackingNumber: 'JM101', contents: 'Shoes from Zappos', status: 'Delivered', date: new Date(new Date().setDate(new Date().getDate() - 5)).toLocaleDateString('en-US'), cost: 30.00, paymentStatus: 'Paid', invoiceUrl: placeholderImages.invoices.inv3.src },
 ];
 
 
@@ -346,6 +347,7 @@ export function SupportTab({ customerName }: { customerName: string }) {
   const [openNewMessageDialog, setOpenNewMessageDialog] = useState(false);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const supportAvatar = placeholderImages.avatars.supportAgent;
 
   const handleSendMessage = async () => {
     if (!subject || !message) {
@@ -444,7 +446,7 @@ export function SupportTab({ customerName }: { customerName: string }) {
                                 <div key={msg.id} className={cn("flex items-start gap-3", msg.sender === 'user' ? "justify-end" : "justify-start")}>
                                      {msg.sender === 'agent' && (
                                         <Avatar className="h-9 w-9">
-                                            <AvatarImage src="https://picsum.photos/seed/support/40/40" alt="Support Agent" />
+                                            <AvatarImage src={supportAvatar.src} alt={supportAvatar.alt} />
                                             <AvatarFallback>SA</AvatarFallback>
                                         </Avatar>
                                      )}
