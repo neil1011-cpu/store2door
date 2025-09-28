@@ -45,15 +45,22 @@ export default function AccountPage() {
             const storedDetails = localStorage.getItem('accountDetails');
             if (storedDetails) {
                 const parsedDetails = JSON.parse(storedDetails);
-                // The address is nested in the user object from the API now
+
+                // Handle both flat and nested address structures for compatibility
                 const accountDetails: AccountDetails = {
                     ...parsedDetails,
-                    address: {
+                    address: parsedDetails.address ? {
                         address1: parsedDetails.address.address1,
                         address2: parsedDetails.address.address2,
                         city: parsedDetails.address.city,
                         state: parsedDetails.address.state,
                         zip: parsedDetails.address.zip,
+                    } : { // Fallback for flat structure from older localStorage data
+                        address1: parsedDetails.address1,
+                        address2: parsedDetails.address2,
+                        city: parsedDetails.city,
+                        state: parsedDetails.state,
+                        zip: parsedDetails.zip,
                     }
                 };
                 setDetails(accountDetails);
