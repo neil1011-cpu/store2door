@@ -44,7 +44,19 @@ export default function AccountPage() {
         try {
             const storedDetails = localStorage.getItem('accountDetails');
             if (storedDetails) {
-                setDetails(JSON.parse(storedDetails));
+                const parsedDetails = JSON.parse(storedDetails);
+                // The address is nested in the user object from the API now
+                const accountDetails: AccountDetails = {
+                    ...parsedDetails,
+                    address: {
+                        address1: parsedDetails.address.address1,
+                        address2: parsedDetails.address.address2,
+                        city: parsedDetails.address.city,
+                        state: parsedDetails.address.state,
+                        zip: parsedDetails.address.zip,
+                    }
+                };
+                setDetails(accountDetails);
             } else {
                 router.push('/signup');
             }
@@ -134,3 +146,5 @@ export default function AccountPage() {
         </div>
     );
 }
+
+    
