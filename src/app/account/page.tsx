@@ -41,6 +41,7 @@ export default function AccountPage() {
     const { toast } = useToast();
 
     useEffect(() => {
+        // This code now safely runs only on the client
         try {
             const storedDetails = localStorage.getItem('accountDetails');
             if (storedDetails) {
