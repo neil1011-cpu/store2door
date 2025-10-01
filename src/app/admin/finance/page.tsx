@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowUpRight, DollarSign, ArrowLeft, PlusCircle } from 'lucide-react';
+import { ArrowUpRight, DollarSign, ArrowLeft, PlusCircle, ArrowRight } from 'lucide-react';
 import { FinanceChart } from '@/components/finance-chart';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -94,36 +94,46 @@ export default function FinancePage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${financeData.summary.revenue.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <ArrowUpRight className="h-4 w-4 mr-1 text-green-500" />
-              +{financeData.summary.revenueChange}% from last quarter
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${financeData.summary.expenses.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <ArrowUpRight className="h-4 w-4 mr-1 text-red-500" />
-              +{financeData.summary.expensesChange}% from last quarter
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/admin/finance/revenue">
+            <Card className="hover:bg-accent transition-colors">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  ${financeData.summary.revenue.toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center">
+                  <ArrowUpRight className="h-4 w-4 mr-1 text-green-500" />
+                  +{financeData.summary.revenueChange}% from last quarter
+                </p>
+              </CardContent>
+               <CardFooter>
+                 <p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p>
+              </CardFooter>
+            </Card>
+        </Link>
+        <Link href="/admin/finance/expenses">
+            <Card className="hover:bg-accent transition-colors">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  ${financeData.summary.expenses.toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center">
+                  <ArrowUpRight className="h-4 w-4 mr-1 text-red-500" />
+                  +{financeData.summary.expensesChange}% from last quarter
+                </p>
+              </CardContent>
+               <CardFooter>
+                 <p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p>
+              </CardFooter>
+            </Card>
+        </Link>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
@@ -233,3 +243,5 @@ export default function FinancePage() {
     </div>
   );
 }
+
+    
