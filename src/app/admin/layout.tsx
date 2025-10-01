@@ -124,10 +124,10 @@ export default function AdminLayout({
                     </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Profit/Loss">
+                    <SidebarMenuButton asChild tooltip="Finance">
                         <Link href="/admin/finance">
                         <Banknote />
-                        Profit/Loss
+                        Finance
                         </Link>
                     </SidebarMenuButton>
                     </SidebarMenuItem>

@@ -70,7 +70,7 @@ const features = [
     href: '/admin/notifications',
   },
   {
-    title: 'Profit/Loss',
+    title: 'Finance',
     description: 'View your financial statements.',
     icon: <Banknote className="h-8 w-8 text-primary" />,
     href: '/admin/finance',
