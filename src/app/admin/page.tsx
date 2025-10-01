@@ -52,10 +52,10 @@ const features = [
     href: '/admin/invoices',
   },
   {
-    title: 'Email Marketing',
+    title: 'Communications',
     description: 'Send promotional emails to customers.',
     icon: <Megaphone className="h-8 w-8 text-primary" />,
-    href: '/admin/messages',
+    href: '/admin/communications',
   },
   {
     title: 'Notifications',

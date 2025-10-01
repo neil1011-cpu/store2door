@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-export default function EmailMarketingPage() {
+export default function CommunicationsPage() {
     const { toast } = useToast();
     const [subject, setSubject] = useState('');
     const [body, setBody] = useState('');
@@ -55,7 +55,7 @@ export default function EmailMarketingPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Email Marketing</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Communications</h1>
           <p className="text-muted-foreground">
             Compose and send promotional emails to your customers.
           </p>

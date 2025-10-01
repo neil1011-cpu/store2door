@@ -100,10 +100,10 @@ export default function AdminLayout({
                     </SidebarMenuButton>
                     </SidebarMenuItem>
                      <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Email Marketing" size="sm">
-                        <Link href="/admin/messages">
+                    <SidebarMenuButton asChild tooltip="Communications" size="sm">
+                        <Link href="/admin/communications">
                         <Megaphone />
-                        Email Marketing
+                        Communications
                         </Link>
                     </SidebarMenuButton>
                     </SidebarMenuItem>
