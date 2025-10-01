@@ -108,14 +108,6 @@ export default function AdminLayout({
                     </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild tooltip="Promotions" size="sm">
-                            <Link href="/admin/promotions">
-                            <Megaphone />
-                            Promotions
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
                     <SidebarMenuButton asChild tooltip="Notifications" size="sm">
                         <Link href="/admin/notifications">
                         <Bell />

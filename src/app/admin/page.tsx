@@ -53,15 +53,9 @@ const features = [
   },
   {
     title: 'Messages',
-    description: 'View messages from customers.',
+    description: 'View messages and send promotions.',
     icon: <Inbox className="h-8 w-8 text-primary" />,
     href: '/admin/messages',
-  },
-   {
-    title: 'Promotions',
-    description: 'Send marketing emails to customers.',
-    icon: <Megaphone className="h-8 w-8 text-primary" />,
-    href: '/admin/promotions',
   },
   {
     title: 'Notifications',
