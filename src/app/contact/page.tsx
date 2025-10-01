@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
-import { Loader2, Mail, Phone, MapPin, Send } from 'lucide-react';
+import { Loader2, Mail, Phone, MapPin, Send, Clock } from 'lucide-react';
 import Image from 'next/image';
 import placeholderImages from '@/lib/placeholder-images.json';
 
@@ -142,21 +141,39 @@ export default function ContactPage() {
                         <CardTitle>Our Information</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 text-muted-foreground">
-                        <div className="flex items-center gap-4">
-                            <Phone className="h-5 w-5 text-primary" />
-                            <span>(876) 555-DOOR / (876) 555-3667</span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <Mail className="h-5 w-5 text-primary" />
-                            <span>support@fromstore2door.com</span>
+                         <div className="flex items-start gap-4">
+                            <MapPin className="h-5 w-5 text-primary mt-1 shrink-0" />
+                            <div>
+                                <h3 className="font-semibold text-foreground">Our Location</h3>
+                                <p>Portmore, St. Catherine</p>
+                            </div>
                         </div>
                         <div className="flex items-start gap-4">
-                            <MapPin className="h-5 w-5 text-primary mt-1 shrink-0" />
-                            <span>Shop #123, Kingston Business Center, Kingston 5, Jamaica</span>
+                            <Phone className="h-5 w-5 text-primary mt-1 shrink-0" />
+                            <div>
+                                <h3 className="font-semibold text-foreground">Phone Numbers</h3>
+                                <p>Flow: (876) 771-3071</p>
+                                <p>Digicel: (876) 506-9727</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start gap-4">
+                            <Mail className="h-5 w-5 text-primary mt-1 shrink-0" />
+                             <div>
+                                <h3 className="font-semibold text-foreground">Email Us</h3>
+                                <p>fromstore2door@gmail.com</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start gap-4">
+                            <Clock className="h-5 w-5 text-primary mt-1 shrink-0" />
+                             <div>
+                                <h3 className="font-semibold text-foreground">Opening Hours</h3>
+                                <p>Monday - Friday: 9AM - 5PM</p>
+                                <p>Saturday: 9AM - 4PM</p>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
-                <div className="relative h-80 w-full overflow-hidden rounded-lg shadow-lg">
+                <div className="relative h-60 w-full overflow-hidden rounded-lg shadow-lg">
                     <Image 
                         src={mapImage.src}
                         alt={mapImage.alt}
