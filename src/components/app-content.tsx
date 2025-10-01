@@ -10,11 +10,13 @@ export function AppContent({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
-  const isAdminOrAccountPage = pathname.startsWith('/admin') || pathname.startsWith('/account');
+  const isAdminPage = pathname.startsWith('/admin');
+  const hideHeader = isAdminPage || pathname.startsWith('/account') || pathname.startsWith('/admin-login');
+
 
   return (
       <div className="flex flex-col min-h-screen">
-        {!isAdminOrAccountPage && <UserHeader />}
+        {!hideHeader && <UserHeader />}
         <main className="flex-1">{children}</main>
       </div>
   );
