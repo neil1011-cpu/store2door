@@ -134,21 +134,26 @@ export default function FinancePage() {
               </CardFooter>
             </Card>
         </Link>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${financeData.summary.profit.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <ArrowUpRight className="h-4 w-4 mr-1 text-green-500" />
-              +{financeData.summary.profitChange}% from last quarter
-            </p>
-          </CardContent>
-        </Card>
+        <Link href="/admin/finance">
+            <Card className="hover:bg-accent transition-colors">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  ${financeData.summary.profit.toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center">
+                  <ArrowUpRight className="h-4 w-4 mr-1 text-green-500" />
+                  +{financeData.summary.profitChange}% from last quarter
+                </p>
+              </CardContent>
+               <CardFooter>
+                 <p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p>
+              </CardFooter>
+            </Card>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
