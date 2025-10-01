@@ -31,6 +31,11 @@
       "hint": "invoice document"
     }
   },
+  "generatedInvoice": {
+    "src": "https://picsum.photos/seed/geninv/800/1100",
+    "alt": "Generated customer invoice",
+    "hint": "invoice document"
+  },
   "avatars": {
     "supportAgent": {
       "src": "https://picsum.photos/seed/support/40/40",

@@ -28,6 +28,7 @@ import {
   DollarSign,
   Calculator,
   Inbox,
+  Receipt,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,14 @@ export default function AdminLayout({
                         <Link href="/admin/manifests">
                         <FileText />
                         Flight Manifests
+                        </Link>
+                    </SidebarMenuButton>
+                    </SidebarMenuItem>
+                     <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Invoices" size="sm">
+                        <Link href="/admin/invoices">
+                        <Receipt />
+                        Invoices
                         </Link>
                     </SidebarMenuButton>
                     </SidebarMenuItem>

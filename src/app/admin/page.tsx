@@ -20,6 +20,7 @@ import {
   Settings,
   Calculator,
   Inbox,
+  Receipt,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,12 @@ const features = [
     description: 'Manage and view flight manifest documents.',
     icon: <FileText className="h-8 w-8 text-primary" />,
     href: '/admin/manifests',
+  },
+  {
+    title: 'Invoices',
+    description: 'Create and manage customer invoices.',
+    icon: <Receipt className="h-8 w-8 text-primary" />,
+    href: '/admin/invoices',
   },
   {
     title: 'Messages',
