@@ -47,11 +47,6 @@ const calculateCost = (weight: number): number | string => {
         // It's not perfectly linear. A better approach is to use the given data.
         // Since there is no data for 11-22, we should use a consistent rate.
         // The rate from 2-9 lbs is $450/lb. Let's use that from 10lbs.
-        // The rate from 26-30 lbs is $350/lb.
-        // The rate for 31-50 is $400/lb.
-        // Given the inconsistency, it is better to set an average rate for missing ranges.
-        // The rate from 9 to 10 lbs is $500.
-        // Let's assume $450 per lb after 10lbs, as it's a common rate in the lower tier.
          return pricingTiers[10] + (roundedWeight - 10) * 450;
     }
     
@@ -145,10 +140,6 @@ export default function RatesPage() {
                     </TableBody>
                 </Table>
                 <ul className="text-sm text-muted-foreground space-y-3 pt-4">
-                    <li className="flex items-center gap-2">
-                        <Info className="h-4 w-4 text-primary" />
-                        <span className="font-semibold text-foreground">Rounding:</span> Weight is rounded up to the nearest pound.
-                    </li>
                     <li className="flex items-start gap-2">
                          <Info className="h-4 w-4 text-primary mt-1" />
                         <span><span className="font-semibold text-foreground">What's Included:</span> This rate covers air freight from Florida to Jamaica. It does not include local customs and duties.</span>
