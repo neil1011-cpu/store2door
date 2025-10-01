@@ -66,46 +66,35 @@ export default function HomePage() {
 
       <section className="py-20 md:py-28 bg-white dark:bg-background">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div className="relative h-[300px] md:h-[400px] lg:h-[500px]">
-                <Image 
-                    src={howItWorksImage.src}
-                    alt={howItWorksImage.alt}
-                    fill
-                    className="object-contain rounded-lg"
-                    data-ai-hint={howItWorksImage.hint}
-                />
-            </div>
-            <div className="space-y-8">
-                 <div className="text-center lg:text-left">
+          <div className="space-y-8 max-w-4xl mx-auto">
+                 <div className="text-center">
                     <h2 className="text-3xl font-bold tracking-tight text-foreground">How It Works</h2>
                     <p className="mt-3 text-muted-foreground text-lg">Shipping with FromStore2Door is as easy as 1-2-3.</p>
                 </div>
-                <div className="space-y-6">
-                    <div className="flex items-start gap-4">
-                        <div className="flex items-center justify-center rounded-full bg-primary text-primary-foreground h-12 w-12 shrink-0 font-bold text-xl">1</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="flex flex-col items-center text-center gap-4 p-4">
+                        <div className="flex items-center justify-center rounded-full bg-primary text-primary-foreground h-16 w-16 shrink-0 font-bold text-3xl">1</div>
                         <div>
                             <h3 className="font-semibold text-lg">Sign Up For Your Free US Address</h3>
-                            <p className="text-muted-foreground">Create an account to instantly receive your personal, tax-free US mailing address.</p>
+                            <p className="text-muted-foreground mt-2">Create an account to instantly receive your personal, tax-free US mailing address.</p>
                         </div>
                     </div>
-                     <div className="flex items-start gap-4">
-                        <div className="flex items-center justify-center rounded-full bg-primary text-primary-foreground h-12 w-12 shrink-0 font-bold text-xl">2</div>
+                     <div className="flex flex-col items-center text-center gap-4 p-4">
+                        <div className="flex items-center justify-center rounded-full bg-primary text-primary-foreground h-16 w-16 shrink-0 font-bold text-3xl">2</div>
                         <div>
                             <h3 className="font-semibold text-lg">Shop Online & Ship to Us</h3>
-                            <p className="text-muted-foreground">Shop at your favorite US online stores and use your new FromStore2Door address as the shipping destination.</p>
+                            <p className="text-muted-foreground mt-2">Shop at your favorite US online stores and use your new FromStore2Door address as the shipping destination.</p>
                         </div>
                     </div>
-                     <div className="flex items-start gap-4">
-                        <div className="flex items-center justify-center rounded-full bg-primary text-primary-foreground h-12 w-12 shrink-0 font-bold text-xl">3</div>
+                     <div className="flex flex-col items-center text-center gap-4 p-4">
+                        <div className="flex items-center justify-center rounded-full bg-primary text-primary-foreground h-16 w-16 shrink-0 font-bold text-3xl">3</div>
                         <div>
                             <h3 className="font-semibold text-lg">We Deliver to Your Door</h3>
-                            <p className="text-muted-foreground">We consolidate your packages, handle customs, and deliver them straight to your doorstep in Jamaica.</p>
+                            <p className="text-muted-foreground mt-2">We consolidate your packages, handle customs, and deliver them straight to your doorstep in Jamaica.</p>
                         </div>
                     </div>
                 </div>
             </div>
-          </div>
         </div>
       </section>
 

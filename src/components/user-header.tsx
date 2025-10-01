@@ -20,7 +20,7 @@ const navLinks = [
 const AppLogo = () => (
   <Link href="/" className="flex items-center gap-2">
     <Route className="size-7 text-primary" />
-    <h1 className="text-xl font-bold">SwiftRoute</h1>
+    <h1 className="text-xl font-bold">FromStore2Door</h1>
   </Link>
 );
 
