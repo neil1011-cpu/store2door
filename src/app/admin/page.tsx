@@ -21,6 +21,7 @@ import {
   Calculator,
   Inbox,
   Receipt,
+  Megaphone,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,12 @@ const features = [
     description: 'View messages from customers.',
     icon: <Inbox className="h-8 w-8 text-primary" />,
     href: '/admin/messages',
+  },
+   {
+    title: 'Promotions',
+    description: 'Send marketing emails to customers.',
+    icon: <Megaphone className="h-8 w-8 text-primary" />,
+    href: '/admin/promotions',
   },
   {
     title: 'Notifications',

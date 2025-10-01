@@ -29,6 +29,7 @@ import {
   Calculator,
   Inbox,
   Receipt,
+  Megaphone,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -105,6 +106,14 @@ export default function AdminLayout({
                         Messages
                         </Link>
                     </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild tooltip="Promotions" size="sm">
+                            <Link href="/admin/promotions">
+                            <Megaphone />
+                            Promotions
+                            </Link>
+                        </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                     <SidebarMenuButton asChild tooltip="Notifications" size="sm">
