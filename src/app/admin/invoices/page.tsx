@@ -132,6 +132,20 @@ export default function InvoicesPage() {
     toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
   };
 
+  const handleDownloadInvoice = (invoice: Invoice) => {
+    const link = document.createElement('a');
+    link.href = invoice.invoiceUrl;
+    link.download = `Invoice-${invoice.invoiceId}.pdf`;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({
+        title: "Downloading Invoice",
+        description: `Your invoice for ${invoice.invoiceId} is downloading.`,
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -282,7 +296,7 @@ export default function InvoicesPage() {
                             </div>
                             <DialogFooter>
                                 <Button variant="outline" asChild><DialogClose>Close</DialogClose></Button>
-                                <Button><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
+                                <Button onClick={() => handleDownloadInvoice(invoice)}><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
