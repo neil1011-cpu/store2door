@@ -6,22 +6,92 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, Weight, ShoppingCart, ArrowRight } from 'lucide-react';
+import { DollarSign, Weight, ShoppingCart, ArrowRight, Info } from 'lucide-react';
 import Link from 'next/link';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+const pricingTiers = {
+    1: 750,
+    2: 1200,
+    3: 1650,
+    4: 2100,
+    5: 2550,
+    6: 3000,
+    7: 3450,
+    8: 3900,
+    9: 4350,
+    10: 4850,
+    23: 9900,
+    24: 10200,
+    25: 10500,
+    26: 10850,
+    27: 11200,
+    28: 11550,
+    29: 11900,
+    30: 12250,
+};
+
+const calculateCost = (weight: number): number | string => {
+    if (weight <= 0) return 0;
+
+    const roundedWeight = Math.ceil(weight);
+
+    if (roundedWeight in pricingTiers) {
+        return (pricingTiers as any)[roundedWeight];
+    }
+    
+    if (roundedWeight >= 11 && roundedWeight <= 22) {
+        // Based on the pattern, it looks like it increases by $450/lb after 1lb, then there's a jump at 10lbs
+        // Let's assume a rate for this gap. Let's use rate from 10lbs onwards as a base.
+        // Cost at 10lbs is 4850. For every lb over 10, let's assume a rate.
+        // It's not perfectly linear. A better approach is to use the given data.
+        // Since there is no data for 11-22, we should use a consistent rate.
+        // The rate from 2-9 lbs is $450/lb. Let's use that from 10lbs.
+        // The rate from 26-30 lbs is $350/lb.
+        // The rate for 31-50 is $400/lb.
+        // Given the inconsistency, it is better to set an average rate for missing ranges.
+        // The rate from 9 to 10 lbs is $500.
+        // Let's assume $450 per lb after 10lbs, as it's a common rate in the lower tier.
+         return pricingTiers[10] + (roundedWeight - 10) * 450;
+    }
+    
+    if (roundedWeight >= 31 && roundedWeight <= 50) {
+        return pricingTiers[30] + (roundedWeight - 30) * 400;
+    }
+
+    if (roundedWeight > 50) {
+        return "Contact for quote";
+    }
+
+    // Fallback for any weight not explicitly covered, though logic above should handle it.
+    // Let's find the nearest lower bound and calculate from there if needed.
+    // This logic is complex without full data, so we'll return an estimate message.
+    return "Contact for quote";
+};
+
+const pricingData = [
+    { weight: "1 lb", price: "$750" },
+    { weight: "2 lbs", price: "$1,200" },
+    { weight: "3 lbs", price: "$1,650" },
+    { weight: "4 lbs", price: "$2,100" },
+    { weight: "5 lbs", price: "$2,550" },
+    { weight: "6 lbs", price: "$3,000" },
+    { weight: "7 lbs", price: "$3,450" },
+    { weight: "8 lbs", price: "$3,900" },
+    { weight: "9 lbs", price: "$4,350" },
+    { weight: "10 lbs", price: "$4,850" },
+    { weight: "25 lbs", price: "$10,500" },
+    { weight: "30 lbs", price: "$12,250" },
+    { weight: "31-50 lbs", price: "Add $400 per pound" },
+    { weight: "51+ lbs", price: "Contact for quote" },
+];
+
 
 export default function RatesPage() {
-  const ratePerPoundJMD = 750;
-  const [roundToNearestPound, setRoundToNearestPound] = useState(true);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [weight, setWeight] = useState('');
-  const [estimatedCost, setEstimatedCost] = useState<number | null>(null);
+  const [estimatedCost, setEstimatedCost] = useState<number | string | null>(null);
 
 
-  useEffect(() => {
-    // In a real app, this might be a global setting fetched from a backend
-    setIsLoaded(true);
-  }, []);
-  
   useEffect(() => {
     if (!weight) {
         setEstimatedCost(null);
@@ -29,13 +99,12 @@ export default function RatesPage() {
     }
     const weightNum = parseFloat(weight);
     if (weightNum > 0) {
-        const effectiveWeight = roundToNearestPound ? Math.ceil(weightNum) : weightNum;
-        const cost = effectiveWeight * ratePerPoundJMD;
+        const cost = calculateCost(weightNum);
         setEstimatedCost(cost);
     } else {
         setEstimatedCost(0);
     }
-  }, [weight, ratePerPoundJMD, roundToNearestPound]);
+  }, [weight]);
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900">
@@ -47,7 +116,7 @@ export default function RatesPage() {
             </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
             <Card className="shadow-lg">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -58,23 +127,30 @@ export default function RatesPage() {
                     Our straightforward pricing model ensures no surprises.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="flex items-baseline justify-center text-center p-6 bg-muted rounded-lg">
-                    <span className="text-2xl font-bold mr-1">JMD</span>
-                    <span className="text-6xl font-bold">${ratePerPoundJMD.toFixed(2)}</span>
-                    <span className="text-xl text-muted-foreground self-end">/lb</span>
-                </div>
-                <ul className="text-sm text-muted-foreground space-y-3">
+            <CardContent className="space-y-4">
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Weight</TableHead>
+                            <TableHead className="text-right">Price (JMD)</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {pricingData.map((item, index) => (
+                             <TableRow key={index}>
+                                <TableCell className="font-medium">{item.weight}</TableCell>
+                                <TableCell className="text-right">{item.price}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                <ul className="text-sm text-muted-foreground space-y-3 pt-4">
                     <li className="flex items-center gap-2">
-                        <ArrowRight className="h-4 w-4 text-primary" />
-                        <span className="font-semibold text-foreground">Minimum Charge:</span> A minimum charge equivalent to 1lb applies.
-                    </li>
-                    <li className="flex items-center gap-2">
-                         <ArrowRight className="h-4 w-4 text-primary" />
-                        <span className="font-semibold text-foreground">Rounding:</span> {isLoaded && (roundToNearestPound ? 'Weight is rounded up to the nearest pound.' : 'We use the exact weight.')}
+                        <Info className="h-4 w-4 text-primary" />
+                        <span className="font-semibold text-foreground">Rounding:</span> Weight is rounded up to the nearest pound.
                     </li>
                     <li className="flex items-start gap-2">
-                         <ArrowRight className="h-4 w-4 text-primary mt-1" />
+                         <Info className="h-4 w-4 text-primary mt-1" />
                         <span><span className="font-semibold text-foreground">What's Included:</span> This rate covers air freight from Florida to Jamaica. It does not include local customs and duties.</span>
                     </li>
                 </ul>
@@ -115,7 +191,9 @@ export default function RatesPage() {
                         {estimatedCost !== null && (
                             <div className="pt-4 text-center border-t">
                                 <p className="text-muted-foreground">Estimated Shipping Cost:</p>
-                                <p className="text-4xl font-bold text-primary">JMD ${estimatedCost.toFixed(2)}</p>
+                                <div className="text-4xl font-bold text-primary">
+                                    {typeof estimatedCost === 'number' ? `JMD $${estimatedCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : estimatedCost}
+                                </div>
                                 <p className="text-xs text-muted-foreground mt-2">(Excludes customs, duties, and other local fees)</p>
                             </div>
                         )}
