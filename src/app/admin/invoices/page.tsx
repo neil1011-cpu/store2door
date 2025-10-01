@@ -76,14 +76,61 @@ type Invoice = typeof initialInvoices[0];
 
 const initialLineItems = [{ description: '', quantity: 1, price: 0 }];
 
+function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice | null, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { toast } = useToast();
+    
+    if (!invoice) return null;
+
+    const handleDownloadInvoice = (invoiceToDownload: Invoice) => {
+        const link = document.createElement('a');
+        link.href = invoiceToDownload.invoiceUrl;
+        link.download = `Invoice-${invoiceToDownload.invoiceId}.pdf`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast({
+            title: "Downloading Invoice",
+            description: `Your invoice for ${invoiceToDownload.invoiceId} is downloading.`,
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Invoice {invoice.invoiceId}</DialogTitle>
+                    <DialogDescription>Invoice for {invoice.customerName} dated {invoice.date}.</DialogDescription>
+                </DialogHeader>
+                <div className="relative h-[600px] overflow-hidden rounded-md">
+                    <Image 
+                        src={invoice.invoiceUrl} 
+                        alt={`Invoice for ${invoice.invoiceId}`} 
+                        fill
+                        className="object-contain"
+                        data-ai-hint="invoice document"
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                    <Button onClick={() => handleDownloadInvoice(invoice)}><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
-  const [open, setOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const { toast } = useToast();
 
   const [customerName, setCustomerName] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [lineItems, setLineItems] = useState(initialLineItems);
+  
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
 
   const addLineItem = () => {
     setLineItems([...lineItems, { description: '', quantity: 1, price: 0 }]);
@@ -123,14 +170,24 @@ export default function InvoicesPage() {
     };
 
     setInvoices([newInvoice, ...invoices]);
-    setOpen(false);
+    setIsCreateOpen(false);
+    
     // Reset form
     setCustomerName('');
     setInvoiceDate(new Date().toISOString().split('T')[0]);
     setLineItems(initialLineItems);
     
     toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
+
+    // Open the view dialog for the newly created invoice
+    setSelectedInvoice(newInvoice);
+    setIsViewOpen(true);
   };
+
+  const handleViewInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsViewOpen(true);
+  }
 
   const handleDownloadInvoice = (invoice: Invoice) => {
     const link = document.createElement('a');
@@ -162,7 +219,7 @@ export default function InvoicesPage() {
                     Back to Dashboard
                 </Link>
             </Button>
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
                 <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -274,32 +331,9 @@ export default function InvoicesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                                <FileText className="h-4 w-4" />
-                            </Button>
-                        </DialogTrigger>
-                         <DialogContent className="sm:max-w-2xl">
-                            <DialogHeader>
-                                <DialogTitle>Invoice {invoice.invoiceId}</DialogTitle>
-                                <DialogDescription>Invoice for {invoice.customerName} dated {invoice.date}.</DialogDescription>
-                            </DialogHeader>
-                            <div className="relative h-[600px] overflow-hidden rounded-md">
-                                <Image 
-                                    src={invoice.invoiceUrl} 
-                                    alt={`Invoice for ${invoice.invoiceId}`} 
-                                    fill
-                                    className="object-contain"
-                                    data-ai-hint="invoice document"
-                                />
-                            </div>
-                            <DialogFooter>
-                                <Button variant="outline" asChild><DialogClose>Close</DialogClose></Button>
-                                <Button onClick={() => handleDownloadInvoice(invoice)}><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                    <Button variant="ghost" size="icon" onClick={() => handleViewInvoice(invoice)}>
+                        <FileText className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -307,6 +341,9 @@ export default function InvoicesPage() {
           </Table>
         </CardContent>
       </Card>
+      <InvoiceViewDialog invoice={selectedInvoice} open={isViewOpen} onOpenChange={setIsViewOpen} />
     </div>
   );
 }
+
+    
