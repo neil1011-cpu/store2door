@@ -19,8 +19,8 @@ const navLinks = [
 
 const AppLogo = () => (
   <Link href="/" className="flex items-center gap-2">
-    <Route className="size-6 text-primary" />
-    <h1 className="text-lg font-bold">FromStore2Door</h1>
+    <Route className="size-7 text-primary" />
+    <h1 className="text-xl font-bold">SwiftRoute</h1>
   </Link>
 );
 
@@ -45,7 +45,7 @@ export function UserHeader() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-14 items-center px-4 md:px-6">
+      <div className="container mx-auto flex h-16 items-center px-4 md:px-6">
         <AppLogo />
         <nav className="ml-10 hidden md:flex items-center space-x-6 text-sm font-medium">
             {navLinks.map(link => (
@@ -53,15 +53,15 @@ export function UserHeader() {
                     key={link.href}
                     href={link.href}
                     className={cn(
-                        "transition-colors hover:text-primary",
-                        pathname === link.href ? "text-primary" : "text-muted-foreground"
+                        "transition-colors hover:text-primary text-base",
+                        pathname === link.href ? "text-primary font-semibold" : "text-muted-foreground"
                     )}
                 >
                     {link.label}
                 </Link>
             ))}
         </nav>
-        <div className="flex flex-1 items-center justify-end space-x-4">
+        <div className="flex flex-1 items-center justify-end space-x-2">
              <ThemeToggle />
              {isLoggedIn ? (
                  <Button asChild>
@@ -71,9 +71,14 @@ export function UserHeader() {
                     </Link>
                  </Button>
              ) : (
-                <Button asChild>
-                    <Link href="/signin">Sign In</Link>
-                </Button>
+                 <>
+                    <Button asChild variant="ghost">
+                        <Link href="/signin">Sign In</Link>
+                    </Button>
+                    <Button asChild>
+                        <Link href="/signup">Sign Up</Link>
+                    </Button>
+                </>
              )}
         </div>
       </div>
