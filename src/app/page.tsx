@@ -33,15 +33,15 @@ export default function HomePage() {
     <div className="flex flex-col">
        <section className="relative w-full pt-20 pb-10 md:pt-32 md:pb-20 lg:pt-40 lg:pb-28 bg-blue-50 dark:bg-gray-900">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6 text-center lg:text-left">
+          <div className="grid grid-cols-1 gap-12 items-center">
+            <div className="space-y-6 text-center">
               <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl text-gray-900 dark:text-white">
                 Your Personal Bridge from Florida to Jamaica
               </h1>
-              <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">
+              <p className="mt-4 text-lg text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
                 FromStore2Door provides a seamless, reliable, and affordable shipping experience, connecting you to what matters most.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
                   <Link href="/signup">Get Your FREE US Address</Link>
                 </Button>
@@ -49,15 +49,6 @@ export default function HomePage() {
                   <Link href="/tracking">Track a Package</Link>
                 </Button>
               </div>
-            </div>
-            <div className="relative h-64 md:h-80 lg:h-96">
-                <Image 
-                    src={homeHeroImage.src}
-                    alt={homeHeroImage.alt}
-                    fill
-                    className="object-cover rounded-lg shadow-xl"
-                    data-ai-hint={homeHeroImage.hint}
-                />
             </div>
           </div>
         </div>
