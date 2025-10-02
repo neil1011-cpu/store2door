@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Users, Trash2 } from 'lucide-react';
+import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Users, Trash2, Home, MapPin } from 'lucide-react';
 import { AccountDetails, Shipment } from './page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -335,6 +335,13 @@ type PickupPerson = {
     idNumber: string;
 };
 
+type DropoffAddress = {
+    id: number;
+    name: string;
+    address: string;
+    parish: string;
+}
+
 export function AccountTab({ details }: { details: AccountDetails }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
@@ -345,6 +352,12 @@ export function AccountTab({ details }: { details: AccountDetails }) {
     ]);
     const [openAddPersonDialog, setOpenAddPersonDialog] = useState(false);
     const [newPerson, setNewPerson] = useState({ name: '', idNumber: '' });
+    
+    const [dropoffAddresses, setDropoffAddresses] = useState<DropoffAddress[]>([
+        { id: 1, name: 'Home', address: '123 Main Street, Kingston', parish: 'Kingston' }
+    ]);
+    const [openAddAddressDialog, setOpenAddAddressDialog] = useState(false);
+    const [newAddress, setNewAddress] = useState({ name: '', address: '', parish: '' });
 
 
     const handleCopy = () => {
@@ -371,6 +384,22 @@ export function AccountTab({ details }: { details: AccountDetails }) {
     const handleRemovePerson = (id: number) => {
         setPickupPersonnel(pickupPersonnel.filter(p => p.id !== id));
         toast({ title: "Pickup Person Removed" });
+    };
+
+    const handleAddAddress = () => {
+        if (!newAddress.name || !newAddress.address || !newAddress.parish) {
+            toast({ title: "Missing Fields", description: "Please fill out all address fields.", variant: 'destructive' });
+            return;
+        }
+        setDropoffAddresses([...dropoffAddresses, { ...newAddress, id: Date.now() }]);
+        setNewAddress({ name: '', address: '', parish: '' });
+        setOpenAddAddressDialog(false);
+        toast({ title: "Address Added", description: `New drop-off address "${newAddress.name}" has been saved.` });
+    };
+
+    const handleRemoveAddress = (id: number) => {
+        setDropoffAddresses(dropoffAddresses.filter(a => a.id !== id));
+        toast({ title: "Address Removed" });
     };
 
     return (
@@ -419,6 +448,73 @@ export function AccountTab({ details }: { details: AccountDetails }) {
                             <span className="text-muted-foreground">Mailbox Number:</span>
                             <span className="font-mono">{details.mailboxNumber}</span>
                         </div>
+                    </div>
+                </div>
+                 <Separator />
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-lg">Drop-off Addresses</h3>
+                        <Dialog open={openAddAddressDialog} onOpenChange={setOpenAddAddressDialog}>
+                            <DialogTrigger asChild>
+                                <Button size="sm">
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    Add New Address
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add Drop-off Address</DialogTitle>
+                                    <DialogDescription>
+                                        Add a new address in Jamaica for package deliveries.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="address-name">Address Name</Label>
+                                        <Input id="address-name" placeholder="e.g., Home, Work, Mom's House" value={newAddress.name} onChange={e => setNewAddress({ ...newAddress, name: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="address-street">Street Address</Label>
+                                        <Input id="address-street" placeholder="e.g., 123 Sunshine Avenue" value={newAddress.address} onChange={e => setNewAddress({ ...newAddress, address: e.target.value })} />
+                                    </div>
+                                     <div className="space-y-2">
+                                        <Label htmlFor="address-parish">Parish</Label>
+                                        <Input id="address-parish" placeholder="e.g., Kingston" value={newAddress.parish} onChange={e => setNewAddress({ ...newAddress, parish: e.target.value })} />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                                    <Button onClick={handleAddAddress}>Add Address</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        Manage your delivery addresses in Jamaica.
+                    </p>
+                    <div className="space-y-3">
+                         {dropoffAddresses.length === 0 && (
+                            <div className="text-center text-muted-foreground border rounded-lg p-8">
+                                <p>No drop-off addresses added yet.</p>
+                            </div>
+                         )}
+                         {dropoffAddresses.map(addr => (
+                            <Card key={addr.id} className="flex items-center justify-between p-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-muted p-3 rounded-full">
+                                        <Home className="h-5 w-5 text-muted-foreground" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold">{addr.name}</p>
+                                        <p className="text-sm text-muted-foreground">{addr.address}, {addr.parish}</p>
+                                    </div>
+                                </div>
+                                <Button variant="ghost" size="icon" onClick={() => handleRemoveAddress(addr.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Remove Address</span>
+                                </Button>
+                            </Card>
+                         ))}
                     </div>
                 </div>
                  <Separator />
