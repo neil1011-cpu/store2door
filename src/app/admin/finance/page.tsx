@@ -39,9 +39,9 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
-import placeholderImages from '@/lib/placeholder-images.json';
 import { generateInvoiceHtml } from '@/ai/flows/generate-invoice-html';
-
+import { invoices as allInvoices, shipments, users } from '@/lib/mock-data';
+import type { Invoice, Shipment } from '@/lib/mock-data';
 
 const financeData = {
   summary: {
@@ -59,36 +59,7 @@ const financeData = {
   ],
 };
 
-
-const initialInvoices = [
-  {
-    invoiceId: 'INV-001',
-    customerName: 'Bob Marley',
-    date: '2024-07-28',
-    amount: 67.50,
-    status: 'Paid' as 'Paid' | 'Unpaid',
-    invoiceUrl: placeholderImages.invoices.inv1.src,
-  },
-  {
-    invoiceId: 'INV-002',
-    customerName: 'Alicia Keys',
-    date: '2024-07-29',
-    amount: 120.00,
-    status: 'Unpaid' as 'Paid' | 'Unpaid',
-    invoiceUrl: placeholderImages.invoices.inv2.src,
-  },
-];
-
-type Invoice = {
-  invoiceId: string;
-  customerName: string;
-  date: string;
-  amount: number;
-  status: 'Paid' | 'Unpaid';
-  invoiceUrl: string;
-};
 const initialLineItems = [{ description: '', quantity: 1, price: 0 }];
-
 
 function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice | null, open: boolean, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
@@ -99,7 +70,6 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
         const link = document.createElement('a');
         link.href = invoiceToDownload.invoiceUrl;
         link.download = `Invoice-${invoiceToDownload.invoiceId}.pdf`;
-        // No need to use target blank for data URIs
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -150,10 +120,10 @@ export default function FinancePage() {
       date: new Date().toISOString().split('T')[0],
   });
 
-  const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
+  const [invoices, setInvoices] = useState<Invoice[]>(allInvoices);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [customerName, setCustomerName] = useState('');
+  const [customerId, setCustomerId] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [lineItems, setLineItems] = useState(initialLineItems);
   
@@ -176,18 +146,19 @@ export default function FinancePage() {
   const calculateTotal = () => lineItems.reduce((total, item) => total + item.quantity * item.price, 0);
   
   const handleGenerateInvoice = async () => {
-    if(!customerName || lineItems.some(item => !item.description || item.price <= 0)) {
-        toast({ title: 'Missing Fields', description: 'Please fill in customer name and all line item details.', variant: 'destructive'});
+    const selectedUser = users.find(u => u.id === customerId);
+    if(!selectedUser || lineItems.some(item => !item.description || item.price <= 0)) {
+        toast({ title: 'Missing Fields', description: 'Please select a customer and fill in all line item details.', variant: 'destructive'});
         return;
     }
     
     setIsGenerating(true);
 
     try {
-        const invoiceId = `INV-00${invoices.length + 1}`;
+        const invoiceId = `INV-00${allInvoices.length + 1}`;
         const totalAmount = calculateTotal();
+        const customerName = selectedUser.fullName;
 
-        // 1. Generate HTML from Genkit flow
         const { html } = await generateInvoiceHtml({
             invoiceId,
             customerName,
@@ -196,7 +167,6 @@ export default function FinancePage() {
             totalAmount,
         });
 
-        // 2. Send HTML to PDF generation API route
         const pdfResponse = await fetch('/api/generate-pdf', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -209,9 +179,9 @@ export default function FinancePage() {
 
         const { pdf: pdfDataUri } = await pdfResponse.json();
 
-        // 3. Create the new invoice object with the PDF data URI
         const newInvoice: Invoice = {
           invoiceId,
+          customerId: selectedUser.id,
           customerName,
           date: invoiceDate,
           amount: totalAmount,
@@ -219,10 +189,26 @@ export default function FinancePage() {
           invoiceUrl: pdfDataUri,
         };
 
+        const newShipment: Shipment = {
+          id: `SHIP-${Date.now()}`,
+          trackingNumber: `JM-${Math.floor(Math.random() * 900) + 100}`,
+          contents: lineItems.map(li => li.description).join(', '),
+          status: 'Pending',
+          date: new Date().toLocaleDateString('en-US'),
+          cost: totalAmount,
+          paymentStatus: 'Unpaid',
+          invoiceUrl: pdfDataUri,
+          invoiceId: newInvoice.invoiceId,
+          customerId: newInvoice.customerId,
+        };
+        
+        allInvoices.unshift(newInvoice);
+        shipments.unshift(newShipment);
+        
         setInvoices([newInvoice, ...invoices]);
         setIsCreateOpen(false);
         
-        setCustomerName('');
+        setCustomerId('');
         setInvoiceDate(new Date().toISOString().split('T')[0]);
         setLineItems(initialLineItems);
         
@@ -245,7 +231,15 @@ export default function FinancePage() {
   }
 
   const handleUpdateInvoiceStatus = (invoiceId: string, status: 'Paid' | 'Unpaid') => {
-    setInvoices(invoices.map(inv => inv.invoiceId === invoiceId ? { ...inv, status } : inv));
+    const updatedInvoices = invoices.map(inv => inv.invoiceId === invoiceId ? { ...inv, status } : inv);
+    setInvoices(updatedInvoices);
+
+    const invoiceToUpdate = allInvoices.find(inv => inv.invoiceId === invoiceId);
+    if(invoiceToUpdate) invoiceToUpdate.status = status;
+
+    const linkedShipment = shipments.find(s => s.invoiceId === invoiceId);
+    if(linkedShipment) linkedShipment.paymentStatus = status;
+
     toast({
         title: "Invoice Status Updated",
         description: `Invoice ${invoiceId} has been marked as ${status}.`
@@ -410,7 +404,19 @@ export default function FinancePage() {
                 </DialogHeader>
                 <div className="grid gap-6 py-4 max-h-[70vh] overflow-y-auto px-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2"><Label htmlFor="customerName">Customer Name</Label><Input id="customerName" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="e.g., John Doe" /></div>
+                        <div className="space-y-2">
+                            <Label htmlFor="customerName">Customer Name</Label>
+                             <Select value={customerId} onValueChange={setCustomerId}>
+                                <SelectTrigger id="customerName">
+                                    <SelectValue placeholder="Select a customer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {users.map(user => (
+                                        <SelectItem key={user.id} value={user.id}>{user.fullName}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="space-y-2"><Label htmlFor="invoiceDate">Invoice Date</Label><Input id="invoiceDate" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} /></div>
                     </div>
                     <div className="space-y-4">
@@ -490,5 +496,3 @@ export default function FinancePage() {
     </div>
   );
 }
-
-    

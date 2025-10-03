@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { users, type User } from '@/lib/mock-db';
+import { users } from '@/lib/mock-data';
 import { SignJWT } from 'jose';
 
 const loginSchema = z.object({

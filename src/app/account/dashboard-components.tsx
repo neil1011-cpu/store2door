@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -22,14 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import Link from 'next/link';
-
-// A mock list of shipments for the user. In a real app, this would be fetched.
-const userShipments: Shipment[] = [
-    { id: '1', trackingNumber: 'JM456', contents: 'Laptop from Amazon', status: 'In Transit', date: new Date().toLocaleDateString('en-US'), cost: 45.50, paymentStatus: 'Unpaid', invoiceUrl: placeholderImages.invoices.inv1.src },
-    { id: '2', trackingNumber: 'JM789', contents: 'Books from eBay', status: 'Customs', date: new Date(new Date().setDate(new Date().getDate() - 1)).toLocaleDateString('en-US'), cost: 22.00, paymentStatus: 'Unpaid', invoiceUrl: placeholderImages.invoices.inv2.src},
-    { id: '3', trackingNumber: 'JM101', contents: 'Shoes from Zappos', status: 'Delivered', date: new Date(new Date().setDate(new Date().getDate() - 5)).toLocaleDateString('en-US'), cost: 30.00, paymentStatus: 'Paid', invoiceUrl: placeholderImages.invoices.inv3.src },
-];
-
+import { shipments as allShipments } from '@/lib/mock-data';
 
 const getStatusVariant = (status: Shipment['status']) => {
   switch (status) {
@@ -44,6 +37,7 @@ const getStatusVariant = (status: Shipment['status']) => {
 
 
 export function DashboardTab({ details }: { details: AccountDetails }) {
+  const userShipments = allShipments.filter(s => s.customerId === details.id);
   const recentShipment = userShipments.length > 0 ? userShipments[0] : null;
 
   return (
@@ -179,15 +173,16 @@ export function PreAlertTab({ customerName }: { customerName: string }) {
   );
 }
 
-export function PackagesTab() {
+export function PackagesTab({ customerId }: { customerId: string }) {
   const { toast } = useToast();
+  const userShipments = allShipments.filter(s => s.customerId === customerId);
 
   const handlePayNow = (shipment: Shipment) => {
     // In a real application, this would redirect to a payment gateway (e.g., Stripe, PayPal).
     // For this prototype, we'll just show a toast message.
     toast({
         title: "Payment Gateway",
-        description: `Redirecting to payment for shipment ${shipment.trackingNumber} - Total: $${shipment.cost?.toFixed(2)}`,
+        description: `Redirecting to payment for invoice ${shipment.invoiceId} - Total: $${shipment.cost?.toFixed(2)}`,
     });
   };
 
@@ -196,8 +191,7 @@ export function PackagesTab() {
     // In a real-world scenario, you might want to fetch a secure URL or a blob.
     const link = document.createElement('a');
     link.href = shipment.invoiceUrl;
-    link.download = `Invoice-${shipment.trackingNumber}.pdf`; // Assuming PDF, could be dynamic
-    link.target = '_blank'; // Open in new tab to prevent navigation issues
+    link.download = `Invoice-${shipment.invoiceId || shipment.trackingNumber}.pdf`; // Assuming PDF, could be dynamic
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -270,19 +264,23 @@ export function PackagesTab() {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <DialogContent className="sm:max-w-2xl">
+                        <DialogContent className="sm:max-w-3xl">
                             <DialogHeader>
                                 <DialogTitle>Invoice for {shipment.trackingNumber}</DialogTitle>
                                 <DialogDescription>Invoice for your shipment: {shipment.contents}.</DialogDescription>
                             </DialogHeader>
-                            <div className="relative h-[600px] overflow-hidden rounded-md">
-                                <Image 
-                                    src={shipment.invoiceUrl} 
-                                    alt={`Invoice for ${shipment.trackingNumber}`} 
-                                    fill
-                                    className="object-contain"
-                                    data-ai-hint="invoice document"
-                                />
+                            <div className="relative h-[600px] overflow-hidden rounded-md border">
+                                {shipment.invoiceUrl.startsWith('data:application/pdf') ? (
+                                    <embed src={shipment.invoiceUrl} type="application/pdf" width="100%" height="100%" />
+                                ) : (
+                                    <Image 
+                                        src={shipment.invoiceUrl} 
+                                        alt={`Invoice for ${shipment.trackingNumber}`} 
+                                        fill
+                                        className="object-contain"
+                                        data-ai-hint="invoice document"
+                                    />
+                                )}
                             </div>
                         </DialogContent>
                     </Dialog>

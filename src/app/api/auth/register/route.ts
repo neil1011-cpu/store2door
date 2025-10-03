@@ -1,7 +1,8 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { users, type User } from '@/lib/mock-db';
+import { users } from '@/lib/mock-data';
+import type { User } from '@/lib/mock-data';
 
 const registerSchema = z.object({
   fullName: z.string().min(2),

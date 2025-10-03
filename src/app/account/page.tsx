@@ -8,20 +8,11 @@ import { useToast } from '@/hooks/use-toast';
 import { LayoutDashboard, FileUp, Package, MessageSquare, User, LogOut } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
+import type { User as UserData } from '@/lib/mock-data';
+import { users } from '@/lib/mock-data';
 
-export type AccountDetails = {
-    fullName: string;
-    email: string;
-    phone: string;
-    mailboxNumber: string;
-    address: {
-        address1: string;
-        address2: string;
-        city: string;
-        state: string;
-        zip: string;
-    }
-}
+
+export type AccountDetails = UserData;
 
 export type Shipment = {
   id: string;
@@ -32,6 +23,8 @@ export type Shipment = {
   cost?: number;
   paymentStatus?: 'Paid' | 'Unpaid';
   invoiceUrl: string;
+  invoiceId?: string;
+  customerId: string;
 };
 
 
@@ -45,26 +38,15 @@ export default function AccountPage() {
         try {
             const storedDetails = localStorage.getItem('accountDetails');
             if (storedDetails) {
-                const parsedDetails = JSON.parse(storedDetails);
+                const parsedDetails = JSON.parse(storedDetails) as UserData;
+                const fullUserDetails = users.find(u => u.id === parsedDetails.id);
 
-                // Handle both flat and nested address structures for compatibility
-                const accountDetails: AccountDetails = {
-                    ...parsedDetails,
-                    address: parsedDetails.address ? {
-                        address1: parsedDetails.address.address1,
-                        address2: parsedDetails.address.address2,
-                        city: parsedDetails.address.city,
-                        state: parsedDetails.address.state,
-                        zip: parsedDetails.address.zip,
-                    } : { // Fallback for flat structure from older localStorage data
-                        address1: parsedDetails.address1,
-                        address2: parsedDetails.address2,
-                        city: parsedDetails.city,
-                        state: parsedDetails.state,
-                        zip: parsedDetails.zip,
-                    }
-                };
-                setDetails(accountDetails);
+                if (fullUserDetails) {
+                  setDetails(fullUserDetails);
+                } else {
+                  // Fallback for user not in mock-db, maybe from old localstorage
+                  setDetails(parsedDetails);
+                }
             } else {
                 router.push('/signup');
             }
@@ -141,7 +123,7 @@ export default function AccountPage() {
                         <PreAlertTab customerName={details.fullName} />
                     </TabsContent>
                     <TabsContent value="packages">
-                        <PackagesTab />
+                        <PackagesTab customerId={details.id} />
                     </TabsContent>
                     <TabsContent value="support">
                         <SupportTab customerName={details.fullName} />
@@ -154,5 +136,3 @@ export default function AccountPage() {
         </div>
     );
 }
-
-    
