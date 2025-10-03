@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowUpRight, DollarSign, ArrowLeft, PlusCircle, ArrowRight, Download, FileText, Trash2, Receipt, Loader2 } from 'lucide-react';
+import { ArrowUpRight, DollarSign, ArrowLeft, PlusCircle, ArrowRight, Download, FileText, Trash2, Receipt, Loader2, MoreHorizontal, CheckCircle2 } from 'lucide-react';
 import { FinanceChart } from '@/components/finance-chart';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,6 +36,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import placeholderImages from '@/lib/placeholder-images.json';
@@ -65,7 +66,7 @@ const initialInvoices = [
     customerName: 'Bob Marley',
     date: '2024-07-28',
     amount: 67.50,
-    status: 'Paid',
+    status: 'Paid' as 'Paid' | 'Unpaid',
     invoiceUrl: placeholderImages.invoices.inv1.src,
   },
   {
@@ -73,7 +74,7 @@ const initialInvoices = [
     customerName: 'Alicia Keys',
     date: '2024-07-29',
     amount: 120.00,
-    status: 'Unpaid',
+    status: 'Unpaid' as 'Paid' | 'Unpaid',
     invoiceUrl: placeholderImages.invoices.inv2.src,
   },
 ];
@@ -241,6 +242,14 @@ export default function FinancePage() {
   const handleViewInvoice = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setIsViewOpen(true);
+  }
+
+  const handleUpdateInvoiceStatus = (invoiceId: string, status: 'Paid' | 'Unpaid') => {
+    setInvoices(invoices.map(inv => inv.invoiceId === invoiceId ? { ...inv, status } : inv));
+    toast({
+        title: "Invoice Status Updated",
+        description: `Invoice ${invoiceId} has been marked as ${status}.`
+    });
   }
 
   const handleAddTransaction = () => {
@@ -447,7 +456,30 @@ export default function FinancePage() {
                   <TableCell>{invoice.date}</TableCell>
                   <TableCell>${invoice.amount.toFixed(2)}</TableCell>
                   <TableCell><Badge variant={invoice.status === 'Paid' ? 'outline' : 'destructive'}>{invoice.status}</Badge></TableCell>
-                  <TableCell className="text-right"><Button variant="ghost" size="icon" onClick={() => handleViewInvoice(invoice)}><FileText className="h-4 w-4" /></Button></TableCell>
+                   <TableCell className="text-right">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">More actions</span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleViewInvoice(invoice)}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                View Invoice
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Paid')} disabled={invoice.status === 'Paid'}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                Mark as Paid
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Unpaid')} disabled={invoice.status === 'Unpaid'}>
+                                <Receipt className="mr-2 h-4 w-4" />
+                                Mark as Unpaid
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -458,5 +490,3 @@ export default function FinancePage() {
     </div>
   );
 }
-
-    
