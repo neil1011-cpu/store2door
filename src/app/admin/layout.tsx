@@ -92,14 +92,6 @@ export default function AdminLayout({
                     </SidebarMenuButton>
                     </SidebarMenuItem>
                      <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Invoices" size="sm">
-                        <Link href="/admin/invoices">
-                        <Receipt />
-                        Invoices
-                        </Link>
-                    </SidebarMenuButton>
-                    </SidebarMenuItem>
-                     <SidebarMenuItem>
                     <SidebarMenuButton asChild tooltip="Communications" size="sm">
                         <Link href="/admin/communications">
                         <Megaphone />

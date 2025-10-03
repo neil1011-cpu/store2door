@@ -46,12 +46,6 @@ const features = [
     href: '/admin/manifests',
   },
   {
-    title: 'Invoices',
-    description: 'Create and manage customer invoices.',
-    icon: <Receipt className="h-8 w-8 text-primary" />,
-    href: '/admin/invoices',
-  },
-  {
     title: 'Communications',
     description: 'Send promotional emails to customers.',
     icon: <Megaphone className="h-8 w-8 text-primary" />,
@@ -64,8 +58,8 @@ const features = [
     href: '/admin/notifications',
   },
   {
-    title: 'Finance',
-    description: 'View your financial statements.',
+    title: 'Finance & Invoices',
+    description: 'View financial statements and manage invoices.',
     icon: <Banknote className="h-8 w-8 text-primary" />,
     href: '/admin/finance',
   },
