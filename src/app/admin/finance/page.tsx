@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowUpRight, DollarSign, ArrowLeft, PlusCircle, ArrowRight, Download, FileText, Trash2, Receipt } from 'lucide-react';
+import { ArrowUpRight, DollarSign, ArrowLeft, PlusCircle, ArrowRight, Download, FileText, Trash2, Receipt, Loader2 } from 'lucide-react';
 import { FinanceChart } from '@/components/finance-chart';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,6 +39,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import placeholderImages from '@/lib/placeholder-images.json';
+import { generateInvoiceHtml } from '@/ai/flows/generate-invoice-html';
+
 
 const financeData = {
   summary: {
@@ -76,7 +78,14 @@ const initialInvoices = [
   },
 ];
 
-type Invoice = typeof initialInvoices[0];
+type Invoice = {
+  invoiceId: string;
+  customerName: string;
+  date: string;
+  amount: number;
+  status: 'Paid' | 'Unpaid';
+  invoiceUrl: string;
+};
 const initialLineItems = [{ description: '', quantity: 1, price: 0 }];
 
 
@@ -89,7 +98,7 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
         const link = document.createElement('a');
         link.href = invoiceToDownload.invoiceUrl;
         link.download = `Invoice-${invoiceToDownload.invoiceId}.pdf`;
-        link.target = '_blank';
+        // No need to use target blank for data URIs
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -99,21 +108,27 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
         });
     };
 
+    const isPdf = invoice.invoiceUrl.startsWith('data:application/pdf');
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>Invoice {invoice.invoiceId}</DialogTitle>
                     <DialogDescription>Invoice for {invoice.customerName} dated {invoice.date}.</DialogDescription>
                 </DialogHeader>
-                <div className="relative h-[600px] overflow-hidden rounded-md">
-                    <Image 
-                        src={invoice.invoiceUrl} 
-                        alt={`Invoice for ${invoice.invoiceId}`} 
-                        fill
-                        className="object-contain"
-                        data-ai-hint="invoice document"
-                    />
+                 <div className="relative h-[600px] overflow-hidden rounded-md border">
+                    {isPdf ? (
+                        <embed src={invoice.invoiceUrl} type="application/pdf" width="100%" height="100%" />
+                    ) : (
+                         <Image 
+                            src={invoice.invoiceUrl} 
+                            alt={`Invoice for ${invoice.invoiceId}`} 
+                            fill
+                            className="object-contain"
+                            data-ai-hint="invoice document"
+                        />
+                    )}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
@@ -136,6 +151,7 @@ export default function FinancePage() {
 
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [lineItems, setLineItems] = useState(initialLineItems);
@@ -158,32 +174,68 @@ export default function FinancePage() {
 
   const calculateTotal = () => lineItems.reduce((total, item) => total + item.quantity * item.price, 0);
   
-  const handleGenerateInvoice = () => {
+  const handleGenerateInvoice = async () => {
     if(!customerName || lineItems.some(item => !item.description || item.price <= 0)) {
         toast({ title: 'Missing Fields', description: 'Please fill in customer name and all line item details.', variant: 'destructive'});
         return;
     }
-
-    const newInvoice: Invoice = {
-      invoiceId: `INV-00${invoices.length + 1}`,
-      customerName,
-      date: invoiceDate,
-      amount: calculateTotal(),
-      status: 'Unpaid',
-      invoiceUrl: placeholderImages.generatedInvoice.src,
-    };
-
-    setInvoices([newInvoice, ...invoices]);
-    setIsCreateOpen(false);
     
-    setCustomerName('');
-    setInvoiceDate(new Date().toISOString().split('T')[0]);
-    setLineItems(initialLineItems);
-    
-    toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
+    setIsGenerating(true);
 
-    setSelectedInvoice(newInvoice);
-    setIsViewOpen(true);
+    try {
+        const invoiceId = `INV-00${invoices.length + 1}`;
+        const totalAmount = calculateTotal();
+
+        // 1. Generate HTML from Genkit flow
+        const { html } = await generateInvoiceHtml({
+            invoiceId,
+            customerName,
+            invoiceDate,
+            lineItems,
+            totalAmount,
+        });
+
+        // 2. Send HTML to PDF generation API route
+        const pdfResponse = await fetch('/api/generate-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ html }),
+        });
+
+        if (!pdfResponse.ok) {
+            throw new Error('Failed to generate PDF.');
+        }
+
+        const { pdf: pdfDataUri } = await pdfResponse.json();
+
+        // 3. Create the new invoice object with the PDF data URI
+        const newInvoice: Invoice = {
+          invoiceId,
+          customerName,
+          date: invoiceDate,
+          amount: totalAmount,
+          status: 'Unpaid',
+          invoiceUrl: pdfDataUri,
+        };
+
+        setInvoices([newInvoice, ...invoices]);
+        setIsCreateOpen(false);
+        
+        setCustomerName('');
+        setInvoiceDate(new Date().toISOString().split('T')[0]);
+        setLineItems(initialLineItems);
+        
+        toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
+
+        setSelectedInvoice(newInvoice);
+        setIsViewOpen(true);
+
+    } catch (error) {
+        console.error("PDF Generation Error:", error);
+        toast({ title: 'Invoice Generation Failed', description: (error as Error).message, variant: 'destructive'});
+    } finally {
+        setIsGenerating(false);
+    }
   };
 
   const handleViewInvoice = (invoice: Invoice) => {
@@ -376,7 +428,10 @@ export default function FinancePage() {
                 </div>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                    <Button type="submit" onClick={handleGenerateInvoice}>Generate Invoice</Button>
+                    <Button type="submit" onClick={handleGenerateInvoice} disabled={isGenerating}>
+                        {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isGenerating ? 'Generating...' : 'Generate Invoice'}
+                    </Button>
                 </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -403,3 +458,5 @@ export default function FinancePage() {
     </div>
   );
 }
+
+    
