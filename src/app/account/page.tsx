@@ -126,7 +126,7 @@ export default function AccountPage() {
                         <PackagesTab customerId={details.id} />
                     </TabsContent>
                     <TabsContent value="support">
-                        <SupportTab customerName={details.fullName} />
+                        <SupportTab details={details} />
                     </TabsContent>
                     <TabsContent value="account">
                         <AccountTab details={details} />
@@ -136,3 +136,5 @@ export default function AccountPage() {
         </div>
     );
 }
+
+    

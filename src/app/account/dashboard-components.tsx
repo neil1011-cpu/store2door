@@ -2,12 +2,12 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2, LogOut, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Users, Trash2, Home, MapPin } from 'lucide-react';
+import { Copy, Check, Send, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Trash2, Home, Inbox } from 'lucide-react';
 import { AccountDetails, Shipment } from './page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,12 +17,24 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import Image from 'next/image';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
-import Link from 'next/link';
 import { shipments as allShipments } from '@/lib/mock-data';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+type Message = {
+  id: string;
+  conversationId: string;
+  customerName: string;
+  subject: string;
+  message: string;
+  date: string;
+  sender: 'user' | 'agent';
+  status: 'Open' | 'Closed';
+  attachment?: string;
+};
+
 
 const getStatusVariant = (status: Shipment['status']) => {
   switch (status) {
@@ -299,30 +311,133 @@ export function PackagesTab({ customerId }: { customerId: string }) {
   );
 }
 
+export function SupportTab({ details }: { details: AccountDetails }) {
+  const { toast } = useToast();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newMessage, setNewMessage] = useState("");
+  const [subject, setSubject] = useState("");
+  const [sending, setSending] = useState(false);
 
-export function SupportTab({ customerName }: { customerName: string }) {
-  const whatsappNumber = '18765069727';
-  const whatsappLink = `https://wa.me/${whatsappNumber}`;
+  // Memoize conversations to avoid re-calculating on every render
+  const conversations = useMemo(() => {
+    // Filter messages to only include those for the current user
+    return messages.filter(m => m.customerName === details.fullName);
+  }, [messages, details.fullName]);
   
+  const hasExistingConversation = conversations.length > 0;
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/messages');
+        if (!response.ok) throw new Error("Failed to load message history.");
+        const allMessages: Message[] = await response.json();
+        const userMessages = allMessages.filter(m => m.customerName === details.fullName);
+        setMessages(userMessages.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+      } catch (error) {
+        toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMessages();
+  }, [details.fullName, toast]);
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || (!hasExistingConversation && !subject.trim())) {
+      toast({ title: "Missing fields", description: "Please enter a subject and message.", variant: "destructive"});
+      return;
+    }
+
+    setSending(true);
+    try {
+      const conversationId = hasExistingConversation ? conversations[0].conversationId : undefined;
+      const messageSubject = hasExistingConversation ? conversations[0].subject : subject;
+
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: details.fullName,
+          subject: messageSubject,
+          message: newMessage,
+          sender: 'user',
+          conversationId,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to send message.");
+
+      const sentMessage: Message = await response.json();
+      setMessages([...messages, sentMessage]);
+      setNewMessage("");
+      if (!hasExistingConversation) setSubject("");
+      toast({ title: "Message Sent!", description: "We've received your message and will get back to you shortly." });
+
+    } catch (error) {
+      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
-    <Card>
+    <Card className="flex flex-col h-full max-h-[75vh]">
       <CardHeader>
-        <CardTitle>Customer Support</CardTitle>
-        <CardDescription>Have a question? We're here to help.</CardDescription>
+        <CardTitle>Support Center</CardTitle>
+        <CardDescription>
+          Send us a message with any questions or concerns.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="text-center">
-        <div className="flex flex-col items-center gap-4 py-8">
-            <MessageSquare className="h-16 w-16 text-primary" />
-            <p className="max-w-md text-muted-foreground">
-                For the quickest response, please reach out to us directly on WhatsApp. Our support team is ready to assist you with any questions about your shipments, account, or our services.
-            </p>
-             <Button asChild size="lg">
-                <Link href={whatsappLink} target="_blank" rel="noopener noreferrer">
-                    Chat on WhatsApp
-                </Link>
-            </Button>
+      <ScrollArea className="flex-1 px-6 pb-4">
+        <div className="space-y-6">
+          {loading && <div className="text-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
+          {!loading && conversations.length === 0 && (
+            <div className="text-center text-muted-foreground py-8">
+              <Inbox className="h-12 w-12 mx-auto" />
+              <p className="mt-2">You have no messages. Start a new conversation below.</p>
+            </div>
+          )}
+          {conversations.map(msg => (
+            <div key={msg.id} className={cn("flex items-end gap-3", msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row')}>
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={msg.sender === 'agent' ? placeholderImages.avatars.supportAgent.src : undefined} />
+                <AvatarFallback>{msg.sender === 'agent' ? 'S' : details.fullName.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className={cn(
+                "max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg",
+                msg.sender === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+              )}>
+                <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                <p className={cn("text-xs mt-2", msg.sender === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{new Date(msg.date).toLocaleString()}</p>
+              </div>
+            </div>
+          ))}
         </div>
-      </CardContent>
+      </ScrollArea>
+      <CardFooter className="pt-4 border-t flex-col items-start gap-4">
+        {!hasExistingConversation && (
+            <div className="w-full space-y-2">
+                <Label htmlFor="subject">Subject</Label>
+                <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g., Question about my invoice" />
+            </div>
+        )}
+        <div className="w-full space-y-2">
+          <Label htmlFor="new-message">{hasExistingConversation ? "Your Reply" : "Your Message"}</Label>
+          <Textarea 
+            id="new-message" 
+            placeholder="Type your message here..."
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+          />
+        </div>
+        <Button onClick={handleSendMessage} disabled={sending}>
+          {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+          Send Message
+        </Button>
+      </CardFooter>
     </Card>
   );
 }
@@ -588,3 +703,5 @@ export function AccountTab({ details }: { details: AccountDetails }) {
         </Card>
     )
 }
+
+    
