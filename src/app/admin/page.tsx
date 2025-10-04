@@ -47,7 +47,7 @@ const features = [
   },
   {
     title: 'Communications',
-    description: 'Send promotional emails to customers.',
+    description: 'Manage customer messages and send emails.',
     icon: <Megaphone className="h-8 w-8 text-primary" />,
     href: '/admin/communications',
   },

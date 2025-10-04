@@ -11,7 +11,7 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Send, Mail, Users, Inbox, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, Mail, Users, Inbox, RefreshCw, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,6 +20,11 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { users } from '@/lib/mock-data';
 
 
 type Message = {
@@ -50,6 +55,13 @@ export default function CommunicationsPage() {
     const [reply, setReply] = useState('');
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
+    
+    // State for composing new email
+    const [isComposeOpen, setIsComposeOpen] = useState(false);
+    const [composeRecipient, setComposeRecipient] = useState('');
+    const [composeSubject, setComposeSubject] = useState('');
+    const [composeBody, setComposeBody] = useState('');
+    const [isComposing, setIsComposing] = useState(false);
 
     const fetchMessages = async () => {
         setLoading(true);
@@ -97,8 +109,6 @@ export default function CommunicationsPage() {
             const latestMsg = convo.messages[0];
             convo.latestMessage = latestMsg.message;
             convo.latestDate = latestMsg.date;
-            // A conversation is unread if the latest message is from a user and its status is Open
-            // This is a simplification; a real app might have per-message read status
             convo.isRead = !(latestMsg.sender === 'user' && latestMsg.status === 'Open');
         });
         
@@ -127,7 +137,6 @@ export default function CommunicationsPage() {
             const newReply = await response.json();
             setMessages([...messages, newReply]);
             
-            // Optimistically update the selected conversation
             setSelectedConversation(prev => prev ? {...prev, messages: [newReply, ...prev.messages]} : null);
 
             setReply('');
@@ -140,6 +149,47 @@ export default function CommunicationsPage() {
         }
     };
 
+    const handleComposeEmail = async () => {
+        if (!composeRecipient || !composeSubject.trim() || !composeBody.trim()) {
+            toast({ title: 'Missing fields', description: 'Please select a recipient and enter a subject and message.', variant: 'destructive' });
+            return;
+        }
+
+        setIsComposing(true);
+        try {
+            const recipientUser = users.find(u => u.id === composeRecipient);
+            if (!recipientUser) throw new Error('Recipient not found');
+
+            const response = await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customerName: recipientUser.fullName,
+                    subject: composeSubject,
+                    message: composeBody,
+                    sender: 'agent'
+                }),
+            });
+            if (!response.ok) throw new Error('Failed to send email');
+
+            const newMessage = await response.json();
+            setMessages([...messages, newMessage]);
+
+            toast({ title: 'Email Sent!', description: `Your email to ${recipientUser.fullName} has been sent.` });
+            
+            // Reset and close dialog
+            setIsComposeOpen(false);
+            setComposeRecipient('');
+            setComposeSubject('');
+            setComposeBody('');
+
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not send email.', variant: 'destructive' });
+        } finally {
+            setIsComposing(false);
+        }
+    }
+
 
   return (
     <div className="flex flex-col gap-6 h-full">
@@ -147,7 +197,7 @@ export default function CommunicationsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Communications</h1>
           <p className="text-muted-foreground">
-            View and respond to customer messages.
+            View customer messages and send promotional emails.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -155,10 +205,51 @@ export default function CommunicationsPage() {
             <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
             Refresh
           </Button>
+           <Dialog open={isComposeOpen} onOpenChange={setIsComposeOpen}>
+            <DialogTrigger asChild>
+                <Button><PlusCircle className="mr-2 h-4 w-4" /> Compose</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Compose New Email</DialogTitle>
+                    <DialogDescription>Send a new email or promotion to a customer.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="recipient">Recipient</Label>
+                         <Select value={composeRecipient} onValueChange={setComposeRecipient}>
+                            <SelectTrigger id="recipient">
+                                <SelectValue placeholder="Select a customer" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {users.map(user => (
+                                    <SelectItem key={user.id} value={user.id}>{user.fullName} ({user.email})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="subject">Subject</Label>
+                        <Input id="subject" value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="e.g., Summer Sale!" />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="body">Message</Label>
+                        <Textarea id="body" value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Type your message here..." className="min-h-[200px]" />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleComposeEmail} disabled={isComposing}>
+                        {isComposing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                        Send Email
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+           </Dialog>
           <Button variant="outline" asChild>
             <Link href="/admin">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
+              Back
             </Link>
           </Button>
         </div>
@@ -249,6 +340,7 @@ export default function CommunicationsPage() {
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                         <Mail className="h-16 w-16" />
                         <p className="mt-4 text-lg">Select a conversation to read</p>
+                        <p className="text-sm">or compose a new email.</p>
                     </div>
                 )}
             </div>
