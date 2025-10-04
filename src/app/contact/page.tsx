@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,8 +19,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Loader2, Mail, Phone, MapPin, Send, Clock } from 'lucide-react';
-import Image from 'next/image';
-import placeholderImages from '@/lib/placeholder-images.json';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -31,7 +30,6 @@ const formSchema = z.object({
 export default function ContactPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const mapImage = placeholderImages.contactMap;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -173,15 +171,6 @@ export default function ContactPage() {
                         </div>
                     </CardContent>
                 </Card>
-                <div className="relative h-60 w-full overflow-hidden rounded-lg shadow-lg">
-                    <Image 
-                        src={mapImage.src}
-                        alt={mapImage.alt}
-                        fill
-                        className="object-cover"
-                        data-ai-hint={mapImage.hint}
-                    />
-                </div>
             </div>
         </div>
         </div>
