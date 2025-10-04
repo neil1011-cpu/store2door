@@ -11,7 +11,7 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Send, Mail, Users, Inbox, RefreshCw, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, Mail, Users, Inbox, RefreshCw, PlusCircle, Paperclip } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,6 +36,7 @@ type Message = {
   date: string;
   sender: 'user' | 'agent';
   status: 'Open' | 'Closed';
+  attachment?: string;
 };
 
 type Conversation = {
@@ -61,6 +62,7 @@ export default function CommunicationsPage() {
     const [composeRecipient, setComposeRecipient] = useState('');
     const [composeSubject, setComposeSubject] = useState('');
     const [composeBody, setComposeBody] = useState('');
+    const [composeAttachment, setComposeAttachment] = useState<File | null>(null);
     const [isComposing, setIsComposing] = useState(false);
 
     const fetchMessages = async () => {
@@ -167,7 +169,8 @@ export default function CommunicationsPage() {
                     customerName: recipientUser.fullName,
                     subject: composeSubject,
                     message: composeBody,
-                    sender: 'agent'
+                    sender: 'agent',
+                    attachment: composeAttachment ? composeAttachment.name : undefined,
                 }),
             });
             if (!response.ok) throw new Error('Failed to send email');
@@ -182,6 +185,7 @@ export default function CommunicationsPage() {
             setComposeRecipient('');
             setComposeSubject('');
             setComposeBody('');
+            setComposeAttachment(null);
 
         } catch (error) {
             toast({ title: 'Error', description: 'Could not send email.', variant: 'destructive' });
@@ -209,7 +213,7 @@ export default function CommunicationsPage() {
             <DialogTrigger asChild>
                 <Button><PlusCircle className="mr-2 h-4 w-4" /> Compose</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Compose New Email</DialogTitle>
                     <DialogDescription>Send a new email or promotion to a customer.</DialogDescription>
@@ -235,6 +239,11 @@ export default function CommunicationsPage() {
                      <div className="space-y-2">
                         <Label htmlFor="body">Message</Label>
                         <Textarea id="body" value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Type your message here..." className="min-h-[200px]" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="attachment">Attachment</Label>
+                        <Input id="attachment" type="file" onChange={(e) => setComposeAttachment(e.target.files ? e.target.files[0] : null)} />
+                        {composeAttachment && <p className="text-sm text-muted-foreground">Selected: {composeAttachment.name}</p>}
                     </div>
                 </div>
                 <DialogFooter>
@@ -310,7 +319,15 @@ export default function CommunicationsPage() {
                                             "max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg",
                                             msg.sender === 'agent' ? 'bg-primary text-primary-foreground' : 'bg-muted'
                                         )}>
-                                            <p className="text-sm">{msg.message}</p>
+                                            <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                                            {msg.attachment && (
+                                                <div className="mt-2 pt-2 border-t border-white/20">
+                                                    <a href="#" className="flex items-center gap-2 text-sm font-medium hover:underline">
+                                                        <Paperclip className="h-4 w-4" />
+                                                        <span>{msg.attachment}</span>
+                                                    </a>
+                                                </div>
+                                            )}
                                             <p className={cn("text-xs mt-2", msg.sender === 'agent' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{new Date(msg.date).toLocaleString()}</p>
                                         </div>
                                     </div>

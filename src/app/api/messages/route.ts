@@ -11,6 +11,7 @@ type Message = {
   date: string;
   sender: 'user' | 'agent';
   status: 'Open' | 'Closed';
+  attachment?: string;
 };
 
 // Using an in-memory store for now. In a real app, you'd use a database.
@@ -53,6 +54,7 @@ const messageSchema = z.object({
   message: z.string(),
   conversationId: z.string().optional(),
   sender: z.enum(['user', 'agent']),
+  attachment: z.string().optional(),
 });
 
 // GET handler to fetch all messages
@@ -75,7 +77,7 @@ export async function POST(request: Request) {
       return NextResponse.json(validation.error.errors, { status: 400 });
     }
 
-    const { customerName, subject, message, sender, conversationId } = validation.data;
+    const { customerName, subject, message, sender, conversationId, attachment } = validation.data;
     
     const newConversationId = conversationId || `conv${Date.now()}`;
 
@@ -99,7 +101,8 @@ export async function POST(request: Request) {
       date: new Date().toISOString(),
       // New messages from users are 'Open', agent replies can leave it 'Open' or 'Closed'
       // For simplicity, agent replies make it 'read' (Closed) from user PoV
-      status: sender === 'user' ? 'Open' : 'Closed', 
+      status: sender === 'user' ? 'Open' : 'Closed',
+      attachment,
     };
 
     messages.push(newMessage); // Using push instead of unshift to keep chronological order for API response
