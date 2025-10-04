@@ -31,7 +31,7 @@ let messages: Message[] = [
         customerName: 'Bob Marley',
         subject: 'Question about my last shipment',
         message: 'Hello! Thanks for reaching out. We see that your package is currently undergoing standard customs inspection. This usually takes 2-3 business days. We will notify you as soon as it clears.',
-        date: new Date().toISOString(),
+        date: new Date(new Date().setHours(new Date().getHours() - 2)).toISOString(),
         sender: 'agent',
         status: 'Open',
     },
@@ -43,7 +43,7 @@ let messages: Message[] = [
         message: 'Hello, I need to update my delivery address for future shipments. Please let me know what information you need from me. Best, Alicia',
         date: new Date(new Date().setDate(new Date().getDate() - 2)).toISOString(),
         sender: 'user',
-        status: 'Closed',
+        status: 'Open', // Changed to Open to be visible in inbox
     }
 ];
 
@@ -78,6 +78,16 @@ export async function POST(request: Request) {
     const { customerName, subject, message, sender, conversationId } = validation.data;
     
     const newConversationId = conversationId || `conv${Date.now()}`;
+
+    // If an agent sends a message, mark all user messages in that convo as "read" by changing status.
+    // This is a simplification for the demo.
+    if (sender === 'agent' && conversationId) {
+        messages.forEach(msg => {
+            if (msg.conversationId === conversationId && msg.sender === 'user') {
+                msg.status = 'Closed'; // "Closed" here means "read/handled" by agent
+            }
+        });
+    }
     
     const newMessage: Message = {
       id: (messages.length + 1).toString(),
@@ -87,10 +97,12 @@ export async function POST(request: Request) {
       message,
       sender,
       date: new Date().toISOString(),
-      status: 'Open',
+      // New messages from users are 'Open', agent replies can leave it 'Open' or 'Closed'
+      // For simplicity, agent replies make it 'read' (Closed) from user PoV
+      status: sender === 'user' ? 'Open' : 'Closed', 
     };
 
-    messages.unshift(newMessage);
+    messages.push(newMessage); // Using push instead of unshift to keep chronological order for API response
 
     return NextResponse.json(newMessage, { status: 201 });
   } catch (error) {
