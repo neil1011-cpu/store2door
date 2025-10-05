@@ -749,5 +749,3 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
-
-    
