@@ -2,58 +2,69 @@
  * @fileOverview Firestore Security Rules for SwiftRoute.
  *
  * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles and a
- * combination of public read with owner-only write for other collections.
+ * This ruleset enforces a user-ownership model for user profiles and related data
+ * (shipments, pre-alerts, support conversations, and invoices).  Users can only
+ * access their own profile data and related data, unless explicitly specified otherwise.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile data, accessible only to the
- *   authenticated user with the matching UID.
- * - /shipments/{shipmentId}: Stores shipment data, publicly readable but only
- *   modifiable by the user who owns the shipment (customerId matches the user's UID).
- * - /preAlerts/{preAlertId}: Stores pre-alert data, publicly readable but only
- *   modifiable by the user who created the pre-alert (customerId matches the user's UID).
- * - /conversations/{conversationId}/messages/{messageId}: Stores message data for conversations, publicly readable but only
- *   modifiable by the user who created the message (customerId matches the user's UID).
- * - /invoices/{invoiceId}: Stores invoice data, publicly readable but only
- *   modifiable by the user who owns the invoice (customerId matches the user's UID).
+ * - /users/{userId}: Stores user profile information, with the userId matching the Firebase Auth UID.
+ * - /shipments/{shipmentId}: Stores shipment information.  Each shipment has a customerId field
+ *   linking it to a user.
+ * - /preAlerts/{preAlertId}: Stores pre-alert requests. Each pre-alert has a customerId field
+ *   linking it to a user.
+ * - /conversations/{conversationId}/messages/{messageId}: Stores support conversation messages, linked to a user.
+ * - /invoices/{invoiceId}: Stores invoice data, linked to a user via customerId.
  *
  * Key Security Decisions:
- * - Listing of users is disallowed to protect user privacy.
- * - Default security posture for ambiguous relationships is strict owner-only
- *   access.
+ * - Users can only read/write their own user document.
+ * - Shipments, pre-alerts, messages, and invoices are accessible only by their owner (customerId).
+ * - Listing of user documents is disallowed.
  *
  * Denormalization for Authorization:
- * - The 'Shipment', 'PreAlert', 'Message' and 'Invoice' entities all contain a
- *   'customerId' field. This is used to authorize write operations, avoiding
- *   the need for additional reads.
+ * - The `shipments`, `preAlerts`, `messages`, and `invoices` collections all denormalize the `customerId`
+ *   onto each document. This is CRITICAL for security; it allows rules to quickly and efficiently
+ *   verify ownership without needing to perform expensive `get()` operations.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile documents.
+     * @description Defines helper function isSingedIn.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Defines helper function isOwner.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Defines helper function isExistingOwner.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Secure user profile documents.
      * @path /users/{userId}
-     * @allow (create) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can create their profile document.
-     * @allow (get) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can read their profile document.
-     * @allow (update) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can update their profile document.
-     * @allow (delete) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can delete their profile document.
-     * @deny (create) User with UID 'attackerUid' cannot create a profile document with ID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82'.
-     * @principle Enforces document ownership for writes; users can only modify their own profile.
+     * @allow (create) User with UID 'user123' can create their own profile document with matching ID.
+     * @allow (get) User with UID 'user123' can read their own profile document.
+     * @allow (update) User with UID 'user123' can update their own profile document.
+     * @allow (delete) User with UID 'user123' can delete their own profile document.
+     * @deny (create) User with UID 'user456' cannot create a profile document for 'user123'.
+     * @deny (get) User with UID 'user456' cannot read the profile document of 'user123'.
+     * @deny (update) User with UID 'user456' cannot update the profile document of 'user123'.
+     * @deny (delete) User with UID 'user456' cannot delete the profile document of 'user123'.
+     * @principle Enforces document ownership for all operations on user profiles.
      */
     match /users/{userId} {
-      // isOwner function checks if the authenticated user's ID matches the requested user ID.
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-      
-      // isExistingOwner function checks if the authenticated user is the owner of the existing document.
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
       allow get: if isOwner(userId);
-      // Listing users is not permitted for privacy reasons.
       allow list: if false;
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
@@ -61,115 +72,87 @@ service cloud.firestore {
     }
 
     /**
-     * @description Controls access to shipment documents. Publicly readable, but only the owner can modify.
+     * @description Secure shipment documents.
      * @path /shipments/{shipmentId}
-     * @allow (get) Any user can read a shipment document.
-     * @allow (list) Any user can list shipment documents.
-     * @allow (create) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can create a shipment document if customerId matches.
-     * @allow (update) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can update a shipment document if customerId matches.
-     * @allow (delete) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can delete a shipment document if customerId matches.
-     * @deny (create) User with UID 'attackerUid' cannot create a shipment document for customer 'L4J4bx8bS5SuHcHgOiKiBsrw1T82'.
-     * @principle Allows public reads but restricts writes to the owner of the shipment.
+     * @allow (create) User with UID 'user123' can create a shipment with customerId 'user123'.
+     * @allow (get) User with UID 'user123' can read a shipment with customerId 'user123'.
+     * @allow (update) User with UID 'user123' can update a shipment with customerId 'user123'.
+     * @allow (delete) User with UID 'user123' can delete a shipment with customerId 'user123'.
+     * @deny (create) User with UID 'user456' cannot create a shipment with customerId 'user123'.
+     * @deny (get) User with UID 'user456' cannot read a shipment with customerId 'user123'.
+     * @deny (update) User with UID 'user456' cannot update a shipment with customerId 'user123'.
+     * @deny (delete) User with UID 'user456' cannot delete a shipment with customerId 'user123'.
+     * @principle Enforces document ownership based on the 'customerId' field.
      */
     match /shipments/{shipmentId} {
-      // isShipmentOwner function checks if the authenticated user is the owner of the shipment.
-      function isShipmentOwner(customerId) {
-        return request.auth != null && request.auth.uid == customerId;
-      }
-
-      // isExistingShipmentOwner function checks if the authenticated user is the owner of the existing shipment document.
-      function isExistingShipmentOwner(customerId) {
-        return isShipmentOwner(customerId) && resource != null;
-      }
-
-      allow get, list: if true;
-      allow create: if isShipmentOwner(request.resource.data.customerId);
-      allow update: if isExistingShipmentOwner(resource.data.customerId);
-      allow delete: if isExistingShipmentOwner(resource.data.customerId);
+      allow get: if isSignedIn() && request.auth.uid == resource.data.customerId;
+      allow list: if isSignedIn() && request.auth.uid == resource.data.customerId;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.customerId;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.customerId) && request.resource.data.customerId == resource.data.customerId;
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.customerId);
     }
 
     /**
-     * @description Controls access to pre-alert documents. Publicly readable, but only the owner can modify.
+     * @description Secure pre-alert documents.
      * @path /preAlerts/{preAlertId}
-     * @allow (get) Any user can read a pre-alert document.
-     * @allow (list) Any user can list pre-alert documents.
-     * @allow (create) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can create a pre-alert document if customerId matches.
-     * @allow (update) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can update a pre-alert document if customerId matches.
-     * @allow (delete) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can delete a pre-alert document if customerId matches.
-     * @deny (create) User with UID 'attackerUid' cannot create a pre-alert document for customer 'L4J4bx8bS5SuHcHgOiKiBsrw1T82'.
-     * @principle Allows public reads but restricts writes to the owner of the pre-alert.
+     * @allow (create) User with UID 'user123' can create a preAlert with customerId 'user123'.
+     * @allow (get) User with UID 'user123' can read a preAlert with customerId 'user123'.
+     * @allow (update) User with UID 'user123' can update a preAlert with customerId 'user123'.
+     * @allow (delete) User with UID 'user123' can delete a preAlert with customerId 'user123'.
+     * @deny (create) User with UID 'user456' cannot create a preAlert with customerId 'user123'.
+     * @deny (get) User with UID 'user456' cannot read a preAlert with customerId 'user123'.
+     * @deny (update) User with UID 'user456' cannot update a preAlert with customerId 'user123'.
+     * @deny (delete) User with UID 'user456' cannot delete a preAlert with customerId 'user123'.
+     * @principle Enforces document ownership based on the 'customerId' field.
      */
     match /preAlerts/{preAlertId} {
-      // isPreAlertOwner function checks if the authenticated user is the owner of the pre-alert.
-      function isPreAlertOwner(customerId) {
-        return request.auth != null && request.auth.uid == customerId;
-      }
-
-      // isExistingPreAlertOwner function checks if the authenticated user is the owner of the existing pre-alert document.
-      function isExistingPreAlertOwner(customerId) {
-        return isPreAlertOwner(customerId) && resource != null;
-      }
-
-      allow get, list: if true;
-      allow create: if isPreAlertOwner(request.resource.data.customerId);
-      allow update: if isExistingPreAlertOwner(resource.data.customerId);
-      allow delete: if isExistingPreAlertOwner(resource.data.customerId);
+      allow get: if isSignedIn() && request.auth.uid == resource.data.customerId;
+      allow list: if isSignedIn() && request.auth.uid == resource.data.customerId;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.customerId;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.customerId) && request.resource.data.customerId == resource.data.customerId;
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.customerId);
     }
 
     /**
-     * @description Controls access to messages within conversations. Publicly readable, but only the owner can modify.
+     * @description Secure message documents within conversations.
      * @path /conversations/{conversationId}/messages/{messageId}
-     * @allow (get) Any user can read a message document.
-     * @allow (list) Any user can list message documents.
-     * @allow (create) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can create a message document if customerId matches.
-     * @allow (update) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can update a message document if customerId matches.
-     * @allow (delete) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can delete a message document if customerId matches.
-     * @deny (create) User with UID 'attackerUid' cannot create a message document for customer 'L4J4bx8bS5SuHcHgOiKiBsrw1T82'.
-     * @principle Allows public reads but restricts writes to the owner of the message.
+     * @allow (create) User with UID 'user123' can create a message with customerId 'user123'.
+     * @allow (get) User with UID 'user123' can read a message with customerId 'user123'.
+     * @allow (update) User with UID 'user123' can update a message with customerId 'user123'.
+     * @allow (delete) User with UID 'user123' can delete a message with customerId 'user123'.
+     * @deny (create) User with UID 'user456' cannot create a message with customerId 'user123'.
+     * @deny (get) User with UID 'user456' cannot read a message with customerId 'user123'.
+     * @deny (update) User with UID 'user456' cannot update a message with customerId 'user123'.
+     * @deny (delete) User with UID 'user456' cannot delete a message with customerId 'user123'.
+     * @principle Enforces document ownership based on the 'customerId' field.
      */
     match /conversations/{conversationId}/messages/{messageId} {
-      // isMessageOwner function checks if the authenticated user is the owner of the message.
-      function isMessageOwner(customerId) {
-        return request.auth != null && request.auth.uid == customerId;
-      }
-
-      // isExistingMessageOwner function checks if the authenticated user is the owner of the existing message document.
-      function isExistingMessageOwner(customerId) {
-        return isMessageOwner(customerId) && resource != null;
-      }
-
-      allow get, list: if true;
-      allow create: if isMessageOwner(request.resource.data.customerId);
-      allow update: if isExistingMessageOwner(resource.data.customerId);
-      allow delete: if isExistingMessageOwner(resource.data.customerId);
+      allow get: if isSignedIn() && request.auth.uid == resource.data.customerId;
+      allow list: if isSignedIn() && request.auth.uid == resource.data.customerId;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.customerId;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.customerId) && request.resource.data.customerId == resource.data.customerId;
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.customerId);
     }
 
     /**
-     * @description Controls access to invoice documents. Publicly readable, but only the owner can modify.
+     * @description Secure invoice documents.
      * @path /invoices/{invoiceId}
-     * @allow (get) Any user can read a invoice document.
-     * @allow (list) Any user can list invoice documents.
-     * @allow (create) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can create a invoice document if customerId matches.
-     * @allow (update) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can update a invoice document if customerId matches.
-     * @allow (delete) User with UID 'L4J4bx8bS5SuHcHgOiKiBsrw1T82' can delete a invoice document if customerId matches.
-     * @deny (create) User with UID 'attackerUid' cannot create a invoice document for customer 'L4J4bx8bS5SuHcHgOiKiBsrw1T82'.
-     * @principle Allows public reads but restricts writes to the owner of the invoice.
+     * @allow (create) User with UID 'user123' can create an invoice with customerId 'user123'.
+     * @allow (get) User with UID 'user123' can read an invoice with customerId 'user123'.
+     * @allow (update) User with UID 'user123' can update an invoice with customerId 'user123'.
+     * @allow (delete) User with UID 'user123' can delete an invoice with customerId 'user123'.
+     * @deny (create) User with UID 'user456' cannot create an invoice with customerId 'user123'.
+     * @deny (get) User with UID 'user456' cannot read an invoice with customerId 'user123'.
+     * @deny (update) User with UID 'user456' cannot update an invoice with customerId 'user123'.
+     * @deny (delete) User with UID 'user456' cannot delete an invoice with customerId 'user123'.
+     * @principle Enforces document ownership based on the 'customerId' field.
      */
     match /invoices/{invoiceId} {
-      // isInvoiceOwner function checks if the authenticated user is the owner of the invoice.
-      function isInvoiceOwner(customerId) {
-        return request.auth != null && request.auth.uid == customerId;
-      }
-
-      // isExistingInvoiceOwner function checks if the authenticated user is the owner of the existing invoice document.
-      function isExistingInvoiceOwner(customerId) {
-        return isInvoiceOwner(customerId) && resource != null;
-      }
-
-      allow get, list: if true;
-      allow create: if isInvoiceOwner(request.resource.data.customerId);
-      allow update: if isExistingInvoiceOwner(resource.data.customerId);
-      allow delete: if isExistingInvoiceOwner(resource.data.customerId);
+      allow get: if isSignedIn() && request.auth.uid == resource.data.customerId;
+      allow list: if isSignedIn() && request.auth.uid == resource.data.customerId;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.customerId;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.customerId) && request.resource.data.customerId == resource.data.customerId;
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.customerId);
     }
   }
 }
