@@ -78,20 +78,25 @@ export default function AdminLayout({
   const router = useRouter();
 
   useEffect(() => {
-    // When auth is done loading, check for user and role
-    if (!isUserLoading) {
-      if (!user || user.email !== ADMIN_EMAIL) {
-        // If not the admin, redirect to home page
-        router.replace('/');
-      }
+    // When auth is done loading, check if there's no user or the user is not an admin
+    if (!isUserLoading && (!user || user.email !== ADMIN_EMAIL)) {
+      // If not the admin, redirect to home page
+      router.replace('/');
     }
   }, [user, isUserLoading, router]);
 
-  // While loading or if user is not the admin, show loading or nothing
-  if (isUserLoading || !user || user.email !== ADMIN_EMAIL) {
+  // While loading, show the skeleton. Let the useEffect handle redirection.
+  if (isUserLoading) {
     return <AdminLoadingSkeleton />;
   }
 
+  // If the user is loaded but is not the correct admin, they will be redirected by the effect.
+  // Render the children only if the user is the authenticated admin.
+  // This prevents a brief flash of the admin content for non-admin users.
+  if (!user || user.email !== ADMIN_EMAIL) {
+    // Render a loading state or nothing while redirection happens
+    return <AdminLoadingSkeleton />;
+  }
 
   return (
         <SidebarProvider>
