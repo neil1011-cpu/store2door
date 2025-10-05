@@ -28,6 +28,7 @@ type Message = {
   id: string;
   conversationId: string;
   customerName: string;
+  customerId: string;
   subject: string;
   message: string;
   date: string;
@@ -140,7 +141,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!trackingNumber || !contents || !invoice) {
+    if (!firestore || !trackingNumber || !contents || !invoice) {
         toast({ title: 'Missing Fields', description: 'Please fill out all fields and upload an invoice.', variant: 'destructive'});
         return;
     }
@@ -360,7 +361,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
   const [sending, setSending] = useState(false);
   
   const conversationsQuery = useMemoFirebase(() => {
-    if (!details.id) return null;
+    if (!firestore || !details.id) return null;
     return query(
         collection(firestore, 'conversations'),
         where('customerId', '==', details.id),
@@ -372,7 +373,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
   const conversation = conversationsData && conversationsData.length > 0 ? conversationsData[0] : null;
 
   const messagesQuery = useMemoFirebase(() => {
-    if (!conversation) return null;
+    if (!firestore || !conversation) return null;
     return query(
         collection(firestore, 'conversations', conversation.id, 'messages'),
         orderBy('date', 'asc')
@@ -383,7 +384,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
   const isLoading = conversationsLoading || messagesLoading;
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || (!conversation && !subject.trim())) {
+    if (!firestore || !newMessage.trim() || (!conversation && !subject.trim())) {
       toast({ title: "Missing fields", description: "Please enter a subject and message.", variant: "destructive"});
       return;
     }
@@ -751,5 +752,3 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
-
-    

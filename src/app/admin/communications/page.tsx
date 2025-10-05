@@ -67,12 +67,20 @@ export default function CommunicationsPage() {
     const [composeAttachment, setComposeAttachment] = useState<File | null>(null);
     const [isComposing, setIsComposing] = useState(false);
 
-    const conversationsQuery = useMemoFirebase(() => collection(firestore, 'conversations'), [firestore]);
-    const { data: rawConversations, isLoading: loading, error } = useCollection<Conversation>(conversationsQuery);
-    const { data: users, isLoading: usersLoading } = useCollection<{id: string, fullName: string, email: string}>(collection(firestore, 'users'));
+    const conversationsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'conversations'), orderBy('latestDate', 'desc'));
+    }, [firestore]);
+    const { data: conversations, isLoading: loading, error } = useCollection<Conversation>(conversationsQuery);
+
+    const usersQuery = useMemoFirebase(() => {
+        if(!firestore) return null;
+        return collection(firestore, 'users');
+    }, [firestore]);
+    const { data: users, isLoading: usersLoading } = useCollection<{id: string, fullName: string, email: string}>(usersQuery);
     
     const messagesQuery = useMemoFirebase(() => {
-        if (!selectedConversation) return null;
+        if (!firestore || !selectedConversation) return null;
         return query(
             collection(firestore, 'conversations', selectedConversation.id, 'messages'),
             orderBy('date', 'asc')
@@ -81,14 +89,9 @@ export default function CommunicationsPage() {
 
     const { data: messages, isLoading: messagesLoading } = useCollection<Message>(messagesQuery);
 
-    const conversations = useMemo(() => {
-        if (!rawConversations) return [];
-        return rawConversations.sort((a,b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
-    }, [rawConversations]);
-
 
     const handleSendReply = async () => {
-        if (!reply.trim() || !selectedConversation) return;
+        if (!firestore || !reply.trim() || !selectedConversation) return;
 
         setSending(true);
         try {
@@ -128,7 +131,7 @@ export default function CommunicationsPage() {
 
     const handleComposeEmail = async () => {
         const recipientUser = users?.find(u => u.id === composeRecipient);
-        if (!composeRecipient || !composeSubject.trim() || !composeBody.trim() || !recipientUser) {
+        if (!firestore || !composeRecipient || !composeSubject.trim() || !composeBody.trim() || !recipientUser) {
             toast({ title: 'Missing fields', description: 'Please select a valid recipient and enter a subject and message.', variant: 'destructive' });
             return;
         }
@@ -209,6 +212,7 @@ export default function CommunicationsPage() {
                                 <SelectValue placeholder="Select a customer" />
                             </SelectTrigger>
                             <SelectContent>
+                                {usersLoading && <SelectItem value="loading" disabled>Loading users...</SelectItem>}
                                 {users?.map(user => (
                                     <SelectItem key={user.id} value={user.id}>{user.fullName} ({user.email})</SelectItem>
                                 ))}
@@ -250,7 +254,7 @@ export default function CommunicationsPage() {
         <Card className="flex-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-0 h-[calc(100vh-200px)]">
             <div className="md:col-span-1 lg:col-span-1 border-r h-full flex flex-col">
                 <div className="p-4 border-b">
-                    <h2 className="text-xl font-bold">Inbox ({conversations.length})</h2>
+                    <h2 className="text-xl font-bold">Inbox ({conversations?.length ?? 0})</h2>
                 </div>
                  <ScrollArea className="flex-1">
                     {loading && (
@@ -258,7 +262,7 @@ export default function CommunicationsPage() {
                             <Loader2 className="h-6 w-6 animate-spin" />
                         </div>
                     )}
-                    {!loading && conversations.map(convo => (
+                    {conversations && conversations.map(convo => (
                         <button
                             key={convo.id}
                             className={cn(
@@ -275,7 +279,7 @@ export default function CommunicationsPage() {
                             <p className="text-sm text-muted-foreground truncate">{convo.latestMessage}</p>
                         </button>
                     ))}
-                    {!loading && conversations.length === 0 && (
+                    {!loading && conversations?.length === 0 && (
                         <div className="text-center p-8 text-muted-foreground">
                             <Inbox className="mx-auto h-12 w-12" />
                             <p>Your inbox is empty.</p>
@@ -349,5 +353,3 @@ export default function CommunicationsPage() {
     </div>
   );
 }
-
-    

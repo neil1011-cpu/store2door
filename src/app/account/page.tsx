@@ -85,7 +85,7 @@ export default function AccountPage() {
     }
     
     // Show a loading screen while auth state or user profile is being fetched
-    if (isUserLoading || isProfileLoading) {
+    if (isUserLoading || isProfileLoading || !userProfile) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
                 <div className="mb-8 flex justify-between items-center">
@@ -98,15 +98,6 @@ export default function AccountPage() {
                     <Skeleton className="h-60 md:w-1/5" />
                     <Skeleton className="h-96 flex-1" />
                 </div>
-            </div>
-        );
-    }
-    
-    if (!userProfile) {
-        // This case might happen briefly or if the user doc doesn't exist
-        return (
-             <div className="flex justify-center items-center h-screen">
-                <p>Could not load user profile. Please try again.</p>
             </div>
         );
     }
