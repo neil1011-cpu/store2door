@@ -15,13 +15,21 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
+type ApiKeyState = {
+    key: string;
+    isSaved: boolean;
+    isVisible: boolean;
+};
+
 export default function SettingsPage() {
   const { toast } = useToast();
   const [avatar, setAvatar] = useState('https://placehold.co/128x128.png');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [apiKey, setApiKey] = useState('');
-  const [isKeySaved, setIsKeySaved] = useState(false);
-  const [isKeyVisible, setIsKeyVisible] = useState(false);
+  
+  const [tasokoApi, setTasokoApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
+  const [partyApi, setPartyApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
+  const [coloaderApi, setColoaderApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
+
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
@@ -44,25 +52,36 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveApiKey = () => {
-    if (!apiKey) {
+  const handleSaveApiKey = (
+    state: ApiKeyState, 
+    setter: React.Dispatch<React.SetStateAction<ApiKeyState>>, 
+    keyName: string
+  ) => {
+    if (!state.key) {
       toast({
-        title: 'API Key is empty',
-        description: 'Please enter an API key to save.',
+        title: `${keyName} is empty`,
+        description: `Please enter an API key to save.`,
         variant: 'destructive',
       });
       return;
     }
-    setIsKeySaved(true);
-    setIsKeyVisible(false);
+    setter({ ...state, isSaved: true, isVisible: false });
     toast({
       title: 'API Key Saved',
-      description: 'Your ipack API key has been securely saved.',
+      description: `Your ${keyName} has been securely saved.`,
     });
   };
 
-  const handleEditApiKey = () => {
-    setIsKeySaved(false);
+  const handleEditApiKey = (
+    setter: React.Dispatch<React.SetStateAction<ApiKeyState>>
+  ) => {
+    setter(prev => ({ ...prev, isSaved: false }));
+  }
+
+  const handleToggleVisibility = (
+    setter: React.Dispatch<React.SetStateAction<ApiKeyState>>
+  ) => {
+    setter(prev => ({ ...prev, isVisible: !prev.isVisible }));
   }
 
   return (
@@ -155,45 +174,110 @@ export default function SettingsPage() {
 
        <Card>
         <CardHeader>
-          <CardTitle>API Configuration</CardTitle>
-          <CardDescription>Manage API keys for external services.</CardDescription>
+          <CardTitle>API Access Tokens</CardTitle>
+          <CardDescription>Manage API access tokens used to allow access to third parties.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
+            {/* Tasoko API Key */}
             <div>
-              <Label htmlFor="ipack-api-key" className="flex items-center gap-2 mb-2">
-                <KeyRound className="h-4 w-4" />
-                <span>ipack API Key</span>
+              <Label htmlFor="tasoko-api-key" className="flex items-center gap-2 mb-2 font-semibold">
+                <span>Tasoko Based Warehouse Integration Token</span>
               </Label>
               <div className="flex items-center gap-2">
                 <Input 
-                  id="ipack-api-key" 
-                  type={isKeySaved && !isKeyVisible ? 'password' : 'text'}
-                  placeholder="Enter your ipack API key"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  disabled={isKeySaved}
-                  readOnly={isKeySaved}
+                  id="tasoko-api-key" 
+                  type={tasokoApi.isSaved && !tasokoApi.isVisible ? 'password' : 'text'}
+                  placeholder="Enter your Tasoko Warehouse token"
+                  value={tasokoApi.key}
+                  onChange={(e) => setTasokoApi(prev => ({...prev, key: e.target.value}))}
+                  disabled={tasokoApi.isSaved}
+                  readOnly={tasokoApi.isSaved}
                 />
-                {isKeySaved ? (
+                {tasokoApi.isSaved ? (
                   <>
-                    <Button variant="ghost" size="icon" onClick={() => setIsKeyVisible(!isKeyVisible)}>
-                        {isKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        <span className="sr-only">{isKeyVisible ? 'Hide key' : 'Show key'}</span>
+                    <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(setTasokoApi)}>
+                        {tasokoApi.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        <span className="sr-only">{tasokoApi.isVisible ? 'Hide key' : 'Show key'}</span>
                     </Button>
-                    <Button variant="secondary" onClick={handleEditApiKey}>
+                    <Button variant="secondary" onClick={() => handleEditApiKey(setTasokoApi)}>
                         <Edit className="mr-2 h-4 w-4" /> Edit
                     </Button>
                   </>
                 ) : (
-                  <Button onClick={handleSaveApiKey}>
-                    <Check className="mr-2 h-4 w-4" /> Save Key
+                  <Button onClick={() => handleSaveApiKey(tasokoApi, setTasokoApi, 'Tasoko API Key')}>
+                    <Check className="mr-2 h-4 w-4" /> Save
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* 3Party Warehouse API Key */}
+            <div>
+              <Label htmlFor="3party-api-key" className="flex items-center gap-2 mb-2 font-semibold">
+                <span>3Party Warehouse Integration Token</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  id="3party-api-key" 
+                  type={partyApi.isSaved && !partyApi.isVisible ? 'password' : 'text'}
+                  placeholder="Enter your 3Party Warehouse token"
+                  value={partyApi.key}
+                  onChange={(e) => setPartyApi(prev => ({...prev, key: e.target.value}))}
+                  disabled={partyApi.isSaved}
+                  readOnly={partyApi.isSaved}
+                />
+                {partyApi.isSaved ? (
+                  <>
+                    <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(setPartyApi)}>
+                        {partyApi.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button variant="secondary" onClick={() => handleEditApiKey(setPartyApi)}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={() => handleSaveApiKey(partyApi, setPartyApi, '3Party Warehouse API Key')}>
+                    <Check className="mr-2 h-4 w-4" /> Save
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Co-loader API Key */}
+            <div>
+              <Label htmlFor="coloader-api-key" className="flex items-center gap-2 mb-2 font-semibold">
+                <span>Co-loader Data To Access Token</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  id="coloader-api-key" 
+                  type={coloaderApi.isSaved && !coloaderApi.isVisible ? 'password' : 'text'}
+                  placeholder="Enter your Co-loader token"
+                  value={coloaderApi.key}
+                  onChange={(e) => setColoaderApi(prev => ({...prev, key: e.target.value}))}
+                  disabled={coloaderApi.isSaved}
+                  readOnly={coloaderApi.isSaved}
+                />
+                {coloaderApi.isSaved ? (
+                  <>
+                    <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(setColoaderApi)}>
+                        {coloaderApi.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button variant="secondary" onClick={() => handleEditApiKey(setColoaderApi)}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={() => handleSaveApiKey(coloaderApi, setColoaderApi, 'Co-loader API Key')}>
+                    <Check className="mr-2 h-4 w-4" /> Save
                   </Button>
                 )}
               </div>
             </div>
         </CardContent>
       </Card>
-
     </div>
   );
 }
+
+    
