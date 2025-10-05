@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 
 
@@ -49,7 +49,6 @@ type Conversation = {
     latestMessage: string;
     latestDate: string;
     isRead: boolean;
-    messages: Message[];
     date: string;
 }
 
@@ -84,15 +83,7 @@ export default function CommunicationsPage() {
 
     const conversations = useMemo(() => {
         if (!rawConversations) return [];
-        // This part is tricky without fetching all messages for all conversations upfront.
-        // The `latestMessage` logic here might be simplified.
-        // For this prototype, we'll assume the conversation doc itself has some summary fields.
-        return rawConversations.map(convo => ({
-            ...convo,
-            latestMessage: convo.latestMessage || "No messages yet.",
-            latestDate: convo.latestDate || convo.date,
-            isRead: convo.isRead,
-        })).sort((a,b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
+        return rawConversations.sort((a,b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
     }, [rawConversations]);
 
 
@@ -101,17 +92,29 @@ export default function CommunicationsPage() {
 
         setSending(true);
         try {
-            const messagesCol = collection(firestore, 'conversations', selectedConversation.id, 'messages');
-            addDocumentNonBlocking(messagesCol, {
+            const conversationRef = doc(firestore, 'conversations', selectedConversation.id);
+            const messagesCol = collection(conversationRef, 'messages');
+            
+            const messageData = {
                 conversationId: selectedConversation.id,
                 customerId: selectedConversation.customerId,
                 customerName: selectedConversation.customerName,
                 subject: selectedConversation.subject,
                 message: reply,
-                sender: 'agent',
-                status: 'Open',
+                sender: 'agent' as 'user' | 'agent',
+                status: 'Open' as 'Open' | 'Closed',
                 date: serverTimestamp()
-            });
+            };
+            addDocumentNonBlocking(messagesCol, messageData);
+            
+            // Update the parent conversation doc
+            const conversationData = {
+                latestMessage: reply,
+                latestDate: serverTimestamp(),
+                isRead: true, // It's read from the admin's perspective
+                status: 'Open'
+            };
+            setDocumentNonBlocking(conversationRef, conversationData, { merge: true });
 
             setReply('');
             toast({ title: 'Reply Sent!' });
@@ -132,7 +135,6 @@ export default function CommunicationsPage() {
 
         setIsComposing(true);
         try {
-            // This creates a NEW conversation.
             const newConversationRef = doc(collection(firestore, 'conversations'));
             const conversationData = {
                 id: newConversationRef.id,
@@ -142,8 +144,10 @@ export default function CommunicationsPage() {
                 latestMessage: composeBody,
                 latestDate: serverTimestamp(),
                 isRead: true, // It's read from the admin's perspective
+                status: 'Open',
+                date: serverTimestamp()
             };
-            addDocumentNonBlocking(newConversationRef, conversationData);
+            setDocumentNonBlocking(newConversationRef, conversationData, { merge: false });
 
 
             const messagesCol = collection(newConversationRef, 'messages');
@@ -156,7 +160,6 @@ export default function CommunicationsPage() {
                 sender: 'agent',
                 status: 'Open',
                 date: serverTimestamp(),
-                // attachment handling would need Firebase Storage
             });
 
             toast({ title: 'Email Sent!', description: `Your email to ${recipientUser.fullName} has been sent.` });
@@ -309,7 +312,7 @@ export default function CommunicationsPage() {
                                                     </a>
                                                 </div>
                                             )}
-                                            <p className={cn("text-xs mt-2", msg.sender === 'agent' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{new Date(msg.date).toLocaleString()}</p>
+                                            <p className={cn("text-xs mt-2", msg.sender === 'agent' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{msg.date ? new Date(msg.date).toLocaleString() : 'Just now'}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -346,3 +349,5 @@ export default function CommunicationsPage() {
     </div>
   );
 }
+
+    

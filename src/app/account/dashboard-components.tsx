@@ -20,8 +20,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, orderBy, limit, serverTimestamp, doc } from 'firebase/firestore';
 
 
 type Message = {
@@ -34,6 +34,17 @@ type Message = {
   sender: 'user' | 'agent';
   status: 'Open' | 'Closed';
   attachment?: string;
+};
+
+type Conversation = {
+    id: string;
+    customerName: string;
+    customerId: string;
+    subject: string;
+    latestMessage: string;
+    latestDate: string;
+    isRead: boolean;
+    date: string;
 };
 
 
@@ -53,6 +64,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   const firestore = useFirestore();
   
   const shipmentsQuery = useMemoFirebase(() => {
+    if (!firestore || !details.id) return null;
     return query(
       collection(firestore, 'shipments'),
       where('customerId', '==', details.id),
@@ -201,6 +213,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
   const firestore = useFirestore();
 
   const shipmentsQuery = useMemoFirebase(() => {
+    if (!firestore || !customerId) return null;
     return query(
       collection(firestore, 'shipments'),
       where('customerId', '==', customerId),
@@ -218,6 +231,10 @@ export function PackagesTab({ customerId }: { customerId: string }) {
   };
 
   const handleDownloadInvoice = (shipment: Shipment) => {
+    if (!shipment.invoiceUrl) {
+        toast({ title: "No Invoice", description: "There is no invoice available for this shipment.", variant: "destructive" });
+        return;
+    }
     const link = document.createElement('a');
     link.href = shipment.invoiceUrl;
     link.download = `Invoice-${shipment.invoiceId || shipment.trackingNumber}.pdf`;
@@ -274,7 +291,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                         </Button>
                     ) : (
                         <Badge variant={shipment.paymentStatus === 'Paid' ? 'outline' : 'secondary'}>
-                            {shipment.paymentStatus === 'Paid' ? 'Paid' : 'No Cost'}
+                            {shipment.paymentStatus === 'Paid' ? 'Paid' : (shipment.cost ? 'N/A' : 'No Cost')}
                         </Badge>
                     )}
                 </TableCell>
@@ -282,7 +299,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                     <Dialog>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
+                                <Button variant="ghost" size="icon" disabled={!shipment.invoiceUrl}>
                                     <MoreHorizontal className="h-4 w-4" />
                                     <span className="sr-only">More actions</span>
                                 </Button>
@@ -306,11 +323,11 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                                 <DialogDescription>Invoice for your shipment: {shipment.contents}.</DialogDescription>
                             </DialogHeader>
                             <div className="relative h-[600px] overflow-hidden rounded-md border">
-                                {shipment.invoiceUrl.startsWith('data:application/pdf') ? (
+                                {shipment.invoiceUrl?.startsWith('data:application/pdf') ? (
                                     <embed src={shipment.invoiceUrl} type="application/pdf" width="100%" height="100%" />
                                 ) : (
                                     <Image 
-                                        src={shipment.invoiceUrl} 
+                                        src={shipment.invoiceUrl || placeholderImages.generatedInvoice.src} 
                                         alt={`Invoice for ${shipment.trackingNumber}`} 
                                         fill
                                         className="object-contain"
@@ -342,18 +359,28 @@ export function SupportTab({ details }: { details: UserProfile }) {
   const [subject, setSubject] = useState("");
   const [sending, setSending] = useState(false);
   
-  const messagesQuery = useMemoFirebase(() => {
+  const conversationsQuery = useMemoFirebase(() => {
     if (!details.id) return null;
     return query(
         collection(firestore, 'conversations'),
-        where('customerId', '==', details.id)
+        where('customerId', '==', details.id),
+        limit(1) // Assuming one conversation per customer for this UI
     );
   }, [firestore, details.id]);
 
-  const { data: conversationsData, isLoading: loading } = useCollection<{messages: Message[]}>(messagesQuery);
-  
+  const { data: conversationsData, isLoading: conversationsLoading } = useCollection<Conversation>(conversationsQuery);
   const conversation = conversationsData && conversationsData.length > 0 ? conversationsData[0] : null;
-  const messages = conversation ? conversation.messages.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()) : [];
+
+  const messagesQuery = useMemoFirebase(() => {
+    if (!conversation) return null;
+    return query(
+        collection(firestore, 'conversations', conversation.id, 'messages'),
+        orderBy('date', 'asc')
+    );
+  }, [firestore, conversation]);
+  
+  const { data: messages, isLoading: messagesLoading } = useCollection<Message>(messagesQuery);
+  const isLoading = conversationsLoading || messagesLoading;
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || (!conversation && !subject.trim())) {
@@ -364,19 +391,33 @@ export function SupportTab({ details }: { details: UserProfile }) {
     setSending(true);
     try {
       const conversationId = conversation ? conversation.id : doc(collection(firestore, 'conversations')).id;
-      const messageSubject = conversation ? conversation.subject : subject;
-      const messagesCol = collection(firestore, 'conversations', conversationId, 'messages');
-
-      addDocumentNonBlocking(messagesCol, {
+      const conversationRef = doc(firestore, 'conversations', conversationId);
+      const messagesCol = collection(conversationRef, 'messages');
+      
+      const messageData = {
           conversationId,
           customerId: details.id,
           customerName: details.fullName,
-          subject: messageSubject,
+          subject: conversation ? conversation.subject : subject,
           message: newMessage,
-          sender: 'user',
-          status: 'Open',
+          sender: 'user' as 'user' | 'agent',
+          status: 'Open' as 'Open' | 'Closed',
           date: serverTimestamp()
-      });
+      };
+      addDocumentNonBlocking(messagesCol, messageData);
+      
+      // Update the parent conversation doc
+      const conversationData = {
+          id: conversationId,
+          customerId: details.id,
+          customerName: details.fullName,
+          subject: conversation ? conversation.subject : subject,
+          latestMessage: newMessage,
+          latestDate: serverTimestamp(),
+          isRead: false,
+          status: 'Open'
+      };
+      setDocumentNonBlocking(conversationRef, conversationData, { merge: true });
       
       setNewMessage("");
       if (!conversation) setSubject("");
@@ -399,14 +440,14 @@ export function SupportTab({ details }: { details: UserProfile }) {
       </CardHeader>
       <ScrollArea className="flex-1 px-6 pb-4">
         <div className="space-y-6">
-          {loading && <div className="text-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
-          {!loading && messages.length === 0 && (
+          {isLoading && <div className="text-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
+          {!isLoading && (!messages || messages.length === 0) && (
             <div className="text-center text-muted-foreground py-8">
               <Inbox className="h-12 w-12 mx-auto" />
               <p className="mt-2">You have no messages. Start a new conversation below.</p>
             </div>
           )}
-          {messages.map(msg => (
+          {messages && messages.map(msg => (
             <div key={msg.id} className={cn("flex items-end gap-3", msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row')}>
               <Avatar className="h-8 w-8">
                 <AvatarImage src={msg.sender === 'agent' ? placeholderImages.avatars.supportAgent.src : undefined} />
@@ -417,7 +458,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
                 msg.sender === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
               )}>
                 <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
-                <p className={cn("text-xs mt-2", msg.sender === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{new Date(msg.date).toLocaleString()}</p>
+                <p className={cn("text-xs mt-2", msg.sender === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{msg.date ? new Date(msg.date).toLocaleString() : 'Just now'}</p>
               </div>
             </div>
           ))}
@@ -531,6 +572,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
                 <div>
                     <h3 className="font-semibold text-lg mb-2">Your US Address</h3>
                     <div className="relative rounded-lg border bg-muted p-4 space-y-1">
+                        <p className="font-mono">{details.fullName}</p>
                         <p className="font-mono">{details.address.address1}</p>
                         <p className="font-mono font-bold text-primary">{details.address.address2}</p>
                         <p className="font-mono">{details.address.city}, {details.address.state} {details.address.zip}</p>
@@ -709,3 +751,5 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
+
+    
