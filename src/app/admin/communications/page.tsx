@@ -32,6 +32,7 @@ type Message = {
   id: string;
   conversationId: string;
   customerName: string;
+  customerId: string;
   subject: string;
   message: string;
   date: string;
@@ -43,11 +44,13 @@ type Message = {
 type Conversation = {
     id: string;
     customerName: string;
+    customerId: string;
     subject: string;
     latestMessage: string;
     latestDate: string;
     isRead: boolean;
     messages: Message[];
+    date: string;
 }
 
 export default function CommunicationsPage() {
@@ -69,21 +72,27 @@ export default function CommunicationsPage() {
     const { data: rawConversations, isLoading: loading, error } = useCollection<Conversation>(conversationsQuery);
     const { data: users, isLoading: usersLoading } = useCollection<{id: string, fullName: string, email: string}>(collection(firestore, 'users'));
     
-    // In a real app, you would fetch subcollections of messages for each conversation.
-    // For this prototype, we'll assume messages are embedded or fetched separately.
+    const messagesQuery = useMemoFirebase(() => {
+        if (!selectedConversation) return null;
+        return query(
+            collection(firestore, 'conversations', selectedConversation.id, 'messages'),
+            orderBy('date', 'asc')
+        );
+    }, [firestore, selectedConversation]);
+
+    const { data: messages, isLoading: messagesLoading } = useCollection<Message>(messagesQuery);
+
     const conversations = useMemo(() => {
         if (!rawConversations) return [];
-        return rawConversations.map(convo => {
-            const sortedMessages = convo.messages?.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()) || [];
-            const latestMsg = sortedMessages[0];
-            return {
-                ...convo,
-                messages: sortedMessages,
-                latestMessage: latestMsg?.message || "No messages yet",
-                latestDate: latestMsg?.date || convo.date,
-                isRead: !(latestMsg?.sender === 'user' && latestMsg?.status === 'Open')
-            }
-        }).sort((a,b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
+        // This part is tricky without fetching all messages for all conversations upfront.
+        // The `latestMessage` logic here might be simplified.
+        // For this prototype, we'll assume the conversation doc itself has some summary fields.
+        return rawConversations.map(convo => ({
+            ...convo,
+            latestMessage: convo.latestMessage || "No messages yet.",
+            latestDate: convo.latestDate || convo.date,
+            isRead: convo.isRead,
+        })).sort((a,b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
     }, [rawConversations]);
 
 
@@ -123,10 +132,21 @@ export default function CommunicationsPage() {
 
         setIsComposing(true);
         try {
-            // This creates a NEW conversation. In a real app, you might want to check for existing ones.
+            // This creates a NEW conversation.
             const newConversationRef = doc(collection(firestore, 'conversations'));
+            const conversationData = {
+                id: newConversationRef.id,
+                customerId: recipientUser.id,
+                customerName: recipientUser.fullName,
+                subject: composeSubject,
+                latestMessage: composeBody,
+                latestDate: serverTimestamp(),
+                isRead: true, // It's read from the admin's perspective
+            };
+            addDocumentNonBlocking(newConversationRef, conversationData);
+
+
             const messagesCol = collection(newConversationRef, 'messages');
-            
             addDocumentNonBlocking(messagesCol, {
                 conversationId: newConversationRef.id,
                 customerId: recipientUser.id,
@@ -269,7 +289,8 @@ export default function CommunicationsPage() {
                         </div>
                          <ScrollArea className="flex-1 p-4">
                              <div className="space-y-6">
-                                {selectedConversation.messages.map(msg => (
+                                {messagesLoading && <div className="text-center"><Loader2 className="h-6 w-6 animate-spin"/></div>}
+                                {messages && messages.map(msg => (
                                     <div key={msg.id} className={cn("flex items-end gap-3", msg.sender === 'agent' ? 'flex-row-reverse' : 'flex-row')}>
                                         <Avatar className="h-8 w-8">
                                             <AvatarImage src={msg.sender === 'user' ? undefined : placeholderImages.avatars.supportAgent.src} />
@@ -325,4 +346,3 @@ export default function CommunicationsPage() {
     </div>
   );
 }
-
