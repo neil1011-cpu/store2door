@@ -46,6 +46,33 @@
           "type": "string",
           "description": "Timestamp indicating when the user account was created.",
           "format": "date-time"
+        },
+        "dropoffAddresses": {
+            "type": "array",
+            "description": "A list of saved drop-off addresses in Jamaica for the user.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "address": { "type": "string" },
+                    "parish": { "type": "string" }
+                },
+                "required": ["id", "name", "address", "parish"]
+            }
+        },
+        "pickupPersonnel": {
+            "type": "array",
+            "description": "A list of people authorized to pick up packages for the user.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "idNumber": { "type": "string" }
+                },
+                "required": ["id", "name", "idNumber"]
+            }
         }
       },
       "required": [

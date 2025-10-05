@@ -1,4 +1,18 @@
 
+export type DropoffAddress = {
+  id: string;
+  name: string;
+  address: string;
+  parish: string;
+};
+
+export type PickupPerson = {
+  id: string;
+  name: string;
+  idNumber: string;
+};
+
+
 export type UserProfile = {
   id: string;
   fullName: string;
@@ -12,6 +26,8 @@ export type UserProfile = {
     state: string;
     zip: string;
   };
+  dropoffAddresses?: DropoffAddress[];
+  pickupPersonnel?: PickupPerson[];
 };
 
 export type Shipment = {

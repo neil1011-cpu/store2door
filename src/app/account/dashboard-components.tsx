@@ -20,8 +20,8 @@ import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, query, where, orderBy, limit, serverTimestamp, doc, addDoc } from 'firebase/firestore';
-import type { UserProfile, Shipment } from '@/lib/types';
+import { collection, query, where, orderBy, limit, serverTimestamp, doc, addDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import type { UserProfile, Shipment, PickupPerson, DropoffAddress } from '@/lib/types';
 
 
 type Message = {
@@ -63,16 +63,17 @@ const getStatusVariant = (status: Shipment['status']) => {
 
 export function DashboardTab({ details }: { details: UserProfile }) {
   const firestore = useFirestore();
+  const { user } = useUser();
   
   const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !details?.id) return null;
+    if (!firestore || !user?.uid) return null;
     return query(
       collection(firestore, 'shipments'),
-      where('customerId', '==', details.id),
+      where('customerId', '==', user.uid),
       orderBy('date', 'desc'),
       limit(1)
     );
-  }, [firestore, details?.id]);
+  }, [firestore, user?.uid]);
 
   const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
   const recentShipment = userShipments && userShipments.length > 0 ? userShipments[0] : null;
@@ -206,18 +207,19 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
   );
 }
 
-export function PackagesTab({ customerId }: { customerId: string }) {
+export function PackagesTab() {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !customerId) return null;
+    if (!firestore || !user?.uid) return null;
     return query(
       collection(firestore, 'shipments'),
-      where('customerId', '==', customerId),
+      where('customerId', '==', user.uid),
       orderBy('date', 'desc')
     );
-  }, [firestore, customerId]);
+  }, [firestore, user?.uid]);
 
   const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
 
@@ -487,36 +489,19 @@ export function SupportTab({ details }: { details: UserProfile }) {
   );
 }
 
-type PickupPerson = {
-    id: number;
-    name: string;
-    idNumber: string;
-};
-
-type DropoffAddress = {
-    id: number;
-    name: string;
-    address: string;
-    parish: string;
-}
-
 export function AccountTab({ details }: { details: UserProfile }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
+    const firestore = useFirestore();
+    const { user } = useUser();
+
     const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.zip}`;
 
-    const [pickupPersonnel, setPickupPersonnel] = useState<PickupPerson[]>([
-        { id: 1, name: 'John Brown', idNumber: '123456-7' }
-    ]);
     const [openAddPersonDialog, setOpenAddPersonDialog] = useState(false);
     const [newPerson, setNewPerson] = useState({ name: '', idNumber: '' });
     
-    const [dropoffAddresses, setDropoffAddresses] = useState<DropoffAddress[]>([
-        { id: 1, name: 'Home', address: '123 Main Street, Kingston', parish: 'Kingston' }
-    ]);
     const [openAddAddressDialog, setOpenAddAddressDialog] = useState(false);
     const [newAddress, setNewAddress] = useState({ name: '', address: '', parish: '' });
-
 
     const handleCopy = () => {
         navigator.clipboard.writeText(fullAddress);
@@ -528,37 +513,62 @@ export function AccountTab({ details }: { details: UserProfile }) {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleAddPerson = () => {
-        if (!newPerson.name || !newPerson.idNumber) {
+    const handleAddPerson = async () => {
+        if (!user || !firestore || !newPerson.name || !newPerson.idNumber) {
             toast({ title: "Missing Fields", description: "Please enter a name and ID number.", variant: 'destructive' });
             return;
         }
-        setPickupPersonnel([...pickupPersonnel, { ...newPerson, id: Date.now() }]);
+
+        const personToAdd: PickupPerson = { ...newPerson, id: doc(collection(firestore, 'users')).id };
+        const userDocRef = doc(firestore, 'users', user.uid);
+
+        await updateDoc(userDocRef, {
+            pickupPersonnel: arrayUnion(personToAdd)
+        });
+
         setNewPerson({ name: '', idNumber: '' });
         setOpenAddPersonDialog(false);
         toast({ title: "Pickup Person Added", description: `${newPerson.name} can now pick up packages on your behalf.` });
     };
 
-    const handleRemovePerson = (id: number) => {
-        setPickupPersonnel(pickupPersonnel.filter(p => p.id !== id));
+    const handleRemovePerson = async (personToRemove: PickupPerson) => {
+        if (!user || !firestore) return;
+        const userDocRef = doc(firestore, 'users', user.uid);
+        await updateDoc(userDocRef, {
+            pickupPersonnel: arrayRemove(personToRemove)
+        });
         toast({ title: "Pickup Person Removed" });
     };
 
-    const handleAddAddress = () => {
-        if (!newAddress.name || !newAddress.address || !newAddress.parish) {
+    const handleAddAddress = async () => {
+        if (!user || !firestore || !newAddress.name || !newAddress.address || !newAddress.parish) {
             toast({ title: "Missing Fields", description: "Please fill out all address fields.", variant: 'destructive' });
             return;
         }
-        setDropoffAddresses([...dropoffAddresses, { ...newAddress, id: Date.now() }]);
+
+        const addressToAdd: DropoffAddress = { ...newAddress, id: doc(collection(firestore, 'users')).id };
+        const userDocRef = doc(firestore, 'users', user.uid);
+        
+        await updateDoc(userDocRef, {
+            dropoffAddresses: arrayUnion(addressToAdd)
+        });
+
         setNewAddress({ name: '', address: '', parish: '' });
         setOpenAddAddressDialog(false);
         toast({ title: "Address Added", description: `New drop-off address "${newAddress.name}" has been saved.` });
     };
 
-    const handleRemoveAddress = (id: number) => {
-        setDropoffAddresses(dropoffAddresses.filter(a => a.id !== id));
+    const handleRemoveAddress = async (addressToRemove: DropoffAddress) => {
+        if (!user || !firestore) return;
+        const userDocRef = doc(firestore, 'users', user.uid);
+        await updateDoc(userDocRef, {
+            dropoffAddresses: arrayRemove(addressToRemove)
+        });
         toast({ title: "Address Removed" });
     };
+    
+    const pickupPersonnel = details.pickupPersonnel || [];
+    const dropoffAddresses = details.dropoffAddresses || [];
 
     return (
         <Card>
@@ -668,7 +678,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
                                         <p className="text-sm text-muted-foreground">{addr.address}, {addr.parish}</p>
                                     </div>
                                 </div>
-                                <Button variant="ghost" size="icon" onClick={() => handleRemoveAddress(addr.id)}>
+                                <Button variant="ghost" size="icon" onClick={() => handleRemoveAddress(addr)}>
                                     <Trash2 className="h-4 w-4" />
                                     <span className="sr-only">Remove Address</span>
                                 </Button>
@@ -734,7 +744,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
                                         <TableCell className="font-medium">{person.name}</TableCell>
                                         <TableCell>{person.idNumber}</TableCell>
                                         <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" onClick={() => handleRemovePerson(person.id)}>
+                                            <Button variant="ghost" size="icon" onClick={() => handleRemovePerson(person)}>
                                                 <Trash2 className="h-4 w-4" />
                                                 <span className="sr-only">Remove</span>
                                             </Button>
