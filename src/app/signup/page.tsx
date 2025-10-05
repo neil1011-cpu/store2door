@@ -21,6 +21,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, serverTimestamp } from 'firebase/firestore';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -28,13 +31,15 @@ const formSchema = z.object({
   password: z.string().min(8, { message: 'Password must be at least 8 characters.' }),
   phone: z.string().min(10, { message: 'Phone number must be at least 10 digits.' }),
   trn: z.string().min(9, { message: 'TRN must be 9 digits.' }).max(9, { message: 'TRN must be 9 digits.' }),
-  idUpload: z.any().refine((files) => files?.length == 1, 'ID upload is required.'),
+  idUpload: z.any().optional(), // Making ID upload optional for now
 });
 
 export default function SignUpPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const auth = useAuth();
+  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -49,43 +54,33 @@ export default function SignUpPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    // In a real app, you would handle the file upload properly.
-    // For this prototype, we're not sending the file, just the user data.
-    const userData = {
-        fullName: values.fullName,
-        email: values.email,
-        password: values.password,
-        phone: values.phone,
-        trn: values.trn,
-    };
     
     try {
-        const response = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userData),
-        });
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
 
-        const data = await response.json();
+        // In a real app, you would have a cloud function to get the next mailbox number
+        const nextMailboxNumber = `FSTD${Math.floor(100 + Math.random() * 900)}`;
 
-        if (!response.ok) {
-            throw new Error(data.message || 'Failed to sign up.');
-        }
+        const newUserDoc = {
+            id: user.uid,
+            fullName: values.fullName,
+            email: values.email,
+            phone: values.phone,
+            trn: values.trn,
+            mailboxNumber: nextMailboxNumber,
+            address: {
+                address1: '4350 NE 5th Terrace Bay #3',
+                address2: `${nextMailboxNumber} -FSTD`,
+                city: 'Oakland Park',
+                state: 'Florida',
+                zip: '33334',
+            },
+            createdAt: serverTimestamp()
+        };
 
-        // After successful registration, we can sign the user in automatically
-        const loginResponse = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: values.email, password: values.password }),
-        });
-
-        const loginData = await loginResponse.json();
-
-        if (!loginResponse.ok) {
-            throw new Error(loginData.message || 'Failed to login after registration.');
-        }
-
-        localStorage.setItem('accountDetails', JSON.stringify(loginData.user));
+        const userDocRef = doc(firestore, 'users', user.uid);
+        setDocumentNonBlocking(userDocRef, newUserDoc, { merge: false });
 
         toast({
             title: 'Sign Up Successful!',

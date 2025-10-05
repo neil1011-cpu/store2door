@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -8,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Check, Send, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Trash2, Home, Inbox } from 'lucide-react';
-import { AccountDetails, Shipment } from './page';
+import { UserProfile, Shipment } from './page';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,8 +19,10 @@ import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
-import { shipments as allShipments } from '@/lib/mock-data';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+
 
 type Message = {
   id: string;
@@ -48,9 +49,20 @@ const getStatusVariant = (status: Shipment['status']) => {
 };
 
 
-export function DashboardTab({ details }: { details: AccountDetails }) {
-  const userShipments = allShipments.filter(s => s.customerId === details.id);
-  const recentShipment = userShipments.length > 0 ? userShipments[0] : null;
+export function DashboardTab({ details }: { details: UserProfile }) {
+  const firestore = useFirestore();
+  
+  const shipmentsQuery = useMemoFirebase(() => {
+    return query(
+      collection(firestore, 'shipments'),
+      where('customerId', '==', details.id),
+      orderBy('date', 'desc'),
+      limit(1)
+    );
+  }, [firestore, details.id]);
+
+  const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
+  const recentShipment = userShipments && userShipments.length > 0 ? userShipments[0] : null;
 
   return (
     <Card>
@@ -65,7 +77,8 @@ export function DashboardTab({ details }: { details: AccountDetails }) {
                     <Package className="h-5 w-5" /> Latest Shipment Status
                 </CardTitle>
             </CardHeader>
-            {recentShipment ? (
+            {isLoading ? <CardContent><Loader2 className="h-6 w-6 animate-spin" /></CardContent> :
+             recentShipment ? (
             <CardContent className="space-y-2">
                 <div className="flex justify-between">
                     <span className="text-muted-foreground">Tracking #:</span>
@@ -105,12 +118,13 @@ export function DashboardTab({ details }: { details: AccountDetails }) {
 }
 
 
-export function PreAlertTab({ customerName }: { customerName: string }) {
+export function PreAlertTab({ customerId, customerName }: { customerId: string, customerName: string }) {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [contents, setContents] = useState('');
   const [invoice, setInvoice] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const firestore = useFirestore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,23 +134,20 @@ export function PreAlertTab({ customerName }: { customerName: string }) {
     }
 
     setLoading(true);
-    // Here you would typically handle the file upload to a storage service
-    // and then send the data to your API. We'll simulate this.
+    // In a real app, upload the invoice to Firebase Storage and get the URL
+    // For now, we'll use a placeholder.
     try {
-        const response = await fetch('/api/warehouse/intake', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                customerName: customerName,
-                trackingId: trackingNumber,
-                contents: contents,
-                status: 'Pending'
-            }),
+        const preAlertsCollection = collection(firestore, 'preAlerts');
+        addDocumentNonBlocking(preAlertsCollection, {
+            customerId,
+            customerName,
+            trackingNumber,
+            contents,
+            status: 'Pending',
+            date: serverTimestamp(),
+            // TODO: Replace with actual Firebase Storage URL
+            invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`,
         });
-
-        if (!response.ok) {
-            throw new Error('Failed to create pre-alert.');
-        }
 
         toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
         setTrackingNumber('');
@@ -187,11 +198,19 @@ export function PreAlertTab({ customerName }: { customerName: string }) {
 
 export function PackagesTab({ customerId }: { customerId: string }) {
   const { toast } = useToast();
-  const userShipments = allShipments.filter(s => s.customerId === customerId);
+  const firestore = useFirestore();
+
+  const shipmentsQuery = useMemoFirebase(() => {
+    return query(
+      collection(firestore, 'shipments'),
+      where('customerId', '==', customerId),
+      orderBy('date', 'desc')
+    );
+  }, [firestore, customerId]);
+
+  const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const handlePayNow = (shipment: Shipment) => {
-    // In a real application, this would redirect to a payment gateway (e.g., Stripe, PayPal).
-    // For this prototype, we'll just show a toast message.
     toast({
         title: "Payment Gateway",
         description: `Redirecting to payment for invoice ${shipment.invoiceId} - Total: $${shipment.cost?.toFixed(2)}`,
@@ -199,11 +218,9 @@ export function PackagesTab({ customerId }: { customerId: string }) {
   };
 
   const handleDownloadInvoice = (shipment: Shipment) => {
-    // This is a simple implementation for demonstration.
-    // In a real-world scenario, you might want to fetch a secure URL or a blob.
     const link = document.createElement('a');
     link.href = shipment.invoiceUrl;
-    link.download = `Invoice-${shipment.invoiceId || shipment.trackingNumber}.pdf`; // Assuming PDF, could be dynamic
+    link.download = `Invoice-${shipment.invoiceId || shipment.trackingNumber}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -232,7 +249,14 @@ export function PackagesTab({ customerId }: { customerId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {userShipments.map((shipment) => (
+            {isLoading && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                </TableCell>
+              </TableRow>
+            )}
+            {userShipments && userShipments.map((shipment) => (
               <TableRow key={shipment.id}>
                 <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
                 <TableCell>{shipment.contents}</TableCell>
@@ -299,7 +323,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                  </TableCell>
               </TableRow>
             ))}
-             {userShipments.length === 0 && (
+             {!isLoading && userShipments?.length === 0 && (
                 <TableRow>
                     <TableCell colSpan={6} className="text-center">You have no shipments yet.</TableCell>
                 </TableRow>
@@ -311,69 +335,51 @@ export function PackagesTab({ customerId }: { customerId: string }) {
   );
 }
 
-export function SupportTab({ details }: { details: AccountDetails }) {
+export function SupportTab({ details }: { details: UserProfile }) {
   const { toast } = useToast();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
+  const firestore = useFirestore();
   const [newMessage, setNewMessage] = useState("");
   const [subject, setSubject] = useState("");
   const [sending, setSending] = useState(false);
-
-  // Memoize conversations to avoid re-calculating on every render
-  const conversations = useMemo(() => {
-    // Filter messages to only include those for the current user
-    return messages.filter(m => m.customerName === details.fullName);
-  }, [messages, details.fullName]);
   
-  const hasExistingConversation = conversations.length > 0;
+  const messagesQuery = useMemoFirebase(() => {
+    if (!details.id) return null;
+    return query(
+        collection(firestore, 'conversations'),
+        where('customerId', '==', details.id)
+    );
+  }, [firestore, details.id]);
 
-  useEffect(() => {
-    const fetchMessages = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('/api/messages');
-        if (!response.ok) throw new Error("Failed to load message history.");
-        const allMessages: Message[] = await response.json();
-        const userMessages = allMessages.filter(m => m.customerName === details.fullName);
-        setMessages(userMessages.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-      } catch (error) {
-        toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchMessages();
-  }, [details.fullName, toast]);
+  const { data: conversationsData, isLoading: loading } = useCollection<{messages: Message[]}>(messagesQuery);
+  
+  const conversation = conversationsData && conversationsData.length > 0 ? conversationsData[0] : null;
+  const messages = conversation ? conversation.messages.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()) : [];
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || (!hasExistingConversation && !subject.trim())) {
+    if (!newMessage.trim() || (!conversation && !subject.trim())) {
       toast({ title: "Missing fields", description: "Please enter a subject and message.", variant: "destructive"});
       return;
     }
 
     setSending(true);
     try {
-      const conversationId = hasExistingConversation ? conversations[0].conversationId : undefined;
-      const messageSubject = hasExistingConversation ? conversations[0].subject : subject;
+      const conversationId = conversation ? conversation.id : doc(collection(firestore, 'conversations')).id;
+      const messageSubject = conversation ? conversation.subject : subject;
+      const messagesCol = collection(firestore, 'conversations', conversationId, 'messages');
 
-      const response = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      addDocumentNonBlocking(messagesCol, {
+          conversationId,
+          customerId: details.id,
           customerName: details.fullName,
           subject: messageSubject,
           message: newMessage,
           sender: 'user',
-          conversationId,
-        }),
+          status: 'Open',
+          date: serverTimestamp()
       });
-
-      if (!response.ok) throw new Error("Failed to send message.");
-
-      const sentMessage: Message = await response.json();
-      setMessages([...messages, sentMessage]);
+      
       setNewMessage("");
-      if (!hasExistingConversation) setSubject("");
+      if (!conversation) setSubject("");
       toast({ title: "Message Sent!", description: "We've received your message and will get back to you shortly." });
 
     } catch (error) {
@@ -394,13 +400,13 @@ export function SupportTab({ details }: { details: AccountDetails }) {
       <ScrollArea className="flex-1 px-6 pb-4">
         <div className="space-y-6">
           {loading && <div className="text-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
-          {!loading && conversations.length === 0 && (
+          {!loading && messages.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
               <Inbox className="h-12 w-12 mx-auto" />
               <p className="mt-2">You have no messages. Start a new conversation below.</p>
             </div>
           )}
-          {conversations.map(msg => (
+          {messages.map(msg => (
             <div key={msg.id} className={cn("flex items-end gap-3", msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row')}>
               <Avatar className="h-8 w-8">
                 <AvatarImage src={msg.sender === 'agent' ? placeholderImages.avatars.supportAgent.src : undefined} />
@@ -418,14 +424,14 @@ export function SupportTab({ details }: { details: AccountDetails }) {
         </div>
       </ScrollArea>
       <CardFooter className="pt-4 border-t flex-col items-start gap-4">
-        {!hasExistingConversation && (
+        {!conversation && (
             <div className="w-full space-y-2">
                 <Label htmlFor="subject">Subject</Label>
                 <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g., Question about my invoice" />
             </div>
         )}
         <div className="w-full space-y-2">
-          <Label htmlFor="new-message">{hasExistingConversation ? "Your Reply" : "Your Message"}</Label>
+          <Label htmlFor="new-message">{conversation ? "Your Reply" : "Your Message"}</Label>
           <Textarea 
             id="new-message" 
             placeholder="Type your message here..."
@@ -455,7 +461,7 @@ type DropoffAddress = {
     parish: string;
 }
 
-export function AccountTab({ details }: { details: AccountDetails }) {
+export function AccountTab({ details }: { details: UserProfile }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
     const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.address.zip}`;
@@ -703,5 +709,3 @@ export function AccountTab({ details }: { details: AccountDetails }) {
         </Card>
     )
 }
-
-    

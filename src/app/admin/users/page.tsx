@@ -18,7 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, MoreHorizontal, Copy, ArrowLeft } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -32,10 +32,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 
 type User = {
   id: string;
-  name: string;
+  fullName: string;
   email: string;
   address: {
     address1: string;
@@ -47,41 +49,15 @@ type User = {
   mailboxNumber: string;
 };
 
-const initialUsers: User[] = [
-    {
-        id: '1',
-        name: 'Alicia Keys',
-        email: 'alicia@example.com',
-        address: {
-            address1: '4350 NE 5th Terrace Bay #3',
-            address2: 'FSTD101 -FSTD',
-            city: 'Oakland Park',
-            state: 'Florida',
-            zip: '33334',
-        },
-        mailboxNumber: 'FSTD101',
-    },
-    {
-        id: '2',
-        name: 'Bob Marley',
-        email: 'bob@example.com',
-        address: {
-            address1: '4350 NE 5th Terrace Bay #3',
-            address2: 'FSTD102 -FSTD',
-            city: 'Oakland Park',
-            state: 'Florida',
-            zip: '33334',
-        },
-        mailboxNumber: 'FSTD102',
-    }
-]
-
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const firestore = useFirestore();
+  const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
+  const { data: users, isLoading: loading } = useCollection<User>(usersCollection);
+  
   const [open, setOpen] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
+  
 
   const handleAddUser = async () => {
     if(!newUser.name || !newUser.email) {
@@ -92,12 +68,13 @@ export default function UsersPage() {
         });
         return;
     }
-    const lastMailboxNum = users.length > 0 ? parseInt(users[users.length - 1].mailboxNumber.replace('FSTD', '')) : 100;
+    const lastMailboxNum = users && users.length > 0 ? parseInt(users[users.length - 1].mailboxNumber.replace('FSTD', '')) : 100;
     const nextMailboxNumber = `FSTD${lastMailboxNum + 1}`;
     
-    const userToAdd: User = {
-        id: (users.length + 1).toString(),
-        name: newUser.name,
+    // Note: This creates a user doc but not a Firebase Auth user.
+    // This is for admin-added users. They would need a password reset flow.
+    const userToAdd = {
+        fullName: newUser.name,
         email: newUser.email,
         address: {
             address1: '4350 NE 5th Terrace Bay #3',
@@ -107,9 +84,11 @@ export default function UsersPage() {
             zip: '33334',
         },
         mailboxNumber: nextMailboxNumber,
+        createdAt: serverTimestamp(),
     };
+    
+    addDocumentNonBlocking(usersCollection, userToAdd);
 
-    setUsers([...users, userToAdd]);
     setOpen(false);
     setNewUser({ name: '', email: '' });
     toast({
@@ -206,16 +185,18 @@ export default function UsersPage() {
             <TableBody>
               {loading ? (
                  <TableRow>
-                    <TableCell colSpan={5} className="text-center">Loading users...</TableCell>
+                    <TableCell colSpan={5} className="text-center h-24">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                    </TableCell>
                 </TableRow>
-              ) : users.length === 0 ? (
+              ) : !users || users.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={5} className="text-center">No users found.</TableCell>
+                    <TableCell colSpan={5} className="text-center h-24">No users found.</TableCell>
                 </TableRow>
               ) : (
                 users.map((user) => (
                     <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
+                    <TableCell className="font-medium">{user.fullName}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>{user.mailboxNumber}</TableCell>
                     <TableCell>

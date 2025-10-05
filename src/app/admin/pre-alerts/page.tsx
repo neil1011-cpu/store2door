@@ -37,14 +37,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link';
 import { generateCustomsForm, GenerateCustomsFormOutput } from '@/ai/flows/generate-customs-form';
 import { Separator } from '@/components/ui/separator';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { collection, serverTimestamp, doc } from 'firebase/firestore';
 
 type PreAlert = {
   id: string;
-  customer: string;
+  customerName: string;
   trackingNumber: string;
   contents: string;
   status: 'Pending' | 'Processed';
-  date: string;
+  date: string; // This will be a string from Firestore
   invoiceUrl: string;
 };
 
@@ -184,43 +186,25 @@ function GeneratedDocsDialog({ trackingNumber, weight, contents, invoiceDataUri 
 
 
 export default function PreAlertsPage() {
-  const [preAlerts, setPreAlerts] = useState<PreAlert[]>([]);
-  const [loading, setLoading] = useState(true);
+  const firestore = useFirestore();
+  const preAlertsCollection = useMemoFirebase(() => collection(firestore, 'preAlerts'), [firestore]);
+  const { data: preAlerts, isLoading: loading, error } = useCollection<PreAlert>(preAlertsCollection);
+  const { data: users } = useCollection<{id: string, fullName: string}>(collection(firestore, 'users'));
+
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const [newAlert, setNewAlert] = useState({
-    customer: '',
+    customerId: '',
     trackingNumber: '',
     contents: '',
     status: 'Pending' as 'Pending' | 'Processed',
   });
-
-  useEffect(() => {
-    const fetchPreAlerts = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('/api/warehouse/intake');
-        if (!response.ok) {
-          throw new Error('Failed to fetch pre-alerts');
-        }
-        const data = await response.json();
-        setPreAlerts(data);
-      } catch (error) {
-        toast({
-            title: 'Error',
-            description: (error as Error).message,
-            variant: 'destructive'
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPreAlerts();
-  }, [toast]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
 
   const handleCreateAlert = async () => {
-    if (!newAlert.customer || !newAlert.trackingNumber || !newAlert.contents) {
+    const selectedUser = users?.find(u => u.id === newAlert.customerId);
+    if (!selectedUser || !newAlert.trackingNumber || !newAlert.contents) {
       toast({
         title: 'Missing Fields',
         description: 'Please fill out all fields.',
@@ -229,28 +213,20 @@ export default function PreAlertsPage() {
       return;
     }
     
-    setLoading(true);
+    setIsSubmitting(true);
     try {
-      const response = await fetch('/api/warehouse/intake', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            customerName: newAlert.customer,
-            trackingId: newAlert.trackingNumber,
-            contents: newAlert.contents,
-            status: newAlert.status
-        }),
+      addDocumentNonBlocking(preAlertsCollection, {
+        customerName: selectedUser.fullName,
+        customerId: newAlert.customerId,
+        trackingNumber: newAlert.trackingNumber,
+        contents: newAlert.contents,
+        status: newAlert.status,
+        date: serverTimestamp(),
+        invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create pre-alert');
-      }
-
-      const newPreAlert = await response.json();
-      setPreAlerts([newPreAlert, ...preAlerts]);
       setOpen(false);
-      setNewAlert({ customer: '', trackingNumber: '', contents: '', status: 'Pending' });
+      setNewAlert({ customerId: '', trackingNumber: '', contents: '', status: 'Pending' });
       toast({
         title: 'Pre-Alert Created',
         description: `Pre-alert for ${newAlert.trackingNumber} has been successfully created.`,
@@ -262,7 +238,7 @@ export default function PreAlertsPage() {
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -302,7 +278,16 @@ export default function PreAlertsPage() {
                     <Label htmlFor="customer" className="text-right">
                     Customer
                     </Label>
-                    <Input id="customer" value={newAlert.customer} onChange={(e) => setNewAlert({...newAlert, customer: e.target.value})} className="col-span-3" />
+                    <Select onValueChange={(value) => setNewAlert({...newAlert, customerId: value})} >
+                        <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder="Select a customer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {users?.map(user => (
+                                <SelectItem key={user.id} value={user.id}>{user.fullName}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="trackingNumber" className="text-right">
@@ -335,8 +320,8 @@ export default function PreAlertsPage() {
                 </div>
                 </div>
                 <DialogFooter>
-                <Button type="submit" onClick={handleCreateAlert} disabled={loading}>
-                    {loading ? 'Saving...' : 'Save Pre-Alert'}
+                <Button type="submit" onClick={handleCreateAlert} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Save Pre-Alert'}
                 </Button>
                 </DialogFooter>
             </DialogContent>
@@ -368,21 +353,23 @@ export default function PreAlertsPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                    <TableCell colSpan={7} className="text-center">Loading pre-alerts...</TableCell>
+                    <TableCell colSpan={7} className="text-center h-24">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                    </TableCell>
                 </TableRow>
-              ) : preAlerts.length === 0 ? (
+              ) : !preAlerts || preAlerts.length === 0 ? (
                  <TableRow>
-                    <TableCell colSpan={7} className="text-center">No pre-alerts found.</TableCell>
+                    <TableCell colSpan={7} className="text-center h-24">No pre-alerts found.</TableCell>
                 </TableRow>
               ) : (
                 preAlerts.map((alert) => (
                   <TableRow key={alert.id}>
                     <TableCell className="font-medium">
-                      {alert.customer}
+                      {alert.customerName}
                     </TableCell>
                     <TableCell>{alert.trackingNumber}</TableCell>
                     <TableCell>{alert.contents}</TableCell>
-                    <TableCell>{alert.date}</TableCell>
+                    <TableCell>{new Date(alert.date).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(alert.status)}>
                         {alert.status}
@@ -399,7 +386,7 @@ export default function PreAlertsPage() {
                               Invoice for {alert.trackingNumber}
                             </DialogTitle>
                             <DialogDescription>
-                              Invoice submitted by {alert.customer}.
+                              Invoice submitted by {alert.customerName}.
                             </DialogDescription>
                           </DialogHeader>
                           <div className="p-4">
