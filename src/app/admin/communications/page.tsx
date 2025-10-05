@@ -24,7 +24,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { users } from '@/lib/mock-data';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 
 
 type Message = {
@@ -51,10 +52,9 @@ type Conversation = {
 
 export default function CommunicationsPage() {
     const { toast } = useToast();
-    const [messages, setMessages] = useState<Message[]>([]);
+    const firestore = useFirestore();
     const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
     const [reply, setReply] = useState('');
-    const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     
     // State for composing new email
@@ -65,57 +65,26 @@ export default function CommunicationsPage() {
     const [composeAttachment, setComposeAttachment] = useState<File | null>(null);
     const [isComposing, setIsComposing] = useState(false);
 
-    const fetchMessages = async () => {
-        setLoading(true);
-        try {
-            const response = await fetch('/api/messages');
-            if (!response.ok) {
-                throw new Error('Failed to fetch messages');
-            }
-            const data: Message[] = await response.json();
-            setMessages(data);
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: 'Could not load messages.',
-                variant: 'destructive',
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchMessages();
-    }, []);
-
+    const conversationsQuery = useMemoFirebase(() => collection(firestore, 'conversations'), [firestore]);
+    const { data: rawConversations, isLoading: loading, error } = useCollection<Conversation>(conversationsQuery);
+    const { data: users, isLoading: usersLoading } = useCollection<{id: string, fullName: string, email: string}>(collection(firestore, 'users'));
+    
+    // In a real app, you would fetch subcollections of messages for each conversation.
+    // For this prototype, we'll assume messages are embedded or fetched separately.
     const conversations = useMemo(() => {
-        const convos: Record<string, Conversation> = {};
-        messages.forEach(msg => {
-            if (!convos[msg.conversationId]) {
-                convos[msg.conversationId] = {
-                    id: msg.conversationId,
-                    customerName: msg.customerName,
-                    subject: msg.subject,
-                    latestMessage: '',
-                    latestDate: '',
-                    isRead: true, // assume read initially
-                    messages: []
-                };
+        if (!rawConversations) return [];
+        return rawConversations.map(convo => {
+            const sortedMessages = convo.messages?.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()) || [];
+            const latestMsg = sortedMessages[0];
+            return {
+                ...convo,
+                messages: sortedMessages,
+                latestMessage: latestMsg?.message || "No messages yet",
+                latestDate: latestMsg?.date || convo.date,
+                isRead: !(latestMsg?.sender === 'user' && latestMsg?.status === 'Open')
             }
-            convos[msg.conversationId].messages.push(msg);
-        });
-
-        Object.values(convos).forEach(convo => {
-            convo.messages.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            const latestMsg = convo.messages[0];
-            convo.latestMessage = latestMsg.message;
-            convo.latestDate = latestMsg.date;
-            convo.isRead = !(latestMsg.sender === 'user' && latestMsg.status === 'Open');
-        });
-        
-        return Object.values(convos).sort((a, b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
-    }, [messages]);
+        }).sort((a,b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
+    }, [rawConversations]);
 
 
     const handleSendReply = async () => {
@@ -123,23 +92,17 @@ export default function CommunicationsPage() {
 
         setSending(true);
         try {
-            const response = await fetch('/api/messages', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    conversationId: selectedConversation.id,
-                    customerName: selectedConversation.customerName,
-                    subject: selectedConversation.subject,
-                    message: reply,
-                    sender: 'agent'
-                }),
+            const messagesCol = collection(firestore, 'conversations', selectedConversation.id, 'messages');
+            addDocumentNonBlocking(messagesCol, {
+                conversationId: selectedConversation.id,
+                customerId: selectedConversation.customerId,
+                customerName: selectedConversation.customerName,
+                subject: selectedConversation.subject,
+                message: reply,
+                sender: 'agent',
+                status: 'Open',
+                date: serverTimestamp()
             });
-            if (!response.ok) throw new Error('Failed to send reply');
-
-            const newReply = await response.json();
-            setMessages([...messages, newReply]);
-            
-            setSelectedConversation(prev => prev ? {...prev, messages: [newReply, ...prev.messages]} : null);
 
             setReply('');
             toast({ title: 'Reply Sent!' });
@@ -152,35 +115,32 @@ export default function CommunicationsPage() {
     };
 
     const handleComposeEmail = async () => {
-        if (!composeRecipient || !composeSubject.trim() || !composeBody.trim()) {
-            toast({ title: 'Missing fields', description: 'Please select a recipient and enter a subject and message.', variant: 'destructive' });
+        const recipientUser = users?.find(u => u.id === composeRecipient);
+        if (!composeRecipient || !composeSubject.trim() || !composeBody.trim() || !recipientUser) {
+            toast({ title: 'Missing fields', description: 'Please select a valid recipient and enter a subject and message.', variant: 'destructive' });
             return;
         }
 
         setIsComposing(true);
         try {
-            const recipientUser = users.find(u => u.id === composeRecipient);
-            if (!recipientUser) throw new Error('Recipient not found');
-
-            const response = await fetch('/api/messages', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    customerName: recipientUser.fullName,
-                    subject: composeSubject,
-                    message: composeBody,
-                    sender: 'agent',
-                    attachment: composeAttachment ? composeAttachment.name : undefined,
-                }),
+            // This creates a NEW conversation. In a real app, you might want to check for existing ones.
+            const newConversationRef = doc(collection(firestore, 'conversations'));
+            const messagesCol = collection(newConversationRef, 'messages');
+            
+            addDocumentNonBlocking(messagesCol, {
+                conversationId: newConversationRef.id,
+                customerId: recipientUser.id,
+                customerName: recipientUser.fullName,
+                subject: composeSubject,
+                message: composeBody,
+                sender: 'agent',
+                status: 'Open',
+                date: serverTimestamp(),
+                // attachment handling would need Firebase Storage
             });
-            if (!response.ok) throw new Error('Failed to send email');
-
-            const newMessage = await response.json();
-            setMessages([...messages, newMessage]);
 
             toast({ title: 'Email Sent!', description: `Your email to ${recipientUser.fullName} has been sent.` });
             
-            // Reset and close dialog
             setIsComposeOpen(false);
             setComposeRecipient('');
             setComposeSubject('');
@@ -205,7 +165,7 @@ export default function CommunicationsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-           <Button variant="outline" onClick={fetchMessages} disabled={loading}>
+           <Button variant="outline" disabled={loading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
             Refresh
           </Button>
@@ -226,7 +186,7 @@ export default function CommunicationsPage() {
                                 <SelectValue placeholder="Select a customer" />
                             </SelectTrigger>
                             <SelectContent>
-                                {users.map(user => (
+                                {users?.map(user => (
                                     <SelectItem key={user.id} value={user.id}>{user.fullName} ({user.email})</SelectItem>
                                 ))}
                             </SelectContent>
@@ -365,3 +325,4 @@ export default function CommunicationsPage() {
     </div>
   );
 }
+
