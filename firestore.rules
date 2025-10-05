@@ -1,0 +1,131 @@
+/**
+ * @file Firebase Security Rules for SwiftRoute Firestore database.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user accounts, shipments, and pre-alerts.
+ * Flight manifests and profit/loss statements are top-level collections without explicit user ownership.
+ * For prototyping purposes, data validation is relaxed, focusing on authorization and relational integrity.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user account information.
+ * - /users/{userId}/shipments/{shipmentId}: Stores shipment data associated with a user.
+ * - /users/{userId}/shipments/{shipmentId}/preAlerts/{preAlertId}: Stores pre-alert data for shipments.
+ * - /flightManifests/{flightManifestId}: Stores flight manifest documents.
+ * - /profitLossStatements/{profitLossStatementId}: Stores profit and loss statements.
+ *
+ * Key Security Decisions:
+ * - User listing is disallowed for privacy.
+ * - Ownership is enforced through path-based matching (e.g., /users/{userId}).
+ * - Data validation is minimal, focusing on authorization and relationship consistency.
+ * - For FlightManifests and ProfitLossStatements, if roles were to be added, we would denormalize the access roles to the document, so we avoid the `get()` call in rules.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Secures user account documents, ensuring only the authenticated user can access their own data.
+     * @path /users/{userId}
+     * @allow (create) - User with ID 'user123' creates their account: `request.auth.uid == 'user123'`
+     * @deny (create) - User with ID 'user456' tries to create an account with ID 'user123': `request.auth.uid == 'user456'`
+     * @allow (get, update, delete, list) - User with ID 'user123' accesses their account: `request.auth.uid == 'user123'`
+     * @deny (get, update, delete, list) - User with ID 'user456' tries to access user 'user123' account: `request.auth.uid == 'user456'`
+     * @principle Enforces document ownership for all operations on user accounts.
+     */
+    match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+      allow get: if isOwner(userId);
+      allow list: if false; // User listing is not allowed
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secures shipment documents, ensuring only the authenticated user can access their own shipments.
+     * @path /users/{userId}/shipments/{shipmentId}
+     * @allow (create) - User with ID 'user123' creates a shipment: `request.auth.uid == 'user123'`
+     * @deny (create) - User with ID 'user456' tries to create a shipment for user 'user123': `request.auth.uid == 'user456'`
+     * @allow (get, update, delete, list) - User with ID 'user123' accesses their shipment: `request.auth.uid == 'user123'`
+     * @deny (get, update, delete, list) - User with ID 'user456' tries to access user 'user123' shipment: `request.auth.uid == 'user456'`
+     * @principle Enforces document ownership for all operations on shipments.
+     */
+    match /users/{userId}/shipments/{shipmentId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secures pre-alert documents, ensuring only the authenticated user can access pre-alerts related to their shipments.
+     * @path /users/{userId}/shipments/{shipmentId}/preAlerts/{preAlertId}
+     * @allow (create) - User with ID 'user123' creates a pre-alert for their shipment: `request.auth.uid == 'user123'`
+     * @deny (create) - User with ID 'user456' tries to create a pre-alert for user 'user123' shipment: `request.auth.uid == 'user456'`
+     * @allow (get, update, delete, list) - User with ID 'user123' accesses their pre-alert: `request.auth.uid == 'user123'`
+     * @deny (get, update, delete, list) - User with ID 'user456' tries to access user 'user123' pre-alert: `request.auth.uid == 'user456'`
+     * @principle Enforces document ownership for all operations on pre-alerts.
+     */
+    match /users/{userId}/shipments/{shipmentId}/preAlerts/{preAlertId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secures flight manifest documents. Open read access with authenticated write access.
+     * @path /flightManifests/{flightManifestId}
+     * @allow (get, list) - Any user can read flight manifests.
+     * @allow (create, update, delete) - Only authenticated users can create, update, or delete flight manifests.
+     * @deny (create) - Unauthenticated user tries to create a flight manifest.
+     * @principle Provides public read access but restricts write access to authenticated users.
+     */
+    match /flightManifests/{flightManifestId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
+    }
+
+    /**
+     * @description Secures profit and loss statement documents. Open read access with authenticated write access.
+     * @path /profitLossStatements/{profitLossStatementId}
+     * @allow (get, list) - Any user can read profit and loss statements.
+     * @allow (create, update, delete) - Only authenticated users can create, update, or delete profit and loss statements.
+     * @deny (create) - Unauthenticated user tries to create a profit and loss statement.
+     * @principle Provides public read access but restricts write access to authenticated users.
+     */
+    match /profitLossStatements/{profitLossStatementId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
+    }
+  }
+}
