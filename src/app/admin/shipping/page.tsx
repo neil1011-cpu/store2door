@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -19,7 +18,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, ArrowLeft, Truck } from 'lucide-react';
+import { Mail, ArrowLeft, Truck, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -28,62 +27,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
+import type { Shipment } from '@/app/account/page';
 
-
-const shipments = [
-  {
-    trackingId: 'SR-123456789',
-    status: 'In Transit',
-    origin: 'New York, USA',
-    destination: 'London, UK',
-    estimatedDelivery: 'July 30, 2024',
-    customer: {
-      name: 'Jane Doe',
-      email: 'jane.d@example.com',
-    },
-  },
-  {
-    trackingId: 'SR-987654321',
-    status: 'Customs',
-    origin: 'Los Angeles, USA',
-    destination: 'Kingston, Jamaica',
-    estimatedDelivery: 'August 2, 2024',
-    customer: {
-      name: 'John Smith',
-      email: 'john.s@example.com',
-    },
-  },
-  {
-    trackingId: 'SR-555555555',
-    status: 'Pre-Alert',
-    origin: 'Miami, USA',
-    destination: 'Montego Bay, Jamaica',
-    estimatedDelivery: 'August 5, 2024',
-    customer: {
-      name: 'Carlos Garcia',
-      email: 'carlos.g@example.com',
-    },
-  },
-    {
-    trackingId: 'SR-222333444',
-    status: 'Delivered',
-    origin: 'Orlando, USA',
-    destination: 'Kingston, Jamaica',
-    estimatedDelivery: 'July 28, 2024',
-    customer: {
-      name: 'Maria Rodriguez',
-      email: 'maria.r@example.com',
-    },
-  },
-];
-
-type Shipment = typeof shipments[0];
 
 const getStatusVariant = (status: string) => {
     switch (status) {
@@ -93,6 +45,7 @@ const getStatusVariant = (status: string) => {
             return 'secondary';
         case 'Delivered':
             return 'outline';
+        case 'Pending':
         case 'Pre-Alert':
             return 'destructive';
         default:
@@ -105,12 +58,21 @@ export default function ShippingPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
+  
+  const firestore = useFirestore();
+  const shipmentsQuery = useMemoFirebase(() => {
+    return query(collection(firestore, 'shipments'), orderBy('date', 'desc'));
+  }, [firestore]);
+
+  const { data: shipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const handleOpenEmailDialog = (shipment: Shipment) => {
     setSelectedShipment(shipment);
+    // In a real app you'd get the customer details from the user collection
+    const customerName = 'Valued Customer';
     setEmailContent({
-      subject: `Update for your shipment: ${shipment.trackingId}`,
-      body: `Dear ${shipment.customer.name},\n\nHere's an update on your shipment ${shipment.trackingId}:\n\nThe current status is: ${shipment.status}.\n\nEstimated delivery: ${shipment.estimatedDelivery}.\n\nThank you for shipping with us!\nFromStore2Door`,
+      subject: `Update for your shipment: ${shipment.trackingNumber}`,
+      body: `Dear ${customerName},\n\nHere's an update on your shipment ${shipment.trackingNumber}:\n\nThe current status is: ${shipment.status}.\n\nThank you for shipping with us!\nFromStore2Door`,
     });
     setIsDialogOpen(true);
   };
@@ -119,7 +81,7 @@ export default function ShippingPage() {
     if (!selectedShipment) return;
     toast({
       title: 'Email Sent',
-      description: `An email update for shipment ${selectedShipment.trackingId} has been sent to ${selectedShipment.customer.name}.`,
+      description: `An email update for shipment ${selectedShipment.trackingNumber} has been sent.`,
     });
     setIsDialogOpen(false);
     setSelectedShipment(null);
@@ -153,28 +115,32 @@ export default function ShippingPage() {
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Origin</TableHead>
-                <TableHead>Destination</TableHead>
-                <TableHead>Est. Delivery</TableHead>
+                <TableHead>Contents</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead>
                   <span className="sr-only">Actions</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shipments.map((shipment) => (
-                <TableRow key={shipment.trackingId}>
-                  <TableCell className="font-mono">{shipment.trackingId}</TableCell>
+              {isLoading && (
+                 <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                    </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && shipments && shipments.map((shipment) => (
+                <TableRow key={shipment.id}>
+                  <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
                   <TableCell>
-                    <div className="font-medium">{shipment.customer.name}</div>
-                    <div className="text-sm text-muted-foreground">{shipment.customer.email}</div>
+                    <div className="font-medium">{shipment.customerId}</div>
                   </TableCell>
                   <TableCell>
                     <Badge variant={getStatusVariant(shipment.status)}>{shipment.status}</Badge>
                   </TableCell>
-                  <TableCell>{shipment.origin}</TableCell>
-                  <TableCell>{shipment.destination}</TableCell>
-                  <TableCell>{shipment.estimatedDelivery}</TableCell>
+                  <TableCell>{shipment.contents}</TableCell>
+                   <TableCell>{new Date(shipment.date).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="outline" size="sm" onClick={() => handleOpenEmailDialog(shipment)}>
                       <Mail className="mr-2 h-4 w-4" />
@@ -183,6 +149,11 @@ export default function ShippingPage() {
                   </TableCell>
                 </TableRow>
               ))}
+               {!isLoading && (!shipments || shipments.length === 0) && (
+                 <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24">No shipments found.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

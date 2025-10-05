@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,7 +38,7 @@ export default function AdminLoginPage() {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  const onSubmit = (values: z.infer<typeof formSchema>>) => {
     setLoading(true);
     // In a real app, you'd validate against a secure admin user database.
     // For this prototype, we'll use a simple hardcoded check.
