@@ -35,7 +35,7 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
-import type { Shipment } from '@/app/account/page';
+import type { Shipment } from '@/lib/types';
 
 
 const getStatusVariant = (status: string) => {
@@ -62,6 +62,7 @@ export default function ShippingPage() {
   
   const firestore = useFirestore();
   const shipmentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
     return query(collection(firestore, 'shipments'), orderBy('date', 'desc'));
   }, [firestore]);
 
