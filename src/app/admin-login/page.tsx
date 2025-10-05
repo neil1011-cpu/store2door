@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -19,6 +20,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Loader2, Route } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -29,6 +32,7 @@ export default function AdminLoginPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const auth = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -38,23 +42,33 @@ export default function AdminLoginPage() {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>>) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    // In a real app, you'd validate against a secure admin user database.
-    // For this prototype, we'll use a simple hardcoded check.
-    if (values.email === 'admin@example.com' && values.password === 'password') {
-      toast({
-        title: 'Admin Sign In Successful!',
-        description: 'Welcome back! Redirecting to the admin dashboard...',
-      });
-      router.push('/admin');
-    } else {
-      toast({
-        title: 'Sign In Failed',
-        description: 'Invalid email or password for admin account.',
-        variant: 'destructive',
-      });
-      setLoading(false);
+    // For this prototype, we'll use a simple hardcoded check for the admin user.
+    if (values.email !== 'admin@example.com') {
+         toast({
+            title: 'Sign In Failed',
+            description: 'This page is for admin access only.',
+            variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+    }
+
+    try {
+        await signInWithEmailAndPassword(auth, values.email, values.password);
+        toast({
+            title: 'Admin Sign In Successful!',
+            description: 'Welcome back! Redirecting to the admin dashboard...',
+        });
+        router.push('/admin');
+    } catch(error) {
+        toast({
+            title: 'Sign In Failed',
+            description: 'Invalid email or password for admin account.',
+            variant: 'destructive',
+        });
+        setLoading(false);
     }
   };
 
