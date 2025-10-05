@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -21,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, orderBy, limit, serverTimestamp, doc, addDoc, setDoc } from 'firebase/firestore';
 
 
@@ -148,19 +147,16 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
     }
 
     setLoading(true);
-    // In a real app, upload the invoice to Firebase Storage and get the URL
-    // For now, we'll use a placeholder.
     try {
         const preAlertsCollection = collection(firestore, 'preAlerts');
-        await addDoc(preAlertsCollection, {
+        addDocumentNonBlocking(preAlertsCollection, {
             customerId,
             customerName,
             trackingNumber,
             contents,
             status: 'Pending',
             date: serverTimestamp(),
-            // TODO: Replace with actual Firebase Storage URL
-            invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`,
+            invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
         });
 
         toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
@@ -408,7 +404,6 @@ export function SupportTab({ details }: { details: UserProfile }) {
       };
       await addDoc(messagesCol, messageData);
       
-      // Update the parent conversation doc
       const conversationData = {
           id: conversationId,
           customerId: details.id,
@@ -420,7 +415,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
           status: 'Open',
           date: conversation ? conversation.date : serverTimestamp()
       };
-      await setDoc(conversationRef, conversationData, { merge: true });
+      setDocumentNonBlocking(conversationRef, conversationData, { merge: true });
       
       setNewMessage("");
       if (!conversation) setSubject("");
@@ -508,7 +503,7 @@ type DropoffAddress = {
 export function AccountTab({ details }: { details: UserProfile }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
-    const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.address.zip}`;
+    const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.zip}`;
 
     const [pickupPersonnel, setPickupPersonnel] = useState<PickupPerson[]>([
         { id: 1, name: 'John Brown', idNumber: '123456-7' }
@@ -754,3 +749,5 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
+
+    
