@@ -45,23 +45,10 @@ const AppLogo = () => (
 
 function AdminLoadingSkeleton() {
     return (
-        <div className="flex h-screen w-screen">
-            <div className="hidden md:flex flex-col gap-4 border-r p-2 bg-background">
-                <Skeleton className="h-10 w-48" />
-                <div className="flex flex-col gap-2 flex-1 p-2">
-                    {[...Array(10)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-                </div>
-                <Skeleton className="h-10 w-48" />
-            </div>
-            <div className="flex-1 p-6 bg-background">
-                 <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <Skeleton className="h-8 w-64 mb-2" />
-                        <Skeleton className="h-5 w-80" />
-                    </div>
-                    <Skeleton className="h-10 w-24" />
-                </div>
-                <Skeleton className="h-96 w-full" />
+        <div className="flex h-screen w-screen items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="text-muted-foreground">Verifying admin access...</p>
             </div>
         </div>
     )
@@ -78,17 +65,24 @@ export default function AdminLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!isUserLoading) {
-      if (!user || user.email !== ADMIN_EMAIL) {
-        router.replace('/');
-      }
+    // If the authentication state is still loading, do nothing yet.
+    if (isUserLoading) {
+      return;
+    }
+
+    // After loading, if there's no user or the user is not the admin, redirect.
+    if (!user || user.email !== ADMIN_EMAIL) {
+      router.replace('/');
     }
   }, [user, isUserLoading, router]);
 
+  // While loading, or if the user is not the admin, show a loading/secure screen.
+  // This prevents any child components from attempting to render and fetch data.
   if (isUserLoading || !user || user.email !== ADMIN_EMAIL) {
     return <AdminLoadingSkeleton />;
   }
 
+  // If the checks pass, render the admin layout.
   return (
         <SidebarProvider>
             <Sidebar>
