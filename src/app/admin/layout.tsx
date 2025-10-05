@@ -28,13 +28,13 @@ import {
   DollarSign,
   Calculator,
   Megaphone,
+  Loader2,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Notifications } from '@/components/notifications';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -65,24 +65,21 @@ export default function AdminLayout({
   const router = useRouter();
 
   useEffect(() => {
-    // If the authentication state is still loading, do nothing yet.
     if (isUserLoading) {
       return;
     }
 
-    // After loading, if there's no user or the user is not the admin, redirect.
-    if (!user || user.email !== ADMIN_EMAIL) {
+    if (!user) {
+      router.replace('/admin-login');
+    } else if (user.email !== ADMIN_EMAIL) {
       router.replace('/');
     }
   }, [user, isUserLoading, router]);
 
-  // While loading, or if the user is not the admin, show a loading/secure screen.
-  // This prevents any child components from attempting to render and fetch data.
   if (isUserLoading || !user || user.email !== ADMIN_EMAIL) {
     return <AdminLoadingSkeleton />;
   }
 
-  // If the checks pass, render the admin layout.
   return (
         <SidebarProvider>
             <Sidebar>
