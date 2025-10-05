@@ -19,9 +19,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit, serverTimestamp, doc, addDoc, setDoc } from 'firebase/firestore';
-import { setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, orderBy, limit, serverTimestamp, doc, addDoc } from 'firebase/firestore';
 import type { UserProfile, Shipment } from '@/lib/types';
 
 
@@ -46,7 +45,7 @@ type Conversation = {
     latestMessage: string;
     latestDate: string;
     isRead: boolean;
-    date: string;
+    date: any; // Can be Timestamp
 };
 
 
@@ -164,7 +163,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
         setTrackingNumber('');
         setContents('');
         setInvoice(null);
-        // Reset file input if needed
+        
         const fileInput = document.getElementById('invoice-upload') as HTMLInputElement;
         if(fileInput) fileInput.value = '';
 
@@ -363,7 +362,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
     return query(
         collection(firestore, 'conversations'),
         where('customerId', '==', details.id),
-        limit(1) // Assuming one conversation per customer for this UI
+        limit(1)
     );
   }, [firestore, details?.id]);
 
@@ -750,5 +749,3 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
-
-    

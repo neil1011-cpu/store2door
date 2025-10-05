@@ -1,5 +1,4 @@
 
-// Define the shape of your User document in Firestore
 export type UserProfile = {
   id: string;
   fullName: string;
@@ -20,7 +19,7 @@ export type Shipment = {
   trackingNumber: string;
   contents: string;
   status: 'Pending' | 'Processed' | 'In Transit' | 'Customs' | 'Delivered';
-  date: string;
+  date: any; // Can be a Timestamp
   cost?: number;
   paymentStatus?: 'Paid' | 'Unpaid';
   invoiceUrl: string;

@@ -12,7 +12,7 @@ import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from '@/fireb
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { UserProfile, Shipment } from '@/lib/types';
+import type { UserProfile } from '@/lib/types';
 
 
 export default function AccountPage() {
@@ -21,33 +21,30 @@ export default function AccountPage() {
     const auth = useAuth();
     const firestore = useFirestore();
 
-    // useUser hook provides the auth user object and loading state
     const { user, isUserLoading } = useUser();
     
     const userDocRef = useMemoFirebase(() => {
-      if (!user) return null;
+      if (!firestore || !user?.uid) return null;
       return doc(firestore, 'users', user.uid);
-    }, [firestore, user]);
+    }, [firestore, user?.uid]);
     
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
     useEffect(() => {
-        // If auth is done loading and there's no user, redirect to sign-in
         if (!isUserLoading && !user) {
             router.push('/signin');
         }
     }, [isUserLoading, user, router]);
 
     const handleSignOut = async () => {
+        if (!auth) return;
         try {
-            if (auth) {
-                await signOut(auth);
-                toast({
-                    title: 'Signed Out',
-                    description: 'You have been successfully signed out.',
-                });
-                router.push('/');
-            }
+            await signOut(auth);
+            toast({
+                title: 'Signed Out',
+                description: 'You have been successfully signed out.',
+            });
+            router.push('/');
         } catch (error) {
             console.error("Could not sign out", error);
             toast({
@@ -58,8 +55,7 @@ export default function AccountPage() {
         }
     }
     
-    // Show a loading screen while auth state or user profile is being fetched
-    if (isUserLoading || isProfileLoading || !userProfile) {
+    if (isUserLoading || isProfileLoading || !userProfile || !user) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
                 <div className="mb-8 flex justify-between items-center">

@@ -46,14 +46,14 @@ const AppLogo = () => (
 function AdminLoadingSkeleton() {
     return (
         <div className="flex h-screen w-screen">
-            <div className="hidden md:flex flex-col gap-4 border-r p-2">
+            <div className="hidden md:flex flex-col gap-4 border-r p-2 bg-background">
                 <Skeleton className="h-10 w-48" />
                 <div className="flex flex-col gap-2 flex-1 p-2">
                     {[...Array(10)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
                 </div>
                 <Skeleton className="h-10 w-48" />
             </div>
-            <div className="flex-1 p-6">
+            <div className="flex-1 p-6 bg-background">
                  <div className="flex items-center justify-between mb-6">
                     <div>
                         <Skeleton className="h-8 w-64 mb-2" />
@@ -78,23 +78,14 @@ export default function AdminLayout({
   const router = useRouter();
 
   useEffect(() => {
-    // When auth is done loading, check if there's no user or the user is not an admin
-    if (!isUserLoading && (!user || user.email !== ADMIN_EMAIL)) {
-      // If not the admin, redirect to home page
-      router.replace('/');
+    if (!isUserLoading) {
+      if (!user || user.email !== ADMIN_EMAIL) {
+        router.replace('/');
+      }
     }
   }, [user, isUserLoading, router]);
 
-  // While loading, show the skeleton. Let the useEffect handle redirection.
-  if (isUserLoading) {
-    return <AdminLoadingSkeleton />;
-  }
-
-  // If the user is loaded but is not the correct admin, they will be redirected by the effect.
-  // Render the children only if the user is the authenticated admin.
-  // This prevents a brief flash of the admin content for non-admin users.
-  if (!user || user.email !== ADMIN_EMAIL) {
-    // Render a loading state or nothing while redirection happens
+  if (isUserLoading || !user || user.email !== ADMIN_EMAIL) {
     return <AdminLoadingSkeleton />;
   }
 
