@@ -19,8 +19,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, limit, serverTimestamp, doc, addDoc, setDoc } from 'firebase/firestore';
+import { setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { UserProfile, Shipment } from '@/lib/types';
 
 
@@ -65,14 +66,14 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   const firestore = useFirestore();
   
   const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !details.id) return null;
+    if (!firestore || !details?.id) return null;
     return query(
       collection(firestore, 'shipments'),
       where('customerId', '==', details.id),
       orderBy('date', 'desc'),
       limit(1)
     );
-  }, [firestore, details.id]);
+  }, [firestore, details?.id]);
 
   const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
   const recentShipment = userShipments && userShipments.length > 0 ? userShipments[0] : null;
@@ -358,13 +359,13 @@ export function SupportTab({ details }: { details: UserProfile }) {
   const [sending, setSending] = useState(false);
   
   const conversationsQuery = useMemoFirebase(() => {
-    if (!firestore || !details.id) return null;
+    if (!firestore || !details?.id) return null;
     return query(
         collection(firestore, 'conversations'),
         where('customerId', '==', details.id),
         limit(1) // Assuming one conversation per customer for this UI
     );
-  }, [firestore, details.id]);
+  }, [firestore, details?.id]);
 
   const { data: conversationsData, isLoading: conversationsLoading } = useCollection<Conversation>(conversationsQuery);
   const conversation = conversationsData && conversationsData.length > 0 ? conversationsData[0] : null;
@@ -573,7 +574,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
                         <p className="font-mono">{details.fullName}</p>
                         <p className="font-mono">{details.address.address1}</p>
                         <p className="font-mono font-bold text-primary">{details.address.address2}</p>
-                        <p className="font-mono">{details.address.city}, {details.address.state} {details.address.zip}</p>
+                        <p className="font-mono">{details.address.city}, {details.address.state} {details.zip}</p>
                         <Button
                             size="icon"
                             variant="ghost"
@@ -749,3 +750,5 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
+
+    
