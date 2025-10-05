@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -20,8 +21,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, orderBy, limit, serverTimestamp, doc } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, limit, serverTimestamp, doc, addDoc, setDoc } from 'firebase/firestore';
 
 
 type Message = {
@@ -151,7 +152,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
     // For now, we'll use a placeholder.
     try {
         const preAlertsCollection = collection(firestore, 'preAlerts');
-        addDocumentNonBlocking(preAlertsCollection, {
+        await addDoc(preAlertsCollection, {
             customerId,
             customerName,
             trackingNumber,
@@ -292,7 +293,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                         </Button>
                     ) : (
                         <Badge variant={shipment.paymentStatus === 'Paid' ? 'outline' : 'secondary'}>
-                            {shipment.paymentStatus === 'Paid' ? 'Paid' : (shipment.cost ? 'N/A' : 'No Cost')}
+                            {shipment.paymentStatus === 'Paid' ? 'Paid' : (shipment.cost ? 'Awaiting Payment' : 'No Cost')}
                         </Badge>
                     )}
                 </TableCell>
@@ -405,7 +406,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
           status: 'Open' as 'Open' | 'Closed',
           date: serverTimestamp()
       };
-      addDocumentNonBlocking(messagesCol, messageData);
+      await addDoc(messagesCol, messageData);
       
       // Update the parent conversation doc
       const conversationData = {
@@ -416,9 +417,10 @@ export function SupportTab({ details }: { details: UserProfile }) {
           latestMessage: newMessage,
           latestDate: serverTimestamp(),
           isRead: false,
-          status: 'Open'
+          status: 'Open',
+          date: conversation ? conversation.date : serverTimestamp()
       };
-      setDocumentNonBlocking(conversationRef, conversationData, { merge: true });
+      await setDoc(conversationRef, conversationData, { merge: true });
       
       setNewMessage("");
       if (!conversation) setSubject("");

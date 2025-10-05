@@ -24,8 +24,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, orderBy, doc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, doc, serverTimestamp, addDoc, setDoc } from 'firebase/firestore';
 
 
 type Message = {
@@ -52,6 +52,12 @@ type Conversation = {
     date: string;
 }
 
+type User = {
+    id: string;
+    fullName: string;
+    email: string;
+}
+
 export default function CommunicationsPage() {
     const { toast } = useToast();
     const firestore = useFirestore();
@@ -75,9 +81,9 @@ export default function CommunicationsPage() {
 
     const usersQuery = useMemoFirebase(() => {
         if(!firestore) return null;
-        return collection(firestore, 'users');
+        return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
     }, [firestore]);
-    const { data: users, isLoading: usersLoading } = useCollection<{id: string, fullName: string, email: string}>(usersQuery);
+    const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
     
     const messagesQuery = useMemoFirebase(() => {
         if (!firestore || !selectedConversation) return null;
@@ -108,7 +114,7 @@ export default function CommunicationsPage() {
                 status: 'Open' as 'Open' | 'Closed',
                 date: serverTimestamp()
             };
-            addDocumentNonBlocking(messagesCol, messageData);
+            await addDoc(messagesCol, messageData);
             
             // Update the parent conversation doc
             const conversationData = {
@@ -117,7 +123,7 @@ export default function CommunicationsPage() {
                 isRead: true, // It's read from the admin's perspective
                 status: 'Open'
             };
-            setDocumentNonBlocking(conversationRef, conversationData, { merge: true });
+            await setDoc(conversationRef, conversationData, { merge: true });
 
             setReply('');
             toast({ title: 'Reply Sent!' });
@@ -150,11 +156,11 @@ export default function CommunicationsPage() {
                 status: 'Open',
                 date: serverTimestamp()
             };
-            setDocumentNonBlocking(newConversationRef, conversationData, { merge: false });
+            await setDoc(newConversationRef, conversationData, { merge: false });
 
 
             const messagesCol = collection(newConversationRef, 'messages');
-            addDocumentNonBlocking(messagesCol, {
+            await addDoc(messagesCol, {
                 conversationId: newConversationRef.id,
                 customerId: recipientUser.id,
                 customerName: recipientUser.fullName,

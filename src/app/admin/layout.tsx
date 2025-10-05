@@ -27,13 +27,14 @@ import {
   Bell,
   DollarSign,
   Calculator,
-  Inbox,
-  Receipt,
   Megaphone,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Notifications } from '@/components/notifications';
+import { useUser } from '@/firebase';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -42,12 +43,56 @@ const AppLogo = () => (
   </div>
 );
 
+function AdminLoadingSkeleton() {
+    return (
+        <div className="flex h-screen w-screen">
+            <div className="hidden md:flex flex-col gap-4 border-r p-2">
+                <Skeleton className="h-10 w-48" />
+                <div className="flex flex-col gap-2 flex-1 p-2">
+                    {[...Array(10)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                </div>
+                <Skeleton className="h-10 w-48" />
+            </div>
+            <div className="flex-1 p-6">
+                 <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <Skeleton className="h-8 w-64 mb-2" />
+                        <Skeleton className="h-5 w-80" />
+                    </div>
+                    <Skeleton className="h-10 w-24" />
+                </div>
+                <Skeleton className="h-96 w-full" />
+            </div>
+        </div>
+    )
+}
+
+const ADMIN_EMAIL = 'admin@example.com';
 
 export default function AdminLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    // When auth is done loading, check for user and role
+    if (!isUserLoading) {
+      if (!user || user.email !== ADMIN_EMAIL) {
+        // If not the admin, redirect to home page
+        router.replace('/');
+      }
+    }
+  }, [user, isUserLoading, router]);
+
+  // While loading or if user is not the admin, show loading or nothing
+  if (isUserLoading || !user || user.email !== ADMIN_EMAIL) {
+    return <AdminLoadingSkeleton />;
+  }
+
+
   return (
         <SidebarProvider>
             <Sidebar>
@@ -153,9 +198,9 @@ export default function AdminLayout({
                     <SidebarMenuButton>
                         <Avatar className="size-7">
                         <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
-                        <AvatarFallback>U</AvatarFallback>
+                        <AvatarFallback>A</AvatarFallback>
                         </Avatar>
-                        <span>Guest User</span>
+                        <span>Admin User</span>
                     </SidebarMenuButton>
                 </SidebarFooter>
             </Sidebar>
@@ -170,7 +215,7 @@ export default function AdminLayout({
 
                 <Avatar>
                     <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
-                    <AvatarFallback>U</AvatarFallback>
+                    <AvatarFallback>A</AvatarFallback>
                 </Avatar>
                 </header>
                 <main className="flex-1 overflow-auto p-4 md:p-6">
