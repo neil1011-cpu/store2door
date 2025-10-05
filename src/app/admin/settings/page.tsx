@@ -26,7 +26,6 @@ export default function SettingsPage() {
   const [avatar, setAvatar] = useState('https://placehold.co/128x128.png');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [tasokoApi, setTasokoApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
   const [partyApi, setPartyApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
   const [coloaderApi, setColoaderApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
 
@@ -178,39 +177,6 @@ export default function SettingsPage() {
           <CardDescription>Manage API access tokens used to allow access to third parties.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-            {/* Tasoko API Key */}
-            <div>
-              <Label htmlFor="tasoko-api-key" className="flex items-center gap-2 mb-2 font-semibold">
-                <span>Tasoko Based Warehouse Integration Token</span>
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input 
-                  id="tasoko-api-key" 
-                  type={tasokoApi.isSaved && !tasokoApi.isVisible ? 'password' : 'text'}
-                  placeholder="Enter your Tasoko Warehouse token"
-                  value={tasokoApi.key}
-                  onChange={(e) => setTasokoApi(prev => ({...prev, key: e.target.value}))}
-                  disabled={tasokoApi.isSaved}
-                  readOnly={tasokoApi.isSaved}
-                />
-                {tasokoApi.isSaved ? (
-                  <>
-                    <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(setTasokoApi)}>
-                        {tasokoApi.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        <span className="sr-only">{tasokoApi.isVisible ? 'Hide key' : 'Show key'}</span>
-                    </Button>
-                    <Button variant="secondary" onClick={() => handleEditApiKey(setTasokoApi)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit
-                    </Button>
-                  </>
-                ) : (
-                  <Button onClick={() => handleSaveApiKey(tasokoApi, setTasokoApi, 'Tasoko API Key')}>
-                    <Check className="mr-2 h-4 w-4" /> Save
-                  </Button>
-                )}
-              </div>
-            </div>
-
             {/* 3Party Warehouse API Key */}
             <div>
               <Label htmlFor="3party-api-key" className="flex items-center gap-2 mb-2 font-semibold">
