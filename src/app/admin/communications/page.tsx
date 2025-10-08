@@ -24,43 +24,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, doc, serverTimestamp, addDoc, setDoc } from 'firebase/firestore';
+import { conversations as allConversations, messages as allMessages, users as allUsers, type Conversation, type Message, type UserProfile as User } from '@/lib/mock-data';
 
-
-type Message = {
-  id: string;
-  conversationId: string;
-  customerName: string;
-  customerId: string;
-  subject: string;
-  message: string;
-  date: string;
-  sender: 'user' | 'agent';
-  status: 'Open' | 'Closed';
-  attachment?: string;
-};
-
-type Conversation = {
-    id: string;
-    customerName: string;
-    customerId: string;
-    subject: string;
-    latestMessage: string;
-    latestDate: string;
-    isRead: boolean;
-    date: string;
-}
-
-type User = {
-    id: string;
-    fullName: string;
-    email: string;
-}
 
 export default function CommunicationsPage() {
     const { toast } = useToast();
-    const firestore = useFirestore();
     const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
     const [reply, setReply] = useState('');
     const [sending, setSending] = useState(false);
@@ -73,117 +41,97 @@ export default function CommunicationsPage() {
     const [composeAttachment, setComposeAttachment] = useState<File | null>(null);
     const [isComposing, setIsComposing] = useState(false);
 
-    const conversationsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'conversations'), orderBy('latestDate', 'desc'));
-    }, [firestore]);
-    const { data: conversations, isLoading: loading, error } = useCollection<Conversation>(conversationsQuery);
+    const [conversations, setConversations] = useState<Conversation[]>(allConversations);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [messagesLoading, setMessagesLoading] = useState(false);
+    const users: User[] = allUsers;
 
-    const usersQuery = useMemoFirebase(() => {
-        if(!firestore) return null;
-        return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
-    }, [firestore]);
-    const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
-    
-    const messagesQuery = useMemoFirebase(() => {
-        if (!firestore || !selectedConversation) return null;
-        return query(
-            collection(firestore, 'conversations', selectedConversation.id, 'messages'),
-            orderBy('date', 'asc')
-        );
-    }, [firestore, selectedConversation]);
-
-    const { data: messages, isLoading: messagesLoading } = useCollection<Message>(messagesQuery);
+    useEffect(() => {
+        if(selectedConversation) {
+            setMessagesLoading(true);
+            setMessages(allMessages.filter(m => m.conversationId === selectedConversation.id));
+            setMessagesLoading(false);
+        } else {
+            setMessages([]);
+        }
+    }, [selectedConversation]);
 
 
     const handleSendReply = async () => {
-        if (!firestore || !reply.trim() || !selectedConversation) return;
+        if (!reply.trim() || !selectedConversation) return;
 
         setSending(true);
-        try {
-            const conversationRef = doc(firestore, 'conversations', selectedConversation.id);
-            const messagesCol = collection(conversationRef, 'messages');
-            
-            const messageData = {
-                conversationId: selectedConversation.id,
-                customerId: selectedConversation.customerId,
-                customerName: selectedConversation.customerName,
-                subject: selectedConversation.subject,
-                message: reply,
-                sender: 'agent' as 'user' | 'agent',
-                status: 'Open' as 'Open' | 'Closed',
-                date: serverTimestamp()
-            };
-            await addDoc(messagesCol, messageData);
-            
-            // Update the parent conversation doc
-            const conversationData = {
-                latestMessage: reply,
-                latestDate: serverTimestamp(),
-                isRead: true, // It's read from the admin's perspective
-                status: 'Open'
-            };
-            await setDoc(conversationRef, conversationData, { merge: true });
+        await new Promise(res => setTimeout(res, 500));
+        
+        const newMessage: Message = {
+            id: `msg-${Date.now()}`,
+            conversationId: selectedConversation.id,
+            customerId: selectedConversation.customerId,
+            customerName: selectedConversation.customerName,
+            subject: selectedConversation.subject,
+            message: reply,
+            sender: 'agent',
+            status: 'Open',
+            date: new Date().toISOString(),
+        };
 
-            setReply('');
-            toast({ title: 'Reply Sent!' });
+        allMessages.push(newMessage);
+        setMessages(prev => [...prev, newMessage]);
 
-        } catch (error) {
-             toast({ title: 'Error', description: 'Could not send reply.', variant: 'destructive' });
-        } finally {
-            setSending(false);
-        }
+        setReply('');
+        toast({ title: 'Reply Sent!' });
+        setSending(false);
     };
 
     const handleComposeEmail = async () => {
         const recipientUser = users?.find(u => u.id === composeRecipient);
-        if (!firestore || !composeRecipient || !composeSubject.trim() || !composeBody.trim() || !recipientUser) {
+        if (!composeRecipient || !composeSubject.trim() || !composeBody.trim() || !recipientUser) {
             toast({ title: 'Missing fields', description: 'Please select a valid recipient and enter a subject and message.', variant: 'destructive' });
             return;
         }
 
         setIsComposing(true);
-        try {
-            const newConversationRef = doc(collection(firestore, 'conversations'));
-            const conversationData = {
-                id: newConversationRef.id,
-                customerId: recipientUser.id,
-                customerName: recipientUser.fullName,
-                subject: composeSubject,
-                latestMessage: composeBody,
-                latestDate: serverTimestamp(),
-                isRead: true, // It's read from the admin's perspective
-                status: 'Open',
-                date: serverTimestamp()
-            };
-            await setDoc(newConversationRef, conversationData, { merge: false });
+        await new Promise(res => setTimeout(res, 1000));
+        
+        const newConversationId = `conv-${Date.now()}`;
 
+        const newConversation: Conversation = {
+            id: newConversationId,
+            customerId: recipientUser.id,
+            customerName: recipientUser.fullName,
+            subject: composeSubject,
+            latestMessage: composeBody,
+            latestDate: new Date().toISOString(),
+            isRead: true, 
+            date: new Date().toISOString(),
+        };
 
-            const messagesCol = collection(newConversationRef, 'messages');
-            await addDoc(messagesCol, {
-                conversationId: newConversationRef.id,
-                customerId: recipientUser.id,
-                customerName: recipientUser.fullName,
-                subject: composeSubject,
-                message: composeBody,
-                sender: 'agent',
-                status: 'Open',
-                date: serverTimestamp(),
-            });
-
-            toast({ title: 'Email Sent!', description: `Your email to ${recipientUser.fullName} has been sent.` });
-            
-            setIsComposeOpen(false);
-            setComposeRecipient('');
-            setComposeSubject('');
-            setComposeBody('');
-            setComposeAttachment(null);
-
-        } catch (error) {
-            toast({ title: 'Error', description: 'Could not send email.', variant: 'destructive' });
-        } finally {
-            setIsComposing(false);
+        const newMessage: Message = {
+            id: `msg-${Date.now()}`,
+            conversationId: newConversationId,
+            customerId: recipientUser.id,
+            customerName: recipientUser.fullName,
+            subject: composeSubject,
+            message: composeBody,
+            sender: 'agent',
+            status: 'Open',
+            date: new Date().toISOString(),
         }
+
+        allConversations.unshift(newConversation);
+        allMessages.push(newMessage);
+
+        setConversations([newConversation, ...conversations]);
+
+        toast({ title: 'Email Sent!', description: `Your email to ${recipientUser.fullName} has been sent.` });
+        
+        setIsComposeOpen(false);
+        setComposeRecipient('');
+        setComposeSubject('');
+        setComposeBody('');
+        setComposeAttachment(null);
+        setIsComposing(false);
     }
 
 
@@ -218,7 +166,6 @@ export default function CommunicationsPage() {
                                 <SelectValue placeholder="Select a customer" />
                             </SelectTrigger>
                             <SelectContent>
-                                {usersLoading && <SelectItem value="loading" disabled>Loading users...</SelectItem>}
                                 {users?.map(user => (
                                     <SelectItem key={user.id} value={user.id}>{user.fullName} ({user.email})</SelectItem>
                                 ))}

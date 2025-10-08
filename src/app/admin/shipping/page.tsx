@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, ArrowLeft, Truck, Loader2 } from 'lucide-react';
+import { Mail, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -33,9 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
-import type { Shipment } from '@/lib/types';
+import { shipments as allShipments, type Shipment } from '@/lib/mock-data';
 
 
 const getStatusVariant = (status: string) => {
@@ -59,14 +57,6 @@ export default function ShippingPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
-  
-  const firestore = useFirestore();
-  const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'shipments'), orderBy('date', 'desc'));
-  }, [firestore]);
-
-  const { data: shipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const handleOpenEmailDialog = (shipment: Shipment) => {
     setSelectedShipment(shipment);
@@ -125,14 +115,7 @@ export default function ShippingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                 <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                    </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && shipments && shipments.map((shipment) => (
+              {allShipments.map((shipment) => (
                 <TableRow key={shipment.id}>
                   <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
                   <TableCell>
@@ -151,11 +134,6 @@ export default function ShippingPage() {
                   </TableCell>
                 </TableRow>
               ))}
-               {!isLoading && (!shipments || shipments.length === 0) && (
-                 <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24">No shipments found.</TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </CardContent>

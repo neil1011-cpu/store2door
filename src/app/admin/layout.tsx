@@ -32,9 +32,8 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Notifications } from '@/components/notifications';
-import { useUser } from '@/firebase';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -54,29 +53,33 @@ function AdminLoadingSkeleton() {
     )
 }
 
-const ADMIN_EMAIL = 'admin@example.com';
-
 export default function AdminLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { user, isUserLoading } = useUser();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (isUserLoading) {
-      return;
-    }
-
-    if (!user) {
+    try {
+      const adminLoggedIn = localStorage.getItem('isAdminLoggedIn');
+      if (adminLoggedIn === 'true') {
+        setIsAdmin(true);
+      } else {
+        router.replace('/admin-login');
+      }
+    } catch (e) {
+      console.error("Could not access localStorage");
       router.replace('/admin-login');
-    } else if (user.email !== ADMIN_EMAIL) {
-      router.replace('/');
     }
-  }, [user, isUserLoading, router]);
+    setIsLoading(false);
+  }, [router, pathname]);
 
-  if (isUserLoading || !user || user.email !== ADMIN_EMAIL) {
+
+  if (isLoading || !isAdmin) {
     return <AdminLoadingSkeleton />;
   }
 

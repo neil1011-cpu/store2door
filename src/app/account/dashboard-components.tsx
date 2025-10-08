@@ -19,34 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, query, where, orderBy, limit, serverTimestamp, doc, addDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import type { UserProfile, Shipment, PickupPerson, DropoffAddress } from '@/lib/types';
-
-
-type Message = {
-  id: string;
-  conversationId: string;
-  customerName: string;
-  customerId: string;
-  subject: string;
-  message: string;
-  date: string;
-  sender: 'user' | 'agent';
-  status: 'Open' | 'Closed';
-  attachment?: string;
-};
-
-type Conversation = {
-    id: string;
-    customerName: string;
-    customerId: string;
-    subject: string;
-    latestMessage: string;
-    latestDate: string;
-    isRead: boolean;
-    date: any; // Can be Timestamp
-};
+import { shipments as allShipments, users as allUsers, conversations as allConversations, messages as allMessages, type UserProfile, type Shipment, type Conversation, type Message, type PickupPerson, type DropoffAddress } from '@/lib/mock-data';
 
 
 const getStatusVariant = (status: Shipment['status']) => {
@@ -62,21 +35,16 @@ const getStatusVariant = (status: Shipment['status']) => {
 
 
 export function DashboardTab({ details }: { details: UserProfile }) {
-  const firestore = useFirestore();
-  const { user } = useUser();
-  
-  const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
-    return query(
-      collection(firestore, 'shipments'),
-      where('customerId', '==', user.uid),
-      orderBy('date', 'desc'),
-      limit(1)
-    );
-  }, [firestore, user?.uid]);
+  const [recentShipment, setRecentShipment] = useState<Shipment | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
-  const recentShipment = userShipments && userShipments.length > 0 ? userShipments[0] : null;
+  useEffect(() => {
+    const userShipments = allShipments.filter(s => s.customerId === details.id);
+    const sorted = userShipments.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setRecentShipment(sorted.length > 0 ? sorted[0] : null);
+    setIsLoading(false);
+  }, [details.id]);
+
 
   return (
     <Card>
@@ -138,41 +106,27 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
   const [invoice, setInvoice] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const firestore = useFirestore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore || !trackingNumber || !contents || !invoice) {
+    if (!trackingNumber || !contents || !invoice) {
         toast({ title: 'Missing Fields', description: 'Please fill out all fields and upload an invoice.', variant: 'destructive'});
         return;
     }
 
     setLoading(true);
-    try {
-        const preAlertsCollection = collection(firestore, 'preAlerts');
-        addDocumentNonBlocking(preAlertsCollection, {
-            customerId,
-            customerName,
-            trackingNumber,
-            contents,
-            status: 'Pending',
-            date: serverTimestamp(),
-            invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
-        });
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-        toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
-        setTrackingNumber('');
-        setContents('');
-        setInvoice(null);
-        
-        const fileInput = document.getElementById('invoice-upload') as HTMLInputElement;
-        if(fileInput) fileInput.value = '';
-
-    } catch (error) {
-        toast({ title: 'Submission Failed', description: (error as Error).message, variant: 'destructive' });
-    } finally {
-        setLoading(false);
-    }
+    toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
+    setTrackingNumber('');
+    setContents('');
+    setInvoice(null);
+    
+    const fileInput = document.getElementById('invoice-upload') as HTMLInputElement;
+    if(fileInput) fileInput.value = '';
+    
+    setLoading(false);
   };
 
   return (
@@ -207,21 +161,16 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
   );
 }
 
-export function PackagesTab() {
+export function PackagesTab({ customerId }: { customerId: string }) {
   const { toast } = useToast();
-  const firestore = useFirestore();
-  const { user } = useUser();
+  const [userShipments, setUserShipments] = useState<Shipment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
-    return query(
-      collection(firestore, 'shipments'),
-      where('customerId', '==', user.uid),
-      orderBy('date', 'desc')
-    );
-  }, [firestore, user?.uid]);
-
-  const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
+  useEffect(() => {
+    const shipmentsForUser = allShipments.filter(s => s.customerId === customerId);
+    setUserShipments(shipmentsForUser);
+    setIsLoading(false);
+  }, [customerId]);
 
   const handlePayNow = (shipment: Shipment) => {
     toast({
@@ -354,80 +303,49 @@ export function PackagesTab() {
 
 export function SupportTab({ details }: { details: UserProfile }) {
   const { toast } = useToast();
-  const firestore = useFirestore();
   const [newMessage, setNewMessage] = useState("");
   const [subject, setSubject] = useState("");
   const [sending, setSending] = useState(false);
-  
-  const conversationsQuery = useMemoFirebase(() => {
-    if (!firestore || !details?.id) return null;
-    return query(
-        collection(firestore, 'conversations'),
-        where('customerId', '==', details.id),
-        limit(1)
-    );
-  }, [firestore, details?.id]);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: conversationsData, isLoading: conversationsLoading } = useCollection<Conversation>(conversationsQuery);
-  const conversation = conversationsData && conversationsData.length > 0 ? conversationsData[0] : null;
+  useEffect(() => {
+    const conv = allConversations.find(c => c.customerId === details.id);
+    setConversation(conv || null);
+    if(conv) {
+        setMessages(allMessages.filter(m => m.conversationId === conv.id));
+    }
+    setIsLoading(false);
+  }, [details.id]);
 
-  const messagesQuery = useMemoFirebase(() => {
-    if (!firestore || !conversation) return null;
-    return query(
-        collection(firestore, 'conversations', conversation.id, 'messages'),
-        orderBy('date', 'asc')
-    );
-  }, [firestore, conversation]);
-  
-  const { data: messages, isLoading: messagesLoading } = useCollection<Message>(messagesQuery);
-  const isLoading = conversationsLoading || messagesLoading;
 
   const handleSendMessage = async () => {
-    if (!firestore || !newMessage.trim() || (!conversation && !subject.trim())) {
+    if (!newMessage.trim() || (!conversation && !subject.trim())) {
       toast({ title: "Missing fields", description: "Please enter a subject and message.", variant: "destructive"});
       return;
     }
 
     setSending(true);
-    try {
-      const conversationId = conversation ? conversation.id : doc(collection(firestore, 'conversations')).id;
-      const conversationRef = doc(firestore, 'conversations', conversationId);
-      const messagesCol = collection(conversationRef, 'messages');
-      
-      const messageData = {
-          conversationId,
-          customerId: details.id,
-          customerName: details.fullName,
-          subject: conversation ? conversation.subject : subject,
-          message: newMessage,
-          sender: 'user' as 'user' | 'agent',
-          status: 'Open' as 'Open' | 'Closed',
-          date: serverTimestamp()
-      };
-      await addDoc(messagesCol, messageData);
-      
-      const conversationData = {
-          id: conversationId,
-          customerId: details.id,
-          customerName: details.fullName,
-          subject: conversation ? conversation.subject : subject,
-          latestMessage: newMessage,
-          latestDate: serverTimestamp(),
-          isRead: false,
-          status: 'Open',
-          date: conversation ? conversation.date : serverTimestamp()
-      };
-      setDocumentNonBlocking(conversationRef, conversationData, { merge: true });
-      
-      setNewMessage("");
-      if (!conversation) setSubject("");
-      toast({ title: "Message Sent!", description: "We've received your message and will get back to you shortly." });
-
-    } catch (error) {
-      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
-    } finally {
-      setSending(false);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const newMsg: Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: conversation?.id || 'conv-new',
+        customerId: details.id,
+        customerName: details.fullName,
+        subject: conversation?.subject || subject,
+        message: newMessage,
+        sender: 'user',
+        status: 'Open',
+        date: new Date().toISOString(),
     }
+    setMessages([...messages, newMsg]);
+    
+    setNewMessage("");
+    if (!conversation) setSubject("");
+    toast({ title: "Message Sent!", description: "We've received your message and will get back to you shortly." });
+    setSending(false);
   };
 
   return (
@@ -492,8 +410,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
 export function AccountTab({ details }: { details: UserProfile }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
-    const firestore = useFirestore();
-    const { user } = useUser();
+    const [userProfile, setUserProfile] = useState<UserProfile>(details);
 
     const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.zip}`;
 
@@ -512,46 +429,52 @@ export function AccountTab({ details }: { details: UserProfile }) {
         });
         setTimeout(() => setCopied(false), 2000);
     };
+    
+    const updateLocalStorage = (updatedProfile: UserProfile) => {
+        setUserProfile(updatedProfile);
+        try {
+            localStorage.setItem('accountDetails', JSON.stringify(updatedProfile));
+        } catch (e) {
+            console.error("Could not update localStorage");
+        }
+    }
 
     const handleAddPerson = async () => {
-        if (!user || !firestore || !newPerson.name || !newPerson.idNumber) {
+        if (!newPerson.name || !newPerson.idNumber) {
             toast({ title: "Missing Fields", description: "Please enter a name and ID number.", variant: 'destructive' });
             return;
         }
 
-        const personToAdd: PickupPerson = { ...newPerson, id: doc(collection(firestore, 'users')).id };
-        const userDocRef = doc(firestore, 'users', user.uid);
-
-        await updateDoc(userDocRef, {
-            pickupPersonnel: arrayUnion(personToAdd)
-        });
-
+        const personToAdd: PickupPerson = { ...newPerson, id: `person-${Date.now()}` };
+        const updatedPersonnel = [...(userProfile.pickupPersonnel || []), personToAdd];
+        const updatedProfile = {...userProfile, pickupPersonnel: updatedPersonnel };
+        
+        updateLocalStorage(updatedProfile);
+        
         setNewPerson({ name: '', idNumber: '' });
         setOpenAddPersonDialog(false);
         toast({ title: "Pickup Person Added", description: `${newPerson.name} can now pick up packages on your behalf.` });
     };
 
     const handleRemovePerson = async (personToRemove: PickupPerson) => {
-        if (!user || !firestore) return;
-        const userDocRef = doc(firestore, 'users', user.uid);
-        await updateDoc(userDocRef, {
-            pickupPersonnel: arrayRemove(personToRemove)
-        });
+        const updatedPersonnel = userProfile.pickupPersonnel?.filter(p => p.id !== personToRemove.id);
+        const updatedProfile = {...userProfile, pickupPersonnel: updatedPersonnel };
+        
+        updateLocalStorage(updatedProfile);
         toast({ title: "Pickup Person Removed" });
     };
 
     const handleAddAddress = async () => {
-        if (!user || !firestore || !newAddress.name || !newAddress.address || !newAddress.parish) {
+        if (!newAddress.name || !newAddress.address || !newAddress.parish) {
             toast({ title: "Missing Fields", description: "Please fill out all address fields.", variant: 'destructive' });
             return;
         }
 
-        const addressToAdd: DropoffAddress = { ...newAddress, id: doc(collection(firestore, 'users')).id };
-        const userDocRef = doc(firestore, 'users', user.uid);
+        const addressToAdd: DropoffAddress = { ...newAddress, id: `addr-${Date.now()}` };
+        const updatedAddresses = [...(userProfile.dropoffAddresses || []), addressToAdd];
+        const updatedProfile = {...userProfile, dropoffAddresses: updatedAddresses };
         
-        await updateDoc(userDocRef, {
-            dropoffAddresses: arrayUnion(addressToAdd)
-        });
+        updateLocalStorage(updatedProfile);
 
         setNewAddress({ name: '', address: '', parish: '' });
         setOpenAddAddressDialog(false);
@@ -559,16 +482,15 @@ export function AccountTab({ details }: { details: UserProfile }) {
     };
 
     const handleRemoveAddress = async (addressToRemove: DropoffAddress) => {
-        if (!user || !firestore) return;
-        const userDocRef = doc(firestore, 'users', user.uid);
-        await updateDoc(userDocRef, {
-            dropoffAddresses: arrayRemove(addressToRemove)
-        });
+        const updatedAddresses = userProfile.dropoffAddresses?.filter(a => a.id !== addressToRemove.id);
+        const updatedProfile = {...userProfile, dropoffAddresses: updatedAddresses };
+        
+        updateLocalStorage(updatedProfile);
         toast({ title: "Address Removed" });
     };
     
-    const pickupPersonnel = details.pickupPersonnel || [];
-    const dropoffAddresses = details.dropoffAddresses || [];
+    const pickupPersonnel = userProfile.pickupPersonnel || [];
+    const dropoffAddresses = userProfile.dropoffAddresses || [];
 
     return (
         <Card>

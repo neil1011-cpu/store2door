@@ -19,6 +19,7 @@ export type UserProfile = {
   email: string;
   phone: string;
   mailboxNumber: string;
+  trn: string;
   address: {
     address1: string;
     address2: string;
@@ -26,6 +27,7 @@ export type UserProfile = {
     state: string;
     zip: string;
   };
+  createdAt: string;
   dropoffAddresses?: DropoffAddress[];
   pickupPersonnel?: PickupPerson[];
 };

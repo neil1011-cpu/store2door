@@ -21,9 +21,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { UserProfile, users } from '@/lib/mock-data';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -38,8 +36,6 @@ export default function SignUpPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const auth = useAuth();
-  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -54,47 +50,53 @@ export default function SignUpPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    if (users.find(u => u.email === values.email)) {
+        toast({
+            title: 'Sign Up Failed',
+            description: 'An account with this email already exists.',
+            variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+    }
+
+    const nextMailboxNumber = `FSTD${100 + users.length + 1}`;
+
+    const newUser: UserProfile = {
+      id: `user-${Date.now()}`,
+      fullName: values.fullName,
+      email: values.email,
+      phone: values.phone,
+      trn: values.trn,
+      mailboxNumber: nextMailboxNumber,
+      address: {
+        address1: '4350 NE 5th Terrace Bay #3',
+        address2: `${nextMailboxNumber} -FSTD`,
+        city: 'Oakland Park',
+        state: 'Florida',
+        zip: '33334',
+      },
+      createdAt: new Date().toISOString(),
+    };
     
+    users.push(newUser);
+
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
-
-        // In a real app, you would have a cloud function to get the next mailbox number
-        const nextMailboxNumber = `FSTD${Math.floor(100 + Math.random() * 900)}`;
-
-        const newUserDoc = {
-            id: user.uid,
-            fullName: values.fullName,
-            email: values.email,
-            phone: values.phone,
-            trn: values.trn,
-            mailboxNumber: nextMailboxNumber,
-            address: {
-                address1: '4350 NE 5th Terrace Bay #3',
-                address2: `${nextMailboxNumber} -FSTD`,
-                city: 'Oakland Park',
-                state: 'Florida',
-                zip: '33334',
-            },
-            createdAt: serverTimestamp()
-        };
-
-        const userDocRef = doc(firestore, 'users', user.uid);
-        setDocumentNonBlocking(userDocRef, newUserDoc, { merge: false });
-
+        localStorage.setItem('accountDetails', JSON.stringify(newUser));
         toast({
             title: 'Sign Up Successful!',
             description: 'Your account has been created. Redirecting...',
         });
-        
         router.push('/account');
-    } catch(error) {
-         toast({
+    } catch (error) {
+        toast({
             title: 'Sign Up Failed',
-            description: (error as Error).message,
+            description: 'Could not save your session. Please enable cookies and try again.',
             variant: 'destructive',
         });
-    } finally {
         setLoading(false);
     }
   };

@@ -20,8 +20,6 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Loader2, Route } from 'lucide-react';
 import Link from 'next/link';
-import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -32,7 +30,6 @@ export default function AdminLoginPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const auth = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -45,24 +42,23 @@ export default function AdminLoginPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     // For this prototype, we'll use a simple hardcoded check for the admin user.
-    if (values.email !== 'admin@example.com') {
-         toast({
-            title: 'Sign In Failed',
-            description: 'This page is for admin access only.',
-            variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-    }
-
-    try {
-        await signInWithEmailAndPassword(auth, values.email, values.password);
+    if (values.email === 'admin@example.com' && values.password === 'password') {
+      try {
+        localStorage.setItem('isAdminLoggedIn', 'true');
         toast({
             title: 'Admin Sign In Successful!',
             description: 'Welcome back! Redirecting to the admin dashboard...',
         });
         router.push('/admin');
-    } catch(error) {
+      } catch (error) {
+         toast({
+            title: 'Sign In Failed',
+            description: 'Could not save session. Please try again.',
+            variant: 'destructive',
+        });
+        setLoading(false);
+      }
+    } else {
         toast({
             title: 'Sign In Failed',
             description: 'Invalid email or password for admin account.',
@@ -85,7 +81,7 @@ export default function AdminLoginPage() {
             <CardHeader>
             <CardTitle className="text-2xl">Admin Sign In</CardTitle>
             <CardDescription>
-                Access the courier management dashboard.
+                Access the courier management dashboard. (Hint: password is "password")
             </CardDescription>
             </CardHeader>
             <CardContent>

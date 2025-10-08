@@ -37,8 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link';
 import { generateCustomsForm, GenerateCustomsFormOutput } from '@/ai/flows/generate-customs-form';
 import { Separator } from '@/components/ui/separator';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, doc } from 'firebase/firestore';
+import { preAlerts as allPreAlerts, users as allUsers } from '@/lib/mock-data';
 
 type PreAlert = {
   id: string;
@@ -46,7 +45,7 @@ type PreAlert = {
   trackingNumber: string;
   contents: string;
   status: 'Pending' | 'Processed';
-  date: string; // This will be a string from Firestore
+  date: string; // This will be a string from mock data
   invoiceUrl: string;
 };
 
@@ -186,10 +185,9 @@ function GeneratedDocsDialog({ trackingNumber, weight, contents, invoiceDataUri 
 
 
 export default function PreAlertsPage() {
-  const firestore = useFirestore();
-  const preAlertsCollection = useMemoFirebase(() => collection(firestore, 'preAlerts'), [firestore]);
-  const { data: preAlerts, isLoading: loading, error } = useCollection<PreAlert>(preAlertsCollection);
-  const { data: users } = useCollection<{id: string, fullName: string}>(collection(firestore, 'users'));
+  const [preAlerts, setPreAlerts] = useState<PreAlert[]>(allPreAlerts);
+  const [loading, setLoading] = useState(false);
+  const users = allUsers;
 
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
@@ -214,32 +212,27 @@ export default function PreAlertsPage() {
     }
     
     setIsSubmitting(true);
-    try {
-      addDocumentNonBlocking(preAlertsCollection, {
-        customerName: selectedUser.fullName,
-        customerId: newAlert.customerId,
-        trackingNumber: newAlert.trackingNumber,
-        contents: newAlert.contents,
-        status: newAlert.status,
-        date: serverTimestamp(),
-        invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
-      });
+    await new Promise(res => setTimeout(res, 500));
 
-      setOpen(false);
-      setNewAlert({ customerId: '', trackingNumber: '', contents: '', status: 'Pending' });
-      toast({
-        title: 'Pre-Alert Created',
-        description: `Pre-alert for ${newAlert.trackingNumber} has been successfully created.`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Error creating pre-alert',
-        description: (error as Error).message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
+    const alertToAdd: PreAlert = {
+      id: `pa-${Date.now()}`,
+      customerName: selectedUser.fullName,
+      trackingNumber: newAlert.trackingNumber,
+      contents: newAlert.contents,
+      status: newAlert.status,
+      date: new Date().toISOString(),
+      invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
     }
+    
+    setPreAlerts([alertToAdd, ...preAlerts]);
+
+    setOpen(false);
+    setNewAlert({ customerId: '', trackingNumber: '', contents: '', status: 'Pending' });
+    toast({
+      title: 'Pre-Alert Created',
+      description: `Pre-alert for ${newAlert.trackingNumber} has been successfully created.`,
+    });
+    setIsSubmitting(false);
   };
 
 

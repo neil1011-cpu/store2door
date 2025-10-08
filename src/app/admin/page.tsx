@@ -19,8 +19,6 @@ import {
   DollarSign,
   Settings,
   Calculator,
-  Inbox,
-  Receipt,
   Megaphone,
 } from 'lucide-react';
 import Link from 'next/link';

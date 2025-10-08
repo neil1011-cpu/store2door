@@ -7,7 +7,7 @@ import { Route, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './theme-toggle';
-import { useUser } from '@/firebase';
+import { useEffect, useState } from 'react';
 
 const navLinks = [
     { href: '/tracking', label: 'Tracking' },
@@ -27,7 +27,18 @@ const AppLogo = () => (
 
 export function UserHeader() {
   const pathname = usePathname();
-  const { user, isUserLoading } = useUser();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    try {
+        const accountDetails = localStorage.getItem('accountDetails');
+        setIsLoggedIn(!!accountDetails);
+    } catch (e) {
+        console.error("Could not access localStorage");
+    }
+    setIsLoading(false);
+  }, [pathname]); // Rerender on pathname change to update login status
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -49,8 +60,8 @@ export function UserHeader() {
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2">
              <ThemeToggle />
-             {!isUserLoading && (
-                user ? (
+             {!isLoading && (
+                isLoggedIn ? (
                     <Button asChild>
                         <Link href="/account">
                             <User className="mr-2 h-4 w-4" />

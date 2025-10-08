@@ -1,45 +1,39 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { LayoutDashboard, FileUp, Package, MessageSquare, User, LogOut } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
-import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { signOut } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { UserProfile, Shipment } from '@/lib/mock-data';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { UserProfile } from '@/lib/types';
-
 
 export default function AccountPage() {
+    const [details, setDetails] = useState<UserProfile | null>(null);
     const router = useRouter();
     const { toast } = useToast();
-    const auth = useAuth();
-    const firestore = useFirestore();
-
-    const { user, isUserLoading } = useUser();
-    
-    const userDocRef = useMemoFirebase(() => {
-      if (!firestore || !user?.uid) return null;
-      return doc(firestore, 'users', user.uid);
-    }, [firestore, user?.uid]);
-    
-    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
     useEffect(() => {
-        if (!isUserLoading && !user) {
-            router.push('/signin');
-        }
-    }, [isUserLoading, user, router]);
-
-    const handleSignOut = async () => {
-        if (!auth) return;
         try {
-            await signOut(auth);
+            const storedDetails = localStorage.getItem('accountDetails');
+            if (storedDetails) {
+                const parsedDetails = JSON.parse(storedDetails);
+                setDetails(parsedDetails);
+            } else {
+                router.push('/signin');
+            }
+        } catch (error) {
+             console.error("Could not read from local storage", error);
+             router.push('/signin');
+        }
+    }, [router]);
+
+    const handleSignOut = () => {
+        try {
+            localStorage.removeItem('accountDetails');
             toast({
                 title: 'Signed Out',
                 description: 'You have been successfully signed out.',
@@ -55,7 +49,7 @@ export default function AccountPage() {
         }
     }
     
-    if (isUserLoading || isProfileLoading || !userProfile || !user) {
+    if (!details) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
                 <div className="mb-8 flex justify-between items-center">
@@ -76,7 +70,7 @@ export default function AccountPage() {
         <div className="container mx-auto py-12 px-4 md:px-6">
             <div className="mb-8 flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold">Welcome, {userProfile.fullName}!</h1>
+                    <h1 className="text-3xl font-bold">Welcome, {details.fullName}!</h1>
                     <p className="text-muted-foreground">Manage your shipments and account details here.</p>
                 </div>
             </div>
@@ -107,19 +101,19 @@ export default function AccountPage() {
 
                 <div className="flex-1">
                     <TabsContent value="dashboard">
-                        <DashboardTab details={userProfile} />
+                        <DashboardTab details={details} />
                     </TabsContent>
                     <TabsContent value="pre-alert">
-                        <PreAlertTab customerId={userProfile.id} customerName={userProfile.fullName} />
+                        <PreAlertTab customerId={details.id} customerName={details.fullName} />
                     </TabsContent>
                     <TabsContent value="packages">
-                        <PackagesTab customerId={userProfile.id} />
+                        <PackagesTab customerId={details.id} />
                     </TabsContent>
                     <TabsContent value="support">
-                        <SupportTab details={userProfile} />
+                        <SupportTab details={details} />
                     </TabsContent>
                     <TabsContent value="account">
-                        <AccountTab details={userProfile} />
+                        <AccountTab details={details} />
                     </TabsContent>
                 </div>
             </Tabs>

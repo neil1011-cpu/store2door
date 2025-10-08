@@ -32,27 +32,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
-
-type User = {
-  id: string;
-  fullName: string;
-  email: string;
-  address: {
-    address1: string;
-    address2: string;
-    city: string;
-    state: string;
-    zip: string;
-  };
-  mailboxNumber: string;
-};
+import { users as allUsers, type UserProfile } from '@/lib/mock-data';
 
 export default function UsersPage() {
-  const firestore = useFirestore();
-  const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
-  const { data: users, isLoading: loading } = useCollection<User>(usersCollection);
+  const [users, setUsers] = useState<UserProfile[]>(allUsers);
+  const [loading, setLoading] = useState(false);
   
   const [open, setOpen] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
@@ -71,11 +55,12 @@ export default function UsersPage() {
     const lastMailboxNum = users && users.length > 0 ? parseInt(users[users.length - 1].mailboxNumber.replace('FSTD', '')) : 100;
     const nextMailboxNumber = `FSTD${lastMailboxNum + 1}`;
     
-    // Note: This creates a user doc but not a Firebase Auth user.
-    // This is for admin-added users. They would need a password reset flow.
-    const userToAdd = {
+    const userToAdd: UserProfile = {
+        id: `user-${Date.now()}`,
         fullName: newUser.name,
         email: newUser.email,
+        phone: '123-456-7890', // placeholder
+        trn: '123456789', // placeholder
         address: {
             address1: '4350 NE 5th Terrace Bay #3',
             address2: `${nextMailboxNumber} -FSTD`,
@@ -84,10 +69,10 @@ export default function UsersPage() {
             zip: '33334',
         },
         mailboxNumber: nextMailboxNumber,
-        createdAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
     };
     
-    addDocumentNonBlocking(usersCollection, userToAdd);
+    setUsers([...users, userToAdd]);
 
     setOpen(false);
     setNewUser({ name: '', email: '' });
@@ -97,11 +82,11 @@ export default function UsersPage() {
     });
   };
   
-  const formatAddress = (address: User['address']) => {
+  const formatAddress = (address: UserProfile['address']) => {
     return `${address.address1}, ${address.address2}, ${address.city}, ${address.state} ${address.zip}`;
   };
 
-  const copyToClipboard = (address: User['address']) => {
+  const copyToClipboard = (address: UserProfile['address']) => {
     const addressString = `Address 1: ${address.address1}\nAddress 2: ${address.address2}\nCity: ${address.city}\nState/Province: ${address.state}\nZip/Postal Code: ${address.zip}`;
     navigator.clipboard.writeText(addressString);
     toast({
