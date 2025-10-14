@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Send, Mail, Users, Inbox, PlusCircle, Paperclip, History } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, History, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,7 +20,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { users as allUsers, type UserProfile as User } from '@/lib/mock-data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 
 type SentEmail = {
     id: string;
@@ -39,7 +38,6 @@ export default function CommunicationsPage() {
     const [composeRecipient, setComposeRecipient] = useState('');
     const [composeSubject, setComposeSubject] = useState('');
     const [composeBody, setComposeBody] = useState('');
-    const [composeAttachment, setComposeAttachment] = useState<File | null>(null);
     const [isComposing, setIsComposing] = useState(false);
 
     const users: User[] = allUsers;
@@ -52,28 +50,45 @@ export default function CommunicationsPage() {
         }
 
         setIsComposing(true);
-        // Simulate API call to send email
-        await new Promise(res => setTimeout(res, 1000));
         
-        const newSentEmail: SentEmail = {
-            id: `email-${Date.now()}`,
-            recipientName: recipientUser.fullName,
-            recipientEmail: recipientUser.email,
-            subject: composeSubject,
-            body: composeBody,
-            sentAt: new Date().toISOString(),
-        };
+        try {
+            const response = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: recipientUser.email,
+                    subject: composeSubject,
+                    body: composeBody,
+                }),
+            });
 
-        setSentEmails(prev => [newSentEmail, ...prev]);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to send email.');
+            }
 
-        toast({ title: 'Email Sent!', description: `Your email to ${recipientUser.fullName} has been sent.` });
-        
-        setIsComposeOpen(false);
-        setComposeRecipient('');
-        setComposeSubject('');
-        setComposeBody('');
-        setComposeAttachment(null);
-        setIsComposing(false);
+            const newSentEmail: SentEmail = {
+                id: `email-${Date.now()}`,
+                recipientName: recipientUser.fullName,
+                recipientEmail: recipientUser.email,
+                subject: composeSubject,
+                body: composeBody,
+                sentAt: new Date().toISOString(),
+            };
+
+            setSentEmails(prev => [newSentEmail, ...prev]);
+
+            toast({ title: 'Email Sent!', description: `Your email to ${recipientUser.fullName} has been sent.` });
+            
+            setIsComposeOpen(false);
+            setComposeRecipient('');
+            setComposeSubject('');
+            setComposeBody('');
+        } catch (error) {
+             toast({ title: 'Error Sending Email', description: (error as Error).message, variant: 'destructive' });
+        } finally {
+            setIsComposing(false);
+        }
     }
 
 
@@ -117,11 +132,6 @@ export default function CommunicationsPage() {
                      <div className="space-y-2">
                         <Label htmlFor="body">Message Body</Label>
                         <Textarea id="body" value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Type your message here..." className="min-h-[200px]" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="attachment">Attachment (Optional)</Label>
-                        <Input id="attachment" type="file" onChange={(e) => setComposeAttachment(e.target.files ? e.target.files[0] : null)} />
-                        {composeAttachment && <p className="text-sm text-muted-foreground">Selected: {composeAttachment.name}</p>}
                     </div>
                 </div>
                 <DialogFooter>
