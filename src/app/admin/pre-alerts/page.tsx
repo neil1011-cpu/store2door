@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -27,27 +27,16 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogClose,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
-import { PlusCircle, ArrowLeft, FileText, Loader2 } from 'lucide-react';
+import { PlusCircle, ArrowLeft, FileText, Loader2, Truck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
-import { generateCustomsForm, GenerateCustomsFormOutput } from '@/ai/flows/generate-customs-form';
-import { Separator } from '@/components/ui/separator';
-import { preAlerts as allPreAlerts, users as allUsers } from '@/lib/mock-data';
-
-type PreAlert = {
-  id: string;
-  customerName: string;
-  trackingNumber: string;
-  contents: string;
-  status: 'Pending' | 'Processed';
-  date: string; // This will be a string from mock data
-  invoiceUrl: string;
-};
+import { preAlerts as allPreAlerts, users as allUsers, shipments as allShipments, type Shipment, type PreAlert, type UserProfile } from '@/lib/mock-data';
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -60,128 +49,92 @@ const getStatusVariant = (status: string) => {
   }
 };
 
-function GeneratedDocsDialog({ trackingNumber, weight, contents, invoiceDataUri }: { trackingNumber: string, weight: string, contents: string, invoiceDataUri: string }) {
+
+function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAlert, onShipmentCreated: (newShipment: Shipment, preAlertId: string) => void }) {
     const [open, setOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState<GenerateCustomsFormOutput | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [cost, setCost] = useState('');
     const { toast } = useToast();
 
-    const handleGenerate = async () => {
-        setLoading(true);
-        setResult(null);
-        try {
-            const response = await generateCustomsForm({
-                trackingNumber,
-                weight,
-                contentsDescription: contents,
-                invoiceDataUri,
-            });
-            setResult(response);
-        } catch (error) {
-            toast({
-                title: 'Error Generating Documents',
-                description: (error as Error).message || "An unexpected error occurred.",
-                variant: 'destructive'
-            });
-        } finally {
-            setLoading(false);
+    const handleSubmitShipment = () => {
+        if (!cost || parseFloat(cost) <= 0) {
+            toast({ title: "Invalid Cost", description: "Please enter a valid shipping cost.", variant: "destructive" });
+            return;
         }
+
+        setIsSubmitting(true);
+        //Simulate API call
+        setTimeout(() => {
+            const newShipment: Shipment = {
+                id: `ship-${Date.now()}`,
+                customerId: preAlert.customerId,
+                trackingNumber: preAlert.trackingNumber,
+                contents: preAlert.contents,
+                status: 'Processed', // Initial status when created from a pre-alert
+                date: new Date().toISOString(),
+                cost: parseFloat(cost),
+                paymentStatus: 'Unpaid',
+                invoiceUrl: preAlert.invoiceUrl,
+                invoiceId: `INV-${Date.now()}` // Generate a mock invoice ID
+            };
+            
+            onShipmentCreated(newShipment, preAlert.id);
+
+            toast({ title: "Shipment Created", description: `Shipment for ${preAlert.trackingNumber} has been created.`});
+            setIsSubmitting(false);
+            setOpen(false);
+        }, 1000);
+
     };
-    
+
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="secondary" size="sm">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Generate Docs
+                <Button variant="secondary" size="sm" disabled={preAlert.status === 'Processed'}>
+                    <Truck className="mr-2 h-4 w-4" />
+                    {preAlert.status === 'Processed' ? 'Processed' : 'Create Shipment'}
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Generate Shipping Documents</DialogTitle>
+                    <DialogTitle>Create Shipment for {preAlert.trackingNumber}</DialogTitle>
                     <DialogDescription>
-                        Use AI to generate a customs form and warehouse ticket for tracking number {trackingNumber}.
+                        Confirm the details and add the shipping cost to create a new shipment record. This will mark the pre-alert as 'Processed'.
                     </DialogDescription>
                 </DialogHeader>
-                
-                {!result && !loading && (
-                    <div className="flex flex-col items-center justify-center text-center p-8">
-                         <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-                         <p className="text-muted-foreground mb-6">Click the button below to start the AI generation process.</p>
-                         <Button onClick={handleGenerate}>
-                            <FileText className="mr-2 h-4 w-4" />
-                            Generate Documents
-                        </Button>
+                 <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label>Customer</Label>
+                        <Input value={preAlert.customerName} readOnly disabled />
                     </div>
-                )}
-                
-                {loading && (
-                     <div className="flex items-center justify-center p-8">
-                        <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                        <p className="text-muted-foreground">AI is processing the invoice... Please wait.</p>
+                     <div className="space-y-2">
+                        <Label>Contents</Label>
+                        <Input value={preAlert.contents} readOnly disabled />
                     </div>
-                )}
-
-                {result && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 max-h-[60vh] overflow-y-auto">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-lg">Jamaica Customs Form</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="font-medium text-muted-foreground">Tracking #</span>
-                                    <span>{result.customsForm.trackingNumber}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="font-medium text-muted-foreground">Weight</span>
-                                    <span>{result.customsForm.weight}</span>
-                                </div>
-                                 <Separator />
-                                 <div className="space-y-1">
-                                    <span className="font-medium text-muted-foreground">Contents</span>
-                                    <p className="text-right">{result.customsForm.contentsDescription}</p>
-                                </div>
-                                <Separator />
-                                <div className="space-y-1">
-                                    <span className="font-medium text-muted-foreground">Sender</span>
-                                    <p className="text-right">{result.customsForm.sender}</p>
-                                </div>
-                                 <Separator />
-                                <div className="space-y-1">
-                                    <span className="font-medium text-muted-foreground">Recipient</span>
-                                    <p className="text-right">{result.customsForm.recipient}</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                         <Card>
-                            <CardHeader>
-                                <CardTitle className="text-lg">Warehouse Intake Ticket</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3 text-sm">
-                               <div className="flex justify-between">
-                                    <span className="font-medium text-muted-foreground">Ticket ID</span>
-                                    <span className="font-mono">{result.warehouseTicket.ticketId}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="font-medium text-muted-foreground">Tracking #</span>
-                                    <span>{result.warehouseTicket.trackingNumber}</span>
-                                </div>
-                                 <div className="flex justify-between items-center">
-                                    <span className="font-medium text-muted-foreground">Status</span>
-                                    <Badge variant="default">{result.warehouseTicket.status}</Badge>
-                                </div>
-                            </CardContent>
-                        </Card>
+                    <div className="space-y-2">
+                        <Label htmlFor="shipping-cost">Shipping Cost (USD)</Label>
+                        <Input 
+                            id="shipping-cost"
+                            type="number"
+                            placeholder="e.g., 55.00"
+                            value={cost}
+                            onChange={(e) => setCost(e.target.value)}
+                        />
                     </div>
-                )}
+                </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleSubmitShipment} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Create Shipment
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    )
+    );
 }
+
 
 
 export default function PreAlertsPage() {
@@ -217,6 +170,7 @@ export default function PreAlertsPage() {
     const alertToAdd: PreAlert = {
       id: `pa-${Date.now()}`,
       customerName: selectedUser.fullName,
+      customerId: selectedUser.id,
       trackingNumber: newAlert.trackingNumber,
       contents: newAlert.contents,
       status: newAlert.status,
@@ -234,6 +188,16 @@ export default function PreAlertsPage() {
     });
     setIsSubmitting(false);
   };
+  
+  const handleShipmentCreated = (newShipment: Shipment, preAlertId: string) => {
+    // Add to global shipments mock data
+    allShipments.unshift(newShipment);
+    // Update pre-alert status
+    const updatedAlerts = preAlerts.map(pa => 
+        pa.id === preAlertId ? { ...pa, status: 'Processed' as 'Processed' } : pa
+    );
+    setPreAlerts(updatedAlerts);
+  }
 
 
   return (
@@ -327,7 +291,7 @@ export default function PreAlertsPage() {
         <CardHeader>
           <CardTitle>Incoming Pre-Alerts</CardTitle>
           <CardDescription>
-            A list of all pre-alerts submitted by customers.
+            A list of all pre-alerts submitted by customers. Process pending alerts to create shipments.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -396,12 +360,7 @@ export default function PreAlertsPage() {
                       </Dialog>
                     </TableCell>
                      <TableCell>
-                      <GeneratedDocsDialog 
-                        trackingNumber={alert.trackingNumber}
-                        weight="5 lbs"
-                        contents={alert.contents}
-                        invoiceDataUri={alert.invoiceUrl}
-                      />
+                       <CreateShipmentDialog preAlert={alert} onShipmentCreated={handleShipmentCreated} />
                     </TableCell>
                   </TableRow>
                 ))
