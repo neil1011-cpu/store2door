@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LayoutDashboard, FileUp, Package, MessageSquare, User, LogOut } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
-import { UserProfile, Shipment } from '@/lib/mock-data';
+import { UserProfile } from '@/lib/mock-data';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AccountPage() {
@@ -52,14 +52,12 @@ export default function AccountPage() {
     if (!details) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
-                <div className="mb-8 flex justify-between items-center">
-                    <div>
-                        <Skeleton className="h-9 w-64 mb-2" />
-                        <Skeleton className="h-5 w-80" />
-                    </div>
+                <div className="mb-8">
+                    <Skeleton className="h-9 w-64 mb-2" />
+                    <Skeleton className="h-5 w-80" />
                 </div>
                 <div className="flex flex-col md:flex-row gap-6">
-                    <Skeleton className="h-60 md:w-1/5" />
+                    <Skeleton className="h-auto md:w-1/5" />
                     <Skeleton className="h-96 flex-1" />
                 </div>
             </div>
@@ -67,16 +65,14 @@ export default function AccountPage() {
     }
     
     return (
-        <div className="container mx-auto py-12 px-4 md:px-6">
-            <div className="mb-8 flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold">Welcome, {details.fullName}!</h1>
-                    <p className="text-muted-foreground">Manage your shipments and account details here.</p>
-                </div>
+        <div className="container mx-auto py-8 px-4 md:px-6">
+            <div className="mb-8">
+                <h1 className="text-2xl md:text-3xl font-bold">Welcome, {details.fullName}!</h1>
+                <p className="text-muted-foreground">Manage your shipments and account details here.</p>
             </div>
-             <Tabs defaultValue="dashboard" className="flex flex-col md:flex-row gap-6">
-                <div className="flex flex-col gap-2 md:w-1/5">
-                    <TabsList className="flex md:flex-col h-auto p-2">
+             <Tabs defaultValue="dashboard" className="flex flex-col md:flex-row gap-6 lg:gap-8">
+                <div className="flex-shrink-0 md:w-1/5 lg:w-1/6">
+                    <TabsList className="flex-col h-auto items-stretch p-1 w-full">
                         <TabsTrigger value="dashboard" className="w-full justify-start gap-2">
                             <LayoutDashboard className="h-5 w-5" /> Dashboard
                         </TabsTrigger>
@@ -93,13 +89,13 @@ export default function AccountPage() {
                             <User className="h-5 w-5" /> My Account
                         </TabsTrigger>
                     </TabsList>
-                     <Button variant="outline" onClick={handleSignOut} className="w-full justify-start gap-2 p-2 h-auto text-sm font-medium">
+                     <Button variant="outline" onClick={handleSignOut} className="w-full justify-start gap-2 mt-4 text-left p-2 h-auto text-sm font-medium">
                         <LogOut className="h-5 w-5" /> Sign Out
                     </Button>
                 </div>
 
 
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                     <TabsContent value="dashboard">
                         <DashboardTab details={details} />
                     </TabsContent>
@@ -120,3 +116,4 @@ export default function AccountPage() {
         </div>
     );
 }
+

@@ -5,9 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Trash2, PlusCircle, Edit, Check } from 'lucide-react';
+import { ArrowLeft, Check, Edit, Trash2, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -126,7 +125,7 @@ export default function RatesPage() {
           <CardDescription>Set the shipping cost for each weight bracket. All weights are in pounds (lbs).</CardDescription>
         </CardHeader>
         <CardContent>
-           <div className="border rounded-lg">
+           <div className="border rounded-lg relative w-full overflow-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -154,7 +153,7 @@ export default function RatesPage() {
                                 <TableCell className="text-right">
                                      {editingWeight === tier.weight ? (
                                         <div className="flex gap-2 justify-end">
-                                            <Button size="sm" onClick={() => handleSave(tier.weight)}>
+                                            <Button size="icon" className="h-8 w-8" onClick={() => handleSave(tier.weight)}>
                                                 <Check className="h-4 w-4" />
                                             </Button>
                                              <Button size="sm" variant="ghost" onClick={handleCancel}>
@@ -166,7 +165,7 @@ export default function RatesPage() {
                                             <Button size="sm" variant="outline" onClick={() => handleEdit(tier)}>
                                                 <Edit className="mr-2 h-4 w-4" /> Edit
                                             </Button>
-                                            <Button size="sm" variant="destructive" onClick={() => handleDelete(tier.weight)}>
+                                            <Button size="icon" className="h-8 w-8" variant="destructive" onClick={() => handleDelete(tier.weight)}>
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </div>

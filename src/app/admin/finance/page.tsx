@@ -42,6 +42,7 @@ import Image from 'next/image';
 import { generateInvoiceHtml } from '@/ai/flows/generate-invoice-html';
 import { invoices as allInvoices, shipments, users } from '@/lib/mock-data';
 import type { Invoice, Shipment } from '@/lib/mock-data';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const financeData = {
   summary: {
@@ -337,19 +338,21 @@ export default function FinancePage() {
                     <CardDescription>Monthly financial data.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                    <TableHeader><TableRow><TableHead>Month</TableHead><TableHead className="text-right">Revenue</TableHead><TableHead className="text-right">Expenses</TableHead><TableHead className="text-right">Profit</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                        {financeData.breakdown.map((item) => (
-                        <TableRow key={item.month}>
-                            <TableCell className="font-medium">{item.month}</TableCell>
-                            <TableCell className="text-right text-green-500">${item.revenue.toLocaleString()}</TableCell>
-                            <TableCell className="text-right text-red-500">${item.expenses.toLocaleString()}</TableCell>
-                            <TableCell className="text-right font-bold">${item.profit.toLocaleString()}</TableCell>
-                        </TableRow>
-                        ))}
-                    </TableBody>
-                    </Table>
+                    <div className="relative w-full overflow-auto">
+                        <Table>
+                        <TableHeader><TableRow><TableHead>Month</TableHead><TableHead className="text-right">Revenue</TableHead><TableHead className="text-right">Expenses</TableHead><TableHead className="text-right">Profit</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {financeData.breakdown.map((item) => (
+                            <TableRow key={item.month}>
+                                <TableCell className="font-medium">{item.month}</TableCell>
+                                <TableCell className="text-right text-green-500">${item.revenue.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-red-500">${item.expenses.toLocaleString()}</TableCell>
+                                <TableCell className="text-right font-bold">${item.profit.toLocaleString()}</TableCell>
+                            </TableRow>
+                            ))}
+                        </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
         </div>
@@ -402,45 +405,49 @@ export default function FinancePage() {
                 <DialogTitle>Create New Invoice</DialogTitle>
                 <DialogDescription>Fill in the details below to generate a new invoice for a customer.</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-6 py-4 max-h-[70vh] overflow-y-auto px-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="customerName">Customer Name</Label>
-                             <Select value={customerId} onValueChange={setCustomerId}>
-                                <SelectTrigger id="customerName">
-                                    <SelectValue placeholder="Select a customer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {users.map(user => (
-                                        <SelectItem key={user.id} value={user.id}>{user.fullName}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                <ScrollArea className="max-h-[70vh] p-1">
+                    <div className="grid gap-6 py-4 px-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="customerName">Customer Name</Label>
+                                <Select value={customerId} onValueChange={setCustomerId}>
+                                    <SelectTrigger id="customerName">
+                                        <SelectValue placeholder="Select a customer" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {users.map(user => (
+                                            <SelectItem key={user.id} value={user.id}>{user.fullName}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2"><Label htmlFor="invoiceDate">Invoice Date</Label><Input id="invoiceDate" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} /></div>
                         </div>
-                        <div className="space-y-2"><Label htmlFor="invoiceDate">Invoice Date</Label><Input id="invoiceDate" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} /></div>
+                        <div className="space-y-4">
+                            <Label>Line Items</Label>
+                            <div className="relative w-full overflow-auto">
+                                <Table>
+                                    <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="w-24">Qty</TableHead><TableHead className="w-32 text-right">Price</TableHead><TableHead className="w-32 text-right">Total</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {lineItems.map((item, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell><Input placeholder="Item or service description" value={item.description} onChange={(e) => handleLineItemChange(index, 'description', e.target.value)} /></TableCell>
+                                                <TableCell><Input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)} min="1" /></TableCell>
+                                                <TableCell><Input type="number" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', e.target.value)} className="text-right" placeholder="0.00" /></TableCell>
+                                                <TableCell className="text-right font-medium">${(item.quantity * item.price).toFixed(2)}</TableCell>
+                                                <TableCell><Button variant="ghost" size="icon" onClick={() => removeLineItem(index)} disabled={lineItems.length <= 1}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={addLineItem} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Add Line Item</Button>
+                        </div>
+                        <div className="flex justify-end pt-4 border-t">
+                            <div className="text-right"><p className="text-muted-foreground">Total Amount</p><p className="text-2xl font-bold">${calculateTotal().toFixed(2)}</p></div>
+                        </div>
                     </div>
-                    <div className="space-y-4">
-                        <Label>Line Items</Label>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="w-24">Quantity</TableHead><TableHead className="w-32 text-right">Price</TableHead><TableHead className="w-32 text-right">Total</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {lineItems.map((item, index) => (
-                                    <TableRow key={index}>
-                                        <TableCell><Input placeholder="Item or service description" value={item.description} onChange={(e) => handleLineItemChange(index, 'description', e.target.value)} /></TableCell>
-                                        <TableCell><Input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)} min="1" /></TableCell>
-                                        <TableCell><Input type="number" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', e.target.value)} className="text-right" placeholder="0.00" /></TableCell>
-                                        <TableCell className="text-right font-medium">${(item.quantity * item.price).toFixed(2)}</TableCell>
-                                        <TableCell><Button variant="ghost" size="icon" onClick={() => removeLineItem(index)} disabled={lineItems.length <= 1}><Trash2 className="h-4 w-4" /></Button></TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                         <Button variant="outline" size="sm" onClick={addLineItem} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Add Line Item</Button>
-                    </div>
-                    <div className="flex justify-end pt-4 border-t">
-                        <div className="text-right"><p className="text-muted-foreground">Total Amount</p><p className="text-2xl font-bold">${calculateTotal().toFixed(2)}</p></div>
-                    </div>
-                </div>
+                </ScrollArea>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
                     <Button type="submit" onClick={handleGenerateInvoice} disabled={isGenerating}>
@@ -452,44 +459,46 @@ export default function FinancePage() {
           </Dialog>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Customer</TableHead><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {invoices.map((invoice) => (
-                <TableRow key={invoice.invoiceId}>
-                  <TableCell className="font-mono">{invoice.invoiceId}</TableCell>
-                  <TableCell className="font-medium">{invoice.customerName}</TableCell>
-                  <TableCell>{invoice.date}</TableCell>
-                  <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                  <TableCell><Badge variant={invoice.status === 'Paid' ? 'outline' : 'destructive'}>{invoice.status}</Badge></TableCell>
-                   <TableCell className="text-right">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">More actions</span>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleViewInvoice(invoice)}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                View Invoice
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Paid')} disabled={invoice.status === 'Paid'}>
-                                <CheckCircle2 className="mr-2 h-4 w-4" />
-                                Mark as Paid
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Unpaid')} disabled={invoice.status === 'Unpaid'}>
-                                <Receipt className="mr-2 h-4 w-4" />
-                                Mark as Unpaid
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="relative w-full overflow-auto">
+            <Table>
+                <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Customer</TableHead><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                <TableBody>
+                {invoices.map((invoice) => (
+                    <TableRow key={invoice.invoiceId}>
+                    <TableCell className="font-mono">{invoice.invoiceId}</TableCell>
+                    <TableCell className="font-medium">{invoice.customerName}</TableCell>
+                    <TableCell>{invoice.date}</TableCell>
+                    <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                    <TableCell><Badge variant={invoice.status === 'Paid' ? 'outline' : 'destructive'}>{invoice.status}</Badge></TableCell>
+                    <TableCell className="text-right">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">More actions</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewInvoice(invoice)}>
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    View Invoice
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Paid')} disabled={invoice.status === 'Paid'}>
+                                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                                    Mark as Paid
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Unpaid')} disabled={invoice.status === 'Unpaid'}>
+                                    <Receipt className="mr-2 h-4 w-4" />
+                                    Mark as Unpaid
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </TableCell>
+                    </TableRow>
+                ))}
+                </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
       <InvoiceViewDialog invoice={selectedInvoice} open={isViewOpen} onOpenChange={setIsViewOpen} />
