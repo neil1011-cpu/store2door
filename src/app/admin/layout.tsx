@@ -28,12 +28,10 @@ import {
   DollarSign,
   Calculator,
   Megaphone,
-  Loader2,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Notifications } from '@/components/notifications';
-import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -42,46 +40,12 @@ const AppLogo = () => (
   </div>
 );
 
-function AdminLoadingSkeleton() {
-    return (
-        <div className="flex h-screen w-screen items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="text-muted-foreground">Verifying admin access...</p>
-            </div>
-        </div>
-    )
-}
 
 export default function AdminLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    try {
-      const adminLoggedIn = localStorage.getItem('isAdminLoggedIn');
-      if (adminLoggedIn === 'true') {
-        setIsAdmin(true);
-      } else {
-        router.replace('/admin-login');
-      }
-    } catch (e) {
-      console.error("Could not access localStorage");
-      router.replace('/admin-login');
-    }
-    setIsLoading(false);
-  }, [router, pathname]);
-
-
-  if (isLoading || !isAdmin) {
-    return <AdminLoadingSkeleton />;
-  }
 
   return (
         <SidebarProvider>
