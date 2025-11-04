@@ -27,13 +27,13 @@ import { Button } from '@/components/ui/button';
 const features = [
   {
     title: 'Pre-Alerts',
-    description: 'Generate delivery address from a receipt image.',
+    description: 'View and process incoming package alerts.',
     icon: <ScanText className="h-8 w-8 text-primary" />,
     href: '/admin/pre-alerts',
   },
   {
     title: 'Shipping Status',
-    description: 'Track your shipments in real-time.',
+    description: 'Track and update all shipments in the system.',
     icon: <Truck className="h-8 w-8 text-primary" />,
     href: '/admin/shipping',
   },
@@ -101,31 +101,23 @@ export default function DashboardPage() {
       </div>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {features.map((feature) => (
-          <Card
-            key={feature.title}
-            className="group transition-all hover:shadow-lg hover:-translate-y-1"
-          >
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">
-                {feature.title}
-              </CardTitle>
-              {feature.icon}
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">
-                {feature.description}
-              </p>
-              <Button
-                variant="link"
-                className="mt-4 p-0"
-                asChild
-              >
-                <Link href={feature.href}>
-                  Go to {feature.title} <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <Link href={feature.href} key={feature.title} className="block">
+            <Card
+              className="group h-full transition-all hover:shadow-lg hover:-translate-y-1"
+            >
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {feature.title}
+                </CardTitle>
+                {feature.icon}
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  {feature.description}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
     </div>

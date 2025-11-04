@@ -28,9 +28,14 @@ import {
   DollarSign,
   Calculator,
   Megaphone,
+  LogOut,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Notifications } from '@/components/notifications';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 const AppLogo = () => (
@@ -46,6 +51,52 @@ export default function AdminLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+    try {
+      const isAdminLoggedIn = localStorage.getItem('isAdminLoggedIn');
+      if (!isAdminLoggedIn) {
+        router.push('/admin-login');
+      }
+    } catch (error) {
+      console.error('Could not access local storage', error);
+      router.push('/admin-login');
+    }
+  }, [router, pathname]);
+  
+  const handleSignOut = () => {
+    try {
+        localStorage.removeItem('isAdminLoggedIn');
+        toast({
+            title: 'Signed Out',
+            description: 'You have been successfully signed out.',
+        });
+        router.push('/admin-login');
+    } catch (error) {
+        toast({
+            title: 'Sign Out Failed',
+            description: 'Something went wrong.',
+            variant: 'destructive'
+        })
+    }
+  }
+
+  if (!isClient) {
+    return (
+         <div className="flex h-screen">
+            <Skeleton className="w-64" />
+            <div className="flex-1 p-6">
+                <Skeleton className="h-12 w-1/2 mb-6" />
+                <Skeleton className="h-96" />
+            </div>
+        </div>
+    );
+  }
 
   return (
         <SidebarProvider>
@@ -148,13 +199,17 @@ export default function AdminLayout({
                     </SidebarMenuItem>
                 </SidebarMenu>
                 </SidebarContent>
-                <SidebarFooter>
+                <SidebarFooter className="space-y-1">
                     <SidebarMenuButton>
                         <Avatar className="size-7">
                         <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
                         <AvatarFallback>A</AvatarFallback>
                         </Avatar>
                         <span>Admin User</span>
+                    </SidebarMenuButton>
+                     <SidebarMenuButton variant="ghost" size="sm" onClick={handleSignOut}>
+                        <LogOut />
+                        Sign Out
                     </SidebarMenuButton>
                 </SidebarFooter>
             </Sidebar>
@@ -172,7 +227,7 @@ export default function AdminLayout({
                     <AvatarFallback>A</AvatarFallback>
                 </Avatar>
                 </header>
-                <main className="flex-1 overflow-auto p-4 md:p-6">
+                <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
                 {children}
                 </main>
             </SidebarInset>
