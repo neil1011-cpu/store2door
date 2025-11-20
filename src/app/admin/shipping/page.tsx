@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -28,13 +28,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
-import { shipments as allShipments, type Shipment } from '@/lib/mock-data';
+import type { Shipment } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
@@ -58,13 +57,20 @@ const getStatusVariant = (status: string) => {
 
 export default function ShippingPage() {
   const { toast } = useToast();
-  const [shipments, setShipments] = useState<Shipment[]>(allShipments);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [editableShipment, setEditableShipment] = useState<Shipment | null>(null);
   const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+      // In a real app, fetch this data from your database.
+      setShipments([]);
+      setLoading(false);
+  }, []);
 
   const handleOpenEmailDialog = (shipment: Shipment) => {
     setSelectedShipment(shipment);
@@ -79,6 +85,7 @@ export default function ShippingPage() {
 
   const handleSendEmail = () => {
     if (!selectedShipment) return;
+    // In a real app, this would be an API call to your email service
     toast({
       title: 'Email Sent',
       description: `An email update for shipment ${selectedShipment.trackingNumber} has been sent.`,
@@ -96,14 +103,10 @@ export default function ShippingPage() {
     if (!editableShipment) return;
     setIsSaving(true);
     
-    // Simulate API call
+    // In a real app, this would be an API call to update the database
     setTimeout(() => {
         const updatedShipments = shipments.map(s => s.id === editableShipment.id ? editableShipment : s);
         setShipments(updatedShipments);
-
-        // also update mock data source
-        const index = allShipments.findIndex(s => s.id === editableShipment.id);
-        if(index > -1) allShipments[index] = editableShipment;
         
         toast({
             title: "Shipment Updated",
@@ -156,7 +159,8 @@ export default function ShippingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shipments.map((shipment) => (
+              {loading && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
+              {!loading && shipments.map((shipment) => (
                 <TableRow key={shipment.id}>
                   <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
                   <TableCell>
@@ -179,6 +183,7 @@ export default function ShippingPage() {
                   </TableCell>
                 </TableRow>
               ))}
+               {!loading && shipments.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No shipments found.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
@@ -255,7 +260,7 @@ export default function ShippingPage() {
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="edit-payment-status">Payment Status</Label>
-                        <Select value={editableShipment.paymentStatus} onValueChange={(value) => handleEditFormChange('paymentStatus', value)}>
+                        <Select value={editableShipment.paymentStatus} onValueChange={(value: 'Paid' | 'Unpaid') => handleEditFormChange('paymentStatus', value)}>
                             <SelectTrigger id="edit-payment-status">
                                 <SelectValue placeholder="Select status" />
                             </SelectTrigger>
@@ -268,7 +273,7 @@ export default function ShippingPage() {
                  </div>
                  <div className="space-y-2">
                     <Label htmlFor="edit-cost">Cost (USD)</Label>
-                    <Input id="edit-cost" type="number" value={editableShipment.cost} onChange={(e) => handleEditFormChange('cost', e.target.value)} />
+                    <Input id="edit-cost" type="number" value={editableShipment.cost} onChange={(e) => handleEditFormChange('cost', Number(e.target.value))} />
                 </div>
             </div>
           )}
@@ -285,5 +290,3 @@ export default function ShippingPage() {
     </div>
   );
 }
-
-    

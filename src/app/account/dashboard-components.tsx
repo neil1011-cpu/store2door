@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { shipments as allShipments, users as allUsers, conversations as allConversations, messages as allMessages, type UserProfile, type Shipment, type Conversation, type Message, type PickupPerson, type DropoffAddress } from '@/lib/mock-data';
+import type { UserProfile, Shipment, Conversation, Message, PickupPerson, DropoffAddress } from '@/lib/types';
 
 
 const getStatusVariant = (status: Shipment['status']) => {
@@ -39,9 +39,8 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const userShipments = allShipments.filter(s => s.customerId === details.id);
-    const sorted = userShipments.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setRecentShipment(sorted.length > 0 ? sorted[0] : null);
+    // In a real app, you would fetch this from your database
+    // For now, we'll simulate a fetch.
     setIsLoading(false);
   }, [details.id]);
 
@@ -167,8 +166,8 @@ export function PackagesTab({ customerId }: { customerId: string }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const shipmentsForUser = allShipments.filter(s => s.customerId === customerId);
-    setUserShipments(shipmentsForUser);
+    // In a real app, you would fetch this from your database for the given customerId
+    setUserShipments([]);
     setIsLoading(false);
   }, [customerId]);
 
@@ -311,11 +310,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const conv = allConversations.find(c => c.customerId === details.id);
-    setConversation(conv || null);
-    if(conv) {
-        setMessages(allMessages.filter(m => m.conversationId === conv.id));
-    }
+    // In a real app, you would fetch this from your database
     setIsLoading(false);
   }, [details.id]);
 
@@ -329,6 +324,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
     setSending(true);
     await new Promise(resolve => setTimeout(resolve, 1000));
     
+    // In a real app, you would write this to your database
     const newMsg: Message = {
         id: `msg-${Date.now()}`,
         conversationId: conversation?.id || 'conv-new',
@@ -449,6 +445,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
         const updatedPersonnel = [...(userProfile.pickupPersonnel || []), personToAdd];
         const updatedProfile = {...userProfile, pickupPersonnel: updatedPersonnel };
         
+        // In a real app, this would be an API call to update the user profile in the database
         updateLocalStorage(updatedProfile);
         
         setNewPerson({ name: '', idNumber: '' });
@@ -460,6 +457,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
         const updatedPersonnel = userProfile.pickupPersonnel?.filter(p => p.id !== personToRemove.id);
         const updatedProfile = {...userProfile, pickupPersonnel: updatedPersonnel };
         
+        // In a real app, this would be an API call
         updateLocalStorage(updatedProfile);
         toast({ title: "Pickup Person Removed" });
     };
@@ -474,6 +472,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
         const updatedAddresses = [...(userProfile.dropoffAddresses || []), addressToAdd];
         const updatedProfile = {...userProfile, dropoffAddresses: updatedAddresses };
         
+        // In a real app, this would be an API call
         updateLocalStorage(updatedProfile);
 
         setNewAddress({ name: '', address: '', parish: '' });
@@ -485,6 +484,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
         const updatedAddresses = userProfile.dropoffAddresses?.filter(a => a.id !== addressToRemove.id);
         const updatedProfile = {...userProfile, dropoffAddresses: updatedAddresses };
         
+        // In a real app, this would be an API call
         updateLocalStorage(updatedProfile);
         toast({ title: "Address Removed" });
     };

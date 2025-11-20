@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LayoutDashboard, FileUp, Package, MessageSquare, User, LogOut } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
-import { UserProfile } from '@/lib/mock-data';
+import type { UserProfile } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AccountPage() {

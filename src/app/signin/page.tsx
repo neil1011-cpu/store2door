@@ -20,7 +20,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { users } from '@/lib/mock-data';
+import { users as mockUsers } from '@/lib/mock-data';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -42,10 +42,11 @@ export default function SignInPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    // Simulate API call
+    // In a real app, this would be an API call to a proper authentication service (e.g., Firebase Auth)
+    // We are simulating by checking against mock data.
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    const user = users.find(u => u.email === values.email);
+    const user = mockUsers.find(u => u.email === values.email);
 
     if (user) {
       try {

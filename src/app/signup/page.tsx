@@ -21,7 +21,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { UserProfile, users } from '@/lib/mock-data';
+import type { UserProfile } from '@/lib/types';
+import { users as mockUsers } from '@/lib/mock-data';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -50,10 +51,11 @@ export default function SignUpPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    // Simulate API call
+    // In a real app, you would make an API call to a secure backend endpoint.
+    // The backend would handle user creation, password hashing, and database insertion.
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    if (users.find(u => u.email === values.email)) {
+    if (mockUsers.find(u => u.email === values.email)) {
         toast({
             title: 'Sign Up Failed',
             description: 'An account with this email already exists.',
@@ -62,8 +64,9 @@ export default function SignUpPage() {
         setLoading(false);
         return;
     }
-
-    const nextMailboxNumber = `FSTD${100 + users.length + 1}`;
+    
+    // This logic should exist on a secure backend to prevent race conditions and ensure uniqueness.
+    const nextMailboxNumber = `FSTD${100 + mockUsers.length + 1}`;
 
     const newUser: UserProfile = {
       id: `user-${Date.now()}`,
@@ -82,7 +85,8 @@ export default function SignUpPage() {
       createdAt: new Date().toISOString(),
     };
     
-    users.push(newUser);
+    // Simulate adding the user to our mock data array. In reality, this would be a DB write.
+    mockUsers.push(newUser);
 
     try {
         localStorage.setItem('accountDetails', JSON.stringify(newUser));

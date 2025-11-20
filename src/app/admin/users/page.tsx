@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -32,16 +32,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { users as allUsers, type UserProfile } from '@/lib/mock-data';
+import type { UserProfile } from '@/lib/types';
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<UserProfile[]>(allUsers);
-  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
   
   const [open, setOpen] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
   const { toast } = useToast();
   
+  useEffect(() => {
+    // In a real app, you would fetch users from your database
+    setUsers([]);
+    setLoading(false);
+  }, []);
 
   const handleAddUser = async () => {
     if(!newUser.name || !newUser.email) {
@@ -52,9 +57,12 @@ export default function UsersPage() {
         });
         return;
     }
-    const lastMailboxNum = users && users.length > 0 ? parseInt(users[users.length - 1].mailboxNumber.replace('FSTD', '')) : 100;
+    // This logic should be handled by a backend service/API to avoid race conditions
+    // and ensure uniqueness. For now, it's a client-side simulation.
+    const lastMailboxNum = users.length > 0 ? parseInt(users[users.length - 1].mailboxNumber.replace('FSTD', '')) : 100;
     const nextMailboxNumber = `FSTD${lastMailboxNum + 1}`;
     
+    // In a real app, this would be an API call to your backend
     const userToAdd: UserProfile = {
         id: `user-${Date.now()}`,
         fullName: newUser.name,

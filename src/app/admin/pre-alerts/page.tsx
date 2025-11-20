@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -30,13 +30,13 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
-import { PlusCircle, ArrowLeft, FileText, Loader2, Truck } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Truck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
-import { preAlerts as allPreAlerts, users as allUsers, shipments as allShipments, type Shipment, type PreAlert, type UserProfile } from '@/lib/mock-data';
+import type { Shipment, PreAlert, UserProfile } from '@/lib/types';
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -50,7 +50,7 @@ const getStatusVariant = (status: string) => {
 };
 
 
-function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAlert, onShipmentCreated: (newShipment: Shipment, preAlertId: string) => void }) {
+function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAlert, onShipmentCreated: (newShipment: Omit<Shipment, 'id'>, preAlertId: string) => void }) {
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [cost, setCost] = useState('');
@@ -63,15 +63,14 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
         }
 
         setIsSubmitting(true);
-        //Simulate API call
+        //Simulate API call to create a shipment in the database
         setTimeout(() => {
-            const newShipment: Shipment = {
-                id: `ship-${Date.now()}`,
+            const newShipment: Omit<Shipment, 'id'> = {
                 customerId: preAlert.customerId,
                 trackingNumber: preAlert.trackingNumber,
                 contents: preAlert.contents,
                 status: 'Processed', // Initial status when created from a pre-alert
-                date: new Date().toISOString(),
+                date: new Date(),
                 cost: parseFloat(cost),
                 paymentStatus: 'Unpaid',
                 invoiceUrl: preAlert.invoiceUrl,
@@ -138,9 +137,9 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
 
 
 export default function PreAlertsPage() {
-  const [preAlerts, setPreAlerts] = useState<PreAlert[]>(allPreAlerts);
-  const [loading, setLoading] = useState(false);
-  const users = allUsers;
+  const [preAlerts, setPreAlerts] = useState<PreAlert[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
@@ -151,6 +150,13 @@ export default function PreAlertsPage() {
     status: 'Pending' as 'Pending' | 'Processed',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+      // In a real app, fetch pre-alerts and users from your database
+      setPreAlerts([]);
+      setUsers([]);
+      setLoading(false);
+  }, []);
 
 
   const handleCreateAlert = async () => {
@@ -165,6 +171,7 @@ export default function PreAlertsPage() {
     }
     
     setIsSubmitting(true);
+    // In a real app, you would make an API call to create the pre-alert in the database.
     await new Promise(res => setTimeout(res, 500));
 
     const alertToAdd: PreAlert = {
@@ -189,10 +196,10 @@ export default function PreAlertsPage() {
     setIsSubmitting(false);
   };
   
-  const handleShipmentCreated = (newShipment: Shipment, preAlertId: string) => {
-    // Add to global shipments mock data
-    allShipments.unshift(newShipment);
-    // Update pre-alert status
+  const handleShipmentCreated = (newShipment: Omit<Shipment, 'id'>, preAlertId: string) => {
+    // In a real app, an API call would handle this atomically.
+    // 1. Create new shipment in 'shipments' collection.
+    // 2. Update the pre-alert status in 'preAlerts' collection.
     const updatedAlerts = preAlerts.map(pa => 
         pa.id === preAlertId ? { ...pa, status: 'Processed' as 'Processed' } : pa
     );
