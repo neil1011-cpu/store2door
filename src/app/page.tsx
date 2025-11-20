@@ -1,7 +1,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Package, Ship, ShieldCheck, Zap, ArrowRight, Star, Truck } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -25,27 +25,59 @@ const features = [
   },
 ];
 
+const testimonials = [
+    {
+        name: "David Chen",
+        role: "Small Business Owner",
+        avatar: "https://randomuser.me/api/portraits/men/32.jpg",
+        review: "FromStore2Door has been a game-changer for my business. Their reliable service and transparent pricing have saved me time and money. I can't recommend them enough!"
+    },
+    {
+        name: "Maria Garcia",
+        role: "Frequent Shopper",
+        avatar: "https://randomuser.me/api/portraits/women/44.jpg",
+        review: "I love shopping from US stores, and this service makes it so easy. My packages always arrive on time, and their customer support is fantastic. A truly seamless experience."
+    },
+     {
+        name: "James Smith",
+        role: "Family Man",
+        avatar: "https://randomuser.me/api/portraits/men/67.jpg",
+        review: "Sending gifts and necessities to my family in Jamaica used to be a headache. Now, it's simple and affordable. Thank you for connecting us!"
+    }
+]
+
 export default function HomePage() {
   const homeHeroImage = placeholderImages.homeHero;
-  const howItWorksImage = placeholderImages.howItWorks;
 
   return (
-    <div className="flex flex-col">
-       <section className="relative w-full pt-20 pb-10 md:pt-32 md:pb-20 lg:pt-40 lg:pb-28 bg-blue-50 dark:bg-gray-900">
-        <div className="container mx-auto px-4 md:px-6">
+    <div className="flex flex-col bg-background">
+      <section className="relative w-full py-20 md:py-32 lg:py-40">
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent z-10" />
+        <div className="absolute inset-0">
+          <Image 
+            src={homeHeroImage.src}
+            alt={homeHeroImage.alt}
+            fill
+            className="object-cover"
+            priority
+            data-ai-hint={homeHeroImage.hint}
+          />
+          <div className="absolute inset-0 bg-black/50" />
+        </div>
+        <div className="container mx-auto px-4 md:px-6 relative z-20">
           <div className="grid grid-cols-1 gap-12 items-center">
-            <div className="space-y-6 text-center">
-              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl text-gray-900 dark:text-white">
+            <div className="space-y-6 text-center text-white">
+              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-7xl">
                 Your Personal Bridge from Florida to Jamaica
               </h1>
-              <p className="mt-4 text-lg text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+              <p className="mt-4 text-lg text-gray-200 max-w-3xl mx-auto">
                 FromStore2Door provides a seamless, reliable, and affordable shipping experience, connecting you to what matters most.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button size="lg" asChild>
                   <Link href="/signup">Get Your FREE US Address</Link>
                 </Button>
-                <Button size="lg" variant="outline" className="border-primary text-primary hover:bg-primary/10">
+                <Button size="lg" variant="secondary" asChild>
                   <Link href="/tracking">Track a Package</Link>
                 </Button>
               </div>
@@ -54,42 +86,35 @@ export default function HomePage() {
         </div>
       </section>
 
-
-      <section className="py-20 md:py-28 bg-white dark:bg-background">
+      <section className="py-20 md:py-28 bg-muted/30 dark:bg-background">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="space-y-8 max-w-4xl mx-auto">
-                 <div className="text-center">
-                    <h2 className="text-3xl font-bold tracking-tight text-foreground">How It Works</h2>
-                    <p className="mt-3 text-muted-foreground text-lg">Shipping with FromStore2Door is as easy as 1-2-3.</p>
+          <div className="space-y-12 max-w-5xl mx-auto">
+            <div className="text-center">
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">How It Works</h2>
+              <p className="mt-3 text-muted-foreground text-lg">Shipping with FromStore2Door is as easy as 1-2-3.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                <div className="flex flex-col items-center p-6">
+                    <div className="flex items-center justify-center rounded-full bg-primary/10 text-primary h-20 w-20 shrink-0 font-bold text-3xl mb-6">1</div>
+                    <h3 className="font-semibold text-lg">Sign Up For Free</h3>
+                    <p className="text-muted-foreground mt-2">Create an account to instantly receive your personal, tax-free US mailing address.</p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="flex flex-col items-center text-center gap-4 p-4">
-                        <div className="flex items-center justify-center rounded-full bg-primary text-primary-foreground h-16 w-16 shrink-0 font-bold text-3xl">1</div>
-                        <div>
-                            <h3 className="font-semibold text-lg">Sign Up For Your Free US Address</h3>
-                            <p className="text-muted-foreground mt-2">Create an account to instantly receive your personal, tax-free US mailing address.</p>
-                        </div>
-                    </div>
-                     <div className="flex flex-col items-center text-center gap-4 p-4">
-                        <div className="flex items-center justify-center rounded-full bg-primary text-primary-foreground h-16 w-16 shrink-0 font-bold text-3xl">2</div>
-                        <div>
-                            <h3 className="font-semibold text-lg">Shop Online & Ship to Us</h3>
-                            <p className="text-muted-foreground mt-2">Shop at your favorite US online stores and use your new FromStore2Door address as the shipping destination.</p>
-                        </div>
-                    </div>
-                     <div className="flex flex-col items-center text-center gap-4 p-4">
-                        <div className="flex items-center justify-center rounded-full bg-primary text-primary-foreground h-16 w-16 shrink-0 font-bold text-3xl">3</div>
-                        <div>
-                            <h3 className="font-semibold text-lg">We Deliver to Your Door</h3>
-                            <p className="text-muted-foreground mt-2">We consolidate your packages, handle customs, and deliver them straight to your doorstep in Jamaica.</p>
-                        </div>
-                    </div>
+                <div className="flex flex-col items-center p-6">
+                     <div className="flex items-center justify-center rounded-full bg-primary/10 text-primary h-20 w-20 shrink-0 font-bold text-3xl mb-6">2</div>
+                    <h3 className="font-semibold text-lg">Shop & Ship to Us</h3>
+                    <p className="text-muted-foreground mt-2">Shop at your favorite US online stores and use your new address as the shipping destination.</p>
+                </div>
+                <div className="flex flex-col items-center p-6">
+                    <div className="flex items-center justify-center rounded-full bg-primary/10 text-primary h-20 w-20 shrink-0 font-bold text-3xl mb-6">3</div>
+                    <h3 className="font-semibold text-lg">We Deliver to You</h3>
+                    <p className="text-muted-foreground mt-2">We consolidate your packages, handle customs, and deliver them to your doorstep in Jamaica.</p>
                 </div>
             </div>
+          </div>
         </div>
       </section>
 
-      <section id="features" className="py-20 md:py-28 bg-blue-50 dark:bg-gray-900">
+      <section id="features" className="py-20 md:py-28 bg-background">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center max-w-3xl mx-auto mb-16">
              <h2 className="text-3xl font-bold tracking-tight text-foreground">Why Choose FromStore2Door?</h2>
@@ -99,7 +124,7 @@ export default function HomePage() {
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {features.map((feature) => (
-              <Card key={feature.title} className="text-center transform transition-transform duration-300 hover:scale-105 hover:shadow-xl">
+              <Card key={feature.title} className="text-center transform transition-transform duration-300 hover:scale-105 hover:shadow-xl dark:bg-muted/30">
                 <CardHeader className="items-center">
                   <div className="bg-primary/10 p-4 rounded-full">
                     {feature.icon}
@@ -115,7 +140,42 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="py-8 bg-gray-800 text-gray-300">
+       <section className="py-20 md:py-28 bg-muted/30 dark:bg-background">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">What Our Customers Say</h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+                Don't just take our word for it. Here's what people are saying about our service.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {testimonials.map((testimonial) => (
+                <Card key={testimonial.name} className="flex flex-col justify-between">
+                    <CardContent className="pt-6">
+                        <div className="flex">
+                            {[...Array(5)].map((_, i) => (
+                                <Star key={i} className="w-5 h-5 fill-accent text-accent" />
+                            ))}
+                        </div>
+                        <p className="mt-4 text-muted-foreground">"{testimonial.review}"</p>
+                    </CardContent>
+                    <CardHeader className="flex-row items-center gap-4 pt-4">
+                        <Avatar>
+                            <AvatarImage src={testimonial.avatar} alt={testimonial.name} />
+                            <AvatarFallback>{testimonial.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                             <CardTitle className="text-base">{testimonial.name}</CardTitle>
+                            <p className="text-sm text-muted-foreground">{testimonial.role}</p>
+                        </div>
+                    </CardHeader>
+                </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <footer className="py-8 bg-gray-900 text-gray-400">
          <div className="container mx-auto px-4 md:px-6 flex flex-col md:flex-row justify-between items-center text-center md:text-left">
             <p className="text-sm">&copy; {new Date().getFullYear()} FromStore2Door. All rights reserved.</p>
              <div className="flex gap-4 mt-4 md:mt-0">
