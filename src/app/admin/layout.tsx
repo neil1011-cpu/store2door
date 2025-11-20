@@ -58,15 +58,15 @@ export default function AdminLayout({
 
   useEffect(() => {
     setIsClient(true);
-    try {
-      const isAdminLoggedIn = localStorage.getItem('isAdminLoggedIn');
-      if (!isAdminLoggedIn) {
-        router.push('/admin-login');
-      }
-    } catch (error) {
-      console.error('Could not access local storage', error);
-      router.push('/admin-login');
-    }
+    // try {
+    //   const isAdminLoggedIn = localStorage.getItem('isAdminLoggedIn');
+    //   if (!isAdminLoggedIn) {
+    //     router.push('/admin-login');
+    //   }
+    // } catch (error) {
+    //   console.error('Could not access local storage', error);
+    //   router.push('/admin-login');
+    // }
   }, [router, pathname]);
   
   const handleSignOut = () => {
