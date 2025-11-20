@@ -14,12 +14,12 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Loader2, Route } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -41,7 +41,6 @@ export default function AdminLoginPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    // For this prototype, we'll use a simple hardcoded check for the admin user.
     if (values.email === 'admin@example.com' && values.password === 'password') {
       try {
         localStorage.setItem('isAdminLoggedIn', 'true');
@@ -69,24 +68,38 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="container mx-auto flex items-center justify-center min-h-screen py-12 px-4 md:px-6">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-6">
-            <div className="flex justify-center items-center gap-2 mb-4">
-                <Route className="size-8 text-primary" />
-                <h1 className="text-2xl font-bold">FromStore2Door</h1>
-            </div>
+    <div className="w-full h-screen lg:grid lg:grid-cols-2">
+       <div className="relative hidden h-full flex-col bg-muted p-10 text-white dark:border-r lg:flex">
+         <Image 
+            src="https://picsum.photos/seed/admin-login/1200/1800"
+            alt="Admin panel background"
+            fill
+            className="object-cover brightness-50"
+            data-ai-hint="warehouse interior"
+        />
+        <div className="relative z-20 flex items-center text-lg font-medium">
+          <Route className="mr-2 h-6 w-6" />
+          FromStore2Door Admin
         </div>
-        <Card>
-            <CardHeader>
-            <CardTitle className="text-2xl">Admin Sign In</CardTitle>
-            <CardDescription>
-                Access the courier management dashboard. (Hint: password is "password")
-            </CardDescription>
-            </CardHeader>
-            <CardContent>
+        <div className="relative z-20 mt-auto">
+          <blockquote className="space-y-2">
+            <p className="text-lg">
+              &ldquo;This control panel is the command center for our entire shipping operation. Every package, every customer, every update—all managed from one powerful dashboard.&rdquo;
+            </p>
+            <footer className="text-sm">Sofia Davis, Operations Manager</footer>
+          </blockquote>
+        </div>
+      </div>
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto grid w-[350px] gap-6">
+          <div className="grid gap-2 text-center">
+            <h1 className="text-3xl font-bold">Admin Login</h1>
+            <p className="text-balance text-muted-foreground">
+              Enter your credentials to access the dashboard
+            </p>
+          </div>
             <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
                 <FormField
                     control={form.control}
                     name="email"
@@ -105,7 +118,15 @@ export default function AdminLoginPage() {
                     name="password"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Password</FormLabel>
+                        <div className="flex items-center">
+                            <FormLabel>Password</FormLabel>
+                             <Link
+                                href="#"
+                                className="ml-auto inline-block text-sm underline"
+                            >
+                                Forgot your password?
+                            </Link>
+                        </div>
                         <FormControl>
                         <Input type="password" placeholder="••••••••" {...field} />
                         </FormControl>
@@ -118,11 +139,12 @@ export default function AdminLoginPage() {
                 </Button>
                 </form>
             </Form>
-             <p className="mt-6 text-center text-sm text-muted-foreground">
-                Go back to the <Link href="/" className="font-semibold text-primary hover:underline">main site</Link>.
-             </p>
-            </CardContent>
-        </Card>
+            <div className="mt-4 text-center text-sm">
+                <Link href="/" className="underline">
+                    Back to main website
+                </Link>
+            </div>
+        </div>
       </div>
     </div>
   );
