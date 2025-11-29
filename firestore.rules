@@ -1,148 +1,134 @@
 /**
- * @fileoverview Firestore Security Rules for SwiftRoute.
+ * This ruleset enforces a hybrid security model for the SwiftRoute application.
+ * It combines strict user-ownership for personal data with a role-based
+ * access control (RBAC) system for administrative functions.
  *
  * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles and related data,
- * and allows public read access for certain collections while restricting write access to owners.
+ * - User data is private by default and accessible only to the owning user.
+ * - A separate, client-read-only collection (`/roles_admin`) defines administrators.
+ * - Administrators have read and write access to all data for management purposes.
+ * - The default security posture is to deny access unless explicitly granted.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile information.  Strictly controlled by user ownership.
- * - /shipments/{shipmentId}: Stores shipment information.  Write access restricted to the owner (customerId). Read access is public.
- * - /preAlerts/{preAlertId}: Stores pre-alert requests. Write access restricted to the owner (customerId). Read access is public.
- * - /conversations/{conversationId}/messages/{messageId}: Stores messages for support conversations. Write access restricted to the owner (customerId). Read access is public.
- * - /invoices/{invoiceId}: Stores invoice information. Write access restricted to the owner (customerId). Read access is public.
+ * - All user-specific data (profiles, shipments, pre-alerts) is nested within
+ *   the `/users/{userId}` path, ensuring path-based security.
+ * - Global, admin-only data (flight manifests, financial statements) is stored
+ *   in top-level collections.
+ * - Admin roles are managed by the existence of a document in the `/roles_admin/{userId}`
+ *   collection. This is a denormalization strategy for fast and secure role checks.
  *
  * Key Security Decisions:
- * - Users can only read and write their own profile data under /users/{userId}.
- * - Listing of users is disallowed.
- * - Write access to shipments, pre-alerts, conversations, and invoices are restricted to the owner (customerId).
- * - Public read access is allowed for shipments, pre-alerts, conversations, and invoices. This is acceptable for prototyping, but MUST be reviewed before production.
- *
- * Denormalization for Authorization:
- * - Shipments, PreAlerts, Messages, and Invoices include a `customerId` field to simplify owner-based security rules.
+ * - User Listing: Listing the top-level `/users` collection is disallowed to protect user privacy.
+ * - Admin Roles: The `/roles_admin` collection is not writable by any client to prevent
+ *   self-administered privilege escalation. It must be managed by a trusted backend process.
+ * - Prototyping Flexibility: Data shape and type validation are intentionally omitted to allow for
+ *   rapid development. However, authorization and relational integrity fields (e.g., `userId`)
+ *   are strictly enforced on create and made immutable on update.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper functions for reusable logic
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
     /**
-     * @description Allows users to read and write their own profile data.
+     * @description Manages user profile data.
      * @path /users/{userId}
-     * @allow (create) User with matching id can create their profile.
-     * @allow (get, update, delete) User with matching id can access their profile.
-     * @deny (create, get, update, delete) User with non-matching id cannot access this profile.
-     * @principle Enforces document ownership for all operations.
+     * @allow A user (uid: 'user123') creating their own profile at /users/user123. (create)
+     * @allow An admin reading the profile of 'user123'. (get)
+     * @deny A user (uid: 'user456') trying to read or edit the profile of 'user123'. (get, update)
+     * @deny An anonymous user trying to list all user profiles. (list)
+     * @principle Restricts access to a user's own data tree and allows admin oversight.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if false;
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow update: if (isOwner(userId) || isAdmin()) && resource != null && request.resource.data.id == resource.data.id;
+      allow delete: if (isOwner(userId) || isAdmin()) && resource != null;
     }
 
     /**
-     * @description Allows public read access to shipments, but restricts write access to the owner.
-     * @path /shipments/{shipmentId}
-     * @allow (get, list) Any user can read shipment data.
-     * @allow (create) User with matching customerId can create a shipment.
-     * @allow (update, delete) User with matching customerId can update or delete a shipment.
-     * @deny (create, update, delete) User with non-matching customerId cannot write shipment data.
-     * @principle Allows public read access with owner-only writes.
+     * @description Manages user-specific shipment records.
+     * @path /users/{userId}/shipments/{shipmentId}
+     * @allow A user (uid: 'user123') creating a new shipment under their own path. (create)
+     * @allow An admin deleting a shipment for 'user123'. (delete)
+     * @deny A user (uid: 'user456') trying to list shipments for 'user123'. (list)
+     * @deny A user trying to create a shipment with a mismatched userId in the document body. (create)
+     * @principle Enforces path-based ownership, ensuring users can only access their own subcollection data.
      */
-    match /shipments/{shipmentId} {
-      function isOwner(customerId) {
-        return request.auth.uid == customerId;
-      }
-
-      function isExistingOwner(customerId) {
-        return isOwner(customerId) && resource != null;
-      }
-
-      allow get, list: if true;
-      allow create: if isOwner(request.resource.data.customerId);
-      allow update: if isExistingOwner(resource.data.customerId);
-      allow delete: if isExistingOwner(resource.data.customerId);
+    match /users/{userId}/shipments/{shipmentId} {
+      allow get, list: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if (isOwner(userId) || isAdmin()) && resource != null && request.resource.data.userId == resource.data.userId;
+      allow delete: if (isOwner(userId) || isAdmin()) && resource != null;
     }
 
     /**
-     * @description Allows public read access to pre-alerts, but restricts write access to the owner.
-     * @path /preAlerts/{preAlertId}
-     * @allow (get, list) Any user can read pre-alert data.
-     * @allow (create) User with matching customerId can create a pre-alert.
-     * @allow (update, delete) User with matching customerId can update or delete a pre-alert.
-     * @deny (create, update, delete) User with non-matching customerId cannot write pre-alert data.
-     * @principle Allows public read access with owner-only writes.
+     * @description Manages user-submitted pre-alert requests.
+     * @path /users/{userId}/pre_alerts/{preAlertId}
+     * @allow A user (uid: 'user123') updating their own pre-alert. (update)
+     * @allow An admin reading a pre-alert for 'user123'. (get)
+     * @deny A user (uid: 'user456') trying to create a pre-alert for 'user123'. (create)
+     * @deny A user trying to update a pre-alert and change the owning userId. (update)
+     * @principle Enforces path-based ownership for user-submitted content.
      */
-    match /preAlerts/{preAlertId} {
-      function isOwner(customerId) {
-        return request.auth.uid == customerId;
-      }
-
-      function isExistingOwner(customerId) {
-        return isOwner(customerId) && resource != null;
-      }
-
-      allow get, list: if true;
-      allow create: if isOwner(request.resource.data.customerId);
-      allow update: if isExistingOwner(resource.data.customerId);
-      allow delete: if isExistingOwner(resource.data.customerId);
+    match /users/{userId}/pre_alerts/{preAlertId} {
+      allow get, list: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if (isOwner(userId) || isAdmin()) && resource != null && request.resource.data.userId == resource.data.userId;
+      allow delete: if (isOwner(userId) || isAdmin()) && resource != null;
     }
 
     /**
-     * @description Allows users to read and write messages within a conversation, restricting access to the owner.
-     * @path /conversations/{conversationId}/messages/{messageId}
-     * @allow (get, list) Any user can read messages.
-     * @allow (create) User with matching customerId can create a message.
-     * @allow (update, delete) User with matching customerId can update or delete a message.
-     * @deny (create, update, delete) User with non-matching customerId cannot write message data.
-     * @principle Enforces document ownership for writes, allows public reads.
+     * @description Manages flight manifest documents. Restricted to administrators.
+     * @path /flight_manifests/{flightManifestId}
+     * @allow An admin user creating a new flight manifest. (create)
+     * @allow An admin user reading a list of all manifests. (list)
+     * @deny Any non-admin user trying to read, write, or delete a manifest. (get, create, delete)
+     * @deny An anonymous user trying to access any manifest data. (get, list)
+     * @principle Implements Role-Based Access Control (RBAC) for admin-only data collections.
      */
-    match /conversations/{conversationId}/messages/{messageId} {
-      function isOwner(customerId) {
-        return request.auth.uid == customerId;
-      }
-
-      function isExistingOwner(customerId) {
-        return isOwner(customerId) && resource != null;
-      }
-
-      allow get, list: if true;
-      allow create: if isOwner(request.resource.data.customerId);
-      allow update: if isExistingOwner(resource.data.customerId);
-      allow delete: if isExistingOwner(resource.data.customerId);
+    match /flight_manifests/{flightManifestId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     /**
-     * @description Allows public read access to invoices, but restricts write access to the owner.
-     * @path /invoices/{invoiceId}
-     * @allow (get, list) Any user can read invoice data.
-     * @allow (create) User with matching customerId can create an invoice.
-     * @allow (update, delete) User with matching customerId can update or delete an invoice.
-     * @deny (create, update, delete) User with non-matching customerId cannot write invoice data.
-     * @principle Allows public read access with owner-only writes.
+     * @description Manages profit and loss statements. Restricted to administrators.
+     * @path /profit_loss_statements/{profitLossStatementId}
+     * @allow An admin user updating an existing P&L statement. (update)
+     * @allow An admin user getting a specific P&L statement. (get)
+     * @deny Any non-admin user trying to read or write financial data. (get, create, update, delete)
+     * @deny An anonymous user trying to list financial statements. (list)
+     * @principle Implements strict Role-Based Access Control (RBAC) for sensitive financial data.
      */
-    match /invoices/{invoiceId} {
-      function isOwner(customerId) {
-        return request.auth.uid == customerId;
-      }
+    match /profit_loss_statements/{profitLossStatementId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
 
-      function isExistingOwner(customerId) {
-        return isOwner(customerId) && resource != null;
-      }
-
-      allow get, list: if true;
-      allow create: if isOwner(request.resource.data.customerId);
-      allow update: if isExistingOwner(resource.data.customerId);
-      allow delete: if isExistingOwner(resource.data.customerId);
+    /**
+     * @description Defines which users have administrative privileges.
+     * @path /roles_admin/{userId}
+     * @allow An admin user checking if another user ('user123') is an admin. (get)
+     * @deny A regular user trying to make themselves an admin by creating a document. (create)
+     * @deny Any user, including an admin, trying to modify this collection from the client. (create, update, delete)
+     * @deny Any user trying to list all admins. (list)
+     * @principle Secures the role-management system by making it read-only from the client to prevent privilege escalation. Writes must be handled by a trusted server environment.
+     */
+    match /roles_admin/{userId} {
+      allow get: if isAdmin();
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

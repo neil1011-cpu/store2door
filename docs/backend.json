@@ -1,0 +1,338 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the SwiftRoute application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name of the user."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "Phone number of the user."
+        },
+        "address": {
+          "type": "string",
+          "description": "Address of the user."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user (e.g., 'admin', 'customer')."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "firstName",
+        "lastName",
+        "role"
+      ]
+    },
+    "Shipment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Shipment",
+      "type": "object",
+      "description": "Represents a shipment being tracked.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the shipment entity."
+        },
+        "trackingNumber": {
+          "type": "string",
+          "description": "The tracking number associated with the shipment."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Shipment)"
+        },
+        "shippingDate": {
+          "type": "string",
+          "description": "Date when the shipment was initiated.",
+          "format": "date-time"
+        },
+        "deliveryDate": {
+          "type": "string",
+          "description": "Estimated or actual delivery date.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the shipment (e.g., 'In Transit', 'Delivered')."
+        },
+        "originAddress": {
+          "type": "string",
+          "description": "Origin address of the shipment."
+        },
+        "destinationAddress": {
+          "type": "string",
+          "description": "Destination address of the shipment."
+        }
+      },
+      "required": [
+        "id",
+        "trackingNumber",
+        "userId",
+        "shippingDate",
+        "status",
+        "originAddress",
+        "destinationAddress"
+      ]
+    },
+    "FlightManifest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FlightManifest",
+      "type": "object",
+      "description": "Represents a flight manifest document.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the flight manifest."
+        },
+        "flightNumber": {
+          "type": "string",
+          "description": "The flight number associated with the manifest."
+        },
+        "departureAirport": {
+          "type": "string",
+          "description": "The airport of departure."
+        },
+        "arrivalAirport": {
+          "type": "string",
+          "description": "The destination airport."
+        },
+        "departureTime": {
+          "type": "string",
+          "description": "The scheduled time of departure.",
+          "format": "date-time"
+        },
+        "arrivalTime": {
+          "type": "string",
+          "description": "The scheduled time of arrival.",
+          "format": "date-time"
+        },
+        "shipmentIds": {
+          "type": "array",
+          "description": "References to Shipments. (Relationship: FlightManifest 1:N Shipment)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "flightNumber",
+        "departureAirport",
+        "arrivalAirport",
+        "departureTime",
+        "arrivalTime"
+      ]
+    },
+    "PreAlert": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PreAlert",
+      "type": "object",
+      "description": "Represents a pre-alert request with receipt image.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the pre-alert."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N PreAlert)"
+        },
+        "receiptImageURL": {
+          "type": "string",
+          "description": "URL to the receipt image."
+        },
+        "submissionDate": {
+          "type": "string",
+          "description": "Date when the pre-alert was submitted.",
+          "format": "date-time"
+        },
+        "deliveryAddressSuggestion": {
+          "type": "string",
+          "description": "Suggested delivery address extracted from the receipt (AI powered)."
+        },
+        "shipmentId": {
+          "type": "string",
+          "description": "Reference to Shipment if a shipment was created."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "receiptImageURL",
+        "submissionDate"
+      ]
+    },
+    "ProfitLossStatement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ProfitLossStatement",
+      "type": "object",
+      "description": "Represents a profit and loss statement.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the profit loss statement."
+        },
+        "statementDate": {
+          "type": "string",
+          "description": "The date of the profit/loss statement.",
+          "format": "date-time"
+        },
+        "revenue": {
+          "type": "number",
+          "description": "Total revenue for the period."
+        },
+        "expenses": {
+          "type": "number",
+          "description": "Total expenses for the period."
+        },
+        "netProfitLoss": {
+          "type": "number",
+          "description": "Net profit or loss (revenue - expenses)."
+        }
+      },
+      "required": [
+        "id",
+        "statementDate",
+        "revenue",
+        "expenses",
+        "netProfitLoss"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information.  Accessible only to the user and admins.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/shipments/{shipmentId}",
+        "definition": {
+          "entityName": "Shipment",
+          "schema": {
+            "$ref": "#/backend/entities/Shipment"
+          },
+          "description": "Stores shipment data for each user. Path-based ownership ensures only the user and admins can access the data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "shipmentId",
+              "description": "The unique identifier of the shipment."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/pre_alerts/{preAlertId}",
+        "definition": {
+          "entityName": "PreAlert",
+          "schema": {
+            "$ref": "#/backend/entities/PreAlert"
+          },
+          "description": "Stores pre-alert requests for each user.  Path-based ownership ensures only the user and admins can access the data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "preAlertId",
+              "description": "The unique identifier of the pre-alert."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/flight_manifests/{flightManifestId}",
+        "definition": {
+          "entityName": "FlightManifest",
+          "schema": {
+            "$ref": "#/backend/entities/FlightManifest"
+          },
+          "description": "Stores flight manifest data.  Accessible only to admins.",
+          "params": [
+            {
+              "name": "flightManifestId",
+              "description": "The unique identifier of the flight manifest."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/profit_loss_statements/{profitLossStatementId}",
+        "definition": {
+          "entityName": "ProfitLossStatement",
+          "schema": {
+            "$ref": "#/backend/entities/ProfitLossStatement"
+          },
+          "description": "Stores profit and loss statements. Accessible only to admins.",
+          "params": [
+            {
+              "name": "profitLossStatementId",
+              "description": "The unique identifier of the profit and loss statement."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection denote admin users. Existence of document indicates admin role.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the admin user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to prioritize security, scalability, and debuggability, adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. It uses path-based ownership for user-related data and denormalization for collaborative data access. It also implements structural segregation such as storing admin users in a separate collection.\n\n**Authorization Independence**: Achieved primarily through path-based ownership for private user data (Shipments, PreAlerts).  Admin roles are managed via document existence in `/roles_admin/{uid}`. This eliminates the need for `get()` calls in security rules for authorization, enabling atomic operations.\n\n**QAPs (Rules are not Filters)**: Achieved by segregating admin roles into `/roles_admin/{uid}`. List operations against `/users/{userId}/shipments` are secured because only the specified user's shipments are stored there. The structure avoids mixing data with different security requirements within the same collection. Enforcing this homogenous security posture for any collection enables the QAPs.\n\n**Admin Login**: Admin users are stored as documents in the `/roles_admin/{userId}` collection. This enables distinct security rules for admin users. The existence of the admin documents in the `roles_admin` collection is used to authorize admin priviliges. This is preferred over storing admin roles as custom claims.\n\n**User Signup**: Regular users are managed through Firebase Authentication and their profiles are stored in `/users/{userId}`.  Path based ownership is enabled."
+  }
+}
