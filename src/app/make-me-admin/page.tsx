@@ -33,9 +33,11 @@ export default function MakeAdminPage() {
 
     try {
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      setDocumentNonBlocking(adminRoleRef, {
+      // We are intentionally not using the non-blocking version here.
+      // We need to wait for this operation to complete before we sign out.
+      await setDoc(adminRoleRef, {
         createdAt: serverTimestamp(),
-      }, {});
+      });
       
       toast({
         title: 'Admin Role Granted!',
