@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -81,11 +80,10 @@ export default function ShippingPage() {
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<
-    Shipment & { user?: UserProfile } | null
+    (Shipment & { user?: UserProfile }) | null
   >(null);
-  const [editableShipment, setEditableShipment] = useState<Shipment | null>(
-    null
-  );
+  const [editableShipment, setEditableShipment] =
+    useState<Shipment | null>(null);
   const [emailContent, setEmailContent] = useState({
     subject: '',
     body: '',
@@ -96,9 +94,9 @@ export default function ShippingPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
 
-  // IMPORTANT FIX: Prevent invalid queries until firestore + user are ready
+  // Only build queries when firestore + user exist
   const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; // FIX
+    if (!firestore || !user) return null;
     return query(
       collectionGroup(firestore, 'shipments'),
       orderBy('date', 'desc')
@@ -106,13 +104,13 @@ export default function ShippingPage() {
   }, [firestore, user]);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; // FIX
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'users'));
   }, [firestore, user]);
 
-  const { data: shipments, isLoading: isLoadingShipments } =
+  const { data: shipments, isLoading: isLoadingShipments, error: shipmentsError } =
     useCollection<Shipment>(shipmentsQuery);
-  const { data: users, isLoading: isLoadingUsers } =
+  const { data: users, isLoading: isLoadingUsers, error: usersError } =
     useCollection<UserProfile>(usersQuery);
 
   const shipmentsWithUsers = useMemo(() => {
@@ -128,6 +126,26 @@ export default function ShippingPage() {
 
   const loading =
     isUserLoading || isLoadingShipments || isLoadingUsers;
+
+  if (shipmentsError || usersError) {
+    // Optional: surface Firestore permission errors as UI instead of crashes
+    console.error('Firestore error:', shipmentsError || usersError);
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm text-red-500">
+          You don’t have permission to view shipments. Check Firestore rules.
+        </p>
+      </div>
+    );
+  }
+
+  if (loading || !shipmentsWithUsers) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   const handleOpenEmailDialog = (
     shipment: Shipment & { user?: UserProfile }
@@ -206,7 +224,7 @@ export default function ShippingPage() {
           description: `Shipment ${editableShipment.trackingNumber} has been updated.`,
         });
       })
-      .catch((error) => {
+      .catch(() => {
         errorEmitter.emit(
           'permission-error',
           new FirestorePermissionError({
@@ -234,14 +252,6 @@ export default function ShippingPage() {
       });
     }
   };
-
-  if (loading || !shipmentsWithUsers) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -357,7 +367,6 @@ export default function ShippingPage() {
         </CardContent>
       </Card>
 
-      {/* EMAIL DIALOG */}
       <Dialog
         open={isEmailDialogOpen}
         onOpenChange={setIsEmailDialogOpen}
@@ -427,7 +436,6 @@ export default function ShippingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* EDIT DIALOG */}
       <Dialog
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
