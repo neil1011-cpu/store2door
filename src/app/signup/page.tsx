@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -88,13 +87,6 @@ export default function SignUpPage() {
             id: user.uid,
             createdAt: serverTimestamp()
         });
-
-        // Grant admin role if the email is admin@example.com
-        if (values.email === 'admin@example.com') {
-            const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-            await setDoc(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
-        }
-
 
         toast({
             title: 'Sign Up Successful!',
