@@ -34,7 +34,7 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { collection, query, serverTimestamp, doc, setDoc, getCountFromServer } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -71,7 +71,9 @@ export default function UsersPage() {
     // In a full production app, you'd likely create the user via Firebase Auth Admin SDK
     // and then create their profile document. Here we just create the document.
     
-    const userCount = users?.length || 0;
+    const usersCollection = collection(firestore, "users");
+    const snapshot = await getCountFromServer(usersCollection);
+    const userCount = snapshot.data().count;
     const nextMailboxNumber = `FSTD${101 + userCount}`;
     
     const userId = `manual-${Date.now()}`;
@@ -128,6 +130,14 @@ export default function UsersPage() {
         title: 'Copied to Clipboard',
     });
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -204,13 +214,7 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                 <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                    </TableCell>
-                </TableRow>
-              ) : !users || users.length === 0 ? (
+              {!users || users.length === 0 ? (
                 <TableRow>
                     <TableCell colSpan={5} className="text-center h-24">No users found.</TableCell>
                 </TableRow>

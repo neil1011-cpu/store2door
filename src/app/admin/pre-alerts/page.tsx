@@ -245,6 +245,13 @@ export default function PreAlertsPage() {
       });
   }
 
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -337,13 +344,7 @@ export default function PreAlertsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                    <TableCell colSpan={7} className="text-center h-24">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                    </TableCell>
-                </TableRow>
-              ) : !preAlerts || preAlerts.length === 0 ? (
+              {!preAlerts || preAlerts.length === 0 ? (
                  <TableRow>
                     <TableCell colSpan={7} className="text-center h-24">No pre-alerts found.</TableCell>
                 </TableRow>

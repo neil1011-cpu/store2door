@@ -210,17 +210,9 @@ export default function FinancePage() {
         };
         
         const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
-        setDoc(invoiceDocRef, newInvoice, { merge: true })
-            .then(() => {
-                 toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
-            })
-            .catch(error => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: invoiceDocRef.path,
-                    operation: 'write',
-                    requestResourceData: newInvoice,
-                }));
-            });
+        await setDoc(invoiceDocRef, newInvoice, { merge: true });
+        
+        toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
         
         setIsCreateOpen(false);
         setCustomerId('');
@@ -229,7 +221,11 @@ export default function FinancePage() {
 
     } catch (error) {
         console.error("PDF Generation Error:", error);
-        toast({ title: 'Invoice Generation Failed', description: (error as Error).message, variant: 'destructive'});
+        if (error instanceof FirestorePermissionError) {
+          errorEmitter.emit('permission-error', error);
+        } else {
+          toast({ title: 'Invoice Generation Failed', description: (error as Error).message, variant: 'destructive'});
+        }
     } finally {
         setIsGenerating(false);
     }
@@ -275,6 +271,13 @@ export default function FinancePage() {
     setNewTransaction({ type: 'revenue', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
   };
 
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -475,41 +478,45 @@ export default function FinancePage() {
             <Table>
                 <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Customer</TableHead><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                {loading && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
-                {!loading && invoices?.map((invoice) => (
-                    <TableRow key={invoice.invoiceId}>
-                    <TableCell className="font-mono">{invoice.invoiceId}</TableCell>
-                    <TableCell className="font-medium">{invoice.customerName}</TableCell>
-                    <TableCell>{invoice.date ? new Date(invoice.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
-                    <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                    <TableCell><Badge variant={invoice.status === 'Paid' ? 'outline' : 'destructive'}>{invoice.status}</Badge></TableCell>
-                    <TableCell className="text-right">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className="sr-only">More actions</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleViewInvoice(invoice)}>
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    View Invoice
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Paid')} disabled={invoice.status === 'Paid'}>
-                                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                                    Mark as Paid
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Unpaid')} disabled={invoice.status === 'Unpaid'}>
-                                    <Receipt className="mr-2 h-4 w-4" />
-                                    Mark as Unpaid
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </TableCell>
-                    </TableRow>
-                ))}
-                {!loading && invoices?.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No invoices found.</TableCell></TableRow>}
+                {!invoices ? (
+                    <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
+                ) : invoices.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="text-center h-24">No invoices found.</TableCell></TableRow>
+                ) : (
+                    invoices.map((invoice) => (
+                        <TableRow key={invoice.invoiceId}>
+                        <TableCell className="font-mono">{invoice.invoiceId}</TableCell>
+                        <TableCell className="font-medium">{invoice.customerName}</TableCell>
+                        <TableCell>{invoice.date ? new Date(invoice.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
+                        <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                        <TableCell><Badge variant={invoice.status === 'Paid' ? 'outline' : 'destructive'}>{invoice.status}</Badge></TableCell>
+                        <TableCell className="text-right">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        <span className="sr-only">More actions</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleViewInvoice(invoice)}>
+                                        <FileText className="mr-2 h-4 w-4" />
+                                        View Invoice
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Paid')} disabled={invoice.status === 'Paid'}>
+                                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                                        Mark as Paid
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Unpaid')} disabled={invoice.status === 'Unpaid'}>
+                                        <Receipt className="mr-2 h-4 w-4" />
+                                        Mark as Unpaid
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </TableCell>
+                        </TableRow>
+                    ))
+                )}
                 </TableBody>
             </Table>
           </div>

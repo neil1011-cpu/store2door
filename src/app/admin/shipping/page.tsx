@@ -183,6 +183,13 @@ export default function ShippingPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -218,8 +225,7 @@ export default function ShippingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
-              {!loading && shipmentsWithUsers.map((shipment) => (
+              {shipmentsWithUsers.map((shipment) => (
                 <TableRow key={shipment.id}>
                   <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
                   <TableCell>
@@ -236,7 +242,7 @@ export default function ShippingPage() {
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleOpenEmailDialog(shipment)} disabled={!shipment.user} title="Email functionality is disabled until RESEND_API_KEY is configured.">
+                    <Button variant="outline" size="sm" onClick={() => handleOpenEmailDialog(shipment)} disabled={!shipment.user} title={!shipment.user ? 'Cannot email customer without user data.' : ''}>
                       <Mail className="mr-2 h-4 w-4" />
                       Email
                     </Button>
@@ -323,7 +329,7 @@ export default function ShippingPage() {
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="edit-payment-status">Payment Status</Label>
-                        <Select value={editableShipment.paymentStatus} onValueChange={(value: 'Paid' | 'Unpaid') => handleEditFormChange('paymentStatus', value)}>
+                        <Select value={editableShipment.paymentStatus} onValueChange={(value: 'Paid' | 'Unpaid') => handleEditFormChange('paymentStatus', value as string)}>
                             <SelectTrigger id="edit-payment-status">
                                 <SelectValue placeholder="Select status" />
                             </SelectTrigger>
