@@ -63,34 +63,20 @@ export default function AdminLayout({
   const adminRoleRef = useMemoFirebase(() => user ? doc(firestore, 'roles_admin', user.uid) : null, [firestore, user]);
   const { data: adminRoleDoc, isLoading: isAdminLoading } = useDoc(adminRoleRef);
   
-  const [authStatus, setAuthStatus] = useState<'loading' | 'success' | 'failed'>('loading');
-
   useEffect(() => {
+    // Wait until both user and admin role loading are complete
     if (isUserLoading || isAdminLoading) {
       return;
     }
     
-    if (!user) {
+    // If there's no logged-in user OR the admin role document doesn't exist, redirect.
+    if (!user || !adminRoleDoc) {
       toast({
-        title: 'Access Denied',
-        description: 'You must be logged in to access the admin panel.',
-        variant: 'destructive'
-      });
-      router.push('/admin-login');
-      setAuthStatus('failed');
-      return;
-    }
-
-    if (adminRoleDoc) {
-      setAuthStatus('success');
-    } else {
-       toast({
         title: 'Access Denied',
         description: "You don't have permission to access the admin panel.",
         variant: 'destructive'
       });
       router.push('/admin-login');
-      setAuthStatus('failed');
     }
     
   }, [user, isUserLoading, adminRoleDoc, isAdminLoading, router, toast]);
@@ -112,8 +98,9 @@ export default function AdminLayout({
         })
     }
   }
-
-  if (authStatus === 'loading') {
+  
+  // While loading user or admin status, show a skeleton screen.
+  if (isUserLoading || isAdminLoading) {
     return (
          <div className="flex h-screen">
             <Skeleton className="w-64" />
@@ -125,7 +112,10 @@ export default function AdminLayout({
     );
   }
 
-  if (authStatus === 'success' && user) {
+  // If the checks in useEffect are pending or have resulted in a redirect, 
+  // or if the user is not an admin, this part won't be rendered.
+  // We only render the full layout if the user is a confirmed admin.
+  if (user && adminRoleDoc) {
     return (
           <SidebarProvider>
               <Sidebar>
@@ -263,6 +253,6 @@ export default function AdminLayout({
     );
   }
 
-  // If auth checks failed or are in progress, this will render null while redirecting or loading.
+  // If auth checks failed and useEffect is redirecting, render null.
   return null;
 }

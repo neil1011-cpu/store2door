@@ -36,14 +36,16 @@ export default function MakeAdminPage() {
       await setDoc(adminRoleRef, {
         createdAt: serverTimestamp(),
       });
+      
+      // Sign the user out before redirecting. This ensures the auth state
+      // is clean when they arrive at the admin login page.
+      await signOut(auth);
 
       toast({
         title: 'Success!',
         description: 'You have been granted admin privileges. Please sign in again to access the admin panel.',
       });
       
-      // Sign the user out and redirect to the admin login page.
-      await signOut(auth);
       router.push('/admin-login');
 
     } catch (error: any) {
