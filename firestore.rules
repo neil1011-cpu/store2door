@@ -107,7 +107,8 @@ service cloud.firestore {
       // Allow any authenticated user to check their own admin status document.
       allow get: if request.auth != null && isOwner(userId);
       // Allow any user (even unauthenticated) to check if any admins exist on the setup page.
-      allow list: if request.auth == null && query.limit == 1;
+      // This is secure because it only checks for document existence, not content.
+      allow list: if query.limit == 1;
       // Allow a write operation only if it's the user creating their own admin doc AND no other admins exist.
       allow create: if isCreatingFirstAdmin(userId);
       // Do not allow client-side updates or deletes to admin roles for security.

@@ -20,7 +20,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { createUserWithEmailAndPassword, type User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, collection, query, limit, getCountFromServer, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, limit, writeBatch, getDocs } from 'firebase/firestore';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -55,12 +55,7 @@ export default function SetupAdminPage() {
   });
 
   const setupAdminDocs = async (user: User) => {
-    const usersCollection = collection(firestore, "users");
-    const snapshot = await getCountFromServer(usersCollection);
-    const userCount = snapshot.data().count;
-    const nextMailboxNumber = `FSTD${100 + userCount}`;
-
-    // Use a batch write to ensure both documents are created atomically
+    // This function can remain as is, since user creation logic is handled before calling it.
     const batch = writeBatch(firestore);
 
     // 1. User Profile Document
@@ -71,10 +66,10 @@ export default function SetupAdminPage() {
         email: user.email,
         phone: 'N/A',
         trn: 'N/A',
-        mailboxNumber: nextMailboxNumber,
+        mailboxNumber: `FSTD-ADMIN`,
         address: {
             address1: '4350 NE 5th Terrace Bay #3',
-            address2: `${nextMailboxNumber} -FSTD`,
+            address2: `FSTD-ADMIN`,
             city: 'Oakland Park',
             state: 'Florida',
             zip: '33334',
@@ -94,13 +89,17 @@ export default function SetupAdminPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     
-    if (isSetupDone) {
+    // Re-check just before submission to be absolutely sure.
+    const checkQuery = query(collection(firestore, 'roles_admin'), limit(1));
+    const checkSnapshot = await getDocs(checkQuery);
+    if (!checkSnapshot.empty) {
         toast({
             title: 'Setup Already Complete',
             description: 'An admin account has already been created.',
             variant: 'destructive',
         });
         setLoading(false);
+        setIsSetupDone(true); // Force UI to update
         return;
     }
 
