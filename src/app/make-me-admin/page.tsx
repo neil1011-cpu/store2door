@@ -4,8 +4,8 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore, useUser } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth, useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
+import { doc, serverTimestamp } from 'firebase/firestore';
 import { useState } from 'react';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -33,20 +33,20 @@ export default function MakeAdminPage() {
 
     try {
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      await setDoc(adminRoleRef, {
+      setDocumentNonBlocking(adminRoleRef, {
         createdAt: serverTimestamp(),
-      });
+      }, {});
       
-      // Sign the user out before redirecting. This ensures the auth state
-      // is clean when they arrive at the admin login page.
-      await signOut(auth);
-
       toast({
-        title: 'Success!',
-        description: 'You have been granted admin privileges. Please sign in again to access the admin panel.',
+        title: 'Admin Role Granted!',
+        description: 'You will be signed out. Please log in again at the admin page.',
       });
-      
-      router.push('/admin-login');
+
+      // Wait a moment for the toast to be visible, then sign out and redirect.
+      setTimeout(async () => {
+        await signOut(auth);
+        router.push('/admin-login');
+      }, 2000);
 
     } catch (error: any) {
       console.error("Failed to create admin role:", error);
@@ -55,7 +55,6 @@ export default function MakeAdminPage() {
         description: 'Could not grant admin privileges. ' + error.message,
         variant: 'destructive',
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -109,7 +108,7 @@ export default function MakeAdminPage() {
             Make Me Admin
           </Button>
           <p className="text-xs text-muted-foreground mt-4 text-center">
-            This is a one-time action. This page should be removed after use.
+            You will be signed out and redirected after clicking this button. This page should be removed after use.
           </p>
         </CardContent>
       </Card>
