@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -9,7 +9,7 @@ import { LayoutDashboard, FileUp, Package, MessageSquare, User, LogOut } from 'l
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth, useDoc, useFirestore, useUser } from '@/firebase';
+import { useAuth, useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { UserProfile } from '@/lib/types';
@@ -22,14 +22,27 @@ export default function AccountPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
 
-    const userProfileRef = user ? doc(firestore, 'users', user.uid) : null;
+    const userProfileRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
+    const [authChecked, setAuthChecked] = useState(false);
+
     useEffect(() => {
-        if (!isUserLoading && !user) {
-            router.push('/signin');
+        if (isUserLoading) {
+            return;
         }
-    }, [user, isUserLoading, router]);
+
+        if (!user) {
+            // If the user is not loaded and there is no user, redirect
+            router.push('/signin');
+        } else {
+            // User is loaded, and we have a user object.
+            // Now we wait for the profile to load.
+            if (!isProfileLoading) {
+                setAuthChecked(true);
+            }
+        }
+    }, [user, isUserLoading, isProfileLoading, router]);
 
     const handleSignOut = async () => {
         try {
@@ -49,7 +62,8 @@ export default function AccountPage() {
         }
     }
     
-    if (isUserLoading || isProfileLoading || !userProfile) {
+    // Show skeleton while any initial loading is happening.
+    if (!authChecked || !userProfile) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
                 <div className="mb-8">
@@ -57,7 +71,10 @@ export default function AccountPage() {
                     <Skeleton className="h-5 w-80" />
                 </div>
                 <div className="flex flex-col md:flex-row gap-6">
-                    <Skeleton className="h-auto md:w-1/5" />
+                    <div className="flex-shrink-0 md:w-1/5 lg:w-1/6">
+                        <Skeleton className="h-48 w-full" />
+                        <Skeleton className="h-9 w-full mt-4" />
+                    </div>
                     <Skeleton className="h-96 flex-1" />
                 </div>
             </div>
