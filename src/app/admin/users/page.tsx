@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -34,13 +33,13 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, serverTimestamp, doc, collectionGroup } from 'firebase/firestore';
+import { collection, query, serverTimestamp, doc } from 'firebase/firestore';
 
 
 export default function UsersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
-  const usersQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'users')), [firestore]);
+  const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users')), [firestore]);
   const { data: users, isLoading } = useCollection<UserProfile>(usersQuery);
   
   const [open, setOpen] = useState(false);

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -36,7 +35,7 @@ import Link from 'next/link';
 import type { Shipment, UserProfile } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { collectionGroup, query, orderBy, doc } from 'firebase/firestore';
+import { collection, collectionGroup, query, orderBy, doc } from 'firebase/firestore';
 
 
 const getStatusVariant = (status: string) => {
@@ -71,7 +70,7 @@ export default function ShippingPage() {
   const shipmentsQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'shipments'), orderBy('date', 'desc')), [firestore]);
   const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
   
-  const usersQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'users')), [firestore]);
+  const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users')), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   const shipmentsWithUsers = useMemo(() => {
