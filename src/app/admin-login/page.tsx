@@ -20,9 +20,9 @@ import { useState } from 'react';
 import { Loader2, Route } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuth, useFirestore, useDoc } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { signInWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -50,22 +50,17 @@ export default function AdminLoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Check if user has admin role
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      const adminDoc = await new Promise<any>((resolve, reject) => {
-        const { data, error } = useDoc(adminRoleRef);
-        if (error) reject(error);
-        if (data) resolve(data);
-      });
-
-      if (adminDoc && adminDoc.exists()) {
+      const adminDocSnap = await getDoc(adminRoleRef);
+      
+      if (adminDocSnap.exists()) {
         toast({
             title: 'Admin Sign In Successful!',
             description: 'Welcome back! Redirecting to the admin dashboard...',
         });
         router.push('/admin');
       } else {
-        await auth.signOut();
+        await signOut(auth);
         toast({
             title: 'Sign In Failed',
             description: 'You do not have admin privileges.',
@@ -78,8 +73,9 @@ export default function AdminLoginPage() {
             description: error.message || 'Invalid email or password.',
             variant: 'destructive',
         });
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

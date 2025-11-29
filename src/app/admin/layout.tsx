@@ -103,7 +103,7 @@ export default function AdminLayout({
     }
   }
 
-  if (!isClient || isUserLoading || isAdminLoading) {
+  if (!isClient || isUserLoading || isAdminLoading || !user || !isAdmin) {
     return (
          <div className="flex h-screen">
             <Skeleton className="w-64" />
@@ -113,10 +113,6 @@ export default function AdminLayout({
             </div>
         </div>
     );
-  }
-
-  if (!isAdmin) {
-      return null; // Don't render anything while redirecting
   }
 
   return (
@@ -223,7 +219,7 @@ export default function AdminLayout({
                 <SidebarFooter className="space-y-1">
                     <SidebarMenuButton>
                         <Avatar className="size-7">
-                        <AvatarImage src={user?.photoURL || "https://placehold.co/40x40"} alt="User avatar" />
+                        <AvatarImage src={user?.photoURL || undefined} alt="Admin avatar" />
                         <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <span>{user?.displayName || 'Admin'}</span>
@@ -244,7 +240,7 @@ export default function AdminLayout({
                 <Notifications />
 
                 <Avatar>
-                    <AvatarImage src={user?.photoURL || "https://placehold.co/40x40"} alt="User avatar" />
+                    <AvatarImage src={user?.photoURL || undefined} alt="Admin avatar" />
                     <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 </header>

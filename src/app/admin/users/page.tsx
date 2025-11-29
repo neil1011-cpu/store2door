@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -33,20 +33,19 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
+import { useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { collection, query, serverTimestamp, getCountFromServer, doc } from 'firebase/firestore';
+
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const firestore = useFirestore();
+  const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users')), [firestore]);
+  const { data: users, isLoading } = useCollection<UserProfile>(usersQuery);
   
   const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
-  const { toast } = useToast();
-  
-  useEffect(() => {
-    // In a real app, you would fetch users from your database
-    setUsers([]);
-    setLoading(false);
-  }, []);
 
   const handleAddUser = async () => {
     if(!newUser.name || !newUser.email) {
@@ -57,49 +56,64 @@ export default function UsersPage() {
         });
         return;
     }
-    // This logic should be handled by a backend service/API to avoid race conditions
-    // and ensure uniqueness. For now, it's a client-side simulation.
-    const lastMailboxNum = users.length > 0 ? parseInt(users[users.length - 1].mailboxNumber.replace('FSTD', '')) : 100;
-    const nextMailboxNumber = `FSTD${lastMailboxNum + 1}`;
-    
-    // In a real app, this would be an API call to your backend
-    const userToAdd: UserProfile = {
-        id: `user-${Date.now()}`,
-        fullName: newUser.name,
-        email: newUser.email,
-        phone: '123-456-7890', // placeholder
-        trn: '123456789', // placeholder
-        address: {
-            address1: '4350 NE 5th Terrace Bay #3',
-            address2: `${nextMailboxNumber} -FSTD`,
-            city: 'Oakland Park',
-            state: 'Florida',
-            zip: '33334',
-        },
-        mailboxNumber: nextMailboxNumber,
-        createdAt: new Date().toISOString(),
-    };
-    
-    setUsers([...users, userToAdd]);
 
-    setOpen(false);
-    setNewUser({ name: '', email: '' });
-    toast({
-        title: 'User Added',
-        description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
-    });
+    setIsSubmitting(true);
+    
+    // This is a simplified user creation flow for admins.
+    // In a full production app, you'd likely create the user via Firebase Auth Admin SDK
+    // and then create their profile document. Here we just create the document.
+    
+    try {
+        const usersCollection = collection(firestore, "users");
+        const snapshot = await getCountFromServer(usersCollection);
+        const userCount = snapshot.data().count;
+        const nextMailboxNumber = `FSTD${101 + userCount}`;
+        
+        const userId = `manual-${Date.now()}`;
+        const userDocRef = doc(firestore, 'users', userId);
+
+        const userToAdd: UserProfile = {
+            id: userId,
+            fullName: newUser.name,
+            email: newUser.email,
+            phone: 'N/A',
+            trn: 'N/A',
+            mailboxNumber: nextMailboxNumber,
+            address: {
+                address1: '4350 NE 5th Terrace Bay #3',
+                address2: `${nextMailboxNumber} -FSTD`,
+                city: 'Oakland Park',
+                state: 'Florida',
+                zip: '33334',
+            },
+            createdAt: serverTimestamp(),
+        };
+
+        setDocumentNonBlocking(userDocRef, userToAdd, { merge: true });
+
+        setOpen(false);
+        setNewUser({ name: '', email: '' });
+        toast({
+            title: 'User Added',
+            description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
+        });
+
+    } catch (error) {
+        console.error("Error adding user: ", error);
+        toast({ title: "Error", description: "Could not add user.", variant: "destructive"});
+    } finally {
+        setIsSubmitting(false);
+    }
   };
   
   const formatAddress = (address: UserProfile['address']) => {
     return `${address.address1}, ${address.address2}, ${address.city}, ${address.state} ${address.zip}`;
   };
 
-  const copyToClipboard = (address: UserProfile['address']) => {
-    const addressString = `Address 1: ${address.address1}\nAddress 2: ${address.address2}\nCity: ${address.city}\nState/Province: ${address.state}\nZip/Postal Code: ${address.zip}`;
-    navigator.clipboard.writeText(addressString);
+  const copyToClipboard = (textToCopy: string) => {
+    navigator.clipboard.writeText(textToCopy);
     toast({
         title: 'Copied to Clipboard',
-        description: 'Address has been copied.',
     });
   };
 
@@ -130,7 +144,7 @@ export default function UsersPage() {
                 <DialogHeader>
                 <DialogTitle>Add New User</DialogTitle>
                 <DialogDescription>
-                    Enter the details for the new user to generate an address.
+                    Manually create a new user profile and generate their US address.
                 </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -148,7 +162,9 @@ export default function UsersPage() {
                 </div>
                 </div>
                 <DialogFooter>
-                <Button type="submit" onClick={handleAddUser}>Add User</Button>
+                <Button type="submit" onClick={handleAddUser} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add User"}
+                </Button>
                 </DialogFooter>
             </DialogContent>
             </Dialog>
@@ -176,7 +192,7 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {isLoading ? (
                  <TableRow>
                     <TableCell colSpan={5} className="text-center h-24">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto" />
@@ -191,11 +207,18 @@ export default function UsersPage() {
                     <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.fullName}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.mailboxNumber}</TableCell>
+                    <TableCell>
+                         <div className="flex items-center gap-2">
+                            <span>{user.mailboxNumber}</span>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => copyToClipboard(user.mailboxNumber)}>
+                                <Copy className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </TableCell>
                     <TableCell>
                         <div className="flex items-center gap-2">
-                            <span>{formatAddress(user.address)}</span>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => copyToClipboard(user.address)}>
+                            <span className="truncate max-w-xs">{formatAddress(user.address)}</span>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => copyToClipboard(formatAddress(user.address))}>
                                 <Copy className="h-4 w-4" />
                             </Button>
                         </div>

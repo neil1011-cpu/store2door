@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -37,6 +37,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
 import type { Shipment, PreAlert, UserProfile } from '@/lib/types';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { collection, collectionGroup, query, where, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -63,27 +66,24 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
         }
 
         setIsSubmitting(true);
-        //Simulate API call to create a shipment in the database
-        setTimeout(() => {
-            const newShipment: Omit<Shipment, 'id'> = {
-                customerId: preAlert.customerId,
-                trackingNumber: preAlert.trackingNumber,
-                contents: preAlert.contents,
-                status: 'Processed', // Initial status when created from a pre-alert
-                date: new Date(),
-                cost: parseFloat(cost),
-                paymentStatus: 'Unpaid',
-                invoiceUrl: preAlert.invoiceUrl,
-                invoiceId: `INV-${Date.now()}` // Generate a mock invoice ID
-            };
-            
-            onShipmentCreated(newShipment, preAlert.id);
+        
+        const newShipment: Omit<Shipment, 'id'> = {
+            customerId: preAlert.customerId,
+            trackingNumber: preAlert.trackingNumber,
+            contents: preAlert.contents,
+            status: 'Processed',
+            date: serverTimestamp(),
+            cost: parseFloat(cost),
+            paymentStatus: 'Unpaid',
+            invoiceUrl: preAlert.invoiceUrl,
+            invoiceId: `INV-${Date.now()}`
+        };
+        
+        onShipmentCreated(newShipment, preAlert.id);
 
-            toast({ title: "Shipment Created", description: `Shipment for ${preAlert.trackingNumber} has been created.`});
-            setIsSubmitting(false);
-            setOpen(false);
-        }, 1000);
-
+        toast({ title: "Shipment Creation Queued", description: `Shipment for ${preAlert.trackingNumber} will be created shortly.`});
+        setIsSubmitting(false);
+        setOpen(false);
     };
 
 
@@ -137,26 +137,24 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
 
 
 export default function PreAlertsPage() {
-  const [preAlerts, setPreAlerts] = useState<PreAlert[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const [newAlert, setNewAlert] = useState({
     customerId: '',
     trackingNumber: '',
     contents: '',
-    status: 'Pending' as 'Pending' | 'Processed',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-      // In a real app, fetch pre-alerts and users from your database
-      setPreAlerts([]);
-      setUsers([]);
-      setLoading(false);
-  }, []);
+  const firestore = useFirestore();
+
+  const preAlertsQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'pre_alerts'), orderBy('date', 'desc')), [firestore]);
+  const { data: preAlerts, isLoading: isLoadingAlerts } = useCollection<PreAlert>(preAlertsQuery);
+  
+  const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('fullName', 'asc')), [firestore]);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+
+  const loading = isLoadingAlerts || isLoadingUsers;
 
 
   const handleCreateAlert = async () => {
@@ -171,39 +169,36 @@ export default function PreAlertsPage() {
     }
     
     setIsSubmitting(true);
-    // In a real app, you would make an API call to create the pre-alert in the database.
-    await new Promise(res => setTimeout(res, 500));
+    
+    const preAlertsCollection = collection(firestore, 'users', selectedUser.id, 'pre_alerts');
 
-    const alertToAdd: PreAlert = {
-      id: `pa-${Date.now()}`,
+    const alertToAdd: Omit<PreAlert, 'id'> = {
       customerName: selectedUser.fullName,
       customerId: selectedUser.id,
       trackingNumber: newAlert.trackingNumber,
       contents: newAlert.contents,
-      status: newAlert.status,
-      date: new Date().toISOString(),
+      status: 'Pending',
+      date: serverTimestamp(),
       invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
     }
     
-    setPreAlerts([alertToAdd, ...preAlerts]);
+    addDocumentNonBlocking(preAlertsCollection, alertToAdd);
 
     setOpen(false);
-    setNewAlert({ customerId: '', trackingNumber: '', contents: '', status: 'Pending' });
+    setNewAlert({ customerId: '', trackingNumber: '', contents: '' });
     toast({
-      title: 'Pre-Alert Created',
-      description: `Pre-alert for ${newAlert.trackingNumber} has been successfully created.`,
+      title: 'Pre-Alert Creation Queued',
+      description: `Pre-alert for ${newAlert.trackingNumber} will be created shortly.`,
     });
     setIsSubmitting(false);
   };
   
   const handleShipmentCreated = (newShipment: Omit<Shipment, 'id'>, preAlertId: string) => {
-    // In a real app, an API call would handle this atomically.
-    // 1. Create new shipment in 'shipments' collection.
-    // 2. Update the pre-alert status in 'preAlerts' collection.
-    const updatedAlerts = preAlerts.map(pa => 
-        pa.id === preAlertId ? { ...pa, status: 'Processed' as 'Processed' } : pa
-    );
-    setPreAlerts(updatedAlerts);
+    const shipmentsCollection = collection(firestore, 'users', newShipment.customerId, 'shipments');
+    addDocumentNonBlocking(shipmentsCollection, newShipment);
+    
+    const preAlertDocRef = doc(firestore, 'users', newShipment.customerId, 'pre_alerts', preAlertId);
+    updateDocumentNonBlocking(preAlertDocRef, { status: 'Processed' });
   }
 
 
@@ -243,8 +238,8 @@ export default function PreAlertsPage() {
                     Customer
                     </Label>
                     <Select onValueChange={(value) => setNewAlert({...newAlert, customerId: value})} >
-                        <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="Select a customer" />
+                        <SelectTrigger className="col-span-3" disabled={isLoadingUsers}>
+                            <SelectValue placeholder={isLoadingUsers ? "Loading customers..." : "Select a customer"} />
                         </SelectTrigger>
                         <SelectContent>
                             {users?.map(user => (
@@ -264,23 +259,6 @@ export default function PreAlertsPage() {
                     Contents
                     </Label>
                     <Input id="contents" value={newAlert.contents} onChange={(e) => setNewAlert({...newAlert, contents: e.target.value})} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="status" className="text-right">
-                    Status
-                    </Label>
-                    <Select
-                    onValueChange={(value: PreAlert['status']) => setNewAlert({...newAlert, status: value})}
-                    defaultValue={newAlert.status}
-                    >
-                    <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="Processed">Processed</SelectItem>
-                    </SelectContent>
-                    </Select>
                 </div>
                 </div>
                 <DialogFooter>
@@ -333,7 +311,7 @@ export default function PreAlertsPage() {
                     </TableCell>
                     <TableCell>{alert.trackingNumber}</TableCell>
                     <TableCell>{alert.contents}</TableCell>
-                    <TableCell>{new Date(alert.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{alert.date ? new Date(alert.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(alert.status)}>
                         {alert.status}

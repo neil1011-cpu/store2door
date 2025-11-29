@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -42,6 +42,9 @@ import Image from 'next/image';
 import { generateInvoiceHtml } from '@/ai/flows/generate-invoice-html';
 import type { Invoice, Shipment, UserProfile } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+
 
 const financeData = {
   summary: {
@@ -66,17 +69,21 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
     
     if (!invoice) return null;
 
-    const handleDownloadInvoice = (invoiceToDownload: Invoice) => {
-        const link = document.createElement('a');
-        link.href = invoiceToDownload.invoiceUrl;
-        link.download = `Invoice-${invoiceToDownload.invoiceId}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast({
-            title: "Downloading Invoice",
-            description: `Your invoice for ${invoiceToDownload.invoiceId} is downloading.`,
-        });
+    const handleDownloadInvoice = async (invoiceToDownload: Invoice) => {
+        if (invoiceToDownload.invoiceUrl.startsWith('data:application/pdf')) {
+            const link = document.createElement('a');
+            link.href = invoiceToDownload.invoiceUrl;
+            link.download = `Invoice-${invoiceToDownload.invoiceId}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast({
+                title: "Downloading Invoice",
+                description: `Your invoice for ${invoiceToDownload.invoiceId} is downloading.`,
+            });
+        } else {
+             toast({ title: 'Not a PDF', description: 'This invoice cannot be downloaded as a PDF.', variant: 'destructive'});
+        }
     };
 
     const isPdf = invoice.invoiceUrl.startsWith('data:application/pdf');
@@ -86,7 +93,7 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
             <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>Invoice {invoice.invoiceId}</DialogTitle>
-                    <DialogDescription>Invoice for {invoice.customerName} dated {new Date(invoice.date).toLocaleDateString()}.</DialogDescription>
+                    <DialogDescription>Invoice for {invoice.customerName} dated {invoice.date ? new Date(invoice.date.toDate()).toLocaleDateString() : 'N/A'}.</DialogDescription>
                 </DialogHeader>
                  <div className="relative h-[600px] overflow-hidden rounded-md border">
                     {isPdf ? (
@@ -103,7 +110,7 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-                    <Button onClick={() => handleDownloadInvoice(invoice)}><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
+                    <Button onClick={() => handleDownloadInvoice(invoice)} disabled={!isPdf}><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -113,6 +120,8 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
 
 export default function FinancePage() {
   const { toast } = useToast();
+  const firestore = useFirestore();
+
   const [newTransaction, setNewTransaction] = useState({
       type: 'revenue',
       description: '',
@@ -120,8 +129,6 @@ export default function FinancePage() {
       date: new Date().toISOString().split('T')[0],
   });
 
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [customerId, setCustomerId] = useState('');
@@ -130,12 +137,13 @@ export default function FinancePage() {
   
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
+  
+  const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('fullName', 'asc')), [firestore]);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
-  useEffect(() => {
-    // In a real app, you would fetch invoices and users from your database.
-    setInvoices([]);
-    setUsers([]);
-  }, []);
+  const invoicesQuery = useMemoFirebase(() => query(collection(firestore, 'invoices'), orderBy('date', 'desc')), [firestore]);
+  const { data: invoices, isLoading: isLoadingInvoices } = useCollection<Invoice>(invoicesQuery);
+
 
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, price: 0 }]);
   const removeLineItem = (index: number) => setLineItems(lineItems.filter((_, i) => i !== index));
@@ -153,7 +161,7 @@ export default function FinancePage() {
   const calculateTotal = () => lineItems.reduce((total, item) => total + item.quantity * item.price, 0);
   
   const handleGenerateInvoice = async () => {
-    const selectedUser = users.find(u => u.id === customerId);
+    const selectedUser = users?.find(u => u.id === customerId);
     if(!selectedUser || lineItems.some(item => !item.description || item.price <= 0)) {
         toast({ title: 'Missing Fields', description: 'Please select a customer and fill in all line item details.', variant: 'destructive'});
         return;
@@ -162,7 +170,6 @@ export default function FinancePage() {
     setIsGenerating(true);
 
     try {
-        // In a real app, invoiceId would be generated by the database
         const invoiceId = `INV-${Date.now()}`;
         const totalAmount = calculateTotal();
         const customerName = selectedUser.fullName;
@@ -187,40 +194,31 @@ export default function FinancePage() {
 
         const { pdf: pdfDataUri } = await pdfResponse.json();
 
-        // In a real app, you'd write the new invoice and shipment to your database
-        const newInvoice: Invoice = {
+        const newInvoice: Omit<Invoice, 'id'> = {
           invoiceId,
           customerId: selectedUser.id,
           customerName,
-          date: invoiceDate,
+          date: serverTimestamp(),
           amount: totalAmount,
           status: 'Unpaid',
+          lineItems,
           invoiceUrl: pdfDataUri,
-        };
-
-        const newShipment: Omit<Shipment, 'id'> = {
-          trackingNumber: `JM-${Math.floor(Math.random() * 900) + 100}`,
-          contents: lineItems.map(li => li.description).join(', '),
-          status: 'Pending',
-          date: new Date(),
-          cost: totalAmount,
-          paymentStatus: 'Unpaid',
-          invoiceUrl: pdfDataUri,
-          invoiceId: newInvoice.invoiceId,
-          customerId: newInvoice.customerId,
         };
         
-        setInvoices([newInvoice, ...invoices]);
+        const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
+        setDocumentNonBlocking(invoiceDocRef, newInvoice, { merge: true });
+        
         setIsCreateOpen(false);
-        
         setCustomerId('');
         setInvoiceDate(new Date().toISOString().split('T')[0]);
         setLineItems(initialLineItems);
         
-        toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
+        toast({ title: 'Invoice Generation Queued', description: `Invoice ${newInvoice.invoiceId} for ${customerName} will be created.`});
 
-        setSelectedInvoice(newInvoice);
-        setIsViewOpen(true);
+        // We can't view it right away as it's a non-blocking update
+        // The UI will update automatically via the useCollection hook
+        // setSelectedInvoice(newInvoice);
+        // setIsViewOpen(true);
 
     } catch (error) {
         console.error("PDF Generation Error:", error);
@@ -236,13 +234,12 @@ export default function FinancePage() {
   }
 
   const handleUpdateInvoiceStatus = (invoiceId: string, status: 'Paid' | 'Unpaid') => {
-    // In a real app, this would be an API call to update the database
-    const updatedInvoices = invoices.map(inv => inv.invoiceId === invoiceId ? { ...inv, status } : inv);
-    setInvoices(updatedInvoices);
+    const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
+    updateDocumentNonBlocking(invoiceDocRef, { status });
 
     toast({
-        title: "Invoice Status Updated",
-        description: `Invoice ${invoiceId} has been marked as ${status}.`
+        title: "Invoice Status Update Queued",
+        description: `Invoice ${invoiceId} will be marked as ${status}.`
     });
   }
 
@@ -255,7 +252,7 @@ export default function FinancePage() {
         });
         return;
     }
-    // In a real app, this would be an API call
+    // In a real app, this would be an API call to a 'transactions' collection
     toast({
         title: 'Transaction Added',
         description: `A new ${newTransaction.type} of $${newTransaction.amount} has been recorded.`,
@@ -411,11 +408,11 @@ export default function FinancePage() {
                             <div className="space-y-2">
                                 <Label htmlFor="customerName">Customer Name</Label>
                                 <Select value={customerId} onValueChange={setCustomerId}>
-                                    <SelectTrigger id="customerName">
-                                        <SelectValue placeholder="Select a customer" />
+                                    <SelectTrigger id="customerName" disabled={isLoadingUsers}>
+                                        <SelectValue placeholder={isLoadingUsers ? "Loading..." : "Select a customer"} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {users.map(user => (
+                                        {users?.map(user => (
                                             <SelectItem key={user.id} value={user.id}>{user.fullName}</SelectItem>
                                         ))}
                                     </SelectContent>
@@ -463,11 +460,12 @@ export default function FinancePage() {
             <Table>
                 <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Customer</TableHead><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                {invoices.map((invoice) => (
+                {isLoadingInvoices && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
+                {!isLoadingInvoices && invoices?.map((invoice) => (
                     <TableRow key={invoice.invoiceId}>
                     <TableCell className="font-mono">{invoice.invoiceId}</TableCell>
                     <TableCell className="font-medium">{invoice.customerName}</TableCell>
-                    <TableCell>{new Date(invoice.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{invoice.date ? new Date(invoice.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell>${invoice.amount.toFixed(2)}</TableCell>
                     <TableCell><Badge variant={invoice.status === 'Paid' ? 'outline' : 'destructive'}>{invoice.status}</Badge></TableCell>
                     <TableCell className="text-right">
@@ -496,6 +494,7 @@ export default function FinancePage() {
                     </TableCell>
                     </TableRow>
                 ))}
+                {!isLoadingInvoices && invoices?.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No invoices found.</TableCell></TableRow>}
                 </TableBody>
             </Table>
           </div>

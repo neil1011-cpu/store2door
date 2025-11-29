@@ -20,6 +20,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UserProfile } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
+
 
 type SentEmail = {
     id: string;
@@ -40,14 +43,9 @@ export default function CommunicationsPage() {
     const [composeBody, setComposeBody] = useState('');
     const [isComposing, setIsComposing] = useState(false);
     
-    const [users, setUsers] = useState<UserProfile[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        // In a real app, fetch users from your database
-        setUsers([]);
-        setLoading(false);
-    }, []);
+    const firestore = useFirestore();
+    const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('fullName', 'asc')), [firestore]);
+    const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
     const handleComposeEmail = async () => {
         const recipientUser = users?.find(u => u.id === composeRecipient);
@@ -122,8 +120,8 @@ export default function CommunicationsPage() {
                     <div className="space-y-2">
                         <Label htmlFor="recipient">Recipient</Label>
                          <Select value={composeRecipient} onValueChange={setComposeRecipient}>
-                            <SelectTrigger id="recipient">
-                                <SelectValue placeholder="Select a customer" />
+                            <SelectTrigger id="recipient" disabled={isLoadingUsers}>
+                                <SelectValue placeholder={isLoadingUsers ? "Loading customers..." : "Select a customer"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {users?.map(user => (

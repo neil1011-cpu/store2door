@@ -29,7 +29,7 @@ export type UserProfile = {
     state: string;
     zip: string;
   };
-  createdAt: Timestamp;
+  createdAt: Timestamp | any;
   dropoffAddresses?: DropoffAddress[];
   pickupPersonnel?: PickupPerson[];
 };
@@ -39,7 +39,7 @@ export type Shipment = {
   trackingNumber: string;
   contents: string;
   status: 'Pending' | 'Processed' | 'In Transit' | 'Customs' | 'Delivered';
-  date: Timestamp; 
+  date: Timestamp | any; 
   cost?: number;
   paymentStatus?: 'Paid' | 'Unpaid';
   invoiceUrl: string;
@@ -54,7 +54,7 @@ export type PreAlert = {
   trackingNumber: string;
   contents: string;
   status: 'Pending' | 'Processed';
-  date: Timestamp;
+  date: Timestamp | any;
   invoiceUrl: string;
 };
 
@@ -65,7 +65,7 @@ export type Message = {
   customerId: string;
   subject: string;
   message: string;
-  date: Timestamp;
+  date: Timestamp | any;
   sender: 'user' | 'agent';
   status: 'Open' | 'Closed';
   attachment?: string;
@@ -77,19 +77,27 @@ export type Conversation = {
     customerId: string;
     subject: string;
     latestMessage: string;
-    latestDate: Timestamp;
+    latestDate: Timestamp | any;
     isRead: boolean;
-    date: Timestamp;
+    date: Timestamp | any;
+};
+
+export type LineItem = {
+  description: string;
+  quantity: number;
+  price: number;
 };
 
 export type Invoice = {
+  id: string;
   invoiceId: string;
   customerId: string;
   customerName: string;
-  date: Timestamp;
+  date: Timestamp | any;
   amount: number;
   status: 'Paid' | 'Unpaid';
   invoiceUrl: string;
+  lineItems: LineItem[];
 }
 
 export type Rate = {

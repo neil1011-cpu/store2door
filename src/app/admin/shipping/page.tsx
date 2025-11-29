@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -33,8 +33,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
-import type { Shipment } from '@/lib/types';
+import type { Shipment, UserProfile } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collectionGroup, query, where, orderBy, doc } from 'firebase/firestore';
 
 
 const getStatusVariant = (status: string) => {
@@ -57,25 +59,32 @@ const getStatusVariant = (status: string) => {
 
 export default function ShippingPage() {
   const { toast } = useToast();
-  const [shipments, setShipments] = useState<Shipment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
+  const [selectedShipment, setSelectedShipment] = useState<Shipment & { user?: UserProfile } | null>(null);
   const [editableShipment, setEditableShipment] = useState<Shipment | null>(null);
   const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-      // In a real app, fetch this data from your database.
-      setShipments([]);
-      setLoading(false);
-  }, []);
+  const firestore = useFirestore();
+  const shipmentsQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'shipments'), orderBy('date', 'desc')), [firestore]);
+  const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
+  
+  const usersQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'users')), [firestore]);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
-  const handleOpenEmailDialog = (shipment: Shipment) => {
+  const shipmentsWithUsers = useMemoFirebase(() => {
+    if (!shipments || !users) return [];
+    const usersMap = new Map(users.map(u => [u.id, u]));
+    return shipments.map(shipment => ({
+        ...shipment,
+        user: usersMap.get(shipment.customerId),
+    }));
+  }, [shipments, users]);
+
+  const handleOpenEmailDialog = (shipment: Shipment & { user?: UserProfile }) => {
     setSelectedShipment(shipment);
-    // In a real app you'd get the customer details from the user collection
-    const customerName = 'Valued Customer';
+    const customerName = shipment.user?.fullName || 'Valued Customer';
     setEmailContent({
       subject: `Update for your shipment: ${shipment.trackingNumber}`,
       body: `Dear ${customerName},\n\nHere's an update on your shipment ${shipment.trackingNumber}:\n\nThe current status is: ${shipment.status}.\n\nThank you for shipping with us!\nFromStore2Door`,
@@ -83,13 +92,30 @@ export default function ShippingPage() {
     setIsEmailDialogOpen(true);
   };
 
-  const handleSendEmail = () => {
-    if (!selectedShipment) return;
-    // In a real app, this would be an API call to your email service
-    toast({
-      title: 'Email Sent',
-      description: `An email update for shipment ${selectedShipment.trackingNumber} has been sent.`,
-    });
+  const handleSendEmail = async () => {
+    if (!selectedShipment || !selectedShipment.user) return;
+
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: selectedShipment.user.email,
+          subject: emailContent.subject,
+          body: emailContent.body,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to send email.');
+
+      toast({
+        title: 'Email Sent',
+        description: `An email update for shipment ${selectedShipment.trackingNumber} has been sent.`,
+      });
+    } catch (error) {
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+    }
+    
     setIsEmailDialogOpen(false);
     setSelectedShipment(null);
   };
@@ -103,19 +129,21 @@ export default function ShippingPage() {
     if (!editableShipment) return;
     setIsSaving(true);
     
-    // In a real app, this would be an API call to update the database
-    setTimeout(() => {
-        const updatedShipments = shipments.map(s => s.id === editableShipment.id ? editableShipment : s);
-        setShipments(updatedShipments);
-        
-        toast({
-            title: "Shipment Updated",
-            description: `Shipment ${editableShipment.trackingNumber} has been updated.`
-        });
-        setIsSaving(false);
-        setIsEditDialogOpen(false);
-        setEditableShipment(null);
-    }, 1000);
+    const shipmentDocRef = doc(firestore, 'users', editableShipment.customerId, 'shipments', editableShipment.id);
+
+    // Using a copy to avoid passing non-serializable fields if any exist
+    const { id, customerId, ...updateData } = editableShipment;
+    
+    updateDocumentNonBlocking(shipmentDocRef, updateData);
+
+    toast({
+        title: "Shipment Update Queued",
+        description: `Shipment ${editableShipment.trackingNumber} will be updated shortly.`
+    });
+    
+    setIsSaving(false);
+    setIsEditDialogOpen(false);
+    setEditableShipment(null);
   }
   
   const handleEditFormChange = (field: keyof Shipment, value: string | number) => {
@@ -159,31 +187,32 @@ export default function ShippingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
-              {!loading && shipments.map((shipment) => (
+              {(isLoadingShipments || isLoadingUsers) && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
+              {!isLoadingShipments && !isLoadingUsers && shipmentsWithUsers.map((shipment) => (
                 <TableRow key={shipment.id}>
                   <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
                   <TableCell>
-                    <div className="font-medium">{shipment.customerId}</div>
+                    <div className="font-medium">{shipment.user?.fullName || 'N/A'}</div>
+                    <div className="text-sm text-muted-foreground">{shipment.user?.email}</div>
                   </TableCell>
                   <TableCell>
                     <Badge variant={getStatusVariant(shipment.status)}>{shipment.status}</Badge>
                   </TableCell>
                   <TableCell>{shipment.contents}</TableCell>
-                   <TableCell>{new Date(shipment.date).toLocaleDateString()}</TableCell>
+                   <TableCell>{shipment.date ? new Date(shipment.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell className="text-right space-x-2">
                     <Button variant="outline" size="sm" onClick={() => handleOpenEditDialog(shipment)}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleOpenEmailDialog(shipment)}>
+                    <Button variant="outline" size="sm" onClick={() => handleOpenEmailDialog(shipment)} disabled={!shipment.user}>
                       <Mail className="mr-2 h-4 w-4" />
                       Email
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
-               {!loading && shipments.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No shipments found.</TableCell></TableRow>}
+               {!isLoadingShipments && !isLoadingUsers && shipmentsWithUsers.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No shipments found.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
