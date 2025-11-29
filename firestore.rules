@@ -125,10 +125,8 @@ service cloud.firestore {
 
       allow get: if request.auth != null && isOwner(userId);
 
-      // IMPORTANT:
-      // To create admin temporarily:
-      //    Change this line to: allow create: if request.auth != null;
-      allow create: if isCreatingFirstAdmin(userId);
+      // Temporarily modified rule for admin creation
+      allow create: if request.auth != null;
 
       allow update, delete: if false;
     }
