@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
-import { useAuth, useFirestore, useCollection } from '@/firebase';
+import { useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, limit } from 'firebase/firestore';
 
@@ -36,7 +36,7 @@ export default function SetupAdminPage() {
   const firestore = useFirestore();
 
   // Check if an admin already exists
-  const adminRolesQuery = query(collection(firestore, 'roles_admin'), limit(1));
+  const adminRolesQuery = useMemoFirebase(() => query(collection(firestore, 'roles_admin'), limit(1)), [firestore]);
   const { data: adminRoles, isLoading: isLoadingAdmins } = useCollection(adminRolesQuery);
 
   useEffect(() => {
