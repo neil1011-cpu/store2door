@@ -217,11 +217,6 @@ export default function FinancePage() {
         
         toast({ title: 'Invoice Generation Queued', description: `Invoice ${newInvoice.invoiceId} for ${customerName} will be created.`});
 
-        // We can't view it right away as it's a non-blocking update
-        // The UI will update automatically via the useCollection hook
-        // setSelectedInvoice(newInvoice);
-        // setIsViewOpen(true);
-
     } catch (error) {
         console.error("PDF Generation Error:", error);
         toast({ title: 'Invoice Generation Failed', description: (error as Error).message, variant: 'destructive'});

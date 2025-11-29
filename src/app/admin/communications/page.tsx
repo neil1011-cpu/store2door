@@ -117,7 +117,7 @@ export default function CommunicationsPage() {
         <div className="flex items-center gap-2">
            <Dialog open={isComposeOpen} onOpenChange={setIsComposeOpen}>
             <DialogTrigger asChild>
-                <Button disabled={!process.env.NEXT_PUBLIC_RESEND_API_KEY} title={!process.env.NEXT_PUBLIC_RESEND_API_KEY ? "Email functionality is disabled until RESEND_API_KEY is configured." : "Compose Email"}>
+                <Button>
                     <PlusCircle className="mr-2 h-4 w-4" /> Compose Email
                 </Button>
             </DialogTrigger>
@@ -171,7 +171,7 @@ export default function CommunicationsPage() {
             <Terminal className="h-4 w-4" />
             <AlertTitle>Developer Notice</AlertTitle>
             <AlertDescription>
-                Email sending is currently disabled. To enable it, you must add your `RESEND_API_KEY` to the `.env` file in the root of the project.
+                Email sending is enabled via Resend. Ensure you have a `RESEND_API_KEY` in your environment variables. Without it, emails will fail.
             </AlertDescription>
         </Alert>
 
