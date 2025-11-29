@@ -2,142 +2,61 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---------------------------------------------------------
-    // ADMIN CREATION INSTRUCTIONS – READ THIS BEFORE ANYTHING
-    //
-    // TO CREATE AN ADMIN QUICKLY (NO BACKEND):
-    //
-    // STEP 1 — TEMPORARILY REPLACE THIS LINE (AT THE BOTTOM):
-    //      allow create: if isCreatingFirstAdmin(userId);
-    //
-    // WITH THIS:
-    //      allow create: if request.auth != null;
-    //
-    // STEP 2 — LOGIN AS THE USER YOU WANT TO MAKE ADMIN
-    //
-    // STEP 3 — CREATE THIS DOCUMENT IN FIRESTORE:
-    //      Path: roles_admin/{THE_USER_UID}
-    //      Data:
-    //      {
-    //        createdAt: request.time
-    //      }
-    //
-    // STEP 4 — RESTORE THE ORIGINAL RULE:
-    //      allow create: if isCreatingFirstAdmin(userId);
-    //
-    // AFTER RESTORING, NO OTHER USER CAN EVER CREATE AN ADMIN.
-    //
-    // ---------------------------------------------------------
-
-    // --- Helper functions ---
+    // --- Helpers ---
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    // Admin = has a doc in roles_admin/{uid}
     function isAdmin() {
       return request.auth != null
-             && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
-    function isNewUser(userId) {
-      return isOwner(userId)
-             && !exists(/databases/$(database)/documents/users/$(userId));
-    }
-
-    function isUpdatingOwnProfile(userId) {
-      return isOwner(userId)
-             && resource.data.id == userId;
-    }
-
-    // Sentinel document used to lock “first admin” logic
-    function noAdminInitialized() {
-      return !exists(/databases/$(database)/documents/system/admin_initialized);
-    }
-
-    function isCreatingFirstAdmin(userId) {
-      return isOwner(userId) && noAdminInitialized();
-    }
-
-    // --- USERS COLLECTION ---
-    match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
-
-      allow create: if
-        (
-          isNewUser(userId)
-          && request.resource.data.id == userId
-        )
-        ||
-        isCreatingFirstAdmin(userId);
-
-      allow update: if isUpdatingOwnProfile(userId) || isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    // --- USER SUBCOLLECTIONS ---
-    match /users/{userId}/{subcollection}/{docId} {
-      allow get, list: if isOwner(userId) || isAdmin();
-
-      allow create: if
-        (isOwner(userId) || isAdmin())
-        && request.resource.data.customerId == userId;
-
-      allow update: if
-        (isOwner(userId) || isAdmin())
-        && request.resource.data.customerId == resource.data.customerId;
-
-      allow delete: if isOwner(userId) || isAdmin();
-    }
-
-    // --- COLLECTION GROUPS FOR ADMINS ---
-    match /{path=**}/shipments/{shipmentId} {
-      allow get, list: if isAdmin();
-    }
-
-    match /{path=**}/pre_alerts/{preAlertId} {
-      allow get, list: if isAdmin();
-    }
-
-    match /{path=**}/conversations/{convoId} {
-      allow get, list: if isAdmin();
-    }
-
-    // --- ADMIN-ONLY GLOBAL DATA ---
-    match /invoices/{invoiceId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /flight_manifests/{manifestId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /profit_loss_statements/{id} {
-      allow read, write: if isAdmin();
-    }
-
-    match /rates/{rateId} {
-      allow read, write: if isAdmin();
+        && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
     // --- ADMIN ROLES ---
     match /roles_admin/{userId} {
+      // Allow the admin himself to read his role doc
+      allow get: if request.auth != null && isOwner(userId);
 
-      allow get: if isAdmin();
-      allow list: if request.query.limit == 1;
-
-      // IMPORTANT:
-      // To create admin temporarily:
-      //    Change this line to: allow create: if request.auth != null;
-      allow create: if isCreatingFirstAdmin(userId);
+      // TEMP: allow creation from client while you bootstrap.
+      // Once you're done, lock this back down.
+      allow create: if request.auth != null && isOwner(userId);
 
       allow update, delete: if false;
     }
 
-    // --- SYSTEM SENTINEL FOR FIRST ADMIN LOCKDOWN ---
-    match /system/admin_initialized {
-      allow write: if isAdmin();
-      allow read: if isAdmin();
+    // --- USERS ROOT COLLECTION ---
+    match /users/{userId} {
+      // A user can see their own profile; admins can see everyone
+      allow get: if isOwner(userId) || isAdmin();
+
+      // IMPORTANT: allows your admin to query `collection('users')`
+      allow list: if isAdmin();
+
+      // Basic create/update/delete rules (adjust as you like)
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
+
+    // --- USER SUBCOLLECTIONS (INCLUDING /users/{uid}/shipments/{id}) ---
+    match /users/{userId}/{subcollection}/{docId} {
+      // Admin can read all; user can read own
+      allow get, list: if isOwner(userId) || isAdmin();
+
+      // Admin or owner can write
+      allow create, update, delete: if isOwner(userId) || isAdmin();
+    }
+
+    // --- COLLECTION GROUP FOR SHIPMENTS ---
+    // This is REQUIRED for `collectionGroup(firestore, 'shipments')`
+    match /{path=**}/shipments/{shipmentId} {
+      // read == get + list
+      allow read: if isAdmin();
+      // OPTIONAL: allow writes from admin via collectionGroup paths
+      allow write: if isAdmin();
+    }
+
+    // Add any other collections (rates, manifests, etc.) below...
   }
 }
