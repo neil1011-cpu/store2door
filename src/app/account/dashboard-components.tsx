@@ -214,6 +214,20 @@ export function PackagesTab({ customerId }: { customerId: string }) {
     });
   };
 
+  if (isLoading) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>My Packages</CardTitle>
+                <CardDescription>Here is the status of all your shipments.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center items-center h-48">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </CardContent>
+        </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -233,13 +247,6 @@ export function PackagesTab({ customerId }: { customerId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                </TableCell>
-              </TableRow>
-            )}
             {userShipments && userShipments.map((shipment) => (
               <TableRow key={shipment.id}>
                 <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
@@ -307,7 +314,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                  </TableCell>
               </TableRow>
             ))}
-             {!isLoading && userShipments?.length === 0 && (
+             {!isLoading && (!userShipments || userShipments.length === 0) && (
                 <TableRow>
                     <TableCell colSpan={6} className="text-center">You have no shipments yet.</TableCell>
                 </TableRow>
@@ -328,10 +335,10 @@ export function SupportTab({ details }: { details: UserProfile }) {
 
   const firestore = useFirestore();
 
-  const convosQuery = useMemoFirebase(() => details ? query(collection(firestore, 'users', details.id, 'conversations'), orderBy('latestDate', 'desc')) : null, [firestore, details]);
+  const convosQuery = useMemoFirebase(() => (firestore && details?.id) ? query(collection(firestore, 'users', details.id, 'conversations'), orderBy('latestDate', 'desc')) : null, [firestore, details]);
   const { data: conversations, isLoading: isLoadingConversations } = useCollection<Conversation>(convosQuery);
 
-  const messagesQuery = useMemoFirebase(() => activeConversation ? query(collection(firestore, 'users', details.id, 'conversations', activeConversation.id, 'messages'), orderBy('date', 'asc')) : null, [firestore, details, activeConversation]);
+  const messagesQuery = useMemoFirebase(() => (firestore && details?.id && activeConversation?.id) ? query(collection(firestore, 'users', details.id, 'conversations', activeConversation.id, 'messages'), orderBy('date', 'asc')) : null, [firestore, details, activeConversation]);
   const { data: messages, isLoading: isLoadingMessages } = useCollection<Message>(messagesQuery);
   
   useEffect(() => {
@@ -412,6 +419,24 @@ export function SupportTab({ details }: { details: UserProfile }) {
       });
   };
 
+  const isLoading = isLoadingConversations || isLoadingMessages;
+
+  if (isLoading) {
+    return (
+        <Card className="flex flex-col h-full max-h-[75vh]">
+            <CardHeader>
+                <CardTitle>Support Center</CardTitle>
+                <CardDescription>
+                Send us a message with any questions or concerns.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center items-center flex-1">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </CardContent>
+        </Card>
+    );
+  }
+
   return (
     <Card className="flex flex-col h-full max-h-[75vh]">
       <CardHeader>
@@ -422,8 +447,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
       </CardHeader>
       <ScrollArea className="flex-1 px-6 pb-4">
         <div className="space-y-6">
-          {(isLoadingConversations || isLoadingMessages) && <div className="text-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
-          {!isLoadingMessages && !isLoadingConversations && (!messages || messages.length === 0) && (
+          {(!messages || messages.length === 0) && (
             <div className="text-center text-muted-foreground py-8">
               <Inbox className="h-12 w-12 mx-auto" />
               <p className="mt-2">You have no messages. Start a new conversation below.</p>
@@ -741,3 +765,5 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
+
+    
