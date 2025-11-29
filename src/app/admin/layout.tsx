@@ -68,10 +68,12 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     [firestore, user.uid],
   );
 
+  // CRITICAL FIX: Use skipCache to ensure we get the latest data from the server,
+  // preventing a false negative from a stale cache right after login.
   const {
     data: adminRoleDoc,
     isLoading: isAdminLoading,
-  } = useDoc(adminRoleRef);
+  } = useDoc(adminRoleRef, { skipCache: true });
 
   // Redirect once the admin doc has finished loading and does NOT exist
   useEffect(() => {
