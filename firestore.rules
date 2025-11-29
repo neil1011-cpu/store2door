@@ -2,6 +2,33 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------------------------------------------------------
+    // ADMIN CREATION INSTRUCTIONS – READ THIS BEFORE ANYTHING
+    //
+    // TO CREATE AN ADMIN QUICKLY (NO BACKEND):
+    //
+    // STEP 1 — TEMPORARILY REPLACE THIS LINE (AT THE BOTTOM):
+    //      allow create: if isCreatingFirstAdmin(userId);
+    //
+    // WITH THIS:
+    //      allow create: if request.auth != null;
+    //
+    // STEP 2 — LOGIN AS THE USER YOU WANT TO MAKE ADMIN
+    //
+    // STEP 3 — CREATE THIS DOCUMENT IN FIRESTORE:
+    //      Path: roles_admin/{THE_USER_UID}
+    //      Data:
+    //      {
+    //        createdAt: request.time
+    //      }
+    //
+    // STEP 4 — RESTORE THE ORIGINAL RULE:
+    //      allow create: if isCreatingFirstAdmin(userId);
+    //
+    // AFTER RESTORING, NO OTHER USER CAN EVER CREATE AN ADMIN.
+    //
+    // ---------------------------------------------------------
+
     // --- Helper functions ---
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
@@ -22,18 +49,14 @@ service cloud.firestore {
              && resource.data.id == userId;
     }
 
-    // First admin logic using a sentinel document
+    // Sentinel document used to lock “first admin” logic
     function noAdminInitialized() {
-      // This function now checks if the collection is empty by trying to get the first doc.
-      // This is more reliable than exists() on a collection path.
-      return get(/databases/$(database)/documents/roles_admin).size() == 0;
+      return !exists(/databases/$(database)/documents/system/admin_initialized);
     }
 
     function isCreatingFirstAdmin(userId) {
-      // Ensures the user is logged in and no other admins exist.
-      return isOwner(userId) && size(get(/databases/$(database)/documents/roles_admin).data) == 0;
+      return isOwner(userId) && noAdminInitialized();
     }
-
 
     // --- USERS COLLECTION ---
     match /users/{userId} {
@@ -45,13 +68,12 @@ service cloud.firestore {
           isNewUser(userId)
           && request.resource.data.id == userId
         )
-        || (isAdmin() && request.resource.data.id == userId) // Allow admin to create user doc
-        || (isOwner(userId) && !exists(/databases/$(database)/documents/users/$(userId))); // Simplified rule for user creating their own doc
+        ||
+        isCreatingFirstAdmin(userId);
 
       allow update: if isUpdatingOwnProfile(userId) || isAdmin();
       allow delete: if isAdmin();
     }
-
 
     // --- USER SUBCOLLECTIONS ---
     match /users/{userId}/{subcollection}/{docId} {
@@ -68,7 +90,6 @@ service cloud.firestore {
       allow delete: if isOwner(userId) || isAdmin();
     }
 
-
     // --- COLLECTION GROUPS FOR ADMINS ---
     match /{path=**}/shipments/{shipmentId} {
       allow get, list: if isAdmin();
@@ -81,7 +102,6 @@ service cloud.firestore {
     match /{path=**}/conversations/{convoId} {
       allow get, list: if isAdmin();
     }
-
 
     // --- ADMIN-ONLY GLOBAL DATA ---
     match /invoices/{invoiceId} {
@@ -100,29 +120,23 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-
     // --- ADMIN ROLES ---
     match /roles_admin/{userId} {
-      // Allow a user to check if they have an admin role doc. Admins can check anyone.
-      allow get: if isOwner(userId) || isAdmin();
-      
-      // Allow a LIST operation only if the query is just checking for existence.
-      // This is crucial for the /setup-admin page to work without being logged in.
-      allow list: if request.query.limit == 1;
 
-      // Allow a user to create their own admin role document ONLY IF they are the first user.
-      // The `isCreatingFirstAdmin` function is no longer needed here because we can check size directly.
-      allow create: if request.auth != null && size(get(/databases/$(database)/documents/roles_admin).data) == 0;
+      allow get: if request.auth != null && isOwner(userId);
 
-      allow update, delete: if false; // Disallow updating or deleting roles for safety.
+      // IMPORTANT:
+      // To create admin temporarily:
+      //    Change this line to: allow create: if request.auth != null;
+      allow create: if isCreatingFirstAdmin(userId);
+
+      allow update, delete: if false;
     }
 
-
-    // --- SYSTEM SENTINEL FOR FIRST ADMIN ---
-    // This is no longer the primary mechanism, but can be kept for other system flags.
-    match /system/{docId} {
-      allow read, write: if isAdmin();
+    // --- SYSTEM SENTINEL FOR FIRST ADMIN LOCKDOWN ---
+    match /system/admin_initialized {
+      allow write: if isAdmin();
+      allow read: if isAdmin();
     }
-
   }
 }
