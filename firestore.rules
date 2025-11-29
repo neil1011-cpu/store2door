@@ -123,10 +123,13 @@ service cloud.firestore {
     // --- ADMIN ROLES ---
     match /roles_admin/{userId} {
 
-      allow get: if request.auth != null && isOwner(userId);
+      allow get: if isAdmin();
+      allow list: if request.query.limit == 1;
 
-      // Temporarily modified rule for admin creation
-      allow create: if request.auth != null;
+      // IMPORTANT:
+      // To create admin temporarily:
+      //    Change this line to: allow create: if request.auth != null;
+      allow create: if isCreatingFirstAdmin(userId);
 
       allow update, delete: if false;
     }
