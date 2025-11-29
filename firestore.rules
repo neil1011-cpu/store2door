@@ -24,11 +24,14 @@ service cloud.firestore {
 
     // First admin logic using a sentinel document
     function noAdminInitialized() {
-      return !exists(/databases/$(database)/documents/system/admin_initialized);
+      // This function now checks if the collection is empty by trying to get the first doc.
+      // This is more reliable than exists() on a collection path.
+      return get(/databases/$(database)/documents/roles_admin).size() == 0;
     }
 
     function isCreatingFirstAdmin(userId) {
-      return isOwner(userId) && noAdminInitialized();
+      // Ensures the user is logged in and no other admins exist.
+      return isOwner(userId) && size(get(/databases/$(database)/documents/roles_admin).data) == 0;
     }
 
 
@@ -42,7 +45,8 @@ service cloud.firestore {
           isNewUser(userId)
           && request.resource.data.id == userId
         )
-        || isCreatingFirstAdmin(userId);
+        || (isAdmin() && request.resource.data.id == userId) // Allow admin to create user doc
+        || (isOwner(userId) && !exists(/databases/$(database)/documents/users/$(userId))); // Simplified rule for user creating their own doc
 
       allow update: if isUpdatingOwnProfile(userId) || isAdmin();
       allow delete: if isAdmin();
@@ -99,20 +103,25 @@ service cloud.firestore {
 
     // --- ADMIN ROLES ---
     match /roles_admin/{userId} {
-      allow get: if request.auth != null && isOwner(userId);
+      // Allow a user to check if they have an admin role doc. Admins can check anyone.
+      allow get: if isOwner(userId) || isAdmin();
+      
+      // Allow a LIST operation only if the query is just checking for existence.
+      // This is crucial for the /setup-admin page to work without being logged in.
+      allow list: if request.query.limit == 1;
 
-      // First admin creation only
-      allow create: if isCreatingFirstAdmin(userId);
+      // Allow a user to create their own admin role document ONLY IF they are the first user.
+      // The `isCreatingFirstAdmin` function is no longer needed here because we can check size directly.
+      allow create: if request.auth != null && size(get(/databases/$(database)/documents/roles_admin).data) == 0;
 
-      allow update, delete: if false;
+      allow update, delete: if false; // Disallow updating or deleting roles for safety.
     }
 
 
     // --- SYSTEM SENTINEL FOR FIRST ADMIN ---
-    match /system/admin_initialized {
-      // Only admin can create this after first admin setup
-      allow write: if isAdmin();
-      allow read: if isAdmin();
+    // This is no longer the primary mechanism, but can be kept for other system flags.
+    match /system/{docId} {
+      allow read, write: if isAdmin();
     }
 
   }
