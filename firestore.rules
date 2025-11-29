@@ -19,14 +19,26 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
     function isAdmin() {
+      // Check for existence of the user's UID in the roles_admin collection.
       return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
     function isNewUser(userId) {
+      // A user is new if they are authenticated and don't have a profile document yet.
       return isOwner(userId) && !exists(/databases/$(database)/documents/users/$(userId));
     }
     function isUpdatingOwnProfile(userId) {
+       // A user can update their own profile.
        return isOwner(userId) && resource.data.id == userId;
     }
+    function noAdminsExist() {
+      // Check if the roles_admin collection is empty.
+      return !exists(/databases/$(database)/documents/roles_admin);
+    }
+     function isCreatingFirstAdmin(userId) {
+      // Allow creation only if it's the requesting user and no admins exist yet.
+      return isOwner(userId) && get(/databases/$(database)/documents/roles_admin).size == 0;
+    }
+
 
     /**
      * @description Manages user profile data.
@@ -35,7 +47,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isNewUser(userId) && request.resource.data.id == userId;
+      // Allow a user to create their own profile. Allow first admin setup.
+      allow create: if (isNewUser(userId) && request.resource.data.id == userId) || (isOwner(userId) && isCreatingFirstAdmin(userId));
       allow update: if isUpdatingOwnProfile(userId) || isAdmin();
       allow delete: if isAdmin(); // Only admins can delete user profiles
     }
@@ -86,13 +99,15 @@ service cloud.firestore {
 
     /**
      * @description Defines which users have administrative privileges.
-     * This collection should only be managed by a trusted backend environment.
-     * The list rule allows the one-time admin setup page to check for existence.
+     * This collection should only be managed by a trusted backend environment,
+     * except for the very first admin creation.
      */
     match /roles_admin/{userId} {
       allow get: if request.auth != null;
       allow list: if true; // Allows checking for existence on setup page
-      allow write: if false;
+      // Allow a write operation only if it's the user creating their own admin doc AND no other admins exist.
+      allow create: if isCreatingFirstAdmin(userId);
+      allow update, delete: if false; // No updates or deletes from the client.
     }
   }
 }
