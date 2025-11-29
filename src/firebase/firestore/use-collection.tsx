@@ -27,7 +27,7 @@ function safeGetPath(target: any): string {
     if (!target) return 'unknown_path';
 
     // CollectionReference has .path
-    if ('path' in target) {
+    if ('path' in target && typeof target.path === 'string') {
       return target.path || 'unknown_path';
     }
 
@@ -42,21 +42,6 @@ function safeGetPath(target: any): string {
   }
 }
 
-/** Prevents invalid or root queries */
-function isValidRefOrQuery(target: any): boolean {
-  if (!target) return false;
-
-  // Must be one of the Firestore types we expect
-  const isCollection = !!(target as CollectionReference).id;
-  const isQuery = !!(target as Query).type === undefined || 'firestore' in target;
-
-  if (!isCollection && !isQuery) return false;
-
-  // Block accidental root access
-  if ('path' in target && target.path === '') return false;
-
-  return true;
-}
 
 export function useCollection<T = any>(
   memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined
@@ -71,20 +56,6 @@ export function useCollection<T = any>(
       setData(null);
       setIsLoading(false);
       setError(null);
-      return;
-    }
-
-    // Prevent illegal or root queries
-    if (!isValidRefOrQuery(memoizedTargetRefOrQuery)) {
-      const path = safeGetPath(memoizedTargetRefOrQuery);
-      const contextualError = new FirestorePermissionError({
-        operation: 'list',
-        path,
-      });
-
-      setError(contextualError);
-      setIsLoading(false);
-      setData(null);
       return;
     }
 
@@ -107,7 +78,7 @@ export function useCollection<T = any>(
 
         const contextualError = new FirestorePermissionError({
           operation: 'list',
-          path,
+          path: path,
         });
 
         setError(contextualError);
