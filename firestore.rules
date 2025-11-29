@@ -1,112 +1,119 @@
 rules_version = '2';
-
-// Welcome to your Firestore Security Rules!
-//
-// Rules are path-based. You use `match` blocks to specify a path pattern
-// and then use `allow` statements to define access conditions.
-//
-// The `request` variable contains information about the incoming request,
-// including `request.auth` which holds the authenticated user's information (like their UID).
-//
-// COMMON PATTERNS:
-// allow read: if true;                               // Publicly readable
-// allow read: if request.auth != null;               // Readable by any logged-in user
-// allow read: if request.auth.uid == userId;         // Readable only by the user who owns the document
-// allow write: if false;                              // Not writable at all
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    //================================================================================
-    // USER PROFILES
-    // Path: /users/{userId}
-    // Each user has a profile document where the document ID is their UID.
-    //================================================================================
+    // --- Helper functions ---
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return request.auth != null
+             && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    function isNewUser(userId) {
+      return isOwner(userId)
+             && !exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function isUpdatingOwnProfile(userId) {
+      return isOwner(userId)
+             && resource.data.id == userId;
+    }
+
+    // First admin logic using a sentinel document
+    function noAdminInitialized() {
+      return !exists(/databases/$(database)/documents/system/admin_initialized);
+    }
+
+    function isCreatingFirstAdmin(userId) {
+      return isOwner(userId) && noAdminInitialized();
+    }
+
+
+    // --- USERS COLLECTION ---
     match /users/{userId} {
-      // READ: A user can read their own profile. Other users cannot.
-      allow get: if request.auth != null && request.auth.uid == userId;
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
 
-      // LIST: Nobody should be able to list all users in the database.
-      allow list: if false;
+      allow create: if
+        (
+          isNewUser(userId)
+          && request.resource.data.id == userId
+        )
+        || isCreatingFirstAdmin(userId);
 
-      // CREATE: A new user can create their own profile document.
-      // The document ID must match their authentication UID.
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.id;
-
-      // UPDATE: A user can update their own profile.
-      allow update: if request.auth != null && request.auth.uid == userId;
-      
-      // DELETE: Generally, users should not be able to delete their own accounts directly
-      // via a client-side request. This should be handled by a backend function.
-      allow delete: if false;
+      allow update: if isUpdatingOwnProfile(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
 
 
-    //================================================================================
-    // ADMIN ROLES
-    // Path: /roles_admin/{userId}
-    // This collection is used to designate which users are administrators.
-    // The existence of a document here grants admin privileges.
-    //================================d================================================
-    match /roles_admin/{userId} {
-      // READ (get): An authenticated user is allowed to check if THEY are an admin.
-      // This is secure because they can only check the document matching their own UID.
-      allow get: if request.auth != null;
-
-      // LIST: This is the rule that allows the /setup-admin page to work.
-      // It allows ANYONE to check if the collection is empty, but they cannot see the data.
-      // This is secure because it only allows listing if the query limit is 1.
-      allow list: if query.limit == 1;
-
-      // WRITE (create, update, delete): Only allow a user to be made an admin IF
-      // the `roles_admin` collection is currently empty. This ensures that only the
-      // very first admin can be created, securing the system thereafter.
-      allow write: if !exists(/databases/$(database)/documents/roles_admin);
-    }
-    
-    //================================================================================
-    // USER-OWNED SUBCOLLECTIONS
-    // This single rule can cover all subcollections belonging to a user.
-    // Examples: /users/{userId}/shipments/{shipmentId}
-    //           /users/{userId}/pre_alerts/{preAlertId}
-    //           /users/{userId}/conversations/{convoId}
-    //================================================================================
+    // --- USER SUBCOLLECTIONS ---
     match /users/{userId}/{subcollection}/{docId} {
-        // Any document in any subcollection under a user can only be read or written
-        // to by that user, or by an admin.
-        allow read, write: if request.auth != null && (request.auth.uid == userId || exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)));
+      allow get, list: if isOwner(userId) || isAdmin();
+
+      allow create: if
+        (isOwner(userId) || isAdmin())
+        && request.resource.data.customerId == userId;
+
+      allow update: if
+        (isOwner(userId) || isAdmin())
+        && request.resource.data.customerId == resource.data.customerId;
+
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
 
-    //================================================================================
-    // GLOBAL COLLECTIONS
-    // These collections are managed primarily by admins.
-    // Examples: /invoices/{invoiceId}
-    //================================================================================
+    // --- COLLECTION GROUPS FOR ADMINS ---
+    match /{path=**}/shipments/{shipmentId} {
+      allow get, list: if isAdmin();
+    }
+
+    match /{path=**}/pre_alerts/{preAlertId} {
+      allow get, list: if isAdmin();
+    }
+
+    match /{path=**}/conversations/{convoId} {
+      allow get, list: if isAdmin();
+    }
+
+
+    // --- ADMIN-ONLY GLOBAL DATA ---
     match /invoices/{invoiceId} {
-        // Admins can do anything. Regular users cannot directly access the root invoices collection.
-        // Users access their own shipment/invoice data via the subcollection rules above.
-        allow read, write: if exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      allow read, write: if isAdmin();
+    }
+
+    match /flight_manifests/{manifestId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /profit_loss_statements/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /rates/{rateId} {
+      allow read, write: if isAdmin();
     }
 
 
-    // --- Add your custom rules below this line ---
+    // --- ADMIN ROLES ---
+    match /roles_admin/{userId} {
+      allow get: if request.auth != null && isOwner(userId);
 
-    // EXAMPLE: A 'products' collection that anyone can read, but only admins can write to.
-    /*
-    match /products/{productId} {
-      allow read: if true;
-      allow write: if exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-    */
+      // First admin creation only
+      allow create: if isCreatingFirstAdmin(userId);
 
-    // EXAMPLE: A 'blogPosts' collection where anyone can read, but only the author or an admin can edit.
-    /*
-    match /blogPosts/{postId} {
-      allow read: if true;
-      allow create: if request.auth != null; // Any logged-in user can create a post
-      allow update: if request.auth != null && (request.resource.data.authorId == request.auth.uid || exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)));
+      allow update, delete: if false;
     }
-    */
+
+
+    // --- SYSTEM SENTINEL FOR FIRST ADMIN ---
+    match /system/admin_initialized {
+      // Only admin can create this after first admin setup
+      allow write: if isAdmin();
+      allow read: if isAdmin();
+    }
+
   }
 }
