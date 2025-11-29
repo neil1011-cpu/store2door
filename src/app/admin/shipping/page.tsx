@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -79,6 +80,7 @@ export default function ShippingPage() {
     return shipments.map(shipment => ({
         ...shipment,
         user: usersMap.get(shipment.customerId),
+        customerName: usersMap.get(shipment.customerId)?.fullName || 'N/A' // Ensure customerName is available
     }));
   }, [shipments, users]);
 

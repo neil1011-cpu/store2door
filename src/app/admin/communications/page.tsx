@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -21,7 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UserProfile } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 
 
@@ -44,8 +44,14 @@ export default function CommunicationsPage() {
     const [composeBody, setComposeBody] = useState('');
     const [isComposing, setIsComposing] = useState(false);
     
+    const { user } = useUser();
     const firestore = useFirestore();
-    const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('fullName', 'asc')), [firestore]);
+
+    const usersQuery = useMemoFirebase(() => {
+        if (!user) return null;
+        return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
+    }, [firestore, user]);
+
     const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
     const handleComposeEmail = async () => {
@@ -110,7 +116,9 @@ export default function CommunicationsPage() {
         <div className="flex items-center gap-2">
            <Dialog open={isComposeOpen} onOpenChange={setIsComposeOpen}>
             <DialogTrigger asChild>
-                <Button disabled title="Email functionality is disabled until RESEND_API_KEY is configured."><PlusCircle className="mr-2 h-4 w-4" /> Compose Email</Button>
+                <Button disabled={!process.env.NEXT_PUBLIC_RESEND_API_KEY} title={!process.env.NEXT_PUBLIC_RESEND_API_KEY ? "Email functionality is disabled until RESEND_API_KEY is configured." : "Compose Email"}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Compose Email
+                </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
