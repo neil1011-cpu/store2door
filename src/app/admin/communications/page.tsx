@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -56,7 +55,11 @@ export default function CommunicationsPage() {
     const loading = isUserLoading || isLoadingUsers;
 
     const handleComposeEmail = async () => {
-        const recipientUser = users?.find(u => u.id === composeRecipient);
+        if (!users) {
+            toast({ title: 'Users not loaded', description: 'Please wait for users to load.', variant: 'destructive'});
+            return;
+        }
+        const recipientUser = users.find(u => u.id === composeRecipient);
         if (!composeRecipient || !composeSubject.trim() || !composeBody.trim() || !recipientUser) {
             toast({ title: 'Missing fields', description: 'Please select a valid recipient and enter a subject and message.', variant: 'destructive' });
             return;
@@ -104,7 +107,7 @@ export default function CommunicationsPage() {
         }
     }
 
-  if (loading) {
+  if (loading || !users) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -137,11 +140,11 @@ export default function CommunicationsPage() {
                     <div className="space-y-2">
                         <Label htmlFor="recipient">Recipient</Label>
                          <Select value={composeRecipient} onValueChange={setComposeRecipient}>
-                            <SelectTrigger id="recipient" disabled={loading}>
-                                <SelectValue placeholder={loading ? "Loading customers..." : "Select a customer"} />
+                            <SelectTrigger id="recipient">
+                                <SelectValue placeholder={"Select a customer"} />
                             </SelectTrigger>
                             <SelectContent>
-                                {users?.map(user => (
+                                {users.map(user => (
                                     <SelectItem key={user.id} value={user.id}>{user.fullName} ({user.email})</SelectItem>
                                 ))}
                             </SelectContent>

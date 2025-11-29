@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -165,7 +164,11 @@ export default function FinancePage() {
   const calculateTotal = () => lineItems.reduce((total, item) => total + item.quantity * item.price, 0);
   
   const handleGenerateInvoice = async () => {
-    const selectedUser = users?.find(u => u.id === customerId);
+    if (!users) {
+        toast({ title: 'Users not loaded', description: 'Please wait for users to load.', variant: 'destructive'});
+        return;
+    }
+    const selectedUser = users.find(u => u.id === customerId);
     if(!selectedUser || lineItems.some(item => !item.description || item.price <= 0)) {
         toast({ title: 'Missing Fields', description: 'Please select a customer and fill in all line item details.', variant: 'destructive'});
         return;
@@ -271,7 +274,7 @@ export default function FinancePage() {
     setNewTransaction({ type: 'revenue', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
   };
 
-  if (loading) {
+  if (loading || !users || !invoices) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -426,11 +429,11 @@ export default function FinancePage() {
                             <div className="space-y-2">
                                 <Label htmlFor="customerName">Customer Name</Label>
                                 <Select value={customerId} onValueChange={setCustomerId}>
-                                    <SelectTrigger id="customerName" disabled={isLoadingUsers}>
-                                        <SelectValue placeholder={isLoadingUsers ? "Loading..." : "Select a customer"} />
+                                    <SelectTrigger id="customerName">
+                                        <SelectValue placeholder={"Select a customer"} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {users?.map(user => (
+                                        {users.map(user => (
                                             <SelectItem key={user.id} value={user.id}>{user.fullName}</SelectItem>
                                         ))}
                                     </SelectContent>
@@ -478,9 +481,7 @@ export default function FinancePage() {
             <Table>
                 <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Customer</TableHead><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                {!invoices ? (
-                    <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>
-                ) : invoices.length === 0 ? (
+                {invoices.length === 0 ? (
                     <TableRow><TableCell colSpan={6} className="text-center h-24">No invoices found.</TableCell></TableRow>
                 ) : (
                     invoices.map((invoice) => (

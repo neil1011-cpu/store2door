@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -162,11 +161,15 @@ export default function PreAlertsPage() {
   );
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
-  const loading = isLoadingAlerts || isLoadingUsers || isUserLoading;
+  const loading = isUserLoading || isLoadingAlerts || isLoadingUsers;
 
 
   const handleCreateAlert = async () => {
-    const selectedUser = users?.find(u => u.id === newAlert.customerId);
+    if (!users) {
+        toast({ title: 'Users not loaded', description: 'Please wait for users to load.', variant: 'destructive'});
+        return;
+    }
+    const selectedUser = users.find(u => u.id === newAlert.customerId);
     if (!selectedUser || !newAlert.trackingNumber || !newAlert.contents) {
       toast({
         title: 'Missing Fields',
@@ -217,7 +220,7 @@ export default function PreAlertsPage() {
   const handleShipmentCreated = (newShipment: Omit<Shipment, 'id'>, preAlertId: string) => {
     const shipmentsCollection = collection(firestore, 'users', newShipment.customerId, 'shipments');
     addDoc(shipmentsCollection, newShipment)
-      .then(() => {
+      .then((shipmentRef) => {
         toast({ title: "Shipment Created", description: `Shipment for ${newShipment.trackingNumber} has been created.`});
         
         const preAlertDocRef = doc(firestore, 'users', newShipment.customerId, 'pre_alerts', preAlertId);
@@ -245,7 +248,7 @@ export default function PreAlertsPage() {
       });
   }
 
-  if (loading) {
+  if (loading || !preAlerts || !users) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -289,11 +292,11 @@ export default function PreAlertsPage() {
                     Customer
                     </Label>
                     <Select onValueChange={(value) => setNewAlert({...newAlert, customerId: value})} >
-                        <SelectTrigger className="col-span-3" disabled={isLoadingUsers}>
-                            <SelectValue placeholder={isLoadingUsers ? "Loading customers..." : "Select a customer"} />
+                        <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder={"Select a customer"} />
                         </SelectTrigger>
                         <SelectContent>
-                            {users?.map(user => (
+                            {users.map(user => (
                                 <SelectItem key={user.id} value={user.id}>{user.fullName}</SelectItem>
                             ))}
                         </SelectContent>
@@ -314,7 +317,7 @@ export default function PreAlertsPage() {
                 </div>
                 <DialogFooter>
                 <Button type="submit" onClick={handleCreateAlert} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Save Pre-Alert'}
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Pre-Alert"}
                 </Button>
                 </DialogFooter>
             </DialogContent>
@@ -344,7 +347,7 @@ export default function PreAlertsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!preAlerts || preAlerts.length === 0 ? (
+              {preAlerts.length === 0 ? (
                  <TableRow>
                     <TableCell colSpan={7} className="text-center h-24">No pre-alerts found.</TableCell>
                 </TableRow>

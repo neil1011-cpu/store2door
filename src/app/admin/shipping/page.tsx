@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -83,7 +82,7 @@ export default function ShippingPage() {
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   const shipmentsWithUsers = useMemo(() => {
-    if (!shipments || !users) return [];
+    if (!shipments || !users) return null;
     
     const usersMap = new Map(users.map(u => [u.id, u]));
     return shipments.map(shipment => ({
@@ -93,7 +92,7 @@ export default function ShippingPage() {
     }));
   }, [shipments, users]);
   
-  const loading = isLoadingShipments || isLoadingUsers || isUserLoading;
+  const loading = isUserLoading || isLoadingShipments || isLoadingUsers;
 
   const handleOpenEmailDialog = (shipment: Shipment & { user?: UserProfile }) => {
     setSelectedShipment(shipment);
@@ -183,7 +182,7 @@ export default function ShippingPage() {
     }
   }
 
-  if (loading) {
+  if (loading || !shipmentsWithUsers) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -249,7 +248,7 @@ export default function ShippingPage() {
                   </TableCell>
                 </TableRow>
               ))}
-               {!loading && shipmentsWithUsers.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No shipments found.</TableCell></TableRow>}
+               {shipmentsWithUsers.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No shipments found.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
@@ -329,7 +328,7 @@ export default function ShippingPage() {
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="edit-payment-status">Payment Status</Label>
-                        <Select value={editableShipment.paymentStatus} onValueChange={(value: 'Paid' | 'Unpaid') => handleEditFormChange('paymentStatus', value as string)}>
+                        <Select value={editableShipment.paymentStatus} onValueChange={(value: 'Paid' | 'Unpaid') => handleEditFormChange('paymentStatus', value)}>
                             <SelectTrigger id="edit-payment-status">
                                 <SelectValue placeholder="Select status" />
                             </SelectTrigger>
