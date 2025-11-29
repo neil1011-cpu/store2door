@@ -87,10 +87,12 @@ service cloud.firestore {
     /**
      * @description Defines which users have administrative privileges.
      * This collection should only be managed by a trusted backend environment.
+     * The list rule allows the one-time admin setup page to check for existence.
      */
     match /roles_admin/{userId} {
       allow get: if request.auth != null;
-      allow list, write: if false;
+      allow list: if true; // Allows checking for existence on setup page
+      allow write: if false;
     }
   }
 }
