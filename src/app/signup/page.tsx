@@ -22,7 +22,10 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/lib/types';
-import { users as mockUsers } from '@/lib/mock-data';
+import { useAuth, useFirestore } from '@/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, getCountFromServer, collection, serverTimestamp } from 'firebase/firestore';
+
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -37,6 +40,8 @@ export default function SignUpPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const auth = useAuth();
+  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,58 +56,57 @@ export default function SignUpPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    // In a real app, you would make an API call to a secure backend endpoint.
-    // The backend would handle user creation, password hashing, and database insertion.
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    if (mockUsers.find(u => u.email === values.email)) {
-        toast({
-            title: 'Sign Up Failed',
-            description: 'An account with this email already exists.',
-            variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-    }
     
-    // This logic should exist on a secure backend to prevent race conditions and ensure uniqueness.
-    const nextMailboxNumber = `FSTD${100 + mockUsers.length + 1}`;
-
-    const newUser: UserProfile = {
-      id: `user-${Date.now()}`,
-      fullName: values.fullName,
-      email: values.email,
-      phone: values.phone,
-      trn: values.trn,
-      mailboxNumber: nextMailboxNumber,
-      address: {
-        address1: '4350 NE 5th Terrace Bay #3',
-        address2: `${nextMailboxNumber} -FSTD`,
-        city: 'Oakland Park',
-        state: 'Florida',
-        zip: '33334',
-      },
-      createdAt: new Date().toISOString(),
-    };
-    
-    // Simulate adding the user to our mock data array. In reality, this would be a DB write.
-    mockUsers.push(newUser);
-
     try {
-        localStorage.setItem('accountDetails', JSON.stringify(newUser));
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
+
+        const usersCollection = collection(firestore, "users");
+        const snapshot = await getCountFromServer(usersCollection);
+        const userCount = snapshot.data().count;
+        const nextMailboxNumber = `FSTD${101 + userCount}`;
+
+        const newUserProfile: Omit<UserProfile, 'id' | 'createdAt'> = {
+            fullName: values.fullName,
+            email: values.email,
+            phone: values.phone,
+            trn: values.trn,
+            mailboxNumber: nextMailboxNumber,
+            address: {
+                address1: '4350 NE 5th Terrace Bay #3',
+                address2: `${nextMailboxNumber} -FSTD`,
+                city: 'Oakland Park',
+                state: 'Florida',
+                zip: '33334',
+            },
+        };
+        
+        const userDocRef = doc(firestore, 'users', user.uid);
+        
+        await setDoc(userDocRef, {
+            ...newUserProfile,
+            id: user.uid,
+            createdAt: serverTimestamp()
+        });
+
         toast({
             title: 'Sign Up Successful!',
             description: 'Your account has been created. Redirecting...',
         });
         router.push('/account');
-    } catch (error) {
+
+    } catch (error: any) {
+        console.error("Sign up error:", error);
         toast({
             title: 'Sign Up Failed',
-            description: 'Could not save your session. Please enable cookies and try again.',
+            description: error.code === 'auth/email-already-in-use' 
+                ? 'An account with this email already exists.' 
+                : error.message,
             variant: 'destructive',
         });
-        setLoading(false);
     }
+
+    setLoading(false);
   };
   
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {

@@ -20,7 +20,9 @@ import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { UserProfile, Shipment, Conversation, Message, PickupPerson, DropoffAddress } from '@/lib/types';
-
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 const getStatusVariant = (status: Shipment['status']) => {
   switch (status) {
@@ -35,15 +37,11 @@ const getStatusVariant = (status: Shipment['status']) => {
 
 
 export function DashboardTab({ details }: { details: UserProfile }) {
-  const [recentShipment, setRecentShipment] = useState<Shipment | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const firestore = useFirestore();
+  const shipmentsQuery = useMemoFirebase(() => details ? query(collection(firestore, 'users', details.id, 'shipments'), orderBy('date', 'desc'), limit(1)) : null, [firestore, details]);
+  const { data: shipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  useEffect(() => {
-    // In a real app, you would fetch this from your database
-    // For now, we'll simulate a fetch.
-    setIsLoading(false);
-  }, [details.id]);
-
+  const recentShipment = shipments?.[0];
 
   return (
     <Card>
@@ -105,6 +103,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
   const [invoice, setInvoice] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const firestore = useFirestore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,8 +113,21 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
     }
 
     setLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // In a real app, you would upload the invoice to Firebase Storage and get a URL
+    const mockInvoiceUrl = `https://picsum.photos/seed/${Date.now()}/800/1100`;
+
+    const preAlertsCollection = collection(firestore, 'users', customerId, 'pre_alerts');
+    const newPreAlert = {
+        customerName,
+        customerId,
+        trackingNumber,
+        contents,
+        status: 'Pending' as 'Pending',
+        date: serverTimestamp(),
+        invoiceUrl: mockInvoiceUrl,
+    };
+
+    addDocumentNonBlocking(preAlertsCollection, newPreAlert);
 
     toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
     setTrackingNumber('');
@@ -162,14 +174,10 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
 
 export function PackagesTab({ customerId }: { customerId: string }) {
   const { toast } = useToast();
-  const [userShipments, setUserShipments] = useState<Shipment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // In a real app, you would fetch this from your database for the given customerId
-    setUserShipments([]);
-    setIsLoading(false);
-  }, [customerId]);
+  const firestore = useFirestore();
+  
+  const shipmentsQuery = useMemoFirebase(() => customerId ? query(collection(firestore, 'users', customerId, 'shipments'), orderBy('date', 'desc')) : null, [firestore, customerId]);
+  const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const handlePayNow = (shipment: Shipment) => {
     toast({
@@ -305,41 +313,70 @@ export function SupportTab({ details }: { details: UserProfile }) {
   const [newMessage, setNewMessage] = useState("");
   const [subject, setSubject] = useState("");
   const [sending, setSending] = useState(false);
-  const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
 
+  const firestore = useFirestore();
+
+  const convosQuery = useMemoFirebase(() => details ? query(collection(firestore, 'users', details.id, 'conversations'), orderBy('latestDate', 'desc')) : null, [firestore, details]);
+  const { data: conversations, isLoading: isLoadingConversations } = useCollection<Conversation>(convosQuery);
+
+  const messagesQuery = useMemoFirebase(() => activeConversation ? query(collection(firestore, 'users', details.id, 'conversations', activeConversation.id, 'messages'), orderBy('date', 'asc')) : null, [firestore, details, activeConversation]);
+  const { data: messages, isLoading: isLoadingMessages } = useCollection<Message>(messagesQuery);
+  
   useEffect(() => {
-    // In a real app, you would fetch this from your database
-    setIsLoading(false);
-  }, [details.id]);
-
+    if (conversations && conversations.length > 0 && !activeConversation) {
+        setActiveConversation(conversations[0]);
+    }
+  }, [conversations, activeConversation]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || (!conversation && !subject.trim())) {
+    if (!newMessage.trim() || (!activeConversation && !subject.trim())) {
       toast({ title: "Missing fields", description: "Please enter a subject and message.", variant: "destructive"});
       return;
     }
 
     setSending(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // In a real app, you would write this to your database
-    const newMsg: Message = {
-        id: `msg-${Date.now()}`,
-        conversationId: conversation?.id || 'conv-new',
+
+    let conversationId = activeConversation?.id;
+
+    // Create a new conversation if one doesn't exist
+    if (!conversationId) {
+        const convosCollection = collection(firestore, 'users', details.id, 'conversations');
+        const newConvoRef = await addDoc(convosCollection, {
+            customerName: details.fullName,
+            customerId: details.id,
+            subject: subject,
+            latestMessage: newMessage,
+            latestDate: serverTimestamp(),
+            isRead: false,
+            date: serverTimestamp()
+        });
+        conversationId = newConvoRef.id;
+    }
+
+    // Add the new message
+    const messagesCollection = collection(firestore, 'users', details.id, 'conversations', conversationId, 'messages');
+    addDocumentNonBlocking(messagesCollection, {
+        conversationId: conversationId,
         customerId: details.id,
         customerName: details.fullName,
-        subject: conversation?.subject || subject,
+        subject: activeConversation?.subject || subject,
         message: newMessage,
         sender: 'user',
         status: 'Open',
-        date: new Date().toISOString(),
-    }
-    setMessages([...messages, newMsg]);
+        date: serverTimestamp(),
+    });
     
+    // Update the latest message on the conversation
+    const convoDoc = doc(firestore, 'users', details.id, 'conversations', conversationId);
+    updateDocumentNonBlocking(convoDoc, {
+        latestMessage: newMessage,
+        latestDate: serverTimestamp(),
+        isRead: false
+    });
+
     setNewMessage("");
-    if (!conversation) setSubject("");
+    if (!activeConversation) setSubject("");
     toast({ title: "Message Sent!", description: "We've received your message and will get back to you shortly." });
     setSending(false);
   };
@@ -354,8 +391,8 @@ export function SupportTab({ details }: { details: UserProfile }) {
       </CardHeader>
       <ScrollArea className="flex-1 px-6 pb-4">
         <div className="space-y-6">
-          {isLoading && <div className="text-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
-          {!isLoading && (!messages || messages.length === 0) && (
+          {(isLoadingConversations || isLoadingMessages) && <div className="text-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
+          {!isLoadingMessages && !isLoadingConversations && (!messages || messages.length === 0) && (
             <div className="text-center text-muted-foreground py-8">
               <Inbox className="h-12 w-12 mx-auto" />
               <p className="mt-2">You have no messages. Start a new conversation below.</p>
@@ -372,21 +409,21 @@ export function SupportTab({ details }: { details: UserProfile }) {
                 msg.sender === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
               )}>
                 <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
-                <p className={cn("text-xs mt-2", msg.sender === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{msg.date ? new Date(msg.date).toLocaleString() : 'Just now'}</p>
+                <p className={cn("text-xs mt-2", msg.sender === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{msg.date ? new Date(msg.date.toDate()).toLocaleString() : 'Just now'}</p>
               </div>
             </div>
           ))}
         </div>
       </ScrollArea>
       <CardFooter className="pt-4 border-t flex-col items-start gap-4">
-        {!conversation && (
+        {!activeConversation && (
             <div className="w-full space-y-2">
                 <Label htmlFor="subject">Subject</Label>
                 <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g., Question about my invoice" />
             </div>
         )}
         <div className="w-full space-y-2">
-          <Label htmlFor="new-message">{conversation ? "Your Reply" : "Your Message"}</Label>
+          <Label htmlFor="new-message">{activeConversation ? "Your Reply" : "Your Message"}</Label>
           <Textarea 
             id="new-message" 
             placeholder="Type your message here..."
@@ -406,7 +443,9 @@ export function SupportTab({ details }: { details: UserProfile }) {
 export function AccountTab({ details }: { details: UserProfile }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
-    const [userProfile, setUserProfile] = useState<UserProfile>(details);
+    const firestore = useFirestore();
+
+    const userDocRef = doc(firestore, 'users', details.id);
 
     const fullAddress = `${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.zip}`;
 
@@ -425,15 +464,6 @@ export function AccountTab({ details }: { details: UserProfile }) {
         });
         setTimeout(() => setCopied(false), 2000);
     };
-    
-    const updateLocalStorage = (updatedProfile: UserProfile) => {
-        setUserProfile(updatedProfile);
-        try {
-            localStorage.setItem('accountDetails', JSON.stringify(updatedProfile));
-        } catch (e) {
-            console.error("Could not update localStorage");
-        }
-    }
 
     const handleAddPerson = async () => {
         if (!newPerson.name || !newPerson.idNumber) {
@@ -442,11 +472,10 @@ export function AccountTab({ details }: { details: UserProfile }) {
         }
 
         const personToAdd: PickupPerson = { ...newPerson, id: `person-${Date.now()}` };
-        const updatedPersonnel = [...(userProfile.pickupPersonnel || []), personToAdd];
-        const updatedProfile = {...userProfile, pickupPersonnel: updatedPersonnel };
         
-        // In a real app, this would be an API call to update the user profile in the database
-        updateLocalStorage(updatedProfile);
+        updateDocumentNonBlocking(userDocRef, {
+            pickupPersonnel: arrayUnion(personToAdd)
+        });
         
         setNewPerson({ name: '', idNumber: '' });
         setOpenAddPersonDialog(false);
@@ -454,11 +483,9 @@ export function AccountTab({ details }: { details: UserProfile }) {
     };
 
     const handleRemovePerson = async (personToRemove: PickupPerson) => {
-        const updatedPersonnel = userProfile.pickupPersonnel?.filter(p => p.id !== personToRemove.id);
-        const updatedProfile = {...userProfile, pickupPersonnel: updatedPersonnel };
-        
-        // In a real app, this would be an API call
-        updateLocalStorage(updatedProfile);
+        updateDocumentNonBlocking(userDocRef, {
+            pickupPersonnel: arrayRemove(personToRemove)
+        });
         toast({ title: "Pickup Person Removed" });
     };
 
@@ -469,11 +496,9 @@ export function AccountTab({ details }: { details: UserProfile }) {
         }
 
         const addressToAdd: DropoffAddress = { ...newAddress, id: `addr-${Date.now()}` };
-        const updatedAddresses = [...(userProfile.dropoffAddresses || []), addressToAdd];
-        const updatedProfile = {...userProfile, dropoffAddresses: updatedAddresses };
-        
-        // In a real app, this would be an API call
-        updateLocalStorage(updatedProfile);
+        updateDocumentNonBlocking(userDocRef, {
+            dropoffAddresses: arrayUnion(addressToAdd)
+        });
 
         setNewAddress({ name: '', address: '', parish: '' });
         setOpenAddAddressDialog(false);
@@ -481,16 +506,14 @@ export function AccountTab({ details }: { details: UserProfile }) {
     };
 
     const handleRemoveAddress = async (addressToRemove: DropoffAddress) => {
-        const updatedAddresses = userProfile.dropoffAddresses?.filter(a => a.id !== addressToRemove.id);
-        const updatedProfile = {...userProfile, dropoffAddresses: updatedAddresses };
-        
-        // In a real app, this would be an API call
-        updateLocalStorage(updatedProfile);
+        updateDocumentNonBlocking(userDocRef, {
+            dropoffAddresses: arrayRemove(addressToRemove)
+        });
         toast({ title: "Address Removed" });
     };
     
-    const pickupPersonnel = userProfile.pickupPersonnel || [];
-    const dropoffAddresses = userProfile.dropoffAddresses || [];
+    const pickupPersonnel = details.pickupPersonnel || [];
+    const dropoffAddresses = details.dropoffAddresses || [];
 
     return (
         <Card>

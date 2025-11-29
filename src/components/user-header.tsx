@@ -7,7 +7,9 @@ import { Route, User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './theme-toggle';
-import { useEffect, useState } from 'react';
+import { useUser } from '@/firebase';
+import { Skeleton } from './ui/skeleton';
+
 
 const navLinks = [
     { href: '/tracking', label: 'Tracking' },
@@ -27,18 +29,7 @@ const AppLogo = () => (
 
 export function UserHeader() {
   const pathname = usePathname();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    try {
-        const accountDetails = localStorage.getItem('accountDetails');
-        setIsLoggedIn(!!accountDetails);
-    } catch (e) {
-        console.error("Could not access localStorage");
-    }
-    setIsLoading(false);
-  }, [pathname]); // Rerender on pathname change to update login status
+  const { user, isUserLoading } = useUser();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -60,25 +51,25 @@ export function UserHeader() {
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2">
              <ThemeToggle />
-             {!isLoading && (
-                isLoggedIn ? (
-                    <Button asChild>
-                        <Link href="/account">
-                            <User className="mr-2 h-4 w-4" />
-                            My Account
-                        </Link>
+             {isUserLoading ? (
+                 <Skeleton className="h-9 w-24" />
+             ) : user ? (
+                <Button asChild>
+                    <Link href="/account">
+                        <User className="mr-2 h-4 w-4" />
+                        My Account
+                    </Link>
+                </Button>
+            ) : (
+                <>
+                    <Button asChild variant="outline">
+                        <Link href="/signin">Sign In</Link>
                     </Button>
-                ) : (
-                    <>
-                        <Button asChild variant="outline">
-                            <Link href="/signin">Sign In</Link>
-                        </Button>
-                        <Button asChild>
-                            <Link href="/signup">Sign Up</Link>
-                        </Button>
-                    </>
-                )
-             )}
+                    <Button asChild>
+                        <Link href="/signup">Sign Up</Link>
+                    </Button>
+                </>
+            )}
         </div>
       </div>
     </header>

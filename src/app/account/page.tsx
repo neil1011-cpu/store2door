@@ -1,39 +1,39 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { LayoutDashboard, FileUp, Package, MessageSquare, User, LogOut } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
-import type { UserProfile } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth, useDoc, useFirestore, useUser } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
+import { UserProfile } from '@/lib/types';
+
 
 export default function AccountPage() {
-    const [details, setDetails] = useState<UserProfile | null>(null);
     const router = useRouter();
     const { toast } = useToast();
+    const auth = useAuth();
+    const { user, isUserLoading } = useUser();
+    const firestore = useFirestore();
+
+    const userProfileRef = user ? doc(firestore, 'users', user.uid) : null;
+    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
     useEffect(() => {
-        try {
-            const storedDetails = localStorage.getItem('accountDetails');
-            if (storedDetails) {
-                const parsedDetails = JSON.parse(storedDetails);
-                setDetails(parsedDetails);
-            } else {
-                router.push('/signin');
-            }
-        } catch (error) {
-             console.error("Could not read from local storage", error);
-             router.push('/signin');
+        if (!isUserLoading && !user) {
+            router.push('/signin');
         }
-    }, [router]);
+    }, [user, isUserLoading, router]);
 
-    const handleSignOut = () => {
+    const handleSignOut = async () => {
         try {
-            localStorage.removeItem('accountDetails');
+            await signOut(auth);
             toast({
                 title: 'Signed Out',
                 description: 'You have been successfully signed out.',
@@ -49,7 +49,7 @@ export default function AccountPage() {
         }
     }
     
-    if (!details) {
+    if (isUserLoading || isProfileLoading || !userProfile) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
                 <div className="mb-8">
@@ -67,7 +67,7 @@ export default function AccountPage() {
     return (
         <div className="container mx-auto py-8 px-4 md:px-6">
             <div className="mb-8">
-                <h1 className="text-2xl md:text-3xl font-bold">Welcome, {details.fullName}!</h1>
+                <h1 className="text-2xl md:text-3xl font-bold">Welcome, {userProfile.fullName}!</h1>
                 <p className="text-muted-foreground">Manage your shipments and account details here.</p>
             </div>
              <Tabs defaultValue="dashboard" className="flex flex-col md:flex-row gap-6 lg:gap-8">
@@ -97,23 +97,22 @@ export default function AccountPage() {
 
                 <div className="flex-1 min-w-0">
                     <TabsContent value="dashboard">
-                        <DashboardTab details={details} />
+                        <DashboardTab details={userProfile} />
                     </TabsContent>
                     <TabsContent value="pre-alert">
-                        <PreAlertTab customerId={details.id} customerName={details.fullName} />
+                        <PreAlertTab customerId={userProfile.id} customerName={userProfile.fullName} />
                     </TabsContent>
                     <TabsContent value="packages">
-                        <PackagesTab customerId={details.id} />
+                        <PackagesTab customerId={userProfile.id} />
                     </TabsContent>
                     <TabsContent value="support">
-                        <SupportTab details={details} />
+                        <SupportTab details={userProfile} />
                     </TabsContent>
                     <TabsContent value="account">
-                        <AccountTab details={details} />
+                        <AccountTab details={userProfile} />
                     </TabsContent>
                 </div>
             </Tabs>
         </div>
     );
 }
-

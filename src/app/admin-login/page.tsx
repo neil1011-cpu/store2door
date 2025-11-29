@@ -20,6 +20,9 @@ import { useState } from 'react';
 import { Loader2, Route } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useAuth, useFirestore, useDoc } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -30,6 +33,8 @@ export default function AdminLoginPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const auth = useAuth();
+  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -41,30 +46,40 @@ export default function AdminLoginPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    if (values.email === 'admin@example.com' && values.password === 'password') {
-      try {
-        localStorage.setItem('isAdminLoggedIn', 'true');
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+
+      // Check if user has admin role
+      const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+      const adminDoc = await new Promise<any>((resolve, reject) => {
+        const { data, error } = useDoc(adminRoleRef);
+        if (error) reject(error);
+        if (data) resolve(data);
+      });
+
+      if (adminDoc && adminDoc.exists()) {
         toast({
             title: 'Admin Sign In Successful!',
             description: 'Welcome back! Redirecting to the admin dashboard...',
         });
         router.push('/admin');
-      } catch (error) {
-         toast({
-            title: 'Sign In Failed',
-            description: 'Could not save session. Please try again.',
-            variant: 'destructive',
-        });
-        setLoading(false);
-      }
-    } else {
+      } else {
+        await auth.signOut();
         toast({
             title: 'Sign In Failed',
-            description: 'Invalid email or password for admin account.',
+            description: 'You do not have admin privileges.',
             variant: 'destructive',
         });
-        setLoading(false);
+      }
+    } catch (error: any) {
+        toast({
+            title: 'Sign In Failed',
+            description: error.message || 'Invalid email or password.',
+            variant: 'destructive',
+        });
     }
+    setLoading(false);
   };
 
   return (

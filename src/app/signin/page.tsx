@@ -20,7 +20,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { users as mockUsers } from '@/lib/mock-data';
+import { useAuth } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -31,6 +32,7 @@ export default function SignInPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const auth = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -42,33 +44,21 @@ export default function SignInPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    // In a real app, this would be an API call to a proper authentication service (e.g., Firebase Auth)
-    // We are simulating by checking against mock data.
-    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    const user = mockUsers.find(u => u.email === values.email);
-
-    if (user) {
-      try {
-        localStorage.setItem('accountDetails', JSON.stringify(user));
+    try {
+        await signInWithEmailAndPassword(auth, values.email, values.password);
         toast({
           title: 'Sign In Successful!',
           description: 'Welcome back! Redirecting to your account...',
         });
         router.push('/account');
-      } catch (error) {
+    } catch (error: any) {
+        console.error("Sign in error:", error);
         toast({
-          title: 'Sign In Failed',
-          description: 'Could not save session. Please enable cookies and try again.',
-          variant: 'destructive',
+            title: 'Sign In Failed',
+            description: error.message || 'Invalid email or password.',
+            variant: 'destructive',
         });
-      }
-    } else {
-      toast({
-        title: 'Sign In Failed',
-        description: 'Invalid email or password.',
-        variant: 'destructive',
-      });
     }
 
     setLoading(false);

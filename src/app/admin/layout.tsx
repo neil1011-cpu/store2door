@@ -32,11 +32,14 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Notifications } from '@/components/notifications';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { useAuth, useUser } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
+import { useFirestore, useDoc } from '@/firebase';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -52,26 +55,40 @@ export default function AdminLayout({
   children: React.ReactNode;
 }>) {
   const router = useRouter();
-  const pathname = usePathname();
   const { toast } = useToast();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+
+  const adminRoleRef = user ? doc(firestore, 'roles_admin', user.uid) : null;
+  const { data: isAdmin, isLoading: isAdminLoading } = useDoc(adminRoleRef);
+  
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    try {
-      const isAdminLoggedIn = localStorage.getItem('isAdminLoggedIn');
-      if (!isAdminLoggedIn) {
+  }, []);
+
+  useEffect(() => {
+    if (!isUserLoading && !isAdminLoading && isClient) {
+      if (!user) {
+        router.push('/admin-login');
+      } else if (!isAdmin) {
+        toast({
+          title: 'Access Denied',
+          description: "You don't have permission to access the admin panel.",
+          variant: 'destructive'
+        });
+        signOut(auth);
         router.push('/admin-login');
       }
-    } catch (error) {
-      console.error('Could not access local storage', error);
-      router.push('/admin-login');
     }
-  }, [router, pathname]);
+  }, [user, isUserLoading, isAdmin, isAdminLoading, router, toast, auth, isClient]);
+
   
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     try {
-        localStorage.removeItem('isAdminLoggedIn');
+        await signOut(auth);
         toast({
             title: 'Signed Out',
             description: 'You have been successfully signed out.',
@@ -86,7 +103,7 @@ export default function AdminLayout({
     }
   }
 
-  if (!isClient) {
+  if (!isClient || isUserLoading || isAdminLoading) {
     return (
          <div className="flex h-screen">
             <Skeleton className="w-64" />
@@ -96,6 +113,10 @@ export default function AdminLayout({
             </div>
         </div>
     );
+  }
+
+  if (!isAdmin) {
+      return null; // Don't render anything while redirecting
   }
 
   return (
@@ -202,10 +223,10 @@ export default function AdminLayout({
                 <SidebarFooter className="space-y-1">
                     <SidebarMenuButton>
                         <Avatar className="size-7">
-                        <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
-                        <AvatarFallback>A</AvatarFallback>
+                        <AvatarImage src={user?.photoURL || "https://placehold.co/40x40"} alt="User avatar" />
+                        <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
-                        <span>Admin User</span>
+                        <span>{user?.displayName || 'Admin'}</span>
                     </SidebarMenuButton>
                      <SidebarMenuButton variant="ghost" size="sm" onClick={handleSignOut}>
                         <LogOut />
@@ -223,8 +244,8 @@ export default function AdminLayout({
                 <Notifications />
 
                 <Avatar>
-                    <AvatarImage src={"https://placehold.co/40x40"} alt="User avatar" />
-                    <AvatarFallback>A</AvatarFallback>
+                    <AvatarImage src={user?.photoURL || "https://placehold.co/40x40"} alt="User avatar" />
+                    <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 </header>
                 <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">

@@ -1,4 +1,6 @@
 
+import type { Timestamp } from "firebase/firestore";
+
 export type DropoffAddress = {
   id: string;
   name: string;
@@ -7,7 +9,7 @@ export type DropoffAddress = {
 };
 
 export type PickupPerson = {
-  id: string;
+  id:string;
   name: string;
   idNumber: string;
 };
@@ -27,7 +29,7 @@ export type UserProfile = {
     state: string;
     zip: string;
   };
-  createdAt: string;
+  createdAt: Timestamp;
   dropoffAddresses?: DropoffAddress[];
   pickupPersonnel?: PickupPerson[];
 };
@@ -37,7 +39,7 @@ export type Shipment = {
   trackingNumber: string;
   contents: string;
   status: 'Pending' | 'Processed' | 'In Transit' | 'Customs' | 'Delivered';
-  date: any; // Can be a string, Date, or a server-side timestamp
+  date: Timestamp; 
   cost?: number;
   paymentStatus?: 'Paid' | 'Unpaid';
   invoiceUrl: string;
@@ -52,7 +54,7 @@ export type PreAlert = {
   trackingNumber: string;
   contents: string;
   status: 'Pending' | 'Processed';
-  date: string;
+  date: Timestamp;
   invoiceUrl: string;
 };
 
@@ -63,7 +65,7 @@ export type Message = {
   customerId: string;
   subject: string;
   message: string;
-  date: string;
+  date: Timestamp;
   sender: 'user' | 'agent';
   status: 'Open' | 'Closed';
   attachment?: string;
@@ -75,17 +77,22 @@ export type Conversation = {
     customerId: string;
     subject: string;
     latestMessage: string;
-    latestDate: string;
+    latestDate: Timestamp;
     isRead: boolean;
-    date: string;
+    date: Timestamp;
 };
 
 export type Invoice = {
   invoiceId: string;
   customerId: string;
   customerName: string;
-  date: any; // Can be string, Date or a server timestamp
+  date: Timestamp;
   amount: number;
   status: 'Paid' | 'Unpaid';
   invoiceUrl: string;
+}
+
+export type Rate = {
+  weight: number;
+  price: number;
 }
