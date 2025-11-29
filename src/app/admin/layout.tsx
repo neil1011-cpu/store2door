@@ -20,11 +20,10 @@ import {
   FileText,
   Banknote,
   Route,
-  User,
-  Settings,
   Users,
   Bell,
   DollarSign,
+  Settings,
   Calculator,
   Megaphone,
   LogOut,
@@ -33,13 +32,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Notifications } from '@/components/notifications';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 
 const AppLogo = () => (
   <div className="flex items-center gap-2 px-2">
@@ -50,19 +48,20 @@ const AppLogo = () => (
 
 function AdminAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { user } = useUser(); // User should be loaded by the parent
+  const { user } = useUser(); // User is guaranteed to exist by the time this component renders
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  // This hook will only run if `user` is not null.
   const adminRoleRef = useMemoFirebase(() => user ? doc(firestore, 'roles_admin', user.uid) : null, [firestore, user]);
   const { data: adminRoleDoc, isLoading: isAdminLoading } = useDoc(adminRoleRef);
   
   useEffect(() => {
-    // We don't run this check until the user object is available and the admin doc loading is finished.
-    if (!user || isAdminLoading) return;
+    // Wait until the loading of the admin role document is complete
+    if (isAdminLoading) {
+      return;
+    }
 
-    // If loading is done and the admin role document doesn't exist, they are not an admin.
+    // If, after loading, the admin document does not exist, redirect.
     if (!adminRoleDoc) {
       toast({
         title: 'Access Denied',
@@ -71,19 +70,19 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
       });
       router.push('/admin-login');
     }
-  }, [user, adminRoleDoc, isAdminLoading, router, toast]);
+  }, [adminRoleDoc, isAdminLoading, router, toast]);
 
-  // If we're still loading the admin role, or if the role has been confirmed, show a loader or children.
-  // The redirect logic above will handle unauthorized users.
+  // While we check for the admin role, show a loader.
   if (isAdminLoading || !adminRoleDoc) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-4">Verifying admin privileges...</span>
       </div>
     );
   }
 
-  // If all checks pass (user exists, not loading, admin doc exists), render the children.
+  // If all checks pass, render the protected admin content.
   return <>{children}</>;
 }
 
@@ -125,17 +124,26 @@ export default function AdminLayout({
   // Primary loading state: wait for Firebase Auth to determine if a user is logged in.
   if (isUserLoading) {
     return (
-         <div className="flex h-screen">
-            <Skeleton className="hidden md:block w-64" />
-            <div className="flex-1 p-6">
-                <Skeleton className="h-12 w-1/2 mb-6" />
-                <Skeleton className="h-96" />
-            </div>
+         <div className="flex h-screen items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" />
+             <span className="ml-4">Authenticating...</span>
+        </div>
+    );
+  }
+  
+  // If there's no user after loading, the useEffect above will trigger a redirect.
+  // We can return null or a loader here as a fallback.
+  if (!user) {
+     return (
+         <div className="flex h-screen items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" />
+             <span className="ml-4">Redirecting to login...</span>
         </div>
     );
   }
 
-  // If a user is logged in, wrap the content with the AdminAuthGuard to check their role.
+  // If a user is logged in, render the main layout, which includes the AdminAuthGuard.
+  // The guard will then handle the next step of authorization.
   return (
     <SidebarProvider>
         <Sidebar>
@@ -240,10 +248,10 @@ export default function AdminLayout({
             <SidebarFooter className="space-y-1">
                 <SidebarMenuButton>
                     <Avatar className="size-7">
-                    <AvatarImage src={user?.photoURL || undefined} alt="Admin avatar" />
-                    <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                    <AvatarImage src={user.photoURL || undefined} alt="Admin avatar" />
+                    <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <span>{user?.displayName || 'Admin'}</span>
+                    <span>{user.displayName || 'Admin'}</span>
                 </SidebarMenuButton>
                   <SidebarMenuButton variant="ghost" size="sm" onClick={handleSignOut}>
                     <LogOut />
@@ -261,8 +269,8 @@ export default function AdminLayout({
             <Notifications />
 
             <Avatar>
-                <AvatarImage src={user?.photoURL || undefined} alt="Admin avatar" />
-                <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                <AvatarImage src={user.photoURL || undefined} alt="Admin avatar" />
+                <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
             </header>
             <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
