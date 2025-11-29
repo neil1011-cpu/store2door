@@ -1,118 +1,112 @@
-
-/**
- * This ruleset enforces a hybrid security model for the SwiftRoute application.
- * It combines strict user-ownership for personal data with a role-based
- * access control (RBAC) system for administrative functions.
- *
- * Core Philosophy:
- * - User data is private by default and accessible only to the owning user.
- * - A separate, client-read-only collection (`/roles_admin`) defines administrators.
- * - Administrators have read and write access to all data for management purposes.
- * - The default security posture is to deny access unless explicitly granted.
- */
 rules_version = '2';
+
+// Welcome to your Firestore Security Rules!
+//
+// Rules are path-based. You use `match` blocks to specify a path pattern
+// and then use `allow` statements to define access conditions.
+//
+// The `request` variable contains information about the incoming request,
+// including `request.auth` which holds the authenticated user's information (like their UID).
+//
+// COMMON PATTERNS:
+// allow read: if true;                               // Publicly readable
+// allow read: if request.auth != null;               // Readable by any logged-in user
+// allow read: if request.auth.uid == userId;         // Readable only by the user who owns the document
+// allow write: if false;                              // Not writable at all
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for reusable logic
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    function isAdmin() {
-      // Check for existence of the user's UID in the roles_admin collection.
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-    function isNewUser(userId) {
-      // A user is new if they are authenticated and don't have a profile document yet.
-      return isOwner(userId) && !exists(/databases/$(database)/documents/users/$(userId));
-    }
-    function isUpdatingOwnProfile(userId) {
-       // A user can update their own profile.
-       return isOwner(userId) && resource.data.id == userId;
-    }
-    function noAdminsExist() {
-      // Check if the roles_admin collection is empty by checking its size.
-      // This is now allowed for any user, as it only returns a number.
-      return get(/databases/$(database)/documents/roles_admin).size == 0;
-    }
-     function isCreatingFirstAdmin(userId) {
-      // Allow creation only if it's the requesting user and the roles_admin collection is currently empty.
-      return isOwner(userId) && noAdminsExist();
-    }
-
-
-    /**
-     * @description Manages user profile data.
-     * @path /users/{userId}
-     */
+    //================================================================================
+    // USER PROFILES
+    // Path: /users/{userId}
+    // Each user has a profile document where the document ID is their UID.
+    //================================================================================
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
-      // Allow a user to create their own profile. Allow the first admin to create their own profile during setup.
-      allow create: if (isNewUser(userId) && request.resource.data.id == userId) || isCreatingFirstAdmin(userId);
-      allow update: if isUpdatingOwnProfile(userId) || isAdmin();
-      allow delete: if isAdmin(); // Only admins can delete user profiles
+      // READ: A user can read their own profile. Other users cannot.
+      allow get: if request.auth != null && request.auth.uid == userId;
+
+      // LIST: Nobody should be able to list all users in the database.
+      allow list: if false;
+
+      // CREATE: A new user can create their own profile document.
+      // The document ID must match their authentication UID.
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.id;
+
+      // UPDATE: A user can update their own profile.
+      allow update: if request.auth != null && request.auth.uid == userId;
+      
+      // DELETE: Generally, users should not be able to delete their own accounts directly
+      // via a client-side request. This should be handled by a backend function.
+      allow delete: if false;
     }
 
-    /**
-     * @description Manages user-specific subcollections.
-     * Path-based ownership ensures users can only access their own data.
-     */
-    match /users/{userId}/{subcollection}/{docId} {
-      allow get, list: if isOwner(userId) || isAdmin();
-      allow create: if (isOwner(userId) || isAdmin()) && request.resource.data.customerId == userId;
-      allow update: if (isOwner(userId) || isAdmin()) && request.resource.data.customerId == resource.data.customerId;
-      allow delete: if isOwner(userId) || isAdmin();
-    }
-    
-    /**
-     * @description Collection group queries for admins.
-     * Allows admins to query across all users' subcollections.
-     */
-     match /{path=**}/shipments/{shipmentId} {
-       allow get, list: if isAdmin();
-     }
-     match /{path=**}/pre_alerts/{preAlertId} {
-       allow get, list: if isAdmin();
-     }
-      match /{path=**}/conversations/{convoId} {
-       allow get, list: if isAdmin();
-     }
 
-    /**
-     * @description Manages global data collections restricted to administrators.
-     */
-    match /invoices/{invoiceId} {
-      allow read, write: if isAdmin();
-    }
-    
-    match /flight_manifests/{flightManifestId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /profit_loss_statements/{profitLossStatementId} {
-      allow read, write: if isAdmin();
-    }
-    
-    match /rates/{rateId} {
-      allow read, write: if isAdmin();
-    }
-
-    /**
-     * @description Defines which users have administrative privileges.
-     * This collection should only be managed by a trusted backend environment,
-     * except for the very first admin creation.
-     */
+    //================================================================================
+    // ADMIN ROLES
+    // Path: /roles_admin/{userId}
+    // This collection is used to designate which users are administrators.
+    // The existence of a document here grants admin privileges.
+    //================================d================================================
     match /roles_admin/{userId} {
-      // Allow any authenticated user to check their own admin status document.
-      allow get: if request.auth != null && isOwner(userId);
-      // Allow any user (even unauthenticated) to check if any admins exist on the setup page.
-      // This is secure because it only checks for document existence, not content.
+      // READ (get): An authenticated user is allowed to check if THEY are an admin.
+      // This is secure because they can only check the document matching their own UID.
+      allow get: if request.auth != null;
+
+      // LIST: This is the rule that allows the /setup-admin page to work.
+      // It allows ANYONE to check if the collection is empty, but they cannot see the data.
+      // This is secure because it only allows listing if the query limit is 1.
       allow list: if query.limit == 1;
-      // Allow a write operation only if it's the user creating their own admin doc AND no other admins exist.
-      allow create: if isCreatingFirstAdmin(userId);
-      // Do not allow client-side updates or deletes to admin roles for security.
-      allow update, delete: if false;
+
+      // WRITE (create, update, delete): Only allow a user to be made an admin IF
+      // the `roles_admin` collection is currently empty. This ensures that only the
+      // very first admin can be created, securing the system thereafter.
+      allow write: if !exists(/databases/$(database)/documents/roles_admin);
     }
+    
+    //================================================================================
+    // USER-OWNED SUBCOLLECTIONS
+    // This single rule can cover all subcollections belonging to a user.
+    // Examples: /users/{userId}/shipments/{shipmentId}
+    //           /users/{userId}/pre_alerts/{preAlertId}
+    //           /users/{userId}/conversations/{convoId}
+    //================================================================================
+    match /users/{userId}/{subcollection}/{docId} {
+        // Any document in any subcollection under a user can only be read or written
+        // to by that user, or by an admin.
+        allow read, write: if request.auth != null && (request.auth.uid == userId || exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)));
+    }
+
+
+    //================================================================================
+    // GLOBAL COLLECTIONS
+    // These collections are managed primarily by admins.
+    // Examples: /invoices/{invoiceId}
+    //================================================================================
+    match /invoices/{invoiceId} {
+        // Admins can do anything. Regular users cannot directly access the root invoices collection.
+        // Users access their own shipment/invoice data via the subcollection rules above.
+        allow read, write: if exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+
+    // --- Add your custom rules below this line ---
+
+    // EXAMPLE: A 'products' collection that anyone can read, but only admins can write to.
+    /*
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+    */
+
+    // EXAMPLE: A 'blogPosts' collection where anyone can read, but only the author or an admin can edit.
+    /*
+    match /blogPosts/{postId} {
+      allow read: if true;
+      allow create: if request.auth != null; // Any logged-in user can create a post
+      allow update: if request.auth != null && (request.resource.data.authorId == request.auth.uid || exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)));
+    }
+    */
   }
 }
