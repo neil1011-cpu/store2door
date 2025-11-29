@@ -69,8 +69,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     [firestore, user]
   );
 
-  // CRITICAL FIX: Use skipCache to ensure we get the latest data from the server,
-  // preventing a false negative from a stale cache right after login.
   const {
     data: adminRoleDoc,
     isLoading: isAdminLoading,
@@ -80,7 +78,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isAdminLoading) return;
 
-    // Finished loading and no admin role doc => not an admin
     if (!adminRoleDoc) {
       toast({
         title: 'Access denied',
@@ -102,12 +99,12 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // At this point, loading is done:
-  // - If adminRoleDoc exists => admin, allow access by rendering children
-  // - If it doesn't, the effect above is firing a redirect and we render nothing here
+  // DEFINITIVE FIX: Only render children if the admin role is confirmed.
+  // If it's not confirmed, the effect above is already handling the redirect.
+  // Rendering null here prevents any child components and their hooks from
+  // ever running prematurely.
   if (!adminRoleDoc) {
-    // Avoid flicker while redirect happens
-    return null;
+    return null; // Avoid flicker while redirect happens
   }
 
   return <>{children}</>;
