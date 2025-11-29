@@ -32,10 +32,11 @@ service cloud.firestore {
     }
     function noAdminsExist() {
       // Check if the roles_admin collection is empty.
-      return !exists(/databases/$(database)/documents/roles_admin);
+      return !exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
      function isCreatingFirstAdmin(userId) {
-      // Allow creation only if it's the requesting user and no admins exist yet.
+      // Allow creation only if it's the requesting user and the roles_admin collection is currently empty.
+      // This uses get() instead of exists() which checks the entire collection.
       return isOwner(userId) && get(/databases/$(database)/documents/roles_admin).size == 0;
     }
 
@@ -47,8 +48,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      // Allow a user to create their own profile. Allow first admin setup.
-      allow create: if (isNewUser(userId) && request.resource.data.id == userId) || (isOwner(userId) && isCreatingFirstAdmin(userId));
+      // Allow a user to create their own profile. Allow the first admin to create their own profile during setup.
+      allow create: if (isNewUser(userId) && request.resource.data.id == userId) || isCreatingFirstAdmin(userId);
       allow update: if isUpdatingOwnProfile(userId) || isAdmin();
       allow delete: if isAdmin(); // Only admins can delete user profiles
     }

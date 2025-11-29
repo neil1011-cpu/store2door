@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -20,8 +19,8 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, type User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, collection, query, limit, getCountFromServer } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, type User } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, collection, query, limit, getCountFromServer, writeBatch } from 'firebase/firestore';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -55,14 +54,15 @@ export default function SetupAdminPage() {
   });
 
   const setupAdminDocs = async (user: User) => {
-    // We need to count existing users to generate a unique mailbox number for the admin.
-    // This is a simplified approach.
     const usersCollection = collection(firestore, "users");
     const snapshot = await getCountFromServer(usersCollection);
     const userCount = snapshot.data().count;
     const nextMailboxNumber = `FSTD${100 + userCount}`;
 
-    // Create the user profile document
+    // Use a batch write to ensure both documents are created atomically
+    const batch = writeBatch(firestore);
+
+    // 1. User Profile Document
     const userDocRef = doc(firestore, 'users', user.uid);
     const userProfile = {
         id: user.uid,
@@ -80,11 +80,14 @@ export default function SetupAdminPage() {
         },
         createdAt: serverTimestamp(),
     };
-    await setDoc(userDocRef, userProfile, { merge: true });
+    batch.set(userDocRef, userProfile);
 
-    // Create the admin role document
+    // 2. Admin Role Document
     const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-    await setDoc(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
+    batch.set(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
+    
+    // Commit the batch
+    await batch.commit();
   }
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -101,23 +104,11 @@ export default function SetupAdminPage() {
     }
 
     try {
-        let user: User;
+        // Step 1: Create the user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
         
-        try {
-            // First, try to sign in. This handles the case where the auth user exists but the docs don't.
-            const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-            user = userCredential.user;
-        } catch (error: any) {
-            // If sign-in fails because the user doesn't exist, create them.
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-                const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-                user = userCredential.user;
-            } else {
-                // Re-throw other errors
-                throw error;
-            }
-        }
-        
+        // Step 2: Create the corresponding Firestore documents
         await setupAdminDocs(user);
 
         toast({
@@ -130,7 +121,9 @@ export default function SetupAdminPage() {
         console.error("Admin setup error:", error);
         toast({
             title: 'Setup Failed',
-            description: error.message || "An unexpected error occurred.",
+            description: error.code === 'auth/email-already-in-use' 
+                ? 'This email is already in use. Please use the admin login page if you have already set up an account.' 
+                : error.message,
             variant: 'destructive',
         });
     }
