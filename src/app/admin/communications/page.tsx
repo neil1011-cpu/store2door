@@ -9,8 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Send, History, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, History, PlusCircle, Terminal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
@@ -67,8 +68,8 @@ export default function CommunicationsPage() {
                 }),
             });
 
+            const errorData = await response.json();
             if (!response.ok) {
-                const errorData = await response.json();
                 throw new Error(errorData.message || 'Failed to send email.');
             }
 
@@ -109,7 +110,7 @@ export default function CommunicationsPage() {
         <div className="flex items-center gap-2">
            <Dialog open={isComposeOpen} onOpenChange={setIsComposeOpen}>
             <DialogTrigger asChild>
-                <Button><PlusCircle className="mr-2 h-4 w-4" /> Compose Email</Button>
+                <Button disabled title="Email functionality is disabled until RESEND_API_KEY is configured."><PlusCircle className="mr-2 h-4 w-4" /> Compose Email</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
@@ -156,6 +157,14 @@ export default function CommunicationsPage() {
           </Button>
         </div>
       </div>
+      
+        <Alert>
+            <Terminal className="h-4 w-4" />
+            <AlertTitle>Developer Notice</AlertTitle>
+            <AlertDescription>
+                Email sending is currently disabled. To enable it, you must add your `RESEND_API_KEY` to the `.env` file in the root of the project.
+            </AlertDescription>
+        </Alert>
 
         <Card>
             <CardHeader>

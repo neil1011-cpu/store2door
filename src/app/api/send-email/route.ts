@@ -8,6 +8,10 @@ import { Resend } from 'resend';
 const RESEND_FROM_EMAIL = 'onboarding@resend.dev';
 
 export async function POST(request: Request) {
+    if (!process.env.RESEND_API_KEY) {
+        return NextResponse.json({ message: 'Email sending is not configured. RESEND_API_KEY is missing.' }, { status: 501 });
+    }
+
     const resend = new Resend(process.env.RESEND_API_KEY);
     
     try {

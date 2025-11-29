@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -36,7 +36,7 @@ import Link from 'next/link';
 import type { Shipment, UserProfile } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { collectionGroup, query, where, orderBy, doc } from 'firebase/firestore';
+import { collectionGroup, query, orderBy, doc } from 'firebase/firestore';
 
 
 const getStatusVariant = (status: string) => {
@@ -65,6 +65,7 @@ export default function ShippingPage() {
   const [editableShipment, setEditableShipment] = useState<Shipment | null>(null);
   const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
   const [isSaving, setIsSaving] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const firestore = useFirestore();
   const shipmentsQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'shipments'), orderBy('date', 'desc')), [firestore]);
@@ -73,7 +74,7 @@ export default function ShippingPage() {
   const usersQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'users')), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
-  const shipmentsWithUsers = useMemoFirebase(() => {
+  const shipmentsWithUsers = useMemo(() => {
     if (!shipments || !users) return [];
     const usersMap = new Map(users.map(u => [u.id, u]));
     return shipments.map(shipment => ({
@@ -94,6 +95,7 @@ export default function ShippingPage() {
 
   const handleSendEmail = async () => {
     if (!selectedShipment || !selectedShipment.user) return;
+    setIsSendingEmail(true);
 
     try {
       const response = await fetch('/api/send-email', {
@@ -106,16 +108,21 @@ export default function ShippingPage() {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to send email.');
+      const responseData = await response.json();
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Failed to send email.');
+      }
+
 
       toast({
         title: 'Email Sent',
         description: `An email update for shipment ${selectedShipment.trackingNumber} has been sent.`,
       });
     } catch (error) {
-      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+      toast({ title: 'Error Sending Email', description: (error as Error).message, variant: 'destructive' });
     }
     
+    setIsSendingEmail(false);
     setIsEmailDialogOpen(false);
     setSelectedShipment(null);
   };
@@ -205,7 +212,7 @@ export default function ShippingPage() {
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleOpenEmailDialog(shipment)} disabled={!shipment.user}>
+                    <Button variant="outline" size="sm" onClick={() => handleOpenEmailDialog(shipment)} disabled={!shipment.user} title="Email functionality is disabled until RESEND_API_KEY is configured.">
                       <Mail className="mr-2 h-4 w-4" />
                       Email
                     </Button>
@@ -252,7 +259,10 @@ export default function ShippingPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEmailDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSendEmail}>Send Email</Button>
+            <Button onClick={handleSendEmail} disabled={isSendingEmail}>
+              {isSendingEmail ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Send Email
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
