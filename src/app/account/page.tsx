@@ -25,24 +25,17 @@ export default function AccountPage() {
     const userProfileRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
-    const [authChecked, setAuthChecked] = useState(false);
-
     useEffect(() => {
+        // Wait for the initial user loading to complete
         if (isUserLoading) {
             return;
         }
 
+        // If after loading, there's no user, redirect to sign-in
         if (!user) {
-            // If the user is not loaded and there is no user, redirect
             router.push('/signin');
-        } else {
-            // User is loaded, and we have a user object.
-            // Now we wait for the profile to load.
-            if (!isProfileLoading) {
-                setAuthChecked(true);
-            }
         }
-    }, [user, isUserLoading, isProfileLoading, router]);
+    }, [user, isUserLoading, router]);
 
     const handleSignOut = async () => {
         try {
@@ -62,8 +55,8 @@ export default function AccountPage() {
         }
     }
     
-    // Show skeleton while any initial loading is happening.
-    if (!authChecked || !userProfile) {
+    // Show skeleton while initial auth or profile loading is happening.
+    if (isUserLoading || isProfileLoading || !userProfile) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
                 <div className="mb-8">

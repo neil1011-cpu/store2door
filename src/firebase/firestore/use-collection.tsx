@@ -59,9 +59,7 @@ function isValidRefOrQuery(target: any): boolean {
 }
 
 export function useCollection<T = any>(
-  memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {
-    __memo?: boolean;
-  }) | null | undefined
+  memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null | undefined
 ): UseCollectionResult<T> {
   const [data, setData] = useState<WithId<T>[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -122,12 +120,6 @@ export function useCollection<T = any>(
 
     return () => unsubscribe();
   }, [memoizedTargetRefOrQuery]);
-
-  if (memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
-    throw new Error(
-      'useCollection received a non-memoized query. Wrap your query in useMemoFirebase.'
-    );
-  }
 
   return { data, isLoading, error };
 }
