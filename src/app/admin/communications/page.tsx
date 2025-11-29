@@ -44,15 +44,16 @@ export default function CommunicationsPage() {
     const [composeBody, setComposeBody] = useState('');
     const [isComposing, setIsComposing] = useState(false);
     
-    const { user } = useUser();
+    const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
 
-    const usersQuery = useMemoFirebase(() => {
-        if (!user) return null;
-        return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
-    }, [firestore, user]);
+    const usersQuery = useMemoFirebase(() => 
+        !user ? null : query(collection(firestore, 'users'), orderBy('fullName', 'asc')), 
+    [firestore, user]);
 
     const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+    
+    const loading = isUserLoading || isLoadingUsers;
 
     const handleComposeEmail = async () => {
         const recipientUser = users?.find(u => u.id === composeRecipient);
@@ -129,8 +130,8 @@ export default function CommunicationsPage() {
                     <div className="space-y-2">
                         <Label htmlFor="recipient">Recipient</Label>
                          <Select value={composeRecipient} onValueChange={setComposeRecipient}>
-                            <SelectTrigger id="recipient" disabled={isLoadingUsers}>
-                                <SelectValue placeholder={isLoadingUsers ? "Loading customers..." : "Select a customer"} />
+                            <SelectTrigger id="recipient" disabled={loading}>
+                                <SelectValue placeholder={loading ? "Loading customers..." : "Select a customer"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {users?.map(user => (

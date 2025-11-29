@@ -42,7 +42,7 @@ import Image from 'next/image';
 import { generateInvoiceHtml } from '@/ai/flows/generate-invoice-html';
 import type { Invoice, Shipment, UserProfile } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
 
 
@@ -121,6 +121,7 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
 export default function FinancePage() {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
 
   const [newTransaction, setNewTransaction] = useState({
       type: 'revenue',
@@ -138,12 +139,13 @@ export default function FinancePage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
   
-  const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('fullName', 'asc')), [firestore]);
+  const usersQuery = useMemoFirebase(() => !user ? null : query(collection(firestore, 'users'), orderBy('fullName', 'asc')), [firestore, user]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
-  const invoicesQuery = useMemoFirebase(() => query(collection(firestore, 'invoices'), orderBy('date', 'desc')), [firestore]);
+  const invoicesQuery = useMemoFirebase(() => !user ? null : query(collection(firestore, 'invoices'), orderBy('date', 'desc')), [firestore, user]);
   const { data: invoices, isLoading: isLoadingInvoices } = useCollection<Invoice>(invoicesQuery);
 
+  const loading = isUserLoading || isLoadingUsers || isLoadingInvoices;
 
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, price: 0 }]);
   const removeLineItem = (index: number) => setLineItems(lineItems.filter((_, i) => i !== index));
@@ -460,8 +462,8 @@ export default function FinancePage() {
             <Table>
                 <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Customer</TableHead><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                {isLoadingInvoices && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
-                {!isLoadingInvoices && invoices?.map((invoice) => (
+                {loading && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
+                {!loading && invoices?.map((invoice) => (
                     <TableRow key={invoice.invoiceId}>
                     <TableCell className="font-mono">{invoice.invoiceId}</TableCell>
                     <TableCell className="font-medium">{invoice.customerName}</TableCell>
@@ -494,7 +496,7 @@ export default function FinancePage() {
                     </TableCell>
                     </TableRow>
                 ))}
-                {!isLoadingInvoices && invoices?.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No invoices found.</TableCell></TableRow>}
+                {!loading && invoices?.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No invoices found.</TableCell></TableRow>}
                 </TableBody>
             </Table>
           </div>

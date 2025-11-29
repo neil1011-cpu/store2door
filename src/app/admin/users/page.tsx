@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -32,19 +33,25 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, query, serverTimestamp, doc } from 'firebase/firestore';
 
 
 export default function UsersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
-  const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users')), [firestore]);
+  const { user, isUserLoading } = useUser();
+
+  const usersQuery = useMemoFirebase(() => 
+    !user ? null : query(collection(firestore, 'users')), 
+  [firestore, user]);
   const { data: users, isLoading } = useCollection<UserProfile>(usersQuery);
   
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
+
+  const loading = isLoading || isUserLoading;
 
   const handleAddUser = async () => {
     if(!newUser.name || !newUser.email) {
@@ -189,7 +196,7 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {loading ? (
                  <TableRow>
                     <TableCell colSpan={5} className="text-center h-24">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto" />

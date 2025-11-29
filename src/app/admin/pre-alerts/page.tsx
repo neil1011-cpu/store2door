@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -37,7 +37,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
 import type { Shipment, PreAlert, UserProfile } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, collectionGroup, query, where, orderBy, serverTimestamp, doc } from 'firebase/firestore';
 
 
@@ -146,15 +146,22 @@ export default function PreAlertsPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
-  const preAlertsQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'pre_alerts'), orderBy('date', 'desc')), [firestore]);
+  const preAlertsQuery = useMemoFirebase(() => 
+    !user ? null : query(collectionGroup(firestore, 'pre_alerts'), orderBy('date', 'desc')), 
+    [firestore, user]
+  );
   const { data: preAlerts, isLoading: isLoadingAlerts } = useCollection<PreAlert>(preAlertsQuery);
   
-  const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users'), orderBy('fullName', 'asc')), [firestore]);
+  const usersQuery = useMemoFirebase(() => 
+    !user ? null : query(collection(firestore, 'users'), orderBy('fullName', 'asc')), 
+    [firestore, user]
+  );
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
-  const loading = isLoadingAlerts || isLoadingUsers;
+  const loading = isLoadingAlerts || isLoadingUsers || isUserLoading;
 
 
   const handleCreateAlert = async () => {

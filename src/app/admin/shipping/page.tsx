@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -67,21 +68,19 @@ export default function ShippingPage() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const firestore = useFirestore();
-  const { user } = useUser();
-  const shipmentsQuery = useMemoFirebase(() => {
-    if (!user) return null;
-    return query(collectionGroup(firestore, 'shipments'), orderBy('date', 'desc'));
-  }, [firestore, user]);
+  const { user, isUserLoading } = useUser();
+
+  const shipmentsQuery = useMemoFirebase(() => 
+    !user ? null : query(collectionGroup(firestore, 'shipments'), orderBy('date', 'desc')), 
+  [firestore, user]);
   const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
   
-  const usersQuery = useMemoFirebase(() => {
-    if (!user) return null;
-    return query(collection(firestore, 'users'));
-  }, [firestore, user]);
+  const usersQuery = useMemoFirebase(() => 
+    !user ? null : query(collection(firestore, 'users')), 
+  [firestore, user]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   const shipmentsWithUsers = useMemo(() => {
-    // Add a guard to ensure both shipments and users are loaded
     if (!shipments || !users) return [];
     
     const usersMap = new Map(users.map(u => [u.id, u]));
@@ -91,6 +90,8 @@ export default function ShippingPage() {
         customerName: usersMap.get(shipment.customerId)?.fullName || 'N/A'
     }));
   }, [shipments, users]);
+  
+  const loading = isLoadingShipments || isLoadingUsers || isUserLoading;
 
   const handleOpenEmailDialog = (shipment: Shipment & { user?: UserProfile }) => {
     setSelectedShipment(shipment);
@@ -203,8 +204,8 @@ export default function ShippingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(isLoadingShipments || isLoadingUsers) && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
-              {!isLoadingShipments && !isLoadingUsers && shipmentsWithUsers.map((shipment) => (
+              {loading && <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></TableCell></TableRow>}
+              {!loading && shipmentsWithUsers.map((shipment) => (
                 <TableRow key={shipment.id}>
                   <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
                   <TableCell>
@@ -228,7 +229,7 @@ export default function ShippingPage() {
                   </TableCell>
                 </TableRow>
               ))}
-               {!isLoadingShipments && !isLoadingUsers && shipmentsWithUsers.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No shipments found.</TableCell></TableRow>}
+               {!loading && shipmentsWithUsers.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24">No shipments found.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
