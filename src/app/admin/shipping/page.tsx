@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -35,7 +34,7 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import type { Shipment, UserProfile } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, collectionGroup, query, orderBy, doc } from 'firebase/firestore';
 
 
@@ -68,19 +67,28 @@ export default function ShippingPage() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const firestore = useFirestore();
-  const shipmentsQuery = useMemoFirebase(() => query(collectionGroup(firestore, 'shipments'), orderBy('date', 'desc')), [firestore]);
+  const { user } = useUser();
+  const shipmentsQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(collectionGroup(firestore, 'shipments'), orderBy('date', 'desc'));
+  }, [firestore, user]);
   const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
   
-  const usersQuery = useMemoFirebase(() => query(collection(firestore, 'users')), [firestore]);
+  const usersQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(collection(firestore, 'users'));
+  }, [firestore, user]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   const shipmentsWithUsers = useMemo(() => {
+    // Add a guard to ensure both shipments and users are loaded
     if (!shipments || !users) return [];
+    
     const usersMap = new Map(users.map(u => [u.id, u]));
     return shipments.map(shipment => ({
         ...shipment,
         user: usersMap.get(shipment.customerId),
-        customerName: usersMap.get(shipment.customerId)?.fullName || 'N/A' // Ensure customerName is available
+        customerName: usersMap.get(shipment.customerId)?.fullName || 'N/A'
     }));
   }, [shipments, users]);
 
