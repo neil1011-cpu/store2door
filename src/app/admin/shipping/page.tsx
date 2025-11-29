@@ -328,7 +328,7 @@ export default function ShippingPage() {
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="edit-payment-status">Payment Status</Label>
-                        <Select value={editableShipment.paymentStatus} onValueChange={(value: 'Paid' | 'Unpaid') => handleEditFormChange('paymentStatus', value)}>
+                        <Select value={editableShipment.paymentStatus} onValueChange={(value) => handleEditFormChange('paymentStatus', value as 'Paid' | 'Unpaid')}>
                             <SelectTrigger id="edit-payment-status">
                                 <SelectValue placeholder="Select status" />
                             </SelectTrigger>

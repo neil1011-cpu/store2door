@@ -46,13 +46,13 @@ export default function UsersPage() {
   const usersQuery = useMemoFirebase(() => 
     !user ? null : query(collection(firestore, 'users')), 
   [firestore, user]);
-  const { data: users, isLoading } = useCollection<UserProfile>(usersQuery);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
   
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
 
-  const loading = isLoading || isUserLoading;
+  const loading = isLoadingUsers || isUserLoading;
 
   const handleAddUser = async () => {
     if(!newUser.name || !newUser.email) {
