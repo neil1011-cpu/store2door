@@ -199,6 +199,8 @@ export default function PreAlertsPage() {
           title: 'Pre-Alert Created',
           description: `Pre-alert for ${newAlert.trackingNumber} has been created.`,
         });
+        setOpen(false);
+        setNewAlert({ customerId: '', trackingNumber: '', contents: '' });
       })
       .catch(error => {
         errorEmitter.emit(
@@ -211,8 +213,6 @@ export default function PreAlertsPage() {
         );
       })
       .finally(() => {
-        setOpen(false);
-        setNewAlert({ customerId: '', trackingNumber: '', contents: '' });
         setIsSubmitting(false);
       });
   };

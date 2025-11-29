@@ -101,6 +101,8 @@ export default function UsersPage() {
                 title: 'User Added',
                 description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
             });
+            setOpen(false);
+            setNewUser({ name: '', email: '' });
         })
         .catch(error => {
             errorEmitter.emit(
@@ -113,8 +115,6 @@ export default function UsersPage() {
             )
         })
         .finally(() => {
-            setOpen(false);
-            setNewUser({ name: '', email: '' });
             setIsSubmitting(false);
         });
   };

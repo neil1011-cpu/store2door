@@ -213,7 +213,15 @@ export default function FinancePage() {
         };
         
         const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
-        await setDoc(invoiceDocRef, newInvoice, { merge: true });
+        
+        setDoc(invoiceDocRef, newInvoice)
+        .catch(error => {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: invoiceDocRef.path,
+                operation: 'create',
+                requestResourceData: newInvoice,
+            }));
+        });
         
         toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
         
@@ -224,11 +232,7 @@ export default function FinancePage() {
 
     } catch (error) {
         console.error("PDF Generation Error:", error);
-        if (error instanceof FirestorePermissionError) {
-          errorEmitter.emit('permission-error', error);
-        } else {
-          toast({ title: 'Invoice Generation Failed', description: (error as Error).message, variant: 'destructive'});
-        }
+        toast({ title: 'Invoice Generation Failed', description: (error as Error).message, variant: 'destructive'});
     } finally {
         setIsGenerating(false);
     }
