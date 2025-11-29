@@ -33,8 +33,10 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, query, serverTimestamp, doc } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 export default function UsersPage() {
@@ -69,45 +71,51 @@ export default function UsersPage() {
     // In a full production app, you'd likely create the user via Firebase Auth Admin SDK
     // and then create their profile document. Here we just create the document.
     
-    try {
-        const userCount = users?.length || 0;
-        const nextMailboxNumber = `FSTD${101 + userCount}`;
-        
-        const userId = `manual-${Date.now()}`;
-        const userDocRef = doc(firestore, 'users', userId);
+    const userCount = users?.length || 0;
+    const nextMailboxNumber = `FSTD${101 + userCount}`;
+    
+    const userId = `manual-${Date.now()}`;
+    const userDocRef = doc(firestore, 'users', userId);
 
-        const userToAdd: UserProfile = {
-            id: userId,
-            fullName: newUser.name,
-            email: newUser.email,
-            phone: 'N/A',
-            trn: 'N/A',
-            mailboxNumber: nextMailboxNumber,
-            address: {
-                address1: '4350 NE 5th Terrace Bay #3',
-                address2: `${nextMailboxNumber} -FSTD`,
-                city: 'Oakland Park',
-                state: 'Florida',
-                zip: '33334',
-            },
-            createdAt: serverTimestamp(),
-        };
+    const userToAdd: UserProfile = {
+        id: userId,
+        fullName: newUser.name,
+        email: newUser.email,
+        phone: 'N/A',
+        trn: 'N/A',
+        mailboxNumber: nextMailboxNumber,
+        address: {
+            address1: '4350 NE 5th Terrace Bay #3',
+            address2: `${nextMailboxNumber} -FSTD`,
+            city: 'Oakland Park',
+            state: 'Florida',
+            zip: '33334',
+        },
+        createdAt: serverTimestamp(),
+    };
 
-        setDocumentNonBlocking(userDocRef, userToAdd, { merge: true });
-
-        setOpen(false);
-        setNewUser({ name: '', email: '' });
-        toast({
-            title: 'User Added',
-            description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
+    setDoc(userDocRef, userToAdd, { merge: true })
+        .then(() => {
+            toast({
+                title: 'User Added',
+                description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
+            });
+        })
+        .catch(error => {
+            errorEmitter.emit(
+                'permission-error',
+                new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'write',
+                requestResourceData: userToAdd,
+                })
+            )
+        })
+        .finally(() => {
+            setOpen(false);
+            setNewUser({ name: '', email: '' });
+            setIsSubmitting(false);
         });
-
-    } catch (error) {
-        console.error("Error adding user: ", error);
-        toast({ title: "Error", description: "Could not add user.", variant: "destructive"});
-    } finally {
-        setIsSubmitting(false);
-    }
   };
   
   const formatAddress = (address: UserProfile['address']) => {

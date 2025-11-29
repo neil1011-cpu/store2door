@@ -35,8 +35,10 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import type { Shipment, UserProfile } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, collectionGroup, query, orderBy, doc } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, collectionGroup, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 const getStatusVariant = (status: string) => {
@@ -151,16 +153,28 @@ export default function ShippingPage() {
     // Using a copy to avoid passing non-serializable fields if any exist
     const { id, customerId, ...updateData } = editableShipment;
     
-    updateDocumentNonBlocking(shipmentDocRef, updateData);
-
-    toast({
-        title: "Shipment Update Queued",
-        description: `Shipment ${editableShipment.trackingNumber} will be updated shortly.`
-    });
-    
-    setIsSaving(false);
-    setIsEditDialogOpen(false);
-    setEditableShipment(null);
+    updateDoc(shipmentDocRef, updateData)
+      .then(() => {
+        toast({
+            title: "Shipment Updated",
+            description: `Shipment ${editableShipment.trackingNumber} has been updated.`
+        });
+      })
+      .catch(error => {
+        errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: shipmentDocRef.path,
+            operation: 'update',
+            requestResourceData: updateData,
+          })
+        )
+      })
+      .finally(() => {
+        setIsSaving(false);
+        setIsEditDialogOpen(false);
+        setEditableShipment(null);
+      });
   }
   
   const handleEditFormChange = (field: keyof Shipment, value: string | number) => {

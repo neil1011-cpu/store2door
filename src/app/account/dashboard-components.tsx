@@ -22,7 +22,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import type { UserProfile, Shipment, Conversation, Message, PickupPerson, DropoffAddress } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 const getStatusVariant = (status: Shipment['status']) => {
   switch (status) {
@@ -127,17 +129,26 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
         invoiceUrl: mockInvoiceUrl,
     };
 
-    addDocumentNonBlocking(preAlertsCollection, newPreAlert);
-
-    toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
-    setTrackingNumber('');
-    setContents('');
-    setInvoice(null);
-    
-    const fileInput = document.getElementById('invoice-upload') as HTMLInputElement;
-    if(fileInput) fileInput.value = '';
-    
-    setLoading(false);
+    addDoc(preAlertsCollection, newPreAlert)
+      .then(() => {
+        toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
+        setTrackingNumber('');
+        setContents('');
+        setInvoice(null);
+        
+        const fileInput = document.getElementById('invoice-upload') as HTMLInputElement;
+        if(fileInput) fileInput.value = '';
+      })
+      .catch((error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: preAlertsCollection.path,
+          operation: 'create',
+          requestResourceData: newPreAlert,
+        }));
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   return (
@@ -338,11 +349,12 @@ export function SupportTab({ details }: { details: UserProfile }) {
     setSending(true);
 
     let conversationId = activeConversation?.id;
+    let convoDocRef;
 
     // Create a new conversation if one doesn't exist
     if (!conversationId) {
         const convosCollection = collection(firestore, 'users', details.id, 'conversations');
-        const newConvoRef = await addDoc(convosCollection, {
+        const newConvoData = {
             customerName: details.fullName,
             customerId: details.id,
             subject: subject,
@@ -350,35 +362,54 @@ export function SupportTab({ details }: { details: UserProfile }) {
             latestDate: serverTimestamp(),
             isRead: false,
             date: serverTimestamp()
-        });
+        };
+        const newConvoRef = await addDoc(convosCollection, newConvoData);
         conversationId = newConvoRef.id;
+        convoDocRef = doc(firestore, 'users', details.id, 'conversations', conversationId);
+    } else {
+        convoDocRef = doc(firestore, 'users', details.id, 'conversations', conversationId);
     }
 
     // Add the new message
     const messagesCollection = collection(firestore, 'users', details.id, 'conversations', conversationId, 'messages');
-    addDocumentNonBlocking(messagesCollection, {
+    const newMessageData = {
         conversationId: conversationId,
         customerId: details.id,
         customerName: details.fullName,
         subject: activeConversation?.subject || subject,
         message: newMessage,
-        sender: 'user',
-        status: 'Open',
+        sender: 'user' as 'user',
+        status: 'Open' as 'Open',
         date: serverTimestamp(),
-    });
-    
-    // Update the latest message on the conversation
-    const convoDoc = doc(firestore, 'users', details.id, 'conversations', conversationId);
-    updateDocumentNonBlocking(convoDoc, {
-        latestMessage: newMessage,
-        latestDate: serverTimestamp(),
-        isRead: false
-    });
+    };
 
-    setNewMessage("");
-    if (!activeConversation) setSubject("");
-    toast({ title: "Message Sent!", description: "We've received your message and will get back to you shortly." });
-    setSending(false);
+    addDoc(messagesCollection, newMessageData)
+      .then(() => {
+        // Update the latest message on the conversation
+        const updateData = {
+            latestMessage: newMessage,
+            latestDate: serverTimestamp(),
+            isRead: false
+        };
+        updateDoc(convoDocRef, updateData)
+            .catch(err => {
+                 errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: convoDocRef.path, operation: 'update', requestResourceData: updateData
+                 }));
+            });
+        
+        setNewMessage("");
+        if (!activeConversation) setSubject("");
+        toast({ title: "Message Sent!", description: "We've received your message and will get back to you shortly." });
+      })
+      .catch(err => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: messagesCollection.path, operation: 'create', requestResourceData: newMessageData
+        }));
+      })
+      .finally(() => {
+        setSending(false);
+      });
   };
 
   return (
@@ -473,20 +504,23 @@ export function AccountTab({ details }: { details: UserProfile }) {
 
         const personToAdd: PickupPerson = { ...newPerson, id: `person-${Date.now()}` };
         
-        updateDocumentNonBlocking(userDocRef, {
-            pickupPersonnel: arrayUnion(personToAdd)
-        });
-        
-        setNewPerson({ name: '', idNumber: '' });
-        setOpenAddPersonDialog(false);
-        toast({ title: "Pickup Person Added", description: `${newPerson.name} can now pick up packages on your behalf.` });
+        updateDoc(userDocRef, { pickupPersonnel: arrayUnion(personToAdd) })
+          .then(() => {
+            setNewPerson({ name: '', idNumber: '' });
+            setOpenAddPersonDialog(false);
+            toast({ title: "Pickup Person Added", description: `${newPerson.name} can now pick up packages on your behalf.` });
+          })
+          .catch(err => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: userDocRef.path, operation: 'update', requestResourceData: { pickupPersonnel: arrayUnion(personToAdd) }}));
+          });
     };
 
     const handleRemovePerson = async (personToRemove: PickupPerson) => {
-        updateDocumentNonBlocking(userDocRef, {
-            pickupPersonnel: arrayRemove(personToRemove)
-        });
-        toast({ title: "Pickup Person Removed" });
+        updateDoc(userDocRef, { pickupPersonnel: arrayRemove(personToRemove) })
+            .then(() => toast({ title: "Pickup Person Removed" }))
+            .catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: userDocRef.path, operation: 'update', requestResourceData: { pickupPersonnel: arrayRemove(personToRemove) }}));
+            });
     };
 
     const handleAddAddress = async () => {
@@ -496,20 +530,23 @@ export function AccountTab({ details }: { details: UserProfile }) {
         }
 
         const addressToAdd: DropoffAddress = { ...newAddress, id: `addr-${Date.now()}` };
-        updateDocumentNonBlocking(userDocRef, {
-            dropoffAddresses: arrayUnion(addressToAdd)
-        });
-
-        setNewAddress({ name: '', address: '', parish: '' });
-        setOpenAddAddressDialog(false);
-        toast({ title: "Address Added", description: `New drop-off address "${newAddress.name}" has been saved.` });
+        updateDoc(userDocRef, { dropoffAddresses: arrayUnion(addressToAdd) })
+            .then(() => {
+                 setNewAddress({ name: '', address: '', parish: '' });
+                setOpenAddAddressDialog(false);
+                toast({ title: "Address Added", description: `New drop-off address "${newAddress.name}" has been saved.` });
+            })
+            .catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: userDocRef.path, operation: 'update', requestResourceData: { dropoffAddresses: arrayUnion(addressToAdd) }}));
+            });
     };
 
     const handleRemoveAddress = async (addressToRemove: DropoffAddress) => {
-        updateDocumentNonBlocking(userDocRef, {
-            dropoffAddresses: arrayRemove(addressToRemove)
-        });
-        toast({ title: "Address Removed" });
+        updateDoc(userDocRef, { dropoffAddresses: arrayRemove(addressToRemove) })
+            .then(() => toast({ title: "Address Removed" }))
+            .catch(err => {
+                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: userDocRef.path, operation: 'update', requestResourceData: { dropoffAddresses: arrayRemove(addressToRemove) }}));
+            });
     };
     
     const pickupPersonnel = details.pickupPersonnel || [];

@@ -42,8 +42,10 @@ import Image from 'next/image';
 import { generateInvoiceHtml } from '@/ai/flows/generate-invoice-html';
 import type { Invoice, Shipment, UserProfile } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 const financeData = {
@@ -208,14 +210,22 @@ export default function FinancePage() {
         };
         
         const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
-        setDocumentNonBlocking(invoiceDocRef, newInvoice, { merge: true });
+        setDoc(invoiceDocRef, newInvoice, { merge: true })
+            .then(() => {
+                 toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
+            })
+            .catch(error => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: invoiceDocRef.path,
+                    operation: 'write',
+                    requestResourceData: newInvoice,
+                }));
+            });
         
         setIsCreateOpen(false);
         setCustomerId('');
         setInvoiceDate(new Date().toISOString().split('T')[0]);
         setLineItems(initialLineItems);
-        
-        toast({ title: 'Invoice Generation Queued', description: `Invoice ${newInvoice.invoiceId} for ${customerName} will be created.`});
 
     } catch (error) {
         console.error("PDF Generation Error:", error);
@@ -232,12 +242,20 @@ export default function FinancePage() {
 
   const handleUpdateInvoiceStatus = (invoiceId: string, status: 'Paid' | 'Unpaid') => {
     const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
-    updateDocumentNonBlocking(invoiceDocRef, { status });
-
-    toast({
-        title: "Invoice Status Update Queued",
-        description: `Invoice ${invoiceId} will be marked as ${status}.`
-    });
+    updateDoc(invoiceDocRef, { status })
+        .then(() => {
+            toast({
+                title: "Invoice Status Updated",
+                description: `Invoice ${invoiceId} marked as ${status}.`
+            });
+        })
+        .catch(error => {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: invoiceDocRef.path,
+                operation: 'update',
+                requestResourceData: { status },
+            }));
+        });
   }
 
   const handleAddTransaction = () => {

@@ -37,8 +37,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
 import type { Shipment, PreAlert, UserProfile } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, collectionGroup, query, where, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, collectionGroup, query, where, orderBy, serverTimestamp, doc, addDoc, updateDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 const getStatusVariant = (status: string) => {
@@ -81,7 +83,6 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
         
         onShipmentCreated(newShipment, preAlert.id);
 
-        toast({ title: "Shipment Creation Queued", description: `Shipment for ${preAlert.trackingNumber} will be created shortly.`});
         setIsSubmitting(false);
         setOpen(false);
     };
@@ -189,23 +190,59 @@ export default function PreAlertsPage() {
       invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
     }
     
-    addDocumentNonBlocking(preAlertsCollection, alertToAdd);
-
-    setOpen(false);
-    setNewAlert({ customerId: '', trackingNumber: '', contents: '' });
-    toast({
-      title: 'Pre-Alert Creation Queued',
-      description: `Pre-alert for ${newAlert.trackingNumber} will be created shortly.`,
-    });
-    setIsSubmitting(false);
+    addDoc(preAlertsCollection, alertToAdd)
+      .then(() => {
+        toast({
+          title: 'Pre-Alert Created',
+          description: `Pre-alert for ${newAlert.trackingNumber} has been created.`,
+        });
+      })
+      .catch(error => {
+        errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: preAlertsCollection.path,
+            operation: 'create',
+            requestResourceData: alertToAdd,
+          })
+        );
+      })
+      .finally(() => {
+        setOpen(false);
+        setNewAlert({ customerId: '', trackingNumber: '', contents: '' });
+        setIsSubmitting(false);
+      });
   };
   
   const handleShipmentCreated = (newShipment: Omit<Shipment, 'id'>, preAlertId: string) => {
     const shipmentsCollection = collection(firestore, 'users', newShipment.customerId, 'shipments');
-    addDocumentNonBlocking(shipmentsCollection, newShipment);
-    
-    const preAlertDocRef = doc(firestore, 'users', newShipment.customerId, 'pre_alerts', preAlertId);
-    updateDocumentNonBlocking(preAlertDocRef, { status: 'Processed' });
+    addDoc(shipmentsCollection, newShipment)
+      .then(() => {
+        toast({ title: "Shipment Created", description: `Shipment for ${newShipment.trackingNumber} has been created.`});
+        
+        const preAlertDocRef = doc(firestore, 'users', newShipment.customerId, 'pre_alerts', preAlertId);
+        updateDoc(preAlertDocRef, { status: 'Processed' })
+          .catch(error => {
+             errorEmitter.emit(
+              'permission-error',
+              new FirestorePermissionError({
+                path: preAlertDocRef.path,
+                operation: 'update',
+                requestResourceData: { status: 'Processed' },
+              })
+            );
+          });
+      })
+      .catch(error => {
+        errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: shipmentsCollection.path,
+            operation: 'create',
+            requestResourceData: newShipment,
+          })
+        )
+      });
   }
 
 
