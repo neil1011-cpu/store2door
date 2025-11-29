@@ -20,8 +20,8 @@ import { useState } from 'react';
 import { Loader2, Route } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { signInWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
 const formSchema = z.object({
