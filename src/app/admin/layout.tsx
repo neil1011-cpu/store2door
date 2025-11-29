@@ -63,32 +63,36 @@ export default function AdminLayout({
   const adminRoleRef = useMemoFirebase(() => user ? doc(firestore, 'roles_admin', user.uid) : null, [firestore, user]);
   const { data: adminRoleDoc, isLoading: isAdminLoading } = useDoc(adminRoleRef);
   
-  const [authChecked, setAuthChecked] = useState(false);
+  const [authStatus, setAuthStatus] = useState<'loading' | 'success' | 'failed'>('loading');
 
   useEffect(() => {
-    // Wait until both user and admin role checks are complete
     if (isUserLoading || isAdminLoading) {
       return;
     }
     
-    // At this point, all loading is done. We can make a decision.
-    setAuthChecked(true); 
-
     if (!user) {
-      // If there's no user, definitely redirect to login
-      router.push('/admin-login');
-    } else if (!adminRoleDoc) {
-      // If there IS a user but they DON'T have an admin role doc, they are not an admin.
       toast({
+        title: 'Access Denied',
+        description: 'You must be logged in to access the admin panel.',
+        variant: 'destructive'
+      });
+      router.push('/admin-login');
+      setAuthStatus('failed');
+      return;
+    }
+
+    if (adminRoleDoc) {
+      setAuthStatus('success');
+    } else {
+       toast({
         title: 'Access Denied',
         description: "You don't have permission to access the admin panel.",
         variant: 'destructive'
       });
-      // We don't sign out here, just redirect. The user might be a valid customer.
       router.push('/admin-login');
+      setAuthStatus('failed');
     }
     
-    // If user exists and adminRoleDoc exists, everything is good. The layout will render the children.
   }, [user, isUserLoading, adminRoleDoc, isAdminLoading, router, toast]);
 
   
@@ -109,8 +113,7 @@ export default function AdminLayout({
     }
   }
 
-  // Show skeleton loader until we have a definitive answer on auth status
-  if (!authChecked) {
+  if (authStatus === 'loading') {
     return (
          <div className="flex h-screen">
             <Skeleton className="w-64" />
@@ -122,8 +125,7 @@ export default function AdminLayout({
     );
   }
 
-  // If checks are complete and we have a user and an admin role, render the layout
-  if (user && adminRoleDoc) {
+  if (authStatus === 'success' && user) {
     return (
           <SidebarProvider>
               <Sidebar>
@@ -261,6 +263,6 @@ export default function AdminLayout({
     );
   }
 
-  // If auth checks are done but user is not a valid admin, this will render null while redirecting.
+  // If auth checks failed or are in progress, this will render null while redirecting or loading.
   return null;
 }

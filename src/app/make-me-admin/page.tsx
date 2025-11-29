@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -8,10 +9,12 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useState } from 'react';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'firebase/auth';
 
 export default function MakeAdminPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const auth = useAuth();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [loading, setLoading] = useState(false);
@@ -36,10 +39,11 @@ export default function MakeAdminPage() {
 
       toast({
         title: 'Success!',
-        description: 'You have been granted admin privileges. Redirecting to the admin login page.',
+        description: 'You have been granted admin privileges. Please sign in again to access the admin panel.',
       });
       
-      // Redirect to the admin login page to sign in again with the new privileges.
+      // Sign the user out and redirect to the admin login page.
+      await signOut(auth);
       router.push('/admin-login');
 
     } catch (error: any) {
