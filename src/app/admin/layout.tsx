@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -102,7 +103,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   }
 
   // At this point, loading is done:
-  // - If adminRoleDoc exists => admin, allow access
+  // - If adminRoleDoc exists => admin, allow access by rendering children
   // - If it doesn't, the effect above is firing a redirect and we render nothing here
   if (!adminRoleDoc) {
     // Avoid flicker while redirect happens
