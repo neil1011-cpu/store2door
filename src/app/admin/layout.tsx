@@ -71,24 +71,25 @@ export default function AdminLayout({
       return;
     }
     
-    setAuthChecked(true); // Mark that we have definitive auth state
+    // At this point, all loading is done. We can make a decision.
+    setAuthChecked(true); 
 
     if (!user) {
-      // If there's no user, redirect to login
+      // If there's no user, definitely redirect to login
       router.push('/admin-login');
     } else if (!adminRoleDoc) {
-      // If there is a user but they don't have an admin role doc, deny access
+      // If there IS a user but they DON'T have an admin role doc, they are not an admin.
       toast({
         title: 'Access Denied',
         description: "You don't have permission to access the admin panel.",
         variant: 'destructive'
       });
-      signOut(auth);
+      // We don't sign out here, just redirect. The user might be a valid customer.
       router.push('/admin-login');
     }
     
-    // If user exists and adminRoleDoc exists, the layout will render the children
-  }, [user, isUserLoading, adminRoleDoc, isAdminLoading, router, toast, auth]);
+    // If user exists and adminRoleDoc exists, everything is good. The layout will render the children.
+  }, [user, isUserLoading, adminRoleDoc, isAdminLoading, router, toast]);
 
   
   const handleSignOut = async () => {
