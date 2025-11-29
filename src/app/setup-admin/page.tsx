@@ -21,7 +21,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, type User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, collection, query, limit } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, limit, getCountFromServer } from 'firebase/firestore';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -36,7 +36,6 @@ export default function SetupAdminPage() {
   const auth = useAuth();
   const firestore = useFirestore();
 
-  // Check if an admin already exists
   const adminRolesQuery = useMemoFirebase(() => query(collection(firestore, 'roles_admin'), limit(1)), [firestore]);
   const { data: adminRoles, isLoading: isLoadingAdmins } = useCollection(adminRolesQuery);
 
@@ -56,9 +55,14 @@ export default function SetupAdminPage() {
   });
 
   const setupAdminDocs = async (user: User) => {
-    const nextMailboxNumber = `FSTD100`; // Initial Admin Mailbox
+    // We need to count existing users to generate a unique mailbox number for the admin.
+    // This is a simplified approach.
+    const usersCollection = collection(firestore, "users");
+    const snapshot = await getCountFromServer(usersCollection);
+    const userCount = snapshot.data().count;
+    const nextMailboxNumber = `FSTD${100 + userCount}`;
 
-    // 2. Create the user profile document
+    // Create the user profile document
     const userDocRef = doc(firestore, 'users', user.uid);
     const userProfile = {
         id: user.uid,
@@ -76,9 +80,9 @@ export default function SetupAdminPage() {
         },
         createdAt: serverTimestamp(),
     };
-    await setDoc(userDocRef, userProfile, { merge: true }); // Use merge to be safe
+    await setDoc(userDocRef, userProfile, { merge: true });
 
-    // 3. Create the admin role document
+    // Create the admin role document
     const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
     await setDoc(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
   }
@@ -105,16 +109,15 @@ export default function SetupAdminPage() {
             user = userCredential.user;
         } catch (error: any) {
             // If sign-in fails because the user doesn't exist, create them.
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
                 const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
                 user = userCredential.user;
             } else {
-                // Re-throw other errors (e.g., wrong password)
+                // Re-throw other errors
                 throw error;
             }
         }
         
-        // If we have a user (either by signing in or creating), set up their documents.
         await setupAdminDocs(user);
 
         toast({
@@ -151,7 +154,7 @@ export default function SetupAdminPage() {
                      <AlertTriangle className="mx-auto h-12 w-12 text-destructive" />
                     <CardTitle className="text-3xl mt-4">Setup Complete</CardTitle>
                     <CardDescription>
-                        The initial admin account has already been created. This setup page is no longer available.
+                        The initial admin account has already been created. This setup page is no longer available for security reasons.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -198,7 +201,7 @@ export default function SetupAdminPage() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="Choose a strong password" {...field} />
+                      <Input type="password" placeholder="Choose a strong password (min. 8 characters)" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
