@@ -48,32 +48,34 @@ const AppLogo = () => (
 
 function AdminAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { user } = useUser(); // User is guaranteed to exist by the time this component renders
+  const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const adminRoleRef = useMemoFirebase(() => user ? doc(firestore, 'roles_admin', user.uid) : null, [firestore, user]);
-  const { data: adminRoleDoc, isLoading: isAdminLoading } = useDoc(adminRoleRef);
-  
-  useEffect(() => {
-    // Wait until the loading of the admin role document is complete
-    if (isAdminLoading) {
-      return;
-    }
+  const adminRoleRef = useMemoFirebase(
+    () => user ? doc(firestore, 'roles_admin', user.uid) : null,
+    [firestore, user]
+  );
 
-    // If, after loading, the admin document does not exist, redirect.
+  const { data: adminRoleDoc, isLoading: isAdminLoading } = useDoc(adminRoleRef);
+
+  useEffect(() => {
+    if (isAdminLoading) return;
+
+    // After loading, if doc does NOT exist → deny access
     if (!adminRoleDoc) {
       toast({
         title: 'Access Denied',
         description: "You don't have permission to access the admin panel.",
         variant: 'destructive',
       });
-      router.push('/admin-login');
-    }
-  }, [adminRoleDoc, isAdminLoading, router, toast]);
 
-  // While we check for the admin role, show a loader.
-  if (isAdminLoading || !adminRoleDoc) {
+      router.replace('/admin-login');
+    }
+  }, [isAdminLoading, adminRoleDoc, router, toast]);
+
+  // Loader ONLY while loading
+  if (isAdminLoading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -82,8 +84,13 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // If all checks pass, render the protected admin content.
-  return <>{children}</>;
+  // If loaded and adminRoleDoc exists → allow
+  if (adminRoleDoc) {
+    return <>{children}</>;
+  }
+
+  // Prevent flicker before redirect
+  return null;
 }
 
 
@@ -98,7 +105,6 @@ export default function AdminLayout({
   const { user, isUserLoading } = useUser();
   
   useEffect(() => {
-    // This effect only handles the case where the user is definitively not logged in *after* loading is complete.
     if (!isUserLoading && !user) {
       router.push('/admin-login');
     }
@@ -121,7 +127,6 @@ export default function AdminLayout({
     }
   }
   
-  // Primary loading state: wait for Firebase Auth to determine if a user is logged in.
   if (isUserLoading) {
     return (
          <div className="flex h-screen items-center justify-center">
@@ -131,8 +136,6 @@ export default function AdminLayout({
     );
   }
   
-  // If there's no user after loading, the useEffect above will trigger a redirect.
-  // We can return null or a loader here as a fallback.
   if (!user) {
      return (
          <div className="flex h-screen items-center justify-center">
@@ -142,8 +145,6 @@ export default function AdminLayout({
     );
   }
 
-  // If a user is logged in, render the main layout, which includes the AdminAuthGuard.
-  // The guard will then handle the next step of authorization.
   return (
     <SidebarProvider>
         <Sidebar>
