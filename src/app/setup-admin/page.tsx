@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -19,7 +20,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, type User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, limit } from 'firebase/firestore';
 
 const formSchema = z.object({
@@ -54,6 +55,34 @@ export default function SetupAdminPage() {
     },
   });
 
+  const setupAdminDocs = async (user: User) => {
+    const nextMailboxNumber = `FSTD100`; // Initial Admin Mailbox
+
+    // 2. Create the user profile document
+    const userDocRef = doc(firestore, 'users', user.uid);
+    const userProfile = {
+        id: user.uid,
+        fullName: 'Administrator',
+        email: user.email,
+        phone: 'N/A',
+        trn: 'N/A',
+        mailboxNumber: nextMailboxNumber,
+        address: {
+            address1: '4350 NE 5th Terrace Bay #3',
+            address2: `${nextMailboxNumber} -FSTD`,
+            city: 'Oakland Park',
+            state: 'Florida',
+            zip: '33334',
+        },
+        createdAt: serverTimestamp(),
+    };
+    await setDoc(userDocRef, userProfile, { merge: true }); // Use merge to be safe
+
+    // 3. Create the admin role document
+    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+    await setDoc(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
+  }
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     
@@ -68,38 +97,28 @@ export default function SetupAdminPage() {
     }
 
     try {
-        // 1. Create the user in Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
-
-        const nextMailboxNumber = `FSTD100`; // Initial Admin Mailbox
-
-        // 2. Create the user profile document
-        const userDocRef = doc(firestore, 'users', user.uid);
-        const userProfile = {
-            id: user.uid,
-            fullName: 'Administrator',
-            email: values.email,
-            phone: 'N/A',
-            trn: 'N/A',
-            mailboxNumber: nextMailboxNumber,
-            address: {
-                address1: '4350 NE 5th Terrace Bay #3',
-                address2: `${nextMailboxNumber} -FSTD`,
-                city: 'Oakland Park',
-                state: 'Florida',
-                zip: '33334',
-            },
-            createdAt: serverTimestamp(),
-        };
-        await setDoc(userDocRef, userProfile);
-
-        // 3. Create the admin role document
-        const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-        await setDoc(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
+        let user: User;
+        
+        try {
+            // First, try to sign in. This handles the case where the auth user exists but the docs don't.
+            const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+            user = userCredential.user;
+        } catch (error: any) {
+            // If sign-in fails because the user doesn't exist, create them.
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+                user = userCredential.user;
+            } else {
+                // Re-throw other errors (e.g., wrong password)
+                throw error;
+            }
+        }
+        
+        // If we have a user (either by signing in or creating), set up their documents.
+        await setupAdminDocs(user);
 
         toast({
-            title: 'Admin Account Created!',
+            title: 'Admin Account Configured!',
             description: 'You can now log in at the admin login page.',
         });
         router.push('/admin-login');
@@ -108,9 +127,7 @@ export default function SetupAdminPage() {
         console.error("Admin setup error:", error);
         toast({
             title: 'Setup Failed',
-            description: error.code === 'auth/email-already-in-use' 
-                ? 'An account with this email already exists.' 
-                : error.message,
+            description: error.message || "An unexpected error occurred.",
             variant: 'destructive',
         });
     }
