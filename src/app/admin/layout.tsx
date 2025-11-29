@@ -64,8 +64,8 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
 
   // Build the doc ref only when user is present
   const adminRoleRef = useMemoFirebase(
-    () => doc(firestore, 'roles_admin', user.uid),
-    [firestore, user.uid],
+    () => (firestore && user ? doc(firestore, 'roles_admin', user.uid) : null),
+    [firestore, user]
   );
 
   // CRITICAL FIX: Use skipCache to ensure we get the latest data from the server,
