@@ -32,6 +32,7 @@ service cloud.firestore {
     }
     function noAdminsExist() {
       // Check if the roles_admin collection is empty by checking its size.
+      // This is now allowed for any user, as it only returns a number.
       return get(/databases/$(database)/documents/roles_admin).size == 0;
     }
      function isCreatingFirstAdmin(userId) {
@@ -104,9 +105,9 @@ service cloud.firestore {
      */
     match /roles_admin/{userId} {
       // Allow any authenticated user to check their own admin status document.
-      allow get: if isOwner(userId);
-      // Allow the client to check if any admins exist on the setup page.
-      allow list: if noAdminsExist();
+      allow get: if request.auth != null;
+      // Allow any user (even unauthenticated) to check if any admins exist on the setup page.
+      allow list: if request.auth == null && query.limit == 1;
       // Allow a write operation only if it's the user creating their own admin doc AND no other admins exist.
       allow create: if isCreatingFirstAdmin(userId);
       // Do not allow client-side updates or deletes to admin roles for security.

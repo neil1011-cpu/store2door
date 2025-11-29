@@ -40,6 +40,7 @@ export default function SetupAdminPage() {
 
   useEffect(() => {
     if (!isLoadingAdmins) {
+      // If adminRoles is not null and has items, setup is done.
       setIsSetupDone(adminRoles !== null && adminRoles.length > 0);
     }
   }, [adminRoles, isLoadingAdmins]);
