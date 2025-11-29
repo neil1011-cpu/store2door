@@ -34,7 +34,7 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, serverTimestamp, getCountFromServer, doc } from 'firebase/firestore';
+import { collection, query, serverTimestamp, doc } from 'firebase/firestore';
 
 
 export default function UsersPage() {
@@ -64,9 +64,7 @@ export default function UsersPage() {
     // and then create their profile document. Here we just create the document.
     
     try {
-        const usersCollection = collection(firestore, "users");
-        const snapshot = await getCountFromServer(usersCollection);
-        const userCount = snapshot.data().count;
+        const userCount = users?.length || 0;
         const nextMailboxNumber = `FSTD${101 + userCount}`;
         
         const userId = `manual-${Date.now()}`;
