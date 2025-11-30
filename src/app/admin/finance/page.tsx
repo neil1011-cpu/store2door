@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -80,13 +81,18 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
     };
 
     const isPrintable = invoice.invoiceUrl && invoice.invoiceUrl.startsWith('<!DOCTYPE html>');
+    
+    // Check if invoice.date has a .toDate method (i.e., is a Firestore Timestamp)
+    const displayDate = invoice.date && typeof (invoice.date as any).toDate === 'function' 
+        ? new Date((invoice.date as any).toDate()).toLocaleDateString()
+        : (invoice.date ? new Date(invoice.date).toLocaleDateString() : 'N/A');
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>Invoice {invoice.invoiceId}</DialogTitle>
-                    <DialogDescription>Invoice for {invoice.customerName} dated {invoice.date ? new Date(invoice.date.toDate()).toLocaleDateString() : 'N/A'}.</DialogDescription>
+                    <DialogDescription>Invoice for {invoice.customerName} dated {displayDate}.</DialogDescription>
                 </DialogHeader>
                  <div className="relative h-[600px] overflow-hidden rounded-md border">
                     <iframe 
@@ -334,7 +340,7 @@ export default function FinancePage() {
                         <TableRow key={invoice.invoiceId}>
                         <TableCell className="font-mono">{invoice.invoiceId}</TableCell>
                         <TableCell className="font-medium">{invoice.customerName}</TableCell>
-                        <TableCell>{invoice.date ? new Date(invoice.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
+                        <TableCell>{invoice.date ? new Date((invoice.date as any).toDate()).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell>${invoice.amount.toFixed(2)}</TableCell>
                         <TableCell><Badge variant={invoice.status === 'Paid' ? 'outline' : 'destructive'}>{invoice.status}</Badge></TableCell>
                         <TableCell className="text-right">
