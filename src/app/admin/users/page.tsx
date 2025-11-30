@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2, Eye, Receipt, Download } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2, Eye, Receipt, Download, Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -58,7 +58,6 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
     
     const isPrintable = invoice.invoiceUrl && invoice.invoiceUrl.startsWith('<!DOCTYPE html>');
     
-    // Check if invoice.date has a .toDate method (i.e., is a Firestore Timestamp)
     const displayDate = invoice.date && typeof (invoice.date as any).toDate === 'function' 
         ? new Date((invoice.date as any).toDate()).toLocaleDateString()
         : (invoice.date ? new Date(invoice.date).toLocaleDateString() : 'N/A');
@@ -110,8 +109,23 @@ export default function UsersPage() {
 
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [isViewInvoiceOpen, setIsViewInvoiceOpen] = useState(false);
+  
+  const [searchTerm, setSearchTerm] = useState('');
 
   const loading = isLoadingUsers || isUserLoading;
+  
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    if (!searchTerm) return users;
+
+    const lowercasedTerm = searchTerm.toLowerCase();
+    return users.filter(user => 
+        user.fullName.toLowerCase().includes(lowercasedTerm) ||
+        user.email.toLowerCase().includes(lowercasedTerm) ||
+        user.mailboxNumber.toLowerCase().includes(lowercasedTerm) ||
+        (user.trn && user.trn.includes(lowercasedTerm))
+    );
+  }, [users, searchTerm]);
 
   const handleAddUser = async () => {
     if(!newUser.name || !newUser.email) {
@@ -267,6 +281,17 @@ export default function UsersPage() {
           <CardDescription>
             A list of all users and their assigned addresses.
           </CardDescription>
+           <div className="pt-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, email, mailbox..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-sm pl-10"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -280,8 +305,8 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users && users.length > 0 ? (
-                users.map((user) => (
+              {filteredUsers && filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
                     <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.fullName}</TableCell>
                     <TableCell>{user.email}</TableCell>
@@ -308,7 +333,9 @@ export default function UsersPage() {
                 ))
               ) : (
                 <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24">No users found.</TableCell>
+                    <TableCell colSpan={5} className="text-center h-24">
+                        {searchTerm ? 'No users match your search.' : 'No users found.'}
+                    </TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -335,9 +362,3 @@ export default function UsersPage() {
     </div>
   );
 }
-
-    
-
-    
-
-    
