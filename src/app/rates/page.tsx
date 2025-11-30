@@ -96,7 +96,7 @@ export default function RatesPage() {
   return (
     <div className="bg-background">
         <div className="container mx-auto py-16 px-4 md:px-6">
-        <div className="max-w-4xl mx-auto text-center mb-12">
+        <div className="max-w-4xl mx-auto text-center mb-16">
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Our Competitive Rates</h1>
             <p className="mt-4 text-lg text-muted-foreground">
             Simple, transparent pricing for shipping your packages from the US to Jamaica.
@@ -104,41 +104,39 @@ export default function RatesPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
-            <Card className="shadow-lg lg:col-span-3">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-3">
-                <DollarSign className="h-7 w-7 text-primary" />
-                <span className="text-2xl">Shipping Rate Table (JMD)</span>
-                </CardTitle>
-                <CardDescription>
-                    Our straightforward pricing model ensures no surprises. All rates cover air freight from Florida to Jamaica.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
+            <div className="shadow-lg lg:col-span-3 border rounded-lg overflow-hidden">
+                <div className="p-6">
+                    <h2 className="text-2xl font-bold flex items-center gap-3">
+                        <DollarSign className="h-7 w-7 text-primary" />
+                        <span>Shipping Rate Table (JMD)</span>
+                    </h2>
+                    <p className="text-muted-foreground mt-2">
+                        Our straightforward pricing model ensures no surprises. All rates cover air freight from Florida to Jamaica.
+                    </p>
+                </div>
                  <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="font-semibold">Weight</TableHead>
-                            <TableHead className="text-right font-semibold">Price</TableHead>
+                            <TableHead className="font-semibold text-base">Weight</TableHead>
+                            <TableHead className="text-right font-semibold text-base">Price</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {pricingData.map((item, index) => (
                              <TableRow key={index} className="hover:bg-muted/50">
-                                <TableCell className="font-medium">{item.weight}</TableCell>
-                                <TableCell className="text-right">{item.price}</TableCell>
+                                <TableCell className="font-medium text-muted-foreground">{item.weight}</TableCell>
+                                <TableCell className="text-right font-semibold">{item.price}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
-                <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                <div className="p-6 bg-muted/50">
                     <div className="flex items-start gap-3">
                          <Info className="h-5 w-5 text-primary mt-1 shrink-0" />
                         <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">What's Included:</span> This rate covers air freight from Florida to Jamaica. It does not include local customs and duties, which are calculated separately.</p>
                     </div>
                 </div>
-            </CardContent>
-            </Card>
+            </div>
             
             <div className="lg:col-span-2 space-y-8">
                 <Card className="sticky top-24 shadow-lg">

@@ -48,7 +48,7 @@ const testimonials = [
 
 export default function HomePage() {
   const homeHeroImage = {
-      src: "https://picsum.photos/seed/logistics/1800/1200",
+      src: "https://picsum.photos/seed/containers/1800/1200",
       alt: "Modern logistics background with shipping containers and digital overlays",
       hint: "logistics technology"
   };
@@ -158,7 +158,7 @@ export default function HomePage() {
             {testimonials.map((testimonial) => (
                 <Card key={testimonial.name} className="flex flex-col justify-between bg-background shadow-md">
                     <CardContent className="pt-8 relative">
-                        <Quote className="absolute top-4 left-4 h-8 w-8 text-muted-foreground/20" />
+                        <Quote className="absolute top-6 right-6 h-12 w-12 text-muted-foreground/10" />
                         <p className="mt-4 text-muted-foreground z-10 relative">"{testimonial.review}"</p>
                     </CardContent>
                     <CardHeader className="flex-row items-center gap-4 pt-4 mt-auto">
