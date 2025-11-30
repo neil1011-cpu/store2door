@@ -35,7 +35,7 @@ export default function UserDetailsPage() {
     const userProfileRef = useMemoFirebase(() => userId ? doc(firestore, 'users', userId) : null, [firestore, userId]);
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
-    const shipmentsQuery = useMemoFirebase(() => userId ? query(collection(firestore, 'users', userId, 'shipments'), orderBy('date', 'desc')) : null, [firestore, userId]);
+    const shipmentsQuery = useMemoFirebase(() => userId ? query(collection(firestore, 'users', userId, 'shipments'), orderBy('shippingDate', 'desc')) : null, [firestore, userId]);
     const { data: userShipments, isLoading: isShipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
     const isLoading = isProfileLoading || isShipmentsLoading;
