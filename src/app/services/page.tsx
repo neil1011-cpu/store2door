@@ -44,7 +44,7 @@ export default function ServicesPage() {
   return (
     <div className="bg-background">
       <div className="container mx-auto py-16 px-4 md:px-6">
-        <div className="max-w-4xl mx-auto text-center mb-12">
+        <div className="max-w-4xl mx-auto text-center mb-16">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Our Services</h1>
           <p className="mt-4 text-lg text-muted-foreground">
             A complete suite of services to make your shipping experience as smooth and seamless as possible.
@@ -53,21 +53,21 @@ export default function ServicesPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {services.map((service, index) => (
-            <Card key={index} className="flex flex-col transform transition-transform duration-300 hover:scale-105 hover:shadow-xl">
-              <CardHeader className="flex flex-row items-center gap-4 pb-4">
-                 <div className="bg-primary/10 p-3 rounded-full">
+            <Card key={index} className="flex flex-col transform transition-all duration-300 hover:scale-105 hover:shadow-xl bg-card">
+              <CardHeader className="items-center text-center">
+                 <div className="bg-primary/10 p-4 rounded-full mb-4">
                     {service.icon}
                   </div>
                 <CardTitle>{service.title}</CardTitle>
               </CardHeader>
-              <CardContent className="flex-grow">
+              <CardContent className="flex-grow text-center">
                 <p className="text-muted-foreground">{service.description}</p>
               </CardContent>
             </Card>
           ))}
         </div>
         
-        <div className="mt-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="mt-24 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center bg-muted/30 dark:bg-card p-8 rounded-lg">
             <div className="space-y-4">
                 <h2 className="text-3xl font-bold tracking-tight">Your Trusted Shipping Partner</h2>
                 <p className="text-lg text-muted-foreground">
@@ -77,7 +77,7 @@ export default function ServicesPage() {
                     From our state-of-the-art warehouse in Florida to our final delivery at your door in Jamaica, we leverage technology and a customer-centric approach to give you peace of mind.
                 </p>
             </div>
-            <div className="relative h-80 w-full overflow-hidden rounded-lg shadow-xl">
+            <div className="relative h-96 w-full overflow-hidden rounded-lg shadow-xl">
                  <Image 
                     src={servicesImage.src}
                     alt="Warehouse with packages"

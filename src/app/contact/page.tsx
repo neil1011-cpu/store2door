@@ -68,7 +68,7 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-900">
+    <div className="bg-background">
         <div className="container mx-auto py-16 px-4 md:px-6">
         <div className="max-w-3xl mx-auto text-center mb-12">
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Get in Touch</h1>
@@ -78,9 +78,9 @@ export default function ContactPage() {
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
-            <Card className="lg:col-span-3 shadow-lg">
+            <Card className="lg:col-span-3 shadow-lg bg-card">
                 <CardHeader>
-                    <CardTitle>Send us a Message</CardTitle>
+                    <CardTitle className="text-2xl">Send us a Message</CardTitle>
                     <CardDescription>Fill out the form and we'll respond as soon as possible.</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -147,13 +147,13 @@ export default function ContactPage() {
             </Card>
 
             <div className="lg:col-span-2 space-y-8">
-                <Card className="shadow-lg">
+                <Card className="shadow-lg bg-card">
                     <CardHeader>
-                        <CardTitle>Our Information</CardTitle>
+                        <CardTitle className="text-2xl">Contact Information</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4 text-muted-foreground">
+                    <CardContent className="space-y-6 text-muted-foreground">
                         <div className="pt-2">
-                             <Button asChild className="w-full" style={{ backgroundColor: '#25D366', color: 'white' }}>
+                             <Button asChild className="w-full" size="lg" style={{ backgroundColor: '#25D366', color: 'white' }}>
                                 <Link href="https://wa.me/18767713071" target="_blank">
                                     <WhatsAppIcon className="w-5 h-5 mr-2" />
                                     Chat on WhatsApp
@@ -161,14 +161,14 @@ export default function ContactPage() {
                             </Button>
                         </div>
                          <div className="flex items-start gap-4">
-                            <MapPin className="h-5 w-5 text-primary mt-1 shrink-0" />
+                            <MapPin className="h-6 w-6 text-primary mt-1 shrink-0" />
                             <div>
                                 <h3 className="font-semibold text-foreground">Our Location</h3>
                                 <p>Portmore, St. Catherine</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4">
-                            <Phone className="h-5 w-5 text-primary mt-1 shrink-0" />
+                            <Phone className="h-6 w-6 text-primary mt-1 shrink-0" />
                             <div>
                                 <h3 className="font-semibold text-foreground">Phone Numbers</h3>
                                 <p>Flow: (876) 771-3071</p>
@@ -176,14 +176,14 @@ export default function ContactPage() {
                             </div>
                         </div>
                         <div className="flex items-start gap-4">
-                            <Mail className="h-5 w-5 text-primary mt-1 shrink-0" />
+                            <Mail className="h-6 w-6 text-primary mt-1 shrink-0" />
                              <div>
                                 <h3 className="font-semibold text-foreground">Email Us</h3>
                                 <p>fromstore2door@gmail.com</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4">
-                            <Clock className="h-5 w-5 text-primary mt-1 shrink-0" />
+                            <Clock className="h-6 w-6 text-primary mt-1 shrink-0" />
                              <div>
                                 <h3 className="font-semibold text-foreground">Opening Hours</h3>
                                 <p>Monday - Friday: 9AM - 5PM</p>

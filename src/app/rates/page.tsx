@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, Weight, ShoppingCart, ArrowRight, Info } from 'lucide-react';
+import { DollarSign, Weight, ShoppingCart, ArrowRight, Info, Calculator } from 'lucide-react';
 import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -41,13 +41,7 @@ const calculateCost = (weight: number): number | string => {
     }
     
     if (roundedWeight >= 11 && roundedWeight <= 22) {
-        // Based on the pattern, it looks like it increases by $450/lb after 1lb, then there's a jump at 10lbs
-        // Let's assume a rate for this gap. Let's use rate from 10lbs onwards as a base.
-        // Cost at 10lbs is 4850. For every lb over 10, let's assume a rate.
-        // It's not perfectly linear. A better approach is to use the given data.
-        // Since there is no data for 11-22, we should use a consistent rate.
-        // The rate from 2-9 lbs is $450/lb. Let's use that from 10lbs.
-         return pricingTiers[10] + (roundedWeight - 10) * 450;
+        return pricingTiers[10] + (roundedWeight - 10) * 450;
     }
     
     if (roundedWeight >= 31 && roundedWeight <= 50) {
@@ -58,9 +52,6 @@ const calculateCost = (weight: number): number | string => {
         return "Contact for quote";
     }
 
-    // Fallback for any weight not explicitly covered, though logic above should handle it.
-    // Let's find the nearest lower bound and calculate from there if needed.
-    // This logic is complex without full data, so we'll return an estimate message.
     return "Contact for quote";
 };
 
@@ -75,9 +66,10 @@ const pricingData = [
     { weight: "8 lbs", price: "$3,900" },
     { weight: "9 lbs", price: "$4,350" },
     { weight: "10 lbs", price: "$4,850" },
+    { weight: "11-22 lbs", price: "$4,850 + $450/lb over 10" },
     { weight: "25 lbs", price: "$10,500" },
     { weight: "30 lbs", price: "$12,250" },
-    { weight: "31-50 lbs", price: "Add $400 per pound" },
+    { weight: "31-50 lbs", price: "$12,250 + $400/lb over 30" },
     { weight: "51+ lbs", price: "Contact for quote" },
 ];
 
@@ -102,7 +94,7 @@ export default function RatesPage() {
   }, [weight]);
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-900">
+    <div className="bg-background">
         <div className="container mx-auto py-16 px-4 md:px-6">
         <div className="max-w-4xl mx-auto text-center mb-12">
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Our Competitive Rates</h1>
@@ -111,91 +103,100 @@ export default function RatesPage() {
             </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-            <Card className="shadow-lg">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+            <Card className="shadow-lg lg:col-span-3">
             <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-6 w-6 text-primary" />
-                <span>Pricing Details</span>
+                <CardTitle className="flex items-center gap-3">
+                <DollarSign className="h-7 w-7 text-primary" />
+                <span className="text-2xl">Shipping Rate Table (JMD)</span>
                 </CardTitle>
                 <CardDescription>
-                    Our straightforward pricing model ensures no surprises.
+                    Our straightforward pricing model ensures no surprises. All rates cover air freight from Florida to Jamaica.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
                  <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Weight</TableHead>
-                            <TableHead className="text-right">Price (JMD)</TableHead>
+                            <TableHead className="font-semibold">Weight</TableHead>
+                            <TableHead className="text-right font-semibold">Price</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {pricingData.map((item, index) => (
-                             <TableRow key={index}>
+                             <TableRow key={index} className="hover:bg-muted/50">
                                 <TableCell className="font-medium">{item.weight}</TableCell>
                                 <TableCell className="text-right">{item.price}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
-                <ul className="text-sm text-muted-foreground space-y-3 pt-4">
-                    <li className="flex items-start gap-2">
-                         <Info className="h-4 w-4 text-primary mt-1" />
-                        <span><span className="font-semibold text-foreground">What's Included:</span> This rate covers air freight from Florida to Jamaica. It does not include local customs and duties.</span>
-                    </li>
-                </ul>
+                <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                    <div className="flex items-start gap-3">
+                         <Info className="h-5 w-5 text-primary mt-1 shrink-0" />
+                        <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">What's Included:</span> This rate covers air freight from Florida to Jamaica. It does not include local customs and duties, which are calculated separately.</p>
+                    </div>
+                </div>
             </CardContent>
-            <CardFooter>
-                <Button className="w-full" asChild>
-                    <Link href="/customs-calculator">
-                        Estimate Customs Fees
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                </Button>
-            </CardFooter>
             </Card>
             
-            <Card className="sticky top-24 shadow-lg">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Weight className="h-6 w-6 text-primary" />
-                        <span>Shipping Cost Estimator</span>
-                    </CardTitle>
-                    <CardDescription>
-                        Calculate your estimated shipping cost instantly.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="weight-input">Package Weight (lbs)</Label>
-                            <Input 
-                                id="weight-input"
-                                type="number"
-                                placeholder="e.g., 5.5"
-                                value={weight}
-                                onChange={(e) => setWeight(e.target.value)}
-                                className="text-base"
-                            />
-                        </div>
-                        {estimatedCost !== null && (
-                            <div className="pt-4 text-center border-t">
-                                <p className="text-muted-foreground">Estimated Shipping Cost:</p>
-                                <div className="text-4xl font-bold text-primary">
-                                    {typeof estimatedCost === 'number' ? `JMD $${estimatedCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : estimatedCost}
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-2">(Excludes customs, duties, and other local fees)</p>
+            <div className="lg:col-span-2 space-y-8">
+                <Card className="sticky top-24 shadow-lg">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Calculator className="h-6 w-6 text-primary" />
+                            <span>Shipping Cost Estimator</span>
+                        </CardTitle>
+                        <CardDescription>
+                            Calculate your estimated shipping cost instantly.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="weight-input">Package Weight (lbs)</Label>
+                                <Input 
+                                    id="weight-input"
+                                    type="number"
+                                    placeholder="e.g., 5.5"
+                                    value={weight}
+                                    onChange={(e) => setWeight(e.target.value)}
+                                    className="text-base"
+                                />
                             </div>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
+                            {estimatedCost !== null && (
+                                <div className="pt-4 text-center border-t">
+                                    <p className="text-muted-foreground">Estimated Shipping Cost:</p>
+                                    <div className="text-4xl font-bold text-primary">
+                                        {typeof estimatedCost === 'number' ? `JMD $${estimatedCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : estimatedCost}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-2">(Excludes customs, duties, and other local fees)</p>
+                                </div>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                 <Card className="shadow-lg">
+                    <CardHeader>
+                        <CardTitle>Need to calculate customs?</CardTitle>
+                        <CardDescription>Use our handy tool to estimate potential customs fees for your items.</CardDescription>
+                    </CardHeader>
+                    <CardFooter>
+                         <Button className="w-full" asChild variant="secondary">
+                            <Link href="/customs-calculator">
+                                Customs Calculator
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                    </CardFooter>
+                 </Card>
+            </div>
 
         </div>
         
         <div className="mt-16">
-                <Card className="bg-primary text-primary-foreground border-none">
+                <Card className="bg-primary text-primary-foreground border-none shadow-2xl">
                     <CardContent className="p-8 flex flex-col md:flex-row items-center justify-between gap-6">
                         <div className="text-center md:text-left">
                             <h2 className="text-2xl font-bold">Ready to Start Shipping?</h2>
