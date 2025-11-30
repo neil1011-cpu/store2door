@@ -3,12 +3,13 @@
 
 import Link from 'next/link';
 import { Button } from './ui/button';
-import { Route, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './theme-toggle';
 import { useUser } from '@/firebase';
 import { Skeleton } from './ui/skeleton';
+import { AppLogo } from './app-logo';
 
 
 const navLinks = [
@@ -17,14 +18,6 @@ const navLinks = [
     { href: '/rates', label: 'Rates' },
     { href: '/contact', label: 'Contact' },
 ];
-
-
-const AppLogo = () => (
-  <Link href="/" className="flex items-center gap-2">
-    <Route className="size-7 text-primary" />
-    <h1 className="text-xl font-bold">FromStore2Door</h1>
-  </Link>
-);
 
 
 export function UserHeader() {

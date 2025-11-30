@@ -38,13 +38,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
+import { AppLogo } from '@/components/app-logo';
 
-const AppLogo = () => (
-  <div className="flex items-center gap-2 px-2">
-    <Route className="size-6 text-primary" />
-    <h1 className="text-lg font-bold">FromStore2Door</h1>
-  </div>
-);
 
 // Guard that assumes a user already exists (Auth is done in AdminLayout)
 function AdminAuthGuard({ children }: { children: ReactNode }) {
@@ -170,7 +165,7 @@ export default function AdminLayout({
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center justify-between">
-            <AppLogo />
+            <AppLogo isLink={false} className="p-2" />
             <SidebarTrigger className="md:hidden" />
           </div>
         </SidebarHeader>
