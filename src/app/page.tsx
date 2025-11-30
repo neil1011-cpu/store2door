@@ -98,17 +98,17 @@ export default function HomePage() {
               <p className="mt-3 text-muted-foreground text-lg">Shipping with FromStore2Door is as easy as 1-2-3.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-                <div className="flex flex-col items-center p-6 space-y-4">
+                <div className="flex flex-col items-center p-6 space-y-4 transform transition-transform duration-300 hover:scale-105">
                     <div className="flex items-center justify-center rounded-full bg-primary/10 text-primary h-20 w-20 shrink-0 font-bold text-4xl mb-4 border-2 border-primary/20">1</div>
                     <h3 className="font-semibold text-xl">Sign Up For Free</h3>
                     <p className="text-muted-foreground">Create an account to instantly receive your personal, tax-free US mailing address.</p>
                 </div>
-                <div className="flex flex-col items-center p-6 space-y-4">
+                <div className="flex flex-col items-center p-6 space-y-4 transform transition-transform duration-300 hover:scale-105">
                      <div className="flex items-center justify-center rounded-full bg-primary/10 text-primary h-20 w-20 shrink-0 font-bold text-4xl mb-4 border-2 border-primary/20">2</div>
                     <h3 className="font-semibold text-xl">Shop & Ship to Us</h3>
                     <p className="text-muted-foreground">Shop at your favorite US online stores and use your new address as the shipping destination.</p>
                 </div>
-                <div className="flex flex-col items-center p-6 space-y-4">
+                <div className="flex flex-col items-center p-6 space-y-4 transform transition-transform duration-300 hover:scale-105">
                     <div className="flex items-center justify-center rounded-full bg-primary/10 text-primary h-20 w-20 shrink-0 font-bold text-4xl mb-4 border-2 border-primary/20">3</div>
                     <h3 className="font-semibold text-xl">We Deliver to You</h3>
                     <p className="text-muted-foreground">We consolidate your packages, handle customs, and deliver them to your doorstep in Jamaica.</p>
@@ -156,16 +156,12 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {testimonials.map((testimonial) => (
-                <Card key={testimonial.name} className="flex flex-col justify-between bg-background shadow-md">
+                <Card key={testimonial.name} className="flex flex-col justify-between bg-background shadow-md transform transition-transform duration-300 hover:scale-105 hover:shadow-xl">
                     <CardContent className="pt-8 relative">
                         <Quote className="absolute top-6 right-6 h-12 w-12 text-muted-foreground/10" />
                         <p className="mt-4 text-muted-foreground z-10 relative">"{testimonial.review}"</p>
                     </CardContent>
                     <CardHeader className="flex-row items-center gap-4 pt-4 mt-auto">
-                        <Avatar>
-                            <AvatarImage src={testimonial.avatar} alt={testimonial.name} />
-                            <AvatarFallback>{testimonial.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
                         <div>
                              <CardTitle className="text-base">{testimonial.name}</CardTitle>
                             <p className="text-sm text-muted-foreground">{testimonial.role}</p>
