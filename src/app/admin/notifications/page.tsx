@@ -16,6 +16,8 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
+const READ_NOTIFICATIONS_KEY = 'read-notifications';
+
 type Notification = {
   id: string;
   type: 'pre-alert' | 'status-update';
@@ -42,6 +44,25 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  const getReadNotificationIds = (): string[] => {
+    try {
+        const stored = localStorage.getItem(READ_NOTIFICATIONS_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+        console.error("Failed to parse read notifications from localStorage", e);
+        return [];
+    }
+  };
+
+  const saveReadNotificationIds = (ids: string[]) => {
+      try {
+          localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(ids));
+      } catch (e) {
+          console.error("Failed to save read notifications to localStorage", e);
+      }
+  };
+
+
   const fetchNotifications = async () => {
     setLoading(true);
     try {
@@ -50,7 +71,14 @@ export default function NotificationsPage() {
         throw new Error('Failed to fetch notifications');
       }
       const data = await response.json();
-      setNotifications(data.sort((a: Notification, b: Notification) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      const readIds = getReadNotificationIds();
+
+      const updatedNotifications = data.map((n: Notification) => ({
+        ...n,
+        isRead: readIds.includes(n.id)
+      })).sort((a: Notification, b: Notification) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      setNotifications(updatedNotifications);
     } catch (error) {
       toast({
         title: 'Error',
@@ -65,6 +93,13 @@ export default function NotificationsPage() {
   const handleMarkAsRead = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const readIds = getReadNotificationIds();
+    if (!readIds.includes(id)) {
+        const newReadIds = [...readIds, id];
+        saveReadNotificationIds(newReadIds);
+    }
+
     setNotifications(prev => 
       prev.map(n => n.id === id ? { ...n, isRead: true } : n)
     );
@@ -75,6 +110,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     fetchNotifications();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
