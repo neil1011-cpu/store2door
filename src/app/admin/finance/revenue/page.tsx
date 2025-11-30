@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -18,19 +19,36 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import type { Invoice } from '@/lib/types';
 
-const revenueData = [
-  { id: 'REV001', date: '2024-06-25', customer: 'Bob Marley', description: 'Shipping Fee - JM789', amount: 45.50, type: 'Shipping' },
-  { id: 'REV002', date: '2024-06-24', customer: 'Alicia Keys', description: 'Customs Fee - JM101', amount: 120.00, type: 'Customs' },
-  { id: 'REV003', date: '2024-06-23', customer: 'John Legend', description: 'Shipping Fee - JM112', amount: 30.00, type: 'Shipping' },
-  { id: 'REV004', date: '2024-06-22', customer: 'Rihanna Fenty', description: 'Personal Shopping Service', amount: 50.00, type: 'Service' },
-  { id: 'REV005', date: '2024-06-21', customer: 'Drake Graham', description: 'Shipping Fee - JM113', amount: 85.00, type: 'Shipping' },
-];
 
 export default function RevenuePage() {
-  const totalRevenue = revenueData.reduce((acc, item) => acc + item.amount, 0);
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+
+  const invoicesQuery = useMemoFirebase(() => 
+    !user ? null : query(collection(firestore, 'invoices'), where('status', '==', 'Paid')), 
+    [firestore, user]
+  );
+  const { data: revenueData, isLoading: isLoadingInvoices } = useCollection<Invoice>(invoicesQuery);
+
+  const loading = isUserLoading || isLoadingInvoices;
+
+  const totalRevenue = useMemo(() => {
+    return revenueData?.reduce((acc, item) => acc + item.amount, 0) || 0;
+  }, [revenueData]);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -38,7 +56,7 @@ export default function RevenuePage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Revenue Breakdown</h1>
           <p className="text-muted-foreground">
-            A detailed list of all income transactions.
+            A detailed list of all income transactions from paid invoices.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -69,16 +87,24 @@ export default function RevenuePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {revenueData.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-mono">{item.id}</TableCell>
-                  <TableCell>{item.date}</TableCell>
-                  <TableCell className="font-medium">{item.customer}</TableCell>
-                  <TableCell>{item.description}</TableCell>
-                  <TableCell><Badge variant="secondary">{item.type}</Badge></TableCell>
-                  <TableCell className="text-right text-green-500 font-medium">${item.amount.toFixed(2)}</TableCell>
+              {revenueData && revenueData.length > 0 ? (
+                revenueData.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-mono">{item.invoiceId}</TableCell>
+                    <TableCell>{item.date ? new Date(item.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell className="font-medium">{item.customerName}</TableCell>
+                    <TableCell>{item.lineItems[0]?.description || 'Invoice Payment'}{item.lineItems.length > 1 ? ` and ${item.lineItems.length - 1} more...`: ''}</TableCell>
+                    <TableCell><Badge variant="secondary">Invoice</Badge></TableCell>
+                    <TableCell className="text-right text-green-500 font-medium">${item.amount.toFixed(2)}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                 <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24">
+                        No paid invoices found.
+                    </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -86,5 +112,3 @@ export default function RevenuePage() {
     </div>
   );
 }
-
-    

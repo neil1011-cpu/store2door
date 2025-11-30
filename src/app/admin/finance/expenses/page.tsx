@@ -21,13 +21,8 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
-const expensesData = [
-    { id: 'EXP001', date: '2024-06-28', category: 'Logistics', description: 'Fuel for delivery truck', amount: 150.75 },
-    { id: 'EXP002', date: '2024-06-27', category: 'Supplies', description: 'Packing tape and boxes', amount: 75.20 },
-    { id: 'EXP003', date: '2024-06-26', category: 'Utilities', description: 'Warehouse electricity bill', amount: 320.00 },
-    { id: 'EXP004', date: '2024-06-25', category: 'Marketing', description: 'Social media ad campaign', amount: 200.00 },
-    { id: 'EXP005', date: '2024-06-24', category: 'Software', description: 'Subscription for tracking software', amount: 99.00 },
-];
+// Mock data removed. This will be replaced with dynamic data in a future step.
+const expensesData: any[] = [];
 
 export default function ExpensesPage() {
   const totalExpenses = expensesData.reduce((acc, item) => acc + item.amount, 0);
@@ -68,15 +63,23 @@ export default function ExpensesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {expensesData.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-mono">{item.id}</TableCell>
-                  <TableCell>{item.date}</TableCell>
-                  <TableCell><Badge variant="outline">{item.category}</Badge></TableCell>
-                  <TableCell>{item.description}</TableCell>
-                  <TableCell className="text-right text-red-500 font-medium">${item.amount.toFixed(2)}</TableCell>
+              {expensesData.length > 0 ? (
+                expensesData.map((item) => (
+                    <TableRow key={item.id}>
+                    <TableCell className="font-mono">{item.id}</TableCell>
+                    <TableCell>{item.date}</TableCell>
+                    <TableCell><Badge variant="outline">{item.category}</Badge></TableCell>
+                    <TableCell>{item.description}</TableCell>
+                    <TableCell className="text-right text-red-500 font-medium">${item.amount.toFixed(2)}</TableCell>
+                    </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center h-24">
+                        No expenses have been recorded yet.
+                    </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -84,5 +87,3 @@ export default function ExpensesPage() {
     </div>
   );
 }
-
-    

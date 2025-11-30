@@ -48,23 +48,6 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
 
 
-const financeData = {
-  summary: {
-    revenue: 45231.89,
-    expenses: 21789.45,
-    profit: 23442.44,
-    revenueChange: 20.1,
-    expensesChange: 12.2,
-    profitChange: 28.3,
-  },
-  breakdown: [
-    { month: 'April', revenue: 12000, expenses: 7000, profit: 5000 },
-    { month: 'May', revenue: 15500, expenses: 8200, profit: 7300 },
-    { month: 'June', revenue: 17731.89, expenses: 6589.45, profit: 11142.44 },
-  ],
-};
-
-
 function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice | null, open: boolean, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
     
@@ -82,7 +65,6 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
 
     const isPrintable = invoice.invoiceUrl && invoice.invoiceUrl.startsWith('<!DOCTYPE html>');
     
-    // Check if invoice.date has a .toDate method (i.e., is a Firestore Timestamp)
     const displayDate = invoice.date && typeof (invoice.date as any).toDate === 'function' 
         ? new Date((invoice.date as any).toDate()).toLocaleDateString()
         : (invoice.date ? new Date(invoice.date).toLocaleDateString() : 'N/A');
@@ -139,6 +121,46 @@ export default function FinancePage() {
 
   const loading = isUserLoading || isLoadingUsers || isLoadingInvoices;
 
+  const financeSummary = useMemo(() => {
+    if (!invoices) {
+      return {
+        revenue: 0,
+        expenses: 0,
+        profit: 0,
+        chartData: [],
+      };
+    }
+
+    const paidInvoices = invoices.filter(inv => inv.status === 'Paid');
+    const totalRevenue = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const expenses = 0; // No expense tracking yet
+
+    const monthlyData: { [key: string]: { month: string, revenue: number, expenses: number, profit: number } } = {};
+
+    paidInvoices.forEach(inv => {
+      const date = inv.date?.toDate();
+      if (!date) return;
+      
+      const month = date.toLocaleString('default', { month: 'long' });
+      if (!monthlyData[month]) {
+        monthlyData[month] = { month, revenue: 0, expenses: 0, profit: 0 };
+      }
+      monthlyData[month].revenue += inv.amount;
+    });
+    
+    for (const month in monthlyData) {
+        monthlyData[month].profit = monthlyData[month].revenue - monthlyData[month].expenses;
+    }
+
+    return {
+      revenue: totalRevenue,
+      expenses: expenses,
+      profit: totalRevenue - expenses,
+      chartData: Object.values(monthlyData).reverse(),
+    };
+  }, [invoices]);
+
+
   const handleInvoiceCreated = (invoice: Invoice) => {
     setIsCreateOpen(false);
     setSelectedInvoice(invoice);
@@ -180,8 +202,8 @@ export default function FinancePage() {
     }
     // In a real app, this would be an API call to a 'transactions' collection
     toast({
-        title: 'Transaction Added',
-        description: `A new ${newTransaction.type} of $${newTransaction.amount} has been recorded.`,
+        title: 'Transaction Added (Not Saved)',
+        description: `This form is a placeholder. A new ${newTransaction.type} of $${newTransaction.amount} has not been saved.`,
     });
     setNewTransaction({ type: 'revenue', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
   };
@@ -219,8 +241,8 @@ export default function FinancePage() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${financeData.summary.revenue.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground flex items-center"><ArrowUpRight className="h-4 w-4 mr-1 text-green-500" />+{financeData.summary.revenueChange}% from last quarter</p>
+                <div className="text-2xl font-bold">${financeSummary.revenue.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground flex items-center">From all paid invoices</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
             </Card>
@@ -232,8 +254,8 @@ export default function FinancePage() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${financeData.summary.expenses.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground flex items-center"><ArrowUpRight className="h-4 w-4 mr-1 text-red-500" />+{financeData.summary.expensesChange}% from last quarter</p>
+                <div className="text-2xl font-bold">${financeSummary.expenses.toLocaleString()}</div>
+                 <p className="text-xs text-muted-foreground flex items-center">Expense tracking coming soon</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
             </Card>
@@ -245,8 +267,8 @@ export default function FinancePage() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${financeData.summary.profit.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground flex items-center"><ArrowUpRight className="h-4 w-4 mr-1 text-green-500" />+{financeData.summary.profitChange}% from last quarter</p>
+                <div className="text-2xl font-bold">${financeSummary.profit.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground flex items-center">Based on current data</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
             </Card>
@@ -258,28 +280,42 @@ export default function FinancePage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Financial Overview</CardTitle>
-                    <CardDescription>Revenue vs. Expenses over the last 3 months.</CardDescription>
+                    <CardDescription>Paid Revenue vs. Expenses over the last months.</CardDescription>
                 </CardHeader>
-                <CardContent><FinanceChart data={financeData.breakdown} /></CardContent>
+                <CardContent>
+                    {financeSummary.chartData.length > 0 ? (
+                        <FinanceChart data={financeSummary.chartData} />
+                    ) : (
+                        <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                            No paid invoices to display in chart.
+                        </div>
+                    )}
+                </CardContent>
             </Card>
             <Card>
                 <CardHeader>
                     <CardTitle>Detailed Breakdown</CardTitle>
-                    <CardDescription>Monthly financial data.</CardDescription>
+                    <CardDescription>Monthly financial data based on paid invoices.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="relative w-full overflow-auto">
                         <Table>
                         <TableHeader><TableRow><TableHead>Month</TableHead><TableHead className="text-right">Revenue</TableHead><TableHead className="text-right">Expenses</TableHead><TableHead className="text-right">Profit</TableHead></TableRow></TableHeader>
                         <TableBody>
-                            {financeData.breakdown.map((item) => (
-                            <TableRow key={item.month}>
-                                <TableCell className="font-medium">{item.month}</TableCell>
-                                <TableCell className="text-right text-green-500">${item.revenue.toLocaleString()}</TableCell>
-                                <TableCell className="text-right text-red-500">${item.expenses.toLocaleString()}</TableCell>
-                                <TableCell className="text-right font-bold">${item.profit.toLocaleString()}</TableCell>
-                            </TableRow>
-                            ))}
+                            {financeSummary.chartData.length > 0 ? (
+                                financeSummary.chartData.map((item) => (
+                                <TableRow key={item.month}>
+                                    <TableCell className="font-medium">{item.month}</TableCell>
+                                    <TableCell className="text-right text-green-500">${item.revenue.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-red-500">${item.expenses.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right font-bold">${item.profit.toLocaleString()}</TableCell>
+                                </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">No monthly data available.</TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                         </Table>
                     </div>
@@ -386,9 +422,3 @@ export default function FinancePage() {
     </div>
   );
 }
-
-    
-
-    
-
-    
