@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Send, History, PlusCircle, Terminal } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, History, PlusCircle, Terminal, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
@@ -94,7 +95,7 @@ export default function CommunicationsPage() {
 
             setSentEmails(prev => [newSentEmail, ...prev]);
 
-            toast({ title: 'Email Sent!', description: `Your email to ${recipientUser.fullName} has been sent.` });
+            toast({ title: 'Email Sent! (Simulated)', description: `Your email to ${recipientUser.fullName} has been sent.` });
             
             setIsComposeOpen(false);
             setComposeRecipient('');
@@ -178,10 +179,10 @@ export default function CommunicationsPage() {
       </div>
       
         <Alert>
-            <Terminal className="h-4 w-4" />
+            <Info className="h-4 w-4" />
             <AlertTitle>Developer Notice</AlertTitle>
             <AlertDescription>
-                Email sending is enabled via Resend. Ensure you have a `RESEND_API_KEY` in your environment variables. Without it, emails will fail.
+                Email sending is currently simulated. Emails are not actually sent to recipients; instead, they are logged to the server console. This allows for testing without a real email service.
             </AlertDescription>
         </Alert>
 
