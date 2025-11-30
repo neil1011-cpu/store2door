@@ -46,7 +46,8 @@ export async function GET() {
   try {
     // In a real application, you would fetch this data from your database,
     // which would be populated by a webhook or service from iPack.
-    return NextResponse.json(notifications);
+    const updateNotifications = notifications.filter(n => n.type === 'status-update');
+    return NextResponse.json(updateNotifications);
   } catch (error) {
     return NextResponse.json({ message: 'Failed to fetch notifications', error }, { status: 500 });
   }
