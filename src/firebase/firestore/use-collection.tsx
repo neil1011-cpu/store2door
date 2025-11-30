@@ -26,24 +26,27 @@ function safeGetPath(target: any): string {
   try {
     if (!target) return 'unknown_path';
 
-    // For a CollectionReference or a simple Query, the path is directly available.
-    if (target.path && typeof target.path === 'string') {
-      return target.path;
+    // Access the internal _query property, which is common for both CollectionReference and Query.
+    const internalQuery = target._query;
+    if (internalQuery && internalQuery.path && internalQuery.path.segments) {
+      const path = internalQuery.path.segments.join('/');
+      // If segments are empty, it's a root query, which is invalid for list operations.
+      if (path === '' && (target.type === 'collectionGroup' || target.type === 'query')) {
+         // Attempt to get path from collectionGroup queries.
+         if (internalQuery.explicitOrderBy?.[0]?.field?.segments) {
+            const collectionId = target.collectionGroup;
+            if (collectionId) {
+                return `**/${collectionId}`;
+            }
+         }
+         return '(root)';
+      }
+      return path;
     }
 
-    // For more complex queries, the path might be on an internal _query object.
-    // This is accessing internal properties and might break, but it's a common fallback.
-    // The `_query.path.segments.join('/')` is often more reliable than `canonicalString`.
-    if (target._query?.path?.segments) {
-      const path = target._query.path.segments.join('/');
-      if (path) return path;
-    }
-    
-    // A different internal structure might be used by some queries.
-    if (target.converter === null && target._query) {
-        if(target._query.path) {
-            return target._query.path.segments.join('/');
-        }
+    // Fallback for CollectionReference which has a direct 'path' property.
+    if (target.path && typeof target.path === 'string') {
+      return target.path;
     }
 
     return 'unknown_path';
