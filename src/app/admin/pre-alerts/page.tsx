@@ -41,6 +41,15 @@ import { collection, collectionGroup, query, where, orderBy, serverTimestamp, do
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
+const MOCK_USERS: UserProfile[] = [
+    { id: 'user1', fullName: 'John Doe', email: 'john.doe@example.com', phone: '', trn: '', mailboxNumber: '', address: {} as any, createdAt: new Date() },
+    { id: 'user2', fullName: 'Jane Smith', email: 'jane.smith@example.com', phone: '', trn: '', mailboxNumber: '', address: {} as any, createdAt: new Date() }
+]
+
+const MOCK_ALERTS: PreAlert[] = [
+    { id: 'alert1', customerId: 'user1', customerName: 'John Doe', trackingNumber: 'TN12345', contents: 'Shoes', status: 'Pending', submissionDate: new Date(), invoiceUrl: 'https://picsum.photos/seed/inv1/600/800' },
+    { id: 'alert2', customerId: 'user2', customerName: 'Jane Smith', trackingNumber: 'TN67890', contents: 'Laptop', status: 'Processed', submissionDate: new Date(), invoiceUrl: 'https://picsum.photos/seed/inv2/600/800' }
+];
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -145,30 +154,12 @@ export default function PreAlertsPage() {
     contents: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
-
-  const preAlertsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collectionGroup(firestore, 'pre_alerts'));
-  }, [firestore, user]);
-  const { data: preAlerts, isLoading: isLoadingAlerts } = useCollection<PreAlert>(preAlertsQuery);
-  
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
-  }, [firestore, user]);
-  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
-
-  const loading = isUserLoading || isLoadingAlerts || isLoadingUsers;
+  const [preAlerts, setPreAlerts] = useState<PreAlert[]>(MOCK_ALERTS);
+  const [users, setUsers] = useState<UserProfile[]>(MOCK_USERS);
+  const loading = false;
 
 
   const handleCreateAlert = async () => {
-    if (!users) {
-        toast({ title: 'Users not loaded', description: 'Please wait for users to load.', variant: 'destructive'});
-        return;
-    }
     const selectedUser = users.find(u => u.id === newAlert.customerId);
     if (!selectedUser || !newAlert.trackingNumber || !newAlert.contents) {
       toast({
@@ -181,74 +172,35 @@ export default function PreAlertsPage() {
     
     setIsSubmitting(true);
     
-    const preAlertsCollection = collection(firestore, 'users', selectedUser.id, 'pre_alerts');
-
-    const alertToAdd: Omit<PreAlert, 'id'> = {
+    const alertToAdd: PreAlert = {
+      id: `alert-${Date.now()}`,
       customerName: selectedUser.fullName,
       customerId: selectedUser.id,
       trackingNumber: newAlert.trackingNumber,
       contents: newAlert.contents,
       status: 'Pending',
-      submissionDate: serverTimestamp(),
+      submissionDate: new Date(),
       invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
     }
     
-    addDoc(preAlertsCollection, alertToAdd)
-      .then(() => {
+    setTimeout(() => {
+        setPreAlerts(prev => [alertToAdd, ...prev]);
         toast({
-          title: 'Pre-Alert Created',
+          title: 'Pre-Alert Created (Mock)',
           description: `Pre-alert for ${newAlert.trackingNumber} has been created.`,
         });
         setOpen(false);
         setNewAlert({ customerId: '', trackingNumber: '', contents: '' });
-      })
-      .catch(error => {
-        errorEmitter.emit(
-          'permission-error',
-          new FirestorePermissionError({
-            path: preAlertsCollection.path,
-            operation: 'create',
-            requestResourceData: alertToAdd,
-          })
-        );
-      })
-      .finally(() => {
         setIsSubmitting(false);
-      });
+    }, 1000);
   };
   
   const handleShipmentCreated = (newShipment: Omit<Shipment, 'id'>, preAlertId: string) => {
-    const shipmentsCollection = collection(firestore, 'users', newShipment.customerId, 'shipments');
-    addDoc(shipmentsCollection, newShipment)
-      .then((shipmentRef) => {
-        toast({ title: "Shipment Created", description: `Shipment for ${newShipment.trackingNumber} has been created.`});
-        
-        const preAlertDocRef = doc(firestore, 'users', newShipment.customerId, 'pre_alerts', preAlertId);
-        updateDoc(preAlertDocRef, { status: 'Processed' })
-          .catch(error => {
-             errorEmitter.emit(
-              'permission-error',
-              new FirestorePermissionError({
-                path: preAlertDocRef.path,
-                operation: 'update',
-                requestResourceData: { status: 'Processed' },
-              })
-            );
-          });
-      })
-      .catch(error => {
-        errorEmitter.emit(
-          'permission-error',
-          new FirestorePermissionError({
-            path: shipmentsCollection.path,
-            operation: 'create',
-            requestResourceData: newShipment,
-          })
-        )
-      });
+    toast({ title: "Shipment Created (Mock)", description: `Shipment for ${newShipment.trackingNumber} has been created.`});
+    setPreAlerts(prev => prev.map(alert => alert.id === preAlertId ? {...alert, status: 'Processed'} : alert));
   }
 
-  if (loading || !preAlerts || !users) {
+  if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -359,7 +311,7 @@ export default function PreAlertsPage() {
                     </TableCell>
                     <TableCell>{alert.trackingNumber}</TableCell>
                     <TableCell>{alert.contents}</TableCell>
-                    <TableCell>{alert.submissionDate && alert.submissionDate.toDate ? new Date(alert.submissionDate.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell>{new Date(alert.submissionDate).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(alert.status)}>
                         {alert.status}
@@ -405,3 +357,5 @@ export default function PreAlertsPage() {
     </div>
   );
 }
+
+    

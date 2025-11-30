@@ -50,12 +50,19 @@ import {
   collection,
   collectionGroup,
   query,
-  orderBy,
   doc,
   updateDoc,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+
+
+const MOCK_SHIPMENTS: (Shipment & { user?: Partial<UserProfile>, customerName: string })[] = [
+    { id: '1', trackingNumber: 'JM12345', customerId: 'user1', contents: 'Electronics', status: 'In Transit', shippingDate: new Date(), cost: 50, paymentStatus: 'Paid', invoiceUrl: '', customerName: 'John Doe', user: { email: 'john.doe@example.com', fullName: 'John Doe'} },
+    { id: '2', trackingNumber: 'JM67890', customerId: 'user2', contents: 'Clothing', status: 'Delivered', shippingDate: new Date(), cost: 25, paymentStatus: 'Paid', invoiceUrl: '', customerName: 'Jane Smith', user: { email: 'jane.smith@example.com', fullName: 'Jane Smith'} },
+    { id: '3', trackingNumber: 'JM54321', customerId: 'user1', contents: 'Books', status: 'Customs', shippingDate: new Date(), cost: 15, paymentStatus: 'Unpaid', invoiceUrl: '', customerName: 'John Doe', user: { email: 'john.doe@example.com', fullName: 'John Doe'} },
+];
+
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -80,7 +87,7 @@ export default function ShippingPage() {
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<
-    (Shipment & { user?: UserProfile }) | null
+    (Shipment & { user?: Partial<UserProfile> }) | null
   >(null);
   const [editableShipment, setEditableShipment] =
     useState<Shipment | null>(null);
@@ -92,62 +99,13 @@ export default function ShippingPage() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
 
-  // Only build queries when firestore + user exist
-  const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
-      collectionGroup(firestore, 'shipments')
-    );
-  }, [firestore, user]);
+  const [shipmentsWithUsers, setShipmentsWithUsers] = useState(MOCK_SHIPMENTS);
+  const loading = false;
 
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'users'));
-  }, [firestore, user]);
-
-  const { data: shipments, isLoading: isLoadingShipments, error: shipmentsError } =
-    useCollection<Shipment>(shipmentsQuery);
-  const { data: users, isLoading: isLoadingUsers, error: usersError } =
-    useCollection<UserProfile>(usersQuery);
-
-  const shipmentsWithUsers = useMemo(() => {
-    if (!shipments || !users) return null;
-    const usersMap = new Map(users.map((u) => [u.id, u]));
-    return shipments.map((shipment) => ({
-      ...shipment,
-      user: usersMap.get(shipment.customerId),
-      customerName:
-        usersMap.get(shipment.customerId)?.fullName || 'N/A',
-    }));
-  }, [shipments, users]);
-
-  const loading =
-    isUserLoading || isLoadingShipments || isLoadingUsers;
-
-  if (shipmentsError || usersError) {
-    // Optional: surface Firestore permission errors as UI instead of crashes
-    console.error('Firestore error:', shipmentsError || usersError);
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-red-500">
-          You don’t have permission to view shipments. Check Firestore rules.
-        </p>
-      </div>
-    );
-  }
-
-  if (loading || !shipmentsWithUsers) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
 
   const handleOpenEmailDialog = (
-    shipment: Shipment & { user?: UserProfile }
+    shipment: Shipment & { user?: Partial<UserProfile> }
   ) => {
     setSelectedShipment(shipment);
     const customerName = shipment.user?.fullName || 'Valued Customer';
@@ -205,39 +163,18 @@ export default function ShippingPage() {
   const handleSaveChanges = () => {
     if (!editableShipment) return;
     setIsSaving(true);
-
-    const shipmentDocRef = doc(
-      firestore,
-      'users',
-      editableShipment.customerId,
-      'shipments',
-      editableShipment.id
-    );
-
-    const { id, customerId, ...updateData } = editableShipment;
-
-    updateDoc(shipmentDocRef, updateData)
-      .then(() => {
+    
+    // Simulate saving
+    setTimeout(() => {
+        setShipmentsWithUsers(prev => prev.map(s => s.id === editableShipment.id ? { ...s, ...editableShipment, user: s.user, customerName: s.customerName } : s));
         toast({
           title: 'Shipment Updated',
-          description: `Shipment ${editableShipment.trackingNumber} has been updated.`,
+          description: `Shipment ${editableShipment.trackingNumber} has been updated. (Mocked)`,
         });
-      })
-      .catch(() => {
-        errorEmitter.emit(
-          'permission-error',
-          new FirestorePermissionError({
-            path: shipmentDocRef.path,
-            operation: 'update',
-            requestResourceData: updateData,
-          })
-        );
-      })
-      .finally(() => {
         setIsSaving(false);
         setIsEditDialogOpen(false);
         setEditableShipment(null);
-      });
+    }, 1000);
   };
 
   const handleEditFormChange = (
@@ -251,6 +188,14 @@ export default function ShippingPage() {
       });
     }
   };
+  
+    if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -315,9 +260,9 @@ export default function ShippingPage() {
                   </TableCell>
                   <TableCell>{shipment.contents}</TableCell>
                   <TableCell>
-                    {shipment.shippingDate && shipment.shippingDate.toDate
+                    {shipment.shippingDate
                       ? new Date(
-                          shipment.shippingDate.toDate()
+                          shipment.shippingDate
                         ).toLocaleDateString()
                       : 'N/A'}
                   </TableCell>
@@ -567,3 +512,5 @@ export default function ShippingPage() {
     </div>
   );
 }
+
+    
