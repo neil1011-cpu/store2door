@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 
 // A short, clean, public domain 'blip' sound encoded as a data URI
-const startupSound = 'data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU' + Array(300).join('A') + 'AgAZGF0YQQAAAAA//8/gP7A/oD+QP5A/kD+QP4A/gD+AP4A/gD+AP4A/gD+AP4A/gD9AP0A/QD9AP0A/QD8APwA/AD8APwA/AD8APwA/AD7APsA+wD7APsA+wD7APcA9wD3APcA9wD3AOcA5wDn';
+const startupSound = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
 
 export function AdminWelcomeAnimation({ onComplete }: { onComplete: () => void }) {
