@@ -21,7 +21,6 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
-// Mock data removed. This will be replaced with dynamic data in a future step.
 const expensesData: any[] = [];
 
 export default function ExpensesPage() {
