@@ -70,14 +70,12 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
     if (!invoice) return null;
 
     const handlePrintInvoice = () => {
-        const newWindow = window.open();
-        if (newWindow) {
-            newWindow.document.write(invoice.invoiceUrl);
-            newWindow.document.close();
-            // A timeout might be needed for the iframe content to load before printing
-            setTimeout(() => newWindow.print(), 500);
+        const iframe = document.getElementById('invoice-iframe') as HTMLIFrameElement;
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
         } else {
-            toast({ title: 'Could not open print window', description: 'Please disable your pop-up blocker.', variant: 'destructive'});
+            toast({ title: 'Could not print invoice', description: 'There was an issue finding the invoice content to print.', variant: 'destructive'});
         }
     };
 
@@ -92,6 +90,7 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
                 </DialogHeader>
                  <div className="relative h-[600px] overflow-hidden rounded-md border">
                     <iframe 
+                        id="invoice-iframe"
                         srcDoc={invoice.invoiceUrl}
                         title={`Invoice ${invoice.invoiceId}`}
                         width="100%"

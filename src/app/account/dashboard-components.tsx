@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/componentsui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -209,20 +209,19 @@ export function PackagesTab({ customerId }: { customerId: string }) {
     });
   };
 
-  const handleDownloadInvoice = (shipment: Shipment) => {
-    if (!shipment.invoiceUrl) {
-        toast({ title: "No Invoice", description: "There is no invoice available for this shipment.", variant: "destructive" });
-        return;
-    }
+  const handleDownloadInvoice = (invoiceHtml: string, invoiceId: string) => {
+    const blob = new Blob([invoiceHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = shipment.invoiceUrl;
-    link.download = `Invoice-${shipment.invoiceId || shipment.trackingNumber}.pdf`;
+    link.href = url;
+    link.download = `Invoice-${invoiceId}.html`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     toast({
         title: "Downloading Invoice",
-        description: `Your invoice for ${shipment.trackingNumber} is downloading.`,
+        description: `Your invoice ${invoiceId} is downloading as an HTML file.`,
     });
   };
 
@@ -285,7 +284,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                     <Dialog>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" disabled={!shipment.invoiceUrl || shipment.invoiceUrl === 'about:blank'}>
+                                <Button variant="ghost" size="icon" disabled={!shipment.invoiceUrl || !shipment.invoiceId}>
                                     <MoreHorizontal className="h-4 w-4" />
                                     <span className="sr-only">More actions</span>
                                 </Button>
@@ -297,6 +296,12 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                                         View Invoice
                                     </DropdownMenuItem>
                                 </DialogTrigger>
+                                {shipment.invoiceUrl && shipment.invoiceId && (
+                                    <DropdownMenuItem onClick={() => handleDownloadInvoice(shipment.invoiceUrl, shipment.invoiceId)}>
+                                        <Download className="mr-2 h-4 w-4" />
+                                        Download Invoice
+                                    </DropdownMenuItem>
+                                )}
                             </DropdownMenuContent>
                         </DropdownMenu>
                         <DialogContent className="sm:max-w-3xl">
