@@ -1,7 +1,7 @@
 
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Route } from 'lucide-react';
+import Image from 'next/image';
 
 type AppLogoProps = {
   className?: string;
@@ -11,7 +11,7 @@ type AppLogoProps = {
 export function AppLogo({ className, isLink = true }: AppLogoProps) {
   const content = (
     <div className="flex items-center gap-2 text-xl font-bold text-foreground">
-       <svg
+      <svg
         width="32"
         height="32"
         viewBox="0 0 24 24"
@@ -19,42 +19,20 @@ export function AppLogo({ className, isLink = true }: AppLogoProps) {
         xmlns="http://www.w3.org/2000/svg"
         className="text-primary"
       >
-        <path
-          d="M4 10V19C4 20.1046 4.89543 21 6 21H18C19.1046 21 20 20.1046 20 19V10"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M2 10L12 3L22 10"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M12 21V15C12 13.8954 12.8954 13 14 13H15"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-         <path 
-          d="M9 16L15 10" 
-          stroke="currentColor" 
-          strokeWidth="2" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-        />
-        <path 
-          d="M12 10H15V13" 
-          stroke="currentColor" 
-          strokeWidth="2" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-        />
+        {/* Globe */}
+        <circle cx="10" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M10 4V20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M3.45455 8H16.5455" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M3.45455 16H16.5455" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M10 4C12.7614 4 15 7.58172 15 12C15 16.4183 12.7614 20 10 20" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M10 4C7.23858 4 5 7.58172 5 12C5 16.4183 7.23858 20 10 20" stroke="currentColor" strokeWidth="1.5" />
+        
+        {/* Door */}
+        <path d="M14 7V17C14 17.5523 14.4477 18 15 18H20C20.5523 18 21 17.5523 21 17V7C21 6.44772 20.5523 6 20 6H15C14.4477 6 14 6.44772 14 7Z" fill="currentColor" fillOpacity="0.1" />
+        <path d="M14 7V17C14 17.5523 14.4477 18 15 18H20C20.5523 18 21 17.5523 21 17V7C21 6.44772 20.5523 6 20 6H15C14.4477 6 14 6.44772 14 7Z" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="18.5" cy="12.5" r="0.5" fill="currentColor" />
       </svg>
+
       <span className="hidden sm:inline-block">FromStore2Door</span>
     </div>
   );
