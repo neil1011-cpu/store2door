@@ -39,7 +39,6 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
-import { generateInvoiceHtml } from '@/ai/flows/generate-invoice-html';
 import type { Invoice, Shipment, UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc, setDoc, updateDoc } from 'firebase/firestore';
@@ -70,24 +69,18 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
     
     if (!invoice) return null;
 
-    const handleDownloadInvoice = async (invoiceToDownload: Invoice) => {
-        if (invoiceToDownload.invoiceUrl.startsWith('data:application/pdf')) {
-            const link = document.createElement('a');
-            link.href = invoiceToDownload.invoiceUrl;
-            link.download = `Invoice-${invoiceToDownload.invoiceId}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            toast({
-                title: "Downloading Invoice",
-                description: `Your invoice for ${invoiceToDownload.invoiceId} is downloading.`,
-            });
+    const handlePrintInvoice = () => {
+        const newWindow = window.open();
+        if (newWindow) {
+            newWindow.document.write(invoice.invoiceUrl);
+            newWindow.document.close();
+            newWindow.print();
         } else {
-             toast({ title: 'Not a PDF', description: 'This invoice cannot be downloaded as a PDF.', variant: 'destructive'});
+            toast({ title: 'Could not open print window', description: 'Please disable your pop-up blocker.', variant: 'destructive'});
         }
     };
 
-    const isPdf = invoice.invoiceUrl.startsWith('data:application/pdf');
+    const isPrintable = invoice.invoiceUrl.includes('<html>');
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -97,21 +90,17 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
                     <DialogDescription>Invoice for {invoice.customerName} dated {invoice.date ? new Date(invoice.date.toDate()).toLocaleDateString() : 'N/A'}.</DialogDescription>
                 </DialogHeader>
                  <div className="relative h-[600px] overflow-hidden rounded-md border">
-                    {isPdf ? (
-                        <embed src={invoice.invoiceUrl} type="application/pdf" width="100%" height="100%" />
-                    ) : (
-                         <Image 
-                            src={invoice.invoiceUrl} 
-                            alt={`Invoice for ${invoice.invoiceId}`} 
-                            fill
-                            className="object-contain"
-                            data-ai-hint="invoice document"
-                        />
-                    )}
+                    <iframe 
+                        srcDoc={invoice.invoiceUrl}
+                        title={`Invoice ${invoice.invoiceId}`}
+                        width="100%"
+                        height="100%"
+                        style={{ border: 'none' }}
+                    />
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-                    <Button onClick={() => handleDownloadInvoice(invoice)} disabled={!isPdf}><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
+                    <Button onClick={handlePrintInvoice} disabled={!isPrintable}><Download className="mr-2 h-4 w-4" /> Print to PDF</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/componentsui/dialog';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -285,7 +285,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                     <Dialog>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" disabled={!shipment.invoiceUrl}>
+                                <Button variant="ghost" size="icon" disabled={!shipment.invoiceUrl || shipment.invoiceUrl === 'about:blank'}>
                                     <MoreHorizontal className="h-4 w-4" />
                                     <span className="sr-only">More actions</span>
                                 </Button>
@@ -297,10 +297,6 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                                         View Invoice
                                     </DropdownMenuItem>
                                 </DialogTrigger>
-                                <DropdownMenuItem onClick={() => handleDownloadInvoice(shipment)}>
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Download PDF
-                                </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                         <DialogContent className="sm:max-w-3xl">
@@ -308,18 +304,14 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                                 <DialogTitle>Invoice for {shipment.trackingNumber}</DialogTitle>
                                 <DialogDescription>Invoice for your shipment: {shipment.contents}.</DialogDescription>
                             </DialogHeader>
-                            <div className="relative h-[600px] overflow-hidden rounded-md border">
-                                {shipment.invoiceUrl?.startsWith('data:application/pdf') ? (
-                                    <embed src={shipment.invoiceUrl} type="application/pdf" width="100%" height="100%" />
-                                ) : (
-                                    <Image 
-                                        src={shipment.invoiceUrl || placeholderImages.generatedInvoice.src} 
-                                        alt={`Invoice for ${shipment.trackingNumber}`} 
-                                        fill
-                                        className="object-contain"
-                                        data-ai-hint="invoice document"
-                                    />
-                                )}
+                             <div className="relative h-[600px] overflow-hidden rounded-md border">
+                                <iframe 
+                                    srcDoc={shipment.invoiceUrl}
+                                    title={`Invoice for ${shipment.trackingNumber}`}
+                                    width="100%"
+                                    height="100%"
+                                    style={{ border: 'none' }}
+                                />
                             </div>
                         </DialogContent>
                     </Dialog>

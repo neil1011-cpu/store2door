@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,43 @@ type CreateInvoiceDialogProps = {
   onInvoiceCreated: (invoice: Invoice) => void;
 };
 
+// This function creates a new browser tab and renders the HTML for the invoice.
+// It includes a button to trigger the browser's print dialog.
+const openPrintableInvoice = (htmlContent: string) => {
+  const newWindow = window.open();
+  if (newWindow) {
+    newWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Invoice</title>
+          <style>
+            @media print {
+              #print-button { display: none; }
+              @page { margin: 0; }
+              body { margin: 1.6cm; }
+            }
+            body { font-family: sans-serif; }
+            .print-controls { position: fixed; top: 1rem; right: 1rem; z-index: 100; }
+            .print-button {
+                background-color: #007bff; color: white; border: none;
+                padding: 10px 20px; border-radius: 5px; cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-controls">
+            <button id="print-button" class="print-button" onclick="window.print()">Print to PDF</button>
+          </div>
+          ${htmlContent}
+        </body>
+      </html>
+    `);
+    newWindow.document.close();
+  }
+};
+
+
 export function CreateInvoiceDialog({
   open,
   onOpenChange,
@@ -51,18 +88,19 @@ export function CreateInvoiceDialog({
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [lineItems, setLineItems] = useState(initialLineItems);
   
-  // Effect to reset state when dialog closes
-  useState(() => {
+  // Effect to reset state when dialog closes or preselected user changes
+  useEffect(() => {
     if (!open) {
-      setCustomerId(preselectedUser?.id || '');
-      setInvoiceDate(new Date().toISOString().split('T')[0]);
-      setLineItems(initialLineItems);
-      setIsGenerating(false);
+        // Reset form when dialog is closed
+        setCustomerId(preselectedUser?.id || '');
+        setInvoiceDate(new Date().toISOString().split('T')[0]);
+        setLineItems(initialLineItems);
+        setIsGenerating(false);
     } else {
-       setCustomerId(preselectedUser?.id || '');
+        // When dialog opens, ensure preselected user is set
+        setCustomerId(preselectedUser?.id || '');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, preselectedUser]);
+}, [open, preselectedUser]);
 
 
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, price: 0 }]);
@@ -102,17 +140,8 @@ export function CreateInvoiceDialog({
         totalAmount,
       });
 
-      const pdfResponse = await fetch('/api/generate-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ html }),
-      });
-
-      if (!pdfResponse.ok) {
-        throw new Error('Failed to generate PDF.');
-      }
-
-      const { pdf: pdfDataUri } = await pdfResponse.json();
+      // Instead of generating a PDF on the server, open the HTML in a new tab for printing.
+      openPrintableInvoice(html);
       
       const newInvoiceData = {
         invoiceId,
@@ -122,13 +151,13 @@ export function CreateInvoiceDialog({
         amount: totalAmount,
         status: 'Unpaid' as 'Unpaid',
         lineItems,
-        invoiceUrl: pdfDataUri,
+        invoiceUrl: 'about:blank', // The invoice is now generated on the client
       };
 
       const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
       await setDoc(invoiceDocRef, newInvoiceData);
 
-      toast({ title: 'Invoice Generated', description: `Invoice ${invoiceId} for ${customerName} has been created.` });
+      toast({ title: 'Invoice Ready to Print', description: `Invoice ${invoiceId} has been opened in a new tab.` });
       
       onInvoiceCreated({ ...newInvoiceData, id: invoiceId, date: new Date() });
       onOpenChange(false); // Close dialog
