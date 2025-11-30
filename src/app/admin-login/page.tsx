@@ -88,11 +88,11 @@ export default function AdminLoginPage() {
     <div className="w-full h-screen lg:grid lg:grid-cols-2">
        <div className="relative hidden h-full flex-col bg-muted p-10 text-white dark:border-r lg:flex">
          <Image 
-            src="https://picsum.photos/seed/server-room/1200/1800"
+            src="https://picsum.photos/seed/computer/1200/1800"
             alt="Admin panel background"
             fill
             className="object-cover brightness-50"
-            data-ai-hint="server room"
+            data-ai-hint="computer technology"
         />
         <div className="relative z-20 flex items-center text-lg font-medium">
           <Route className="mr-2 h-6 w-6" />
