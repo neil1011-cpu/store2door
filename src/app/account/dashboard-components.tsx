@@ -18,7 +18,7 @@ import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
-import type { UserProfile, Shipment, Conversation, Message, PickupPerson, DropoffAddress, PreAlert } from '@/lib/types';
+import type { UserProfile, Shipment, Conversation, Message, PickupPerson, DropoffAddress, PreAlert, LineItem } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -112,6 +112,90 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   );
 }
 
+// Pro-forma invoice generator for pre-alerts
+const generatePreAlertInvoiceHtml = (data: {
+  customerName: string;
+  trackingNumber: string;
+  contents: string;
+  submissionDate: Date;
+}): string => {
+  const { customerName, trackingNumber, contents, submissionDate } = data;
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF--8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Pro-Forma Invoice for ${trackingNumber}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; color: #212529; }
+        .container { max-width: 800px; margin: 40px auto; padding: 30px; background-color: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0d6efd; padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { margin: 0; font-size: 1.8em; color: #0d6efd; }
+        .header .company-details { text-align: right; }
+        .header .company-details p { margin: 0; font-size: 0.9em; color: #6c757d; }
+        .invoice-details { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .invoice-details .bill-to p { margin: 0; }
+        .invoice-details .invoice-meta { text-align: right; }
+        .invoice-details .invoice-meta p { margin: 0; }
+        .invoice-details .invoice-meta .label { font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #dee2e6; }
+        thead th { background-color: #e9ecef; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 0.85em; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .total-section { margin-top: 30px; text-align: right; }
+        .total-section .grand-total { font-size: 1.4em; font-weight: bold; color: #dc3545; }
+        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6; text-align: center; font-size: 0.9em; color: #6c757d; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>PRO-FORMA INVOICE</h1>
+          <div class="company-details">
+            <p style="font-weight: bold; font-size: 1.2em;">FromStore2Door</p>
+            <p>4350 NE 5th Terrace Bay #3</p>
+            <p>Oakland Park, Florida, 33334</p>
+            <p>fromstore2door@gmail.com</p>
+          </div>
+        </div>
+        <div class="invoice-details">
+          <div class="bill-to">
+            <p style="color: #6c757d; margin-bottom: 5px;">BILL TO</p>
+            <p style="font-weight: bold; font-size: 1.2em;">${customerName}</p>
+          </div>
+          <div class="invoice-meta">
+             <p><span class="label">Tracking #:</span> ${trackingNumber}</p>
+            <p><span class="label">Date:</span> ${submissionDate.toLocaleDateString()}</p>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th class="text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+                <td>${contents}</td>
+                <td class="text-right">TBD</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="total-section">
+            <p class="grand-total">Amount Due: To Be Determined</p>
+        </div>
+        <div class="footer">
+          <p>This is not a final bill. An official invoice with final costs will be generated once the shipment is processed.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
 
 export function PreAlertTab({ customerId, customerName }: { customerId: string, customerName: string }) {
   const [trackingNumber, setTrackingNumber] = useState('');
@@ -148,7 +232,15 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
     setLoading(true);
 
     try {
-        const invoiceDataUri = await fileToDataUri(invoice);
+        const uploadedInvoiceUrl = await fileToDataUri(invoice);
+        const submissionDate = new Date();
+
+        const invoiceHtml = generatePreAlertInvoiceHtml({
+          customerName,
+          trackingNumber,
+          contents,
+          submissionDate,
+        });
 
         const preAlertsCollection = collection(firestore, 'users', customerId, 'pre_alerts');
         
@@ -159,7 +251,8 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
             contents,
             status: 'Pending' as 'Pending',
             submissionDate: serverTimestamp(),
-            invoiceUrl: invoiceDataUri,
+            invoiceHtml: invoiceHtml,
+            uploadedInvoiceUrl: uploadedInvoiceUrl
         };
         
         // Use addDoc to let Firestore generate the ID

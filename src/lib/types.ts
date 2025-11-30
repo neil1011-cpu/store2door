@@ -55,7 +55,8 @@ export type PreAlert = {
   contents: string;
   status: 'Pending' | 'Processed';
   submissionDate: Timestamp | any;
-  invoiceUrl: string;
+  invoiceHtml: string; // The generated HTML invoice for viewing
+  uploadedInvoiceUrl: string; // The original data URI of the user's uploaded image
 };
 
 export type Message = {

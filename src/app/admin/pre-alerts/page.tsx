@@ -30,7 +30,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
-import { PlusCircle, ArrowLeft, Loader2, Truck } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Truck, Download } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -227,6 +227,66 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
     );
 }
 
+function ViewInvoiceDialog({ alert }: { alert: PreAlert }) {
+    const { toast } = useToast();
+
+    const handlePrintInvoice = () => {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        
+        const doc = iframe.contentWindow?.document;
+        if (!doc || !alert.invoiceHtml) {
+            toast({ title: 'Could not print invoice', variant: 'destructive'});
+            document.body.removeChild(iframe);
+            return;
+        }
+        
+        doc.open();
+        doc.write(alert.invoiceHtml);
+        doc.close();
+        
+        setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            document.body.removeChild(iframe);
+        }, 500);
+    };
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" disabled={!alert.invoiceHtml}>View Invoice</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Pro-Forma Invoice for {alert.trackingNumber}</DialogTitle>
+                    <DialogDescription>
+                        This is a preliminary invoice generated from the user's pre-alert submission.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="relative h-[600px] overflow-hidden rounded-md border">
+                    <iframe
+                        srcDoc={alert.invoiceHtml}
+                        title={`Invoice for ${alert.trackingNumber}`}
+                        width="100%"
+                        height="100%"
+                        style={{ border: 'none' }}
+                    />
+                </div>
+                <DialogFooter>
+                     <Button variant="outline" asChild>
+                        <DialogClose>Close</DialogClose>
+                    </Button>
+                     <Button onClick={handlePrintInvoice} disabled={!alert.invoiceHtml}>
+                        <Download className="mr-2 h-4 w-4" /> Print to PDF
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 
 export default function PreAlertsPage() {
@@ -279,7 +339,8 @@ export default function PreAlertsPage() {
       contents: newAlert.contents,
       status: 'Pending' as const,
       submissionDate: serverTimestamp(),
-      invoiceUrl: '', 
+      invoiceHtml: '', // Admin-created alerts don't have invoices
+      uploadedInvoiceUrl: '', 
     };
     
     try {
@@ -491,33 +552,7 @@ export default function PreAlertsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" disabled={!alert.invoiceUrl}>View Invoice</Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-3xl">
-                          <DialogHeader>
-                            <DialogTitle>
-                              Invoice for {alert.trackingNumber}
-                            </DialogTitle>
-                            <DialogDescription>
-                              Invoice submitted by {alert.customerName}.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="p-4 relative min-h-[600px]">
-                            {alert.invoiceUrl ? (
-                                <Image
-                                src={alert.invoiceUrl}
-                                alt={`Invoice for ${alert.trackingNumber}`}
-                                fill
-                                style={{ objectFit: 'contain' }}
-                                />
-                            ) : (
-                               <div className="flex items-center justify-center h-full text-muted-foreground">No invoice was uploaded.</div>
-                            )}
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                      <ViewInvoiceDialog alert={alert} />
                     </TableCell>
                      <TableCell>
                        <CreateShipmentDialog preAlert={alert} onShipmentCreated={handleShipmentCreated} />
