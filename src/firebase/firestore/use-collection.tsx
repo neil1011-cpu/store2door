@@ -26,18 +26,29 @@ function safeGetPath(target: any): string {
   try {
     if (!target) return 'unknown_path';
 
-    // CollectionReference has .path
-    if ('path' in target && typeof target.path === 'string') {
-      return target.path || 'unknown_path';
+    // For a CollectionReference or a simple Query, the path is directly available.
+    if (target.path && typeof target.path === 'string') {
+      return target.path;
     }
 
-    // Query has internal _query → path
-    if (target._query?.path?.canonicalString) {
-      return target._query.path.canonicalString() || 'unknown_path';
+    // For more complex queries, the path might be on an internal _query object.
+    // This is accessing internal properties and might break, but it's a common fallback.
+    // The `_query.path.segments.join('/')` is often more reliable than `canonicalString`.
+    if (target._query?.path?.segments) {
+      const path = target._query.path.segments.join('/');
+      if (path) return path;
+    }
+    
+    // A different internal structure might be used by some queries.
+    if (target.converter === null && target._query) {
+        if(target._query.path) {
+            return target._query.path.segments.join('/');
+        }
     }
 
     return 'unknown_path';
-  } catch {
+  } catch (e) {
+    console.error("Error getting path from Firestore query/reference:", e);
     return 'unknown_path';
   }
 }
