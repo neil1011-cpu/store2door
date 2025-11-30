@@ -98,8 +98,7 @@ export default function ShippingPage() {
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
-      collectionGroup(firestore, 'shipments'),
-      orderBy('shippingDate', 'desc')
+      collectionGroup(firestore, 'shipments')
     );
   }, [firestore, user]);
 

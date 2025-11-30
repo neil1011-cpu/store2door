@@ -151,7 +151,7 @@ export default function PreAlertsPage() {
 
   const preAlertsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collectionGroup(firestore, 'pre_alerts'), orderBy('submissionDate', 'desc'));
+    return query(collectionGroup(firestore, 'pre_alerts'));
   }, [firestore, user]);
   const { data: preAlerts, isLoading: isLoadingAlerts } = useCollection<PreAlert>(preAlertsQuery);
   
