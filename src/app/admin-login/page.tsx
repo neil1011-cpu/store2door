@@ -88,11 +88,11 @@ export default function AdminLoginPage() {
     <div className="w-full h-screen lg:grid lg:grid-cols-2">
        <div className="relative hidden h-full flex-col bg-muted p-10 text-white dark:border-r lg:flex">
          <Image 
-            src="https://picsum.photos/seed/admin-login/1200/1800"
+            src="https://picsum.photos/seed/server-room/1200/1800"
             alt="Admin panel background"
             fill
             className="object-cover brightness-50"
-            data-ai-hint="warehouse interior"
+            data-ai-hint="server room"
         />
         <div className="relative z-20 flex items-center text-lg font-medium">
           <Route className="mr-2 h-6 w-6" />
@@ -101,9 +101,9 @@ export default function AdminLoginPage() {
         <div className="relative z-20 mt-auto">
           <blockquote className="space-y-2">
             <p className="text-lg">
-              &ldquo;This control panel is the command center for our entire shipping operation. Every package, every customer, every update—all managed from one powerful dashboard.&rdquo;
+              &ldquo;Innovation distinguishes between a leader and a follower. This is where we lead.&rdquo;
             </p>
-            <footer className="text-sm">Sofia Davis, Operations Manager</footer>
+            <footer className="text-sm">Steve Jobs, Co-founder of Apple</footer>
           </blockquote>
         </div>
       </div>
