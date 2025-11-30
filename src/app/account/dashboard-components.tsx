@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -121,6 +122,17 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
   const { toast } = useToast();
   const firestore = useFirestore();
 
+  const fileToDataUri = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            resolve(reader.result as string);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!trackingNumber || !contents || !invoice) {
@@ -129,22 +141,23 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
     }
 
     setLoading(true);
-    // In a real app, you would upload the invoice to Firebase Storage and get a URL
-    const mockInvoiceUrl = `https://picsum.photos/seed/${Date.now()}/800/1100`;
 
-    const preAlertsCollection = collection(firestore, 'users', customerId, 'pre_alerts');
-    const newPreAlert = {
-        customerName,
-        customerId,
-        trackingNumber,
-        contents,
-        status: 'Pending' as 'Pending',
-        submissionDate: serverTimestamp(),
-        invoiceUrl: mockInvoiceUrl,
-    };
+    try {
+        const invoiceDataUri = await fileToDataUri(invoice);
 
-    addDoc(preAlertsCollection, newPreAlert)
-      .then(() => {
+        const preAlertsCollection = collection(firestore, 'users', customerId, 'pre_alerts');
+        const newPreAlert = {
+            customerName,
+            customerId,
+            trackingNumber,
+            contents,
+            status: 'Pending' as 'Pending',
+            submissionDate: serverTimestamp(),
+            invoiceUrl: invoiceDataUri,
+        };
+
+        await addDoc(preAlertsCollection, newPreAlert);
+
         toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
         setTrackingNumber('');
         setContents('');
@@ -152,17 +165,19 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
         
         const fileInput = document.getElementById('invoice-upload') as HTMLInputElement;
         if(fileInput) fileInput.value = '';
-      })
-      .catch((error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: preAlertsCollection.path,
-          operation: 'create',
-          requestResourceData: newPreAlert,
-        }));
-      })
-      .finally(() => {
+
+    } catch (error: any) {
+        if (error.message.includes('permission-denied')) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: `users/${customerId}/pre_alerts`,
+              operation: 'create',
+            }));
+        } else {
+             toast({ title: 'Submission Failed', description: 'There was an error submitting your pre-alert.', variant: 'destructive'});
+        }
+    } finally {
         setLoading(false);
-      });
+    }
   };
 
   return (
@@ -644,3 +659,5 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
+
+    

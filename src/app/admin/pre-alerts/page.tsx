@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -376,15 +377,23 @@ export default function PreAlertsPage() {
                               Invoice submitted by {alert.customerName}.
                             </DialogDescription>
                           </DialogHeader>
-                          <div className="p-4">
-                            <Image
-                              src={alert.invoiceUrl}
-                              alt={`Invoice for ${alert.trackingNumber}`}
-                              width={600}
-                              height={800}
-                              className="w-full h-auto"
-                              data-ai-hint="invoice document"
-                            />
+                          <div className="p-4 relative min-h-[600px]">
+                            {alert.invoiceUrl.startsWith('data:image') ? (
+                                <Image
+                                src={alert.invoiceUrl}
+                                alt={`Invoice for ${alert.trackingNumber}`}
+                                fill
+                                style={{ objectFit: 'contain' }}
+                                />
+                            ) : (
+                                <iframe
+                                    src={alert.invoiceUrl}
+                                    title={`Invoice for ${alert.trackingNumber}`}
+                                    width="100%"
+                                    height="100%"
+                                    className="absolute inset-0"
+                                />
+                            )}
                           </div>
                         </DialogContent>
                       </Dialog>
@@ -402,3 +411,5 @@ export default function PreAlertsPage() {
     </div>
   );
 }
+
+    
