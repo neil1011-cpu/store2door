@@ -27,6 +27,9 @@ export function AppLogo({ className, isLink = true }: AppLogoProps) {
         <path d="M10 4C12.7614 4 15 7.58172 15 12C15 16.4183 12.7614 20 10 20" stroke="currentColor" strokeWidth="1.5" />
         <path d="M10 4C7.23858 4 5 7.58172 5 12C5 16.4183 7.23858 20 10 20" stroke="currentColor" strokeWidth="1.5" />
         
+        {/* Number 2 */}
+        <text x="10" y="15" textAnchor="middle" fontSize="9" fontWeight="bold" fill="currentColor">2</text>
+        
         {/* Door */}
         <path d="M14 7V17C14 17.5523 14.4477 18 15 18H20C20.5523 18 21 17.5523 21 17V7C21 6.44772 20.5523 6 20 6H15C14.4477 6 14 6.44772 14 7Z" fill="currentColor" fillOpacity="0.1" />
         <path d="M14 7V17C14 17.5523 14.4477 18 15 18H20C20.5523 18 21 17.5523 21 17V7C21 6.44772 20.5523 6 20 6H15C14.4477 6 14 6.44772 14 7Z" stroke="currentColor" strokeWidth="1.5" />
