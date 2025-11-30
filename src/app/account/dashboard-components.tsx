@@ -18,8 +18,7 @@ import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import type { UserProfile, Shipment, Conversation, Message, PickupPerson, DropoffAddress } from '@/lib/types';
+import type { UserProfile, Shipment, Conversation, Message, PickupPerson, DropoffAddress, PreAlert } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -27,7 +26,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 
-const getStatusVariant = (status: Shipment['status']) => {
+const getStatusVariant = (status: string) => {
   switch (status) {
     case 'In Transit': return 'default';
     case 'Customs': return 'secondary';
@@ -122,6 +121,12 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
   const { toast } = useToast();
   const firestore = useFirestore();
 
+  const preAlertsQuery = useMemoFirebase(() => {
+    if (!firestore || !customerId) return null;
+    return query(collection(firestore, 'users', customerId, 'pre_alerts'), orderBy('submissionDate', 'desc'));
+  }, [firestore, customerId]);
+  const { data: preAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
+
   const fileToDataUri = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -181,34 +186,77 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Create Pre-Alert</CardTitle>
-        <CardDescription>
-          Let us know about an incoming package by providing the details and uploading the invoice.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="tracking-number">Tracking Number</Label>
-            <Input id="tracking-number" placeholder="Enter the package tracking number" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="contents">Contents Description</Label>
-            <Input id="contents" placeholder="e.g., Nike shoes, Amazon order" value={contents} onChange={(e) => setContents(e.target.value)} />
-          </div>
-           <div className="space-y-2">
-            <Label htmlFor="invoice-upload">Upload Invoice</Label>
-            <Input id="invoice-upload" type="file" accept="image/*,.pdf" onChange={(e) => setInvoice(e.target.files ? e.target.files[0] : null)} />
-             <p className="text-sm text-muted-foreground">Please upload a clear image or PDF of your invoice.</p>
-          </div>
-          <Button type="submit" disabled={loading}>
-            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : 'Submit Pre-Alert'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <div className="space-y-8">
+        <Card>
+            <CardHeader>
+                <CardTitle>Create Pre-Alert</CardTitle>
+                <CardDescription>
+                Let us know about an incoming package by providing the details and uploading the invoice.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                    <Label htmlFor="tracking-number">Tracking Number</Label>
+                    <Input id="tracking-number" placeholder="Enter the package tracking number" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="contents">Contents Description</Label>
+                    <Input id="contents" placeholder="e.g., Nike shoes, Amazon order" value={contents} onChange={(e) => setContents(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="invoice-upload">Upload Invoice</Label>
+                    <Input id="invoice-upload" type="file" accept="image/*,.pdf" onChange={(e) => setInvoice(e.target.files ? e.target.files[0] : null)} />
+                    <p className="text-sm text-muted-foreground">Please upload a clear image or PDF of your invoice.</p>
+                </div>
+                <Button type="submit" disabled={loading}>
+                    {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : 'Submit Pre-Alert'}
+                </Button>
+                </form>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>Pre-Alert History</CardTitle>
+                <CardDescription>
+                Here is a list of your submitted pre-alerts and their current status.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Tracking #</TableHead>
+                            <TableHead>Contents</TableHead>
+                            <TableHead>Date Submitted</TableHead>
+                            <TableHead>Status</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoadingPreAlerts ? (
+                            <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin" /></TableCell></TableRow>
+                        ) : preAlerts && preAlerts.length > 0 ? (
+                            preAlerts.map(alert => (
+                                <TableRow key={alert.id}>
+                                    <TableCell className="font-mono">{alert.trackingNumber}</TableCell>
+                                    <TableCell>{alert.contents}</TableCell>
+                                    <TableCell>{alert.submissionDate ? new Date((alert.submissionDate as any).toDate()).toLocaleDateString() : 'N/A'}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={getStatusVariant(alert.status)}>{alert.status}</Badge>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={4} className="text-center h-24">You have not submitted any pre-alerts.</TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    </div>
   );
 }
 
