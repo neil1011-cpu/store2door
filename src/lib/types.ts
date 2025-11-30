@@ -1,3 +1,4 @@
+
 import type { Timestamp } from "firebase/firestore";
 
 export type DropoffAddress = {
@@ -37,7 +38,7 @@ export type Shipment = {
   id: string;
   trackingNumber: string;
   contents: string;
-  status: 'Pending' | 'Processed' | 'In Transit' | 'Customs' | 'Delivered';
+  status: 'Pending' | 'Processed' | 'In Review' | 'Being Shipped' | 'In Transit' | 'On Route' | 'Customs' | 'Delivered';
   shippingDate: Timestamp | any; 
   cost?: number;
   paymentStatus?: 'Paid' | 'Unpaid';

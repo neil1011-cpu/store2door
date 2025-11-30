@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -62,14 +63,17 @@ const getStatusVariant = (status: string) => {
     case 'In Transit':
       return 'default';
     case 'Customs':
+    case 'Processed':
+    case 'In Review':
       return 'secondary';
     case 'Delivered':
       return 'outline';
     case 'Pending':
     case 'Pre-Alert':
       return 'destructive';
-    case 'Processed':
-      return 'secondary';
+    case 'Being Shipped':
+    case 'On Route':
+        return 'default'
     default:
       return 'default';
   }
@@ -463,8 +467,17 @@ export default function ShippingPage() {
                       <SelectItem value="Processed">
                         Processed
                       </SelectItem>
+                       <SelectItem value="In Review">
+                        In Review
+                      </SelectItem>
+                      <SelectItem value="Being Shipped">
+                        Being Shipped
+                      </SelectItem>
                       <SelectItem value="In Transit">
                         In Transit
+                      </SelectItem>
+                       <SelectItem value="On Route">
+                        On Route
                       </SelectItem>
                       <SelectItem value="Customs">
                         Customs
