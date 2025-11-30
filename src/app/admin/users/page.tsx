@@ -40,6 +40,50 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
 
 
+function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice | null, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { toast } = useToast();
+    
+    if (!invoice) return null;
+
+    const handlePrintInvoice = () => {
+        const newWindow = window.open();
+        if (newWindow) {
+            newWindow.document.write(invoice.invoiceUrl);
+            newWindow.document.close();
+            setTimeout(() => newWindow.print(), 500);
+        } else {
+            toast({ title: 'Could not open print window', description: 'Please disable your pop-up blocker.', variant: 'destructive'});
+        }
+    };
+    
+    const isPrintable = invoice.invoiceUrl && invoice.invoiceUrl.startsWith('<!DOCTYPE html>');
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Invoice {invoice.invoiceId}</DialogTitle>
+                    <DialogDescription>Invoice for {invoice.customerName} dated {invoice.date ? new Date(invoice.date.toDate()).toLocaleDateString() : 'N/A'}.</DialogDescription>
+                </DialogHeader>
+                 <div className="relative h-[600px] overflow-hidden rounded-md border">
+                    <iframe 
+                        srcDoc={invoice.invoiceUrl}
+                        title={`Invoice ${invoice.invoiceId}`}
+                        width="100%"
+                        height="100%"
+                        style={{ border: 'none' }}
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                    <Button onClick={handlePrintInvoice} disabled={!isPrintable}>Print to PDF</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
 export default function UsersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -57,6 +101,9 @@ export default function UsersPage() {
   
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
   const [selectedUserForInvoice, setSelectedUserForInvoice] = useState<UserProfile | null>(null);
+
+  const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
+  const [isViewInvoiceOpen, setIsViewInvoiceOpen] = useState(false);
 
   const loading = isLoadingUsers || isUserLoading;
 
@@ -138,9 +185,12 @@ export default function UsersPage() {
   }
 
   const handleInvoiceCreated = (invoice: Invoice) => {
-    // A new invoice was created by the dialog, we can close it.
+    // A new invoice was created by the dialog, close the creation dialog...
     setIsInvoiceDialogOpen(false);
     setSelectedUserForInvoice(null);
+    // ...and immediately open the view dialog for the new invoice.
+    setViewInvoice(invoice);
+    setIsViewInvoiceOpen(true);
   }
 
   if (loading) {
@@ -266,6 +316,14 @@ export default function UsersPage() {
             users={users || []}
             preselectedUser={selectedUserForInvoice}
             onInvoiceCreated={handleInvoiceCreated}
+        />
+      )}
+
+      {viewInvoice && (
+        <InvoiceViewDialog 
+            invoice={viewInvoice}
+            open={isViewInvoiceOpen}
+            onOpenChange={setIsViewInvoiceOpen}
         />
       )}
     </div>
