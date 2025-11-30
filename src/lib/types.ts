@@ -39,7 +39,7 @@ export type Shipment = {
   trackingNumber: string;
   contents: string;
   status: 'Pending' | 'Processed' | 'In Transit' | 'Customs' | 'Delivered';
-  date: Timestamp | any; 
+  shippingDate: Timestamp | any; 
   cost?: number;
   paymentStatus?: 'Paid' | 'Unpaid';
   invoiceUrl: string;
@@ -54,7 +54,7 @@ export type PreAlert = {
   trackingNumber: string;
   contents: string;
   status: 'Pending' | 'Processed';
-  date: Timestamp | any;
+  submissionDate: Timestamp | any;
   invoiceUrl: string;
 };
 

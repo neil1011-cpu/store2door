@@ -52,7 +52,7 @@ const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export function DashboardTab({ details }: { details: UserProfile }) {
   const firestore = useFirestore();
-  const shipmentsQuery = useMemoFirebase(() => details ? query(collection(firestore, 'users', details.id, 'shipments'), orderBy('date', 'desc'), limit(1)) : null, [firestore, details]);
+  const shipmentsQuery = useMemoFirebase(() => details ? query(collection(firestore, 'users', details.id, 'shipments'), orderBy('shippingDate', 'desc'), limit(1)) : null, [firestore, details]);
   const { data: shipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const recentShipment = shipments?.[0];
@@ -137,7 +137,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
         trackingNumber,
         contents,
         status: 'Pending' as 'Pending',
-        date: serverTimestamp(),
+        submissionDate: serverTimestamp(),
         invoiceUrl: mockInvoiceUrl,
     };
 
@@ -199,7 +199,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
   const { toast } = useToast();
   const firestore = useFirestore();
   
-  const shipmentsQuery = useMemoFirebase(() => customerId ? query(collection(firestore, 'users', customerId, 'shipments'), orderBy('date', 'desc')) : null, [firestore, customerId]);
+  const shipmentsQuery = useMemoFirebase(() => customerId ? query(collection(firestore, 'users', customerId, 'shipments'), orderBy('shippingDate', 'desc')) : null, [firestore, customerId]);
   const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const handlePayNow = (shipment: Shipment) => {

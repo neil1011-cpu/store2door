@@ -73,7 +73,7 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
             trackingNumber: preAlert.trackingNumber,
             contents: preAlert.contents,
             status: 'Processed',
-            date: serverTimestamp(),
+            shippingDate: serverTimestamp(),
             cost: parseFloat(cost),
             paymentStatus: 'Unpaid',
             invoiceUrl: preAlert.invoiceUrl,
@@ -150,7 +150,7 @@ export default function PreAlertsPage() {
   const firestore = useFirestore();
 
   const preAlertsQuery = useMemoFirebase(() => 
-    !user ? null : query(collectionGroup(firestore, 'pre_alerts'), orderBy('date', 'desc')), 
+    !user ? null : query(collectionGroup(firestore, 'pre_alerts'), orderBy('submissionDate', 'desc')), 
     [firestore, user]
   );
   const { data: preAlerts, isLoading: isLoadingAlerts } = useCollection<PreAlert>(preAlertsQuery);
@@ -189,7 +189,7 @@ export default function PreAlertsPage() {
       trackingNumber: newAlert.trackingNumber,
       contents: newAlert.contents,
       status: 'Pending',
-      date: serverTimestamp(),
+      submissionDate: serverTimestamp(),
       invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
     }
     
@@ -359,7 +359,7 @@ export default function PreAlertsPage() {
                     </TableCell>
                     <TableCell>{alert.trackingNumber}</TableCell>
                     <TableCell>{alert.contents}</TableCell>
-                    <TableCell>{alert.date ? new Date(alert.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell>{alert.submissionDate && alert.submissionDate.toDate ? new Date(alert.submissionDate.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(alert.status)}>
                         {alert.status}

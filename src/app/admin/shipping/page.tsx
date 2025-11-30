@@ -99,7 +99,7 @@ export default function ShippingPage() {
     if (!firestore || !user) return null;
     return query(
       collectionGroup(firestore, 'shipments'),
-      orderBy('date', 'desc')
+      orderBy('shippingDate', 'desc')
     );
   }, [firestore, user]);
 
@@ -316,9 +316,9 @@ export default function ShippingPage() {
                   </TableCell>
                   <TableCell>{shipment.contents}</TableCell>
                   <TableCell>
-                    {shipment.date
+                    {shipment.shippingDate && shipment.shippingDate.toDate
                       ? new Date(
-                          shipment.date.toDate()
+                          shipment.shippingDate.toDate()
                         ).toLocaleDateString()
                       : 'N/A'}
                   </TableCell>
