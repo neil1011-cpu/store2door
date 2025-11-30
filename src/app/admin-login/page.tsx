@@ -23,6 +23,7 @@ import Image from 'next/image';
 import { useAuth, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { AdminWelcomeAnimation } from '@/components/admin-welcome-animation';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -33,6 +34,7 @@ export default function AdminLoginPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const auth = useAuth();
   const firestore = useFirestore();
 
@@ -56,9 +58,9 @@ export default function AdminLoginPage() {
       if (adminDocSnap.exists()) {
         toast({
             title: 'Admin Sign In Successful!',
-            description: 'Welcome back! Redirecting to the admin dashboard...',
+            description: 'Welcome back!',
         });
-        router.push('/admin');
+        setShowWelcome(true); // Trigger the animation
       } else {
         await signOut(auth);
         toast({
@@ -77,6 +79,10 @@ export default function AdminLoginPage() {
         setLoading(false);
     }
   };
+
+  if (showWelcome) {
+    return <AdminWelcomeAnimation onComplete={() => router.push('/admin')} />;
+  }
 
   return (
     <div className="w-full h-screen lg:grid lg:grid-cols-2">
