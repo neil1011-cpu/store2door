@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, RefreshCw, CircleDot, ScanText, Truck } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, CircleDot, ScanText, Truck, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -61,6 +61,17 @@ export default function NotificationsPage() {
       setLoading(false);
     }
   };
+  
+  const handleMarkAsRead = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setNotifications(prev => 
+      prev.map(n => n.id === id ? { ...n, isRead: true } : n)
+    );
+    toast({
+        title: 'Notification Marked as Read'
+    });
+  }
 
   useEffect(() => {
     fetchNotifications();
@@ -112,11 +123,11 @@ export default function NotificationsPage() {
           ) : (
             <div className="space-y-4">
               {notifications.map((notification) => (
-                <Link href={notification.href} key={notification.id} className="block">
+                <Link href={notification.href} key={notification.id} className="block group">
                   <div
                     className={cn(
-                      'flex items-start gap-4 rounded-lg border p-4 transition-colors hover:bg-accent',
-                      !notification.isRead && 'bg-accent/50'
+                      'flex items-start gap-4 rounded-lg border p-4 transition-colors group-hover:bg-accent',
+                      notification.isRead && 'bg-muted/50 opacity-60'
                     )}
                   >
                     <div className="flex-shrink-0 pt-1">
@@ -136,6 +147,16 @@ export default function NotificationsPage() {
                         {new Date(notification.timestamp).toLocaleString()}
                       </p>
                     </div>
+                     {!notification.isRead && (
+                      <Button 
+                        variant="secondary" 
+                        size="sm"
+                        onClick={(e) => handleMarkAsRead(notification.id, e)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Check className="mr-2 h-4 w-4" /> Mark as Read
+                      </Button>
+                    )}
                   </div>
                 </Link>
               ))}
