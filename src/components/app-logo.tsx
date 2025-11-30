@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Route } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
@@ -13,14 +12,16 @@ export function AppLogo({ className, isLink = true }: AppLogoProps) {
     <>
       {/* 
         ** HOW TO ADD YOUR LOGO **
-        1. Add your logo to the `public` folder (e.g., /public/logo.png).
-        2. Replace the <Route> icon and <h1> text below with a Next.js <Image> component.
-        
-        Example:
-        <Image src="/logo.png" alt="FromStore2Door Logo" width={40} height={40} />
-        <h1 className="text-xl font-bold">FromStore2Door</h1>
+        1. Add your logo file to the `/public` folder (e.g., /public/logo.png).
+        2. Update the `src`, `width`, and `height` properties in the <Image> component below.
       */}
-      <Route className="size-7 text-primary" />
+      <Image 
+        src="/logo.png" 
+        alt="FromStore2Door Logo" 
+        width={40} 
+        height={40} 
+        className="h-10 w-auto"
+      />
       <h1 className="text-xl font-bold">FromStore2Door</h1>
     </>
   );
