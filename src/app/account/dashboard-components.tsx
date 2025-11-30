@@ -490,6 +490,12 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                                     style={{ border: 'none' }}
                                 />
                             </div>
+                            <DialogFooter>
+                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                                <Button onClick={() => handleDownloadInvoice(shipment)} disabled={!shipment.invoiceUrl}>
+                                    <Download className="mr-2 h-4 w-4" /> Print to PDF
+                                </Button>
+                            </DialogFooter>
                         </DialogContent>
                     </Dialog>
                  </TableCell>
