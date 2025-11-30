@@ -19,12 +19,116 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, PlusCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { generateInvoiceHtml } from '@/ai/flows/generate-invoice-html';
-import type { Invoice, UserProfile } from '@/lib/types';
+import type { Invoice, UserProfile, LineItem } from '@/lib/types';
 import { useFirestore } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+
+
+const generateInvoiceHtml = (invoiceData: {
+  invoiceId: string;
+  customerName: string;
+  invoiceDate: string;
+  lineItems: LineItem[];
+  totalAmount: number;
+}): string => {
+  const { invoiceId, customerName, invoiceDate, lineItems, totalAmount } = invoiceData;
+
+  const lineItemsHtml = lineItems
+    .map(
+      (item) => `
+    <tr>
+      <td>${item.description}</td>
+      <td class="text-center">${item.quantity}</td>
+      <td class="text-right">$${item.price.toFixed(2)}</td>
+      <td class="text-right">$${(item.quantity * item.price).toFixed(2)}</td>
+    </tr>
+  `
+    )
+    .join('');
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Invoice ${invoiceId}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; color: #212529; }
+        .container { max-width: 800px; margin: 40px auto; padding: 30px; background-color: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0d6efd; padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { margin: 0; font-size: 2.5em; color: #0d6efd; }
+        .header .company-details { text-align: right; }
+        .header .company-details p { margin: 0; font-size: 0.9em; color: #6c757d; }
+        .invoice-details { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .invoice-details .bill-to p { margin: 0; }
+        .invoice-details .invoice-meta { text-align: right; }
+        .invoice-details .invoice-meta p { margin: 0; }
+        .invoice-details .invoice-meta .label { font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #dee2e6; }
+        thead th { background-color: #e9ecef; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 0.85em; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .total-section { margin-top: 30px; text-align: right; }
+        .total-section table { width: auto; margin-left: auto; }
+        .total-section th, .total-section td { border: none; padding: 8px 15px; }
+        .total-section .grand-total { font-size: 1.4em; font-weight: bold; color: #0d6efd; }
+        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6; text-align: center; font-size: 0.9em; color: #6c757d; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>INVOICE</h1>
+          <div class="company-details">
+            <p style="font-weight: bold; font-size: 1.2em;">FromStore2Door</p>
+            <p>4350 NE 5th Terrace Bay #3</p>
+            <p>Oakland Park, Florida, 33334</p>
+            <p>fromstore2door@gmail.com</p>
+          </div>
+        </div>
+        <div class="invoice-details">
+          <div class="bill-to">
+            <p style="color: #6c757d; margin-bottom: 5px;">BILL TO</p>
+            <p style="font-weight: bold; font-size: 1.2em;">${customerName}</p>
+          </div>
+          <div class="invoice-meta">
+            <p><span class="label">Invoice #:</span> ${invoiceId}</p>
+            <p><span class="label">Date:</span> ${new Date(invoiceDate).toLocaleDateString()}</p>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th class="text-center">Quantity</th>
+              <th class="text-right">Unit Price</th>
+              <th class="text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lineItemsHtml}
+          </tbody>
+        </table>
+        <div class="total-section">
+          <table>
+            <tr>
+              <td class="label">Total:</td>
+              <td class="grand-total">$${totalAmount.toFixed(2)}</td>
+            </tr>
+          </table>
+        </div>
+        <div class="footer">
+          <p>Thank you for your business!</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
 
 const initialLineItems = [{ description: '', quantity: 1, price: 0 }];
 
@@ -96,7 +200,7 @@ export function CreateInvoiceDialog({
       const totalAmount = calculateTotal();
       const customerName = selectedUser.fullName;
 
-      const { html } = await generateInvoiceHtml({
+      const html = generateInvoiceHtml({
         invoiceId,
         customerName,
         invoiceDate,
