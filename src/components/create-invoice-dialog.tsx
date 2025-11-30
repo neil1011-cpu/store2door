@@ -36,42 +36,6 @@ type CreateInvoiceDialogProps = {
   onInvoiceCreated: (invoice: Invoice) => void;
 };
 
-// This function creates a new browser tab and renders the HTML for the invoice.
-// It includes a button to trigger the browser's print dialog.
-const openPrintableInvoice = (htmlContent: string) => {
-  const newWindow = window.open();
-  if (newWindow) {
-    newWindow.document.write(`
-      <html>
-        <head>
-          <title>Print Invoice</title>
-          <style>
-            @media print {
-              #print-button { display: none; }
-              @page { margin: 0; }
-              body { margin: 1.6cm; }
-            }
-            body { font-family: sans-serif; }
-            .print-controls { position: fixed; top: 1rem; right: 1rem; z-index: 100; }
-            .print-button {
-                background-color: #007bff; color: white; border: none;
-                padding: 10px 20px; border-radius: 5px; cursor: pointer;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            }
-          </style>
-        </head>
-        <body>
-          <div class="print-controls">
-            <button id="print-button" class="print-button" onclick="window.print()">Print to PDF</button>
-          </div>
-          ${htmlContent}
-        </body>
-      </html>
-    `);
-    newWindow.document.close();
-  }
-};
-
 
 export function CreateInvoiceDialog({
   open,
@@ -139,9 +103,6 @@ export function CreateInvoiceDialog({
         lineItems,
         totalAmount,
       });
-
-      // Instead of generating a PDF on the server, open the HTML in a new tab for printing.
-      openPrintableInvoice(html);
       
       const newInvoiceData = {
         invoiceId,
@@ -151,14 +112,16 @@ export function CreateInvoiceDialog({
         amount: totalAmount,
         status: 'Unpaid' as 'Unpaid',
         lineItems,
-        invoiceUrl: 'about:blank', // The invoice is now generated on the client
+        invoiceUrl: html, // Save the generated HTML to Firestore
       };
 
       const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
       await setDoc(invoiceDocRef, newInvoiceData);
 
-      toast({ title: 'Invoice Ready to Print', description: `Invoice ${invoiceId} has been opened in a new tab.` });
+      toast({ title: 'Invoice Generated', description: `Invoice ${invoiceId} has been created and saved.` });
       
+      // The onInvoiceCreated callback is used to notify the parent (finance page)
+      // that a new invoice exists so it can refresh its list.
       onInvoiceCreated({ ...newInvoiceData, id: invoiceId, date: new Date() });
       onOpenChange(false); // Close dialog
 

@@ -74,13 +74,14 @@ function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice |
         if (newWindow) {
             newWindow.document.write(invoice.invoiceUrl);
             newWindow.document.close();
-            newWindow.print();
+            // A timeout might be needed for the iframe content to load before printing
+            setTimeout(() => newWindow.print(), 500);
         } else {
             toast({ title: 'Could not open print window', description: 'Please disable your pop-up blocker.', variant: 'destructive'});
         }
     };
 
-    const isPrintable = invoice.invoiceUrl.includes('<html>');
+    const isPrintable = invoice.invoiceUrl && invoice.invoiceUrl.startsWith('<!DOCTYPE html>');
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
