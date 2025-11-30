@@ -1,20 +1,25 @@
 
 import { NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 
 export async function POST(request: Request) {
+    let browser = null;
     try {
         const { html } = await request.json();
 
         if (!html) {
             return NextResponse.json({ message: 'HTML content is required.' }, { status: 400 });
         }
-
-        const browser = await puppeteer.launch({ 
-            headless: true,
-            // Necessary for running in environments like Vercel or Cloud Functions
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        
+        // Use sparticuz/chromium
+        browser = await puppeteer.launch({
+            args: chromium.args,
+            defaultViewport: chromium.defaultViewport,
+            executablePath: await chromium.executablePath(),
+            headless: chromium.headless,
         });
+
         const page = await browser.newPage();
         
         await page.setContent(html, { waitUntil: 'networkidle0' });
@@ -24,8 +29,6 @@ export async function POST(request: Request) {
             printBackground: true,
         });
 
-        await browser.close();
-
         const pdfDataUri = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
 
         return NextResponse.json({ pdf: pdfDataUri });
@@ -33,7 +36,9 @@ export async function POST(request: Request) {
     } catch (error) {
         console.error('PDF Generation Error:', error);
         return NextResponse.json({ message: 'Failed to generate PDF.', error: (error as Error).message }, { status: 500 });
+    } finally {
+        if (browser !== null) {
+            await browser.close();
+        }
     }
 }
-
-    
