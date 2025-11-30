@@ -10,11 +10,6 @@ type AppLogoProps = {
 export function AppLogo({ className, isLink = true }: AppLogoProps) {
   const content = (
     <>
-      {/* 
-        ** HOW TO ADD YOUR LOGO **
-        1. Add your logo file to the `/public` folder (e.g., /public/logo.png).
-        2. Update the `src`, `width`, and `height` properties in the <Image> component below.
-      */}
       <Image 
         src="/logo.png" 
         alt="FromStore2Door Logo" 
