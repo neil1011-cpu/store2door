@@ -208,6 +208,7 @@ export default function UsersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Mailbox #</TableHead>
+                <TableHead>TRN</TableHead>
                 <TableHead>Address</TableHead>
                 <TableHead>
                   <span className="sr-only">Actions</span>
@@ -228,6 +229,7 @@ export default function UsersPage() {
                             </Button>
                         </div>
                     </TableCell>
+                    <TableCell>{user.trn}</TableCell>
                     <TableCell>
                         <div className="flex items-center gap-2">
                             <span className="truncate max-w-xs">{formatAddress(user.address)}</span>
@@ -245,7 +247,7 @@ export default function UsersPage() {
                 ))
               ) : (
                 <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24">No users found.</TableCell>
+                    <TableCell colSpan={6} className="text-center h-24">No users found.</TableCell>
                 </TableRow>
               )}
             </TableBody>
