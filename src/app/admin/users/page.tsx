@@ -130,7 +130,7 @@ export default function UsersPage() {
     });
   };
 
-  if (loading || !users) {
+  if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -213,7 +213,7 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.length === 0 ? (
+              {!users || users.length === 0 ? (
                 <TableRow>
                     <TableCell colSpan={5} className="text-center h-24">No users found.</TableCell>
                 </TableRow>
