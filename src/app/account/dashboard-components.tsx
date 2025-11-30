@@ -209,21 +209,29 @@ export function PackagesTab({ customerId }: { customerId: string }) {
     });
   };
 
-  const handleDownloadInvoice = (invoiceHtml: string, invoiceId: string) => {
-    const blob = new Blob([invoiceHtml], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Invoice-${invoiceId}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast({
-        title: "Downloading Invoice",
-        description: `Your invoice ${invoiceId} is downloading as an HTML file.`,
-    });
+  const handleDownloadInvoice = (shipment: Shipment) => {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      
+      const doc = iframe.contentWindow?.document;
+      if (!doc || !shipment.invoiceUrl) {
+          toast({ title: 'Could not print invoice', variant: 'destructive'});
+          document.body.removeChild(iframe);
+          return;
+      }
+      
+      doc.open();
+      doc.write(shipment.invoiceUrl);
+      doc.close();
+      
+      setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          document.body.removeChild(iframe);
+      }, 500);
   };
+
 
   if (isLoading) {
     return (
@@ -297,9 +305,9 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                                     </DropdownMenuItem>
                                 </DialogTrigger>
                                 {shipment.invoiceUrl && shipment.invoiceId && (
-                                    <DropdownMenuItem onClick={() => handleDownloadInvoice(shipment.invoiceUrl, shipment.invoiceId)}>
+                                    <DropdownMenuItem onClick={() => handleDownloadInvoice(shipment)}>
                                         <Download className="mr-2 h-4 w-4" />
-                                        Download Invoice
+                                        Print/Save Invoice
                                     </DropdownMenuItem>
                                 )}
                             </DropdownMenuContent>
@@ -631,3 +639,5 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
+
+    

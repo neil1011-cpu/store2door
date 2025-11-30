@@ -134,9 +134,9 @@ export default function FinancePage() {
   const loading = isUserLoading || isLoadingUsers || isLoadingInvoices;
 
   const handleInvoiceCreated = (invoice: Invoice) => {
-    // This is a callback from the CreateInvoiceDialog
-    // The dialog handles its own logic, so we just close it.
     setIsCreateOpen(false);
+    setSelectedInvoice(invoice);
+    setIsViewOpen(true);
   }
   
 
@@ -380,3 +380,5 @@ export default function FinancePage() {
     </div>
   );
 }
+
+    
