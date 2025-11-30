@@ -188,7 +188,7 @@ export default function PreAlertsPage() {
       contents: newAlert.contents,
       status: 'Pending' as const,
       submissionDate: serverTimestamp(),
-      invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
+      invoiceUrl: '', // Admin-created alerts don't have an invoice
     };
     
     try {
@@ -366,7 +366,7 @@ export default function PreAlertsPage() {
                     <TableCell>
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">View Invoice</Button>
+                          <Button variant="outline" size="sm" disabled={!alert.invoiceUrl}>View Invoice</Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-3xl">
                           <DialogHeader>
@@ -378,7 +378,7 @@ export default function PreAlertsPage() {
                             </DialogDescription>
                           </DialogHeader>
                           <div className="p-4 relative min-h-[600px]">
-                            {alert.invoiceUrl && alert.invoiceUrl.startsWith('data:image') ? (
+                            {alert.invoiceUrl ? (
                                 <Image
                                 src={alert.invoiceUrl}
                                 alt={`Invoice for ${alert.trackingNumber}`}
@@ -386,13 +386,7 @@ export default function PreAlertsPage() {
                                 style={{ objectFit: 'contain' }}
                                 />
                             ) : (
-                                <iframe
-                                    src={alert.invoiceUrl}
-                                    title={`Invoice for ${alert.trackingNumber}`}
-                                    width="100%"
-                                    height="100%"
-                                    className="absolute inset-0"
-                                />
+                               <div className="flex items-center justify-center h-full text-muted-foreground">No invoice was uploaded.</div>
                             )}
                           </div>
                         </DialogContent>
@@ -411,5 +405,3 @@ export default function PreAlertsPage() {
     </div>
   );
 }
-
-    

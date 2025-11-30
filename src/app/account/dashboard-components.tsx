@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import placeholderImages from '@/lib/placeholder-images.json';
 import type { UserProfile, Shipment, Conversation, Message, PickupPerson, DropoffAddress, PreAlert } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
@@ -151,6 +151,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
         const invoiceDataUri = await fileToDataUri(invoice);
 
         const preAlertsCollection = collection(firestore, 'users', customerId, 'pre_alerts');
+        
         const newPreAlert = {
             customerName,
             customerId,
@@ -160,9 +161,9 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
             submissionDate: serverTimestamp(),
             invoiceUrl: invoiceDataUri,
         };
-
-        const newDocRef = doc(preAlertsCollection);
-        await setDoc(newDocRef, newPreAlert);
+        
+        // Use addDoc to let Firestore generate the ID
+        await addDoc(preAlertsCollection, newPreAlert);
 
         toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
         setTrackingNumber('');
@@ -173,7 +174,8 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
         if(fileInput) fileInput.value = '';
 
     } catch (error: any) {
-        if (error.message.includes('permission-denied')) {
+        console.error("Pre-alert submission error:", error);
+        if (error.message.includes('permission-denied') || error.code?.includes('permission-denied')) {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
               path: `users/${customerId}/pre_alerts`,
               operation: 'create',
@@ -708,7 +710,3 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
-
-    
-
-    
