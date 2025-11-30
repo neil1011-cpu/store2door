@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -40,11 +41,11 @@ import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { generateInvoiceHtml } from '@/ai/flows/generate-invoice-html';
 import type { Invoice, Shipment, UserProfile } from '@/lib/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
 
 
 const financeData = {
@@ -63,7 +64,6 @@ const financeData = {
   ],
 };
 
-const initialLineItems = [{ description: '', quantity: 1, price: 0 }];
 
 function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice | null, open: boolean, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
@@ -132,10 +132,6 @@ export default function FinancePage() {
   });
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [customerId, setCustomerId] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [lineItems, setLineItems] = useState(initialLineItems);
   
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -148,95 +144,12 @@ export default function FinancePage() {
 
   const loading = isUserLoading || isLoadingUsers || isLoadingInvoices;
 
-  const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, price: 0 }]);
-  const removeLineItem = (index: number) => setLineItems(lineItems.filter((_, i) => i !== index));
-
-  const handleLineItemChange = (index: number, field: string, value: string | number) => {
-    const updatedItems = [...lineItems];
-    if(field === 'quantity' || field === 'price') {
-        updatedItems[index] = {...updatedItems[index], [field]: Number(value) };
-    } else {
-        updatedItems[index] = {...updatedItems[index], [field]: value };
-    }
-    setLineItems(updatedItems);
-  };
-
-  const calculateTotal = () => lineItems.reduce((total, item) => total + item.quantity * item.price, 0);
+  const handleInvoiceCreated = (invoice: Invoice) => {
+    // This is a callback from the CreateInvoiceDialog
+    // The dialog handles its own logic, so we just close it.
+    setIsCreateOpen(false);
+  }
   
-  const handleGenerateInvoice = async () => {
-    if (!users) {
-        toast({ title: 'Users not loaded', description: 'Please wait for users to load.', variant: 'destructive'});
-        return;
-    }
-    const selectedUser = users.find(u => u.id === customerId);
-    if(!selectedUser || lineItems.some(item => !item.description || item.price <= 0)) {
-        toast({ title: 'Missing Fields', description: 'Please select a customer and fill in all line item details.', variant: 'destructive'});
-        return;
-    }
-    
-    setIsGenerating(true);
-
-    try {
-        const invoiceId = `INV-${Date.now()}`;
-        const totalAmount = calculateTotal();
-        const customerName = selectedUser.fullName;
-
-        const { html } = await generateInvoiceHtml({
-            invoiceId,
-            customerName,
-            invoiceDate,
-            lineItems,
-            totalAmount,
-        });
-
-        const pdfResponse = await fetch('/api/generate-pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ html }),
-        });
-
-        if (!pdfResponse.ok) {
-            throw new Error('Failed to generate PDF.');
-        }
-
-        const { pdf: pdfDataUri } = await pdfResponse.json();
-
-        const newInvoice: Omit<Invoice, 'id'> = {
-          invoiceId,
-          customerId: selectedUser.id,
-          customerName,
-          date: serverTimestamp(),
-          amount: totalAmount,
-          status: 'Unpaid',
-          lineItems,
-          invoiceUrl: pdfDataUri,
-        };
-        
-        const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
-        
-        setDoc(invoiceDocRef, newInvoice)
-        .catch(error => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: invoiceDocRef.path,
-                operation: 'create',
-                requestResourceData: newInvoice,
-            }));
-        });
-        
-        toast({ title: 'Invoice Generated', description: `Invoice ${newInvoice.invoiceId} for ${customerName} has been created.`});
-        
-        setIsCreateOpen(false);
-        setCustomerId('');
-        setInvoiceDate(new Date().toISOString().split('T')[0]);
-        setLineItems(initialLineItems);
-
-    } catch (error) {
-        console.error("PDF Generation Error:", error);
-        toast({ title: 'Invoice Generation Failed', description: (error as Error).message, variant: 'destructive'});
-    } finally {
-        setIsGenerating(false);
-    }
-  };
 
   const handleViewInvoice = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
@@ -418,67 +331,7 @@ export default function FinancePage() {
             <CardTitle>Invoice Management</CardTitle>
             <CardDescription>Generate and manage customer invoices.</CardDescription>
           </div>
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-                <Button><PlusCircle className="mr-2 h-4 w-4" />Create Invoice</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-4xl">
-                <DialogHeader>
-                <DialogTitle>Create New Invoice</DialogTitle>
-                <DialogDescription>Fill in the details below to generate a new invoice for a customer.</DialogDescription>
-                </DialogHeader>
-                <ScrollArea className="max-h-[70vh] p-1">
-                    <div className="grid gap-6 py-4 px-2">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="customerName">Customer Name</Label>
-                                <Select value={customerId} onValueChange={setCustomerId}>
-                                    <SelectTrigger id="customerName">
-                                        <SelectValue placeholder={"Select a customer"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {users.map(user => (
-                                            <SelectItem key={user.id} value={user.id}>{user.fullName}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2"><Label htmlFor="invoiceDate">Invoice Date</Label><Input id="invoiceDate" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} /></div>
-                        </div>
-                        <div className="space-y-4">
-                            <Label>Line Items</Label>
-                            <div className="relative w-full overflow-auto">
-                                <Table>
-                                    <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="w-24">Qty</TableHead><TableHead className="w-32 text-right">Price</TableHead><TableHead className="w-32 text-right">Total</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {lineItems.map((item, index) => (
-                                            <TableRow key={index}>
-                                                <TableCell><Input placeholder="Item or service description" value={item.description} onChange={(e) => handleLineItemChange(index, 'description', e.target.value)} /></TableCell>
-                                                <TableCell><Input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)} min="1" /></TableCell>
-                                                <TableCell><Input type="number" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', e.target.value)} className="text-right" placeholder="0.00" /></TableCell>
-                                                <TableCell className="text-right font-medium">${(item.quantity * item.price).toFixed(2)}</TableCell>
-                                                <TableCell><Button variant="ghost" size="icon" onClick={() => removeLineItem(index)} disabled={lineItems.length <= 1}><Trash2 className="h-4 w-4" /></Button></TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                            <Button variant="outline" size="sm" onClick={addLineItem} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Add Line Item</Button>
-                        </div>
-                        <div className="flex justify-end pt-4 border-t">
-                            <div className="text-right"><p className="text-muted-foreground">Total Amount</p><p className="text-2xl font-bold">${calculateTotal().toFixed(2)}</p></div>
-                        </div>
-                    </div>
-                </ScrollArea>
-                <DialogFooter>
-                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                    <Button type="submit" onClick={handleGenerateInvoice} disabled={isGenerating}>
-                        {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isGenerating ? 'Generating...' : 'Generate Invoice'}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => setIsCreateOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Create Invoice</Button>
         </CardHeader>
         <CardContent>
           <div className="relative w-full overflow-auto">
@@ -527,6 +380,13 @@ export default function FinancePage() {
           </div>
         </CardContent>
       </Card>
+      
+      <CreateInvoiceDialog 
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        users={users || []}
+        onInvoiceCreated={handleInvoiceCreated}
+      />
       <InvoiceViewDialog invoice={selectedInvoice} open={isViewOpen} onOpenChange={setIsViewOpen} />
     </div>
   );

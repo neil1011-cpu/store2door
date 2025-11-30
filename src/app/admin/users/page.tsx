@@ -18,7 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2 } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2, Eye, Receipt } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -32,11 +32,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import type { UserProfile } from '@/lib/types';
+import type { UserProfile, Invoice } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, serverTimestamp, doc, setDoc, getCountFromServer } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
 
 
 export default function UsersPage() {
@@ -50,9 +51,12 @@ export default function UsersPage() {
   );
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
   
-  const [open, setOpen] = useState(false);
+  const [openAddUser, setOpenAddUser] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
+  
+  const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
+  const [selectedUserForInvoice, setSelectedUserForInvoice] = useState<UserProfile | null>(null);
 
   const loading = isLoadingUsers || isUserLoading;
 
@@ -67,10 +71,6 @@ export default function UsersPage() {
     }
 
     setIsSubmitting(true);
-    
-    // This is a simplified user creation flow for admins.
-    // In a full production app, you'd likely create the user via Firebase Auth Admin SDK
-    // and then create their profile document. Here we just create the document.
     
     const usersCollection = collection(firestore, "users");
     const snapshot = await getCountFromServer(usersCollection);
@@ -103,7 +103,7 @@ export default function UsersPage() {
                 title: 'User Added',
                 description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
             });
-            setOpen(false);
+            setOpenAddUser(false);
             setNewUser({ name: '', email: '' });
         })
         .catch(error => {
@@ -132,6 +132,17 @@ export default function UsersPage() {
     });
   };
 
+  const openInvoiceDialog = (user: UserProfile) => {
+    setSelectedUserForInvoice(user);
+    setIsInvoiceDialogOpen(true);
+  }
+
+  const handleInvoiceCreated = (invoice: Invoice) => {
+    // A new invoice was created by the dialog, we can close it.
+    setIsInvoiceDialogOpen(false);
+    setSelectedUserForInvoice(null);
+  }
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -156,7 +167,7 @@ export default function UsersPage() {
                     Back to Dashboard
                 </Link>
             </Button>
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog open={openAddUser} onOpenChange={setOpenAddUser}>
             <DialogTrigger asChild>
                 <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -209,10 +220,7 @@ export default function UsersPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Mailbox #</TableHead>
                 <TableHead>TRN</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead>
-                  <span className="sr-only">Actions</span>
-                </TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -230,30 +238,36 @@ export default function UsersPage() {
                         </div>
                     </TableCell>
                     <TableCell>{user.trn}</TableCell>
-                    <TableCell>
-                        <div className="flex items-center gap-2">
-                            <span className="truncate max-w-xs">{formatAddress(user.address)}</span>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => copyToClipboard(formatAddress(user.address))}>
-                                <Copy className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                        <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                    <TableCell className="text-right space-x-2">
+                       <Button variant="outline" size="sm" asChild>
+                         <Link href={`/admin/users/${user.id}`}>
+                           <Eye className="mr-2 h-4 w-4" /> View
+                         </Link>
+                       </Button>
+                       <Button variant="secondary" size="sm" onClick={() => openInvoiceDialog(user)}>
+                          <Receipt className="mr-2 h-4 w-4" /> Create Invoice
+                       </Button>
                     </TableCell>
                     </TableRow>
                 ))
               ) : (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24">No users found.</TableCell>
+                    <TableCell colSpan={5} className="text-center h-24">No users found.</TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+        {selectedUserForInvoice && (
+         <CreateInvoiceDialog 
+            open={isInvoiceDialogOpen}
+            onOpenChange={setIsInvoiceDialogOpen}
+            users={users || []}
+            preselectedUser={selectedUserForInvoice}
+            onInvoiceCreated={handleInvoiceCreated}
+        />
+      )}
     </div>
   );
 }
