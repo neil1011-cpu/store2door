@@ -9,11 +9,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuFooter,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Bell, ScanText, Truck, CircleDot } from 'lucide-react';
+import { Bell, ScanText, Truck, CircleDot, Check } from 'lucide-react';
 import { Badge } from './ui/badge';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 type Notification = {
   id: string;
@@ -28,17 +31,18 @@ type Notification = {
 const getNotificationIcon = (type: Notification['type']) => {
   switch (type) {
     case 'pre-alert':
-      return <ScanText className="h-4 w-4" />;
+      return <ScanText className="h-4 w-4 text-muted-foreground" />;
     case 'status-update':
-      return <Truck className="h-4 w-4" />;
+      return <Truck className="h-4 w-4 text-muted-foreground" />;
     default:
-      return <CircleDot className="h-4 w-4" />;
+      return <CircleDot className="h-4 w-4 text-muted-foreground" />;
   }
 };
 
 export function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -46,7 +50,7 @@ export function Notifications() {
       try {
         const response = await fetch('/api/notifications');
         const data = await response.json();
-        setNotifications(data);
+        setNotifications(data.sort((a: Notification, b: Notification) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
       } catch (error) {
         console.error('Failed to fetch notifications', error);
       } finally {
@@ -56,6 +60,21 @@ export function Notifications() {
 
     fetchNotifications();
   }, []);
+
+  const handleMarkAsRead = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setNotifications(prev =>
+      prev.map(n => n.id === id ? { ...n, isRead: true } : n)
+    );
+  };
+
+  const handleMarkAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    toast({
+        title: 'All notifications marked as read.'
+    })
+  };
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -75,26 +94,53 @@ export function Notifications() {
           <span className="sr-only">Toggle notifications</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+      <DropdownMenuContent align="end" className="w-96">
+        <DropdownMenuLabel className="flex justify-between items-center">
+          <span>Notifications</span>
+          {unreadCount > 0 && <Badge variant="secondary">{unreadCount} Unread</Badge>}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {loading ? (
-          <DropdownMenuItem>Loading...</DropdownMenuItem>
-        ) : notifications.length === 0 ? (
-          <DropdownMenuItem>No new notifications</DropdownMenuItem>
-        ) : (
-          notifications.map((notification) => (
-            <DropdownMenuItem key={notification.id} asChild>
-                <Link href={notification.href} className="flex items-start gap-3">
-                    <div className="mt-1">{getNotificationIcon(notification.type)}</div>
-                    <div className="flex flex-col">
-                        <span className="font-medium">{notification.title}</span>
-                        <span className="text-xs text-muted-foreground">{notification.description}</span>
-                    </div>
+        <div className="max-h-80 overflow-y-auto">
+            {loading ? (
+            <DropdownMenuItem disabled>Loading...</DropdownMenuItem>
+            ) : notifications.length === 0 ? (
+            <DropdownMenuItem disabled className="text-center text-muted-foreground">No notifications</DropdownMenuItem>
+            ) : (
+            notifications.map((notification) => (
+                <DropdownMenuItem key={notification.id} asChild className={cn("group data-[disabled]:opacity-100", notification.isRead && "opacity-60")}>
+                    <Link href={notification.href} className="flex items-start gap-3 relative">
+                        <div className="mt-1">{getNotificationIcon(notification.type)}</div>
+                        <div className="flex-1">
+                            <p className={cn("font-medium", !notification.isRead && "font-semibold")}>{notification.title}</p>
+                            <p className="text-xs text-muted-foreground">{notification.description}</p>
+                        </div>
+                        {!notification.isRead &&
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => handleMarkAsRead(notification.id, e)}
+                                title="Mark as read"
+                            >
+                                <Check className="h-4 w-4" />
+                            </Button>
+                        }
+                    </Link>
+                </DropdownMenuItem>
+            ))
+            )}
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuFooter className="p-1 space-y-1">
+            <Button variant="secondary" size="sm" className="w-full" onClick={handleMarkAllAsRead} disabled={unreadCount === 0}>
+                Mark all as read
+            </Button>
+            <Button variant="outline" size="sm" asChild className="w-full">
+                <Link href="/admin/notifications">
+                    View all notifications
                 </Link>
-            </DropdownMenuItem>
-          ))
-        )}
+            </Button>
+        </DropdownMenuFooter>
       </DropdownMenuContent>
     </DropdownMenu>
   );
