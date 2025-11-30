@@ -58,7 +58,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                     <Package className="h-5 w-5" /> Latest Shipment Status
                 </CardTitle>
             </CardHeader>
-            {isLoading ? <CardContent><Loader2 className="h-6 w-6 animate-spin" /></CardContent> :
+            {isLoading ? <CardContent><div className="flex justify-center items-center h-24"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent> :
              recentShipment ? (
             <CardContent className="space-y-2">
                 <div className="flex justify-between">
@@ -419,7 +419,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
       });
   };
 
-  const isLoading = isLoadingConversations || isLoadingMessages;
+  const isLoading = isLoadingConversations || (activeConversation && isLoadingMessages);
 
   if (isLoading) {
     return (

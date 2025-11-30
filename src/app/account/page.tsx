@@ -56,7 +56,7 @@ export default function AccountPage() {
     }
     
     // Show skeleton while initial auth or profile loading is happening.
-    if (isUserLoading || isProfileLoading || !userProfile) {
+    if (isUserLoading || isProfileLoading) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
                 <div className="mb-8">
@@ -70,6 +70,18 @@ export default function AccountPage() {
                     </div>
                     <Skeleton className="h-96 flex-1" />
                 </div>
+            </div>
+        );
+    }
+
+    if (!userProfile) {
+        // This can happen if the user is authenticated but the profile document doesn't exist or hasn't loaded.
+        // You might want to show an error message or a different UI.
+        return (
+            <div className="container mx-auto py-12 px-4 md:px-6">
+                 <h1 className="text-2xl md:text-3xl font-bold">Account Not Found</h1>
+                <p className="text-muted-foreground">We couldn't find your account details. Please contact support.</p>
+                <Button onClick={handleSignOut} className="mt-4">Sign Out</Button>
             </div>
         );
     }
@@ -126,3 +138,4 @@ export default function AccountPage() {
         </div>
     );
 }
+
