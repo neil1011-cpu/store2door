@@ -38,7 +38,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link';
 import type { Shipment, PreAlert, UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, collectionGroup, query, where, orderBy, serverTimestamp, doc, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, serverTimestamp, doc, addDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -179,6 +179,8 @@ export default function PreAlertsPage() {
     setIsSubmitting(true);
     
     const preAlertsCollection = collection(firestore, 'users', selectedUser.id, 'pre_alerts');
+    const newDocRef = doc(preAlertsCollection); // Create a new doc ref to get an ID
+    
     const alertToAdd = {
       customerName: selectedUser.fullName,
       customerId: selectedUser.id,
@@ -187,10 +189,10 @@ export default function PreAlertsPage() {
       status: 'Pending' as const,
       submissionDate: serverTimestamp(),
       invoiceUrl: `https://picsum.photos/seed/${Math.random()}/600/800`, // Placeholder
-    }
+    };
     
     try {
-        await addDoc(preAlertsCollection, alertToAdd);
+        await setDoc(newDocRef, alertToAdd);
         toast({
           title: 'Pre-Alert Created',
           description: `Pre-alert for ${newAlert.trackingNumber} has been created.`,
@@ -202,7 +204,7 @@ export default function PreAlertsPage() {
             path: preAlertsCollection.path,
             operation: 'create',
             requestResourceData: alertToAdd
-        }))
+        }));
     } finally {
         setIsSubmitting(false);
     }
@@ -217,8 +219,6 @@ export default function PreAlertsPage() {
       const shipmentDocRef = await addDoc(shipmentsCollectionRef, newShipmentData);
 
       // 2. Update the pre-alert status to 'Processed'
-      // We need to find the correct pre-alert document. Since we have the ID, but not the full path,
-      // and we know it's a subcollection of a user, we can reference it via the customerId.
       const preAlertDocRef = doc(firestore, 'users', newShipmentData.customerId, 'pre_alerts', preAlertId);
       await updateDoc(preAlertDocRef, {
         status: 'Processed',
@@ -378,7 +378,7 @@ export default function PreAlertsPage() {
                             </DialogDescription>
                           </DialogHeader>
                           <div className="p-4 relative min-h-[600px]">
-                            {alert.invoiceUrl.startsWith('data:image') ? (
+                            {alert.invoiceUrl && alert.invoiceUrl.startsWith('data:image') ? (
                                 <Image
                                 src={alert.invoiceUrl}
                                 alt={`Invoice for ${alert.trackingNumber}`}

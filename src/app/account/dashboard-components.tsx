@@ -161,7 +161,8 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
             invoiceUrl: invoiceDataUri,
         };
 
-        await addDoc(preAlertsCollection, newPreAlert);
+        const newDocRef = doc(preAlertsCollection);
+        await setDoc(newDocRef, newPreAlert);
 
         toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
         setTrackingNumber('');
@@ -707,5 +708,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
         </Card>
     )
 }
+
+    
 
     
