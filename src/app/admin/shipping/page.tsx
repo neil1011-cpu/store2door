@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -57,13 +57,6 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 
-const MOCK_SHIPMENTS: (Shipment & { user?: Partial<UserProfile>, customerName: string })[] = [
-    { id: '1', trackingNumber: 'JM12345', customerId: 'user1', contents: 'Electronics', status: 'In Transit', shippingDate: new Date(), cost: 50, paymentStatus: 'Paid', invoiceUrl: '', customerName: 'John Doe', user: { email: 'john.doe@example.com', fullName: 'John Doe'} },
-    { id: '2', trackingNumber: 'JM67890', customerId: 'user2', contents: 'Clothing', status: 'Delivered', shippingDate: new Date(), cost: 25, paymentStatus: 'Paid', invoiceUrl: '', customerName: 'Jane Smith', user: { email: 'jane.smith@example.com', fullName: 'Jane Smith'} },
-    { id: '3', trackingNumber: 'JM54321', customerId: 'user1', contents: 'Books', status: 'Customs', shippingDate: new Date(), cost: 15, paymentStatus: 'Unpaid', invoiceUrl: '', customerName: 'John Doe', user: { email: 'john.doe@example.com', fullName: 'John Doe'} },
-];
-
-
 const getStatusVariant = (status: string) => {
   switch (status) {
     case 'In Transit':
@@ -99,9 +92,33 @@ export default function ShippingPage() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const firestore = useFirestore();
+  const { user: adminUser, isUserLoading } = useUser();
 
-  const [shipmentsWithUsers, setShipmentsWithUsers] = useState(MOCK_SHIPMENTS);
-  const loading = false;
+  const shipmentsQuery = useMemoFirebase(() => {
+    if (!firestore || !adminUser) return null;
+    return query(collectionGroup(firestore, 'shipments'));
+  }, [firestore, adminUser]);
+  const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
+
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !adminUser) return null;
+    return query(collection(firestore, 'users'));
+  }, [firestore, adminUser]);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+  
+  const loading = isLoadingShipments || isLoadingUsers || isUserLoading;
+
+  const shipmentsWithUsers = useMemo(() => {
+    if (!shipments || !users) return [];
+    
+    const usersMap = new Map(users.map(u => [u.id, u]));
+
+    return shipments.map(shipment => ({
+        ...shipment,
+        user: usersMap.get(shipment.customerId)
+    }));
+
+  }, [shipments, users]);
 
 
   const handleOpenEmailDialog = (
@@ -160,21 +177,34 @@ export default function ShippingPage() {
     setIsEditDialogOpen(true);
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     if (!editableShipment) return;
     setIsSaving(true);
     
-    // Simulate saving
-    setTimeout(() => {
-        setShipmentsWithUsers(prev => prev.map(s => s.id === editableShipment.id ? { ...s, ...editableShipment, user: s.user, customerName: s.customerName } : s));
+    const shipmentDocRef = doc(firestore, 'users', editableShipment.customerId, 'shipments', editableShipment.id);
+
+    try {
+        await updateDoc(shipmentDocRef, {
+            contents: editableShipment.contents,
+            status: editableShipment.status,
+            paymentStatus: editableShipment.paymentStatus,
+            cost: editableShipment.cost
+        });
         toast({
           title: 'Shipment Updated',
-          description: `Shipment ${editableShipment.trackingNumber} has been updated. (Mocked)`,
+          description: `Shipment ${editableShipment.trackingNumber} has been updated.`,
         });
-        setIsSaving(false);
         setIsEditDialogOpen(false);
         setEditableShipment(null);
-    }, 1000);
+    } catch (error) {
+         errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: shipmentDocRef.path,
+            operation: 'update',
+            requestResourceData: { ...editableShipment }
+        }));
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   const handleEditFormChange = (
@@ -262,7 +292,7 @@ export default function ShippingPage() {
                   <TableCell>
                     {shipment.shippingDate
                       ? new Date(
-                          shipment.shippingDate
+                          (shipment.shippingDate as any).toDate()
                         ).toLocaleDateString()
                       : 'N/A'}
                   </TableCell>
@@ -512,5 +542,3 @@ export default function ShippingPage() {
     </div>
   );
 }
-
-    
