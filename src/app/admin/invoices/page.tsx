@@ -189,20 +189,6 @@ export default function InvoicesPage() {
     setIsViewOpen(true);
   }
 
-  const handleDownloadInvoice = (invoice: Invoice) => {
-    const link = document.createElement('a');
-    link.href = invoice.invoiceUrl;
-    link.download = `Invoice-${invoice.invoiceId}.pdf`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({
-        title: "Downloading Invoice",
-        description: `Your invoice for ${invoice.invoiceId} is downloading.`,
-    });
-  };
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -345,3 +331,5 @@ export default function InvoicesPage() {
     </div>
   );
 }
+
+    
