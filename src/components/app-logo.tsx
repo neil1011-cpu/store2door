@@ -11,7 +11,7 @@ type AppLogoProps = {
 export function AppLogo({ className, isLink = true }: AppLogoProps) {
   const content = (
     <Image 
-      src="/logo.png" 
+      src="/logo.png"
       alt="FromStore2Door Logo" 
       width={160} 
       height={40} 
