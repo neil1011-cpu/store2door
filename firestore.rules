@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -48,15 +49,20 @@ service cloud.firestore {
       allow create, update, delete: if isOwner(userId) || isAdmin();
     }
 
-    // --- COLLECTION GROUP FOR SHIPMENTS ---
-    // This is REQUIRED for `collectionGroup(firestore, 'shipments')`
-    match /{path=**}/shipments/{shipmentId} {
-      // read == get + list
-      allow read: if isAdmin();
-      // OPTIONAL: allow writes from admin via collectionGroup paths
-      allow write: if isAdmin();
+    // --- GLOBAL COLLECTIONS (ADMIN-ONLY) ---
+    match /invoices/{invoiceId} {
+        allow get, list, create, update, delete: if isAdmin();
     }
 
-    // Add any other collections (rates, manifests, etc.) below...
+    // --- COLLECTION GROUP QUERIES (ADMIN-ONLY) ---
+    match /{path=**}/shipments/{shipmentId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/pre_alerts/{preAlertId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/conversations/{convoId} {
+      allow read: if isAdmin();
+    }
   }
 }

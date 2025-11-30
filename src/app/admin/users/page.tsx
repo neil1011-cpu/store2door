@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -44,8 +45,9 @@ export default function UsersPage() {
   const { user, isUserLoading } = useUser();
 
   const usersQuery = useMemoFirebase(() => 
-    !user ? null : query(collection(firestore, 'users')), 
-  [firestore, user]);
+    !user || !firestore ? null : query(collection(firestore, 'users')), 
+    [firestore, user]
+  );
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
   
   const [open, setOpen] = useState(false);
@@ -213,11 +215,7 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!users || users.length === 0 ? (
-                <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24">No users found.</TableCell>
-                </TableRow>
-              ) : (
+              {users && users.length > 0 ? (
                 users.map((user) => (
                     <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.fullName}</TableCell>
@@ -245,6 +243,10 @@ export default function UsersPage() {
                     </TableCell>
                     </TableRow>
                 ))
+              ) : (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center h-24">No users found.</TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>

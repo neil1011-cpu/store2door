@@ -98,15 +98,15 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
       </div>
     );
   }
-
-  // DEFINITIVE FIX: Only render children if the admin role is confirmed.
-  // If it's not confirmed, the effect above is already handling the redirect.
-  // Rendering null here prevents any child components and their hooks from
-  // ever running prematurely.
+  
+  // If the admin doc doesn't exist after loading, render nothing.
+  // The useEffect above is already handling the redirect.
+  // This prevents child components from rendering prematurely.
   if (!adminRoleDoc) {
-    return null; // Avoid flicker while redirect happens
+    return null;
   }
 
+  // Only render children if the admin role is confirmed.
   return <>{children}</>;
 }
 
