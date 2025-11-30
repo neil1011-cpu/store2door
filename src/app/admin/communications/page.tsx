@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -47,9 +46,10 @@ export default function CommunicationsPage() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
 
-    const usersQuery = useMemoFirebase(() => 
-        !user ? null : query(collection(firestore, 'users'), orderBy('fullName', 'asc')), 
-    [firestore, user]);
+    const usersQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'users'), orderBy('fullName', 'asc'))
+    }, [firestore, user]);
 
     const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
     

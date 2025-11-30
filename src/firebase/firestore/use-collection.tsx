@@ -30,16 +30,13 @@ function safeGetPath(target: any): string {
     const internalQuery = target._query;
     if (internalQuery && internalQuery.path && internalQuery.path.segments) {
       const path = internalQuery.path.segments.join('/');
-      // If segments are empty, it's a root query, which is invalid for list operations.
-      if (path === '' && (target.type === 'collectionGroup' || target.type === 'query')) {
-         // Attempt to get path from collectionGroup queries.
-         if (internalQuery.explicitOrderBy?.[0]?.field?.segments) {
-            const collectionId = target.collectionGroup;
-            if (collectionId) {
-                return `**/${collectionId}`;
-            }
-         }
-         return '(root)';
+      // If segments are empty, it might be a collectionGroup query.
+      if (path === '' && (target.type === 'collectionGroup' || (internalQuery.collectionGroup && target.type === 'query'))) {
+          const collectionId = internalQuery.collectionGroup || target.collectionGroup;
+          if (collectionId) {
+              return `**/${collectionId}`;
+          }
+          return '(root)'; // Should not happen with valid collection groups
       }
       return path;
     }
@@ -65,8 +62,11 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // Not ready → no query → do NOT call Firestore
-    if (!memoizedTargetRefOrQuery) {
+    // STOP ROOT LIST QUERIES FOREVER
+    if (
+      !memoizedTargetRefOrQuery ||
+      typeof memoizedTargetRefOrQuery !== 'object'
+    ) {
       setData(null);
       setIsLoading(false);
       setError(null);

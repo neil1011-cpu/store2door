@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -32,10 +31,16 @@ export default function UserDetailsPage() {
     const userId = params.userId as string;
     const firestore = useFirestore();
 
-    const userProfileRef = useMemoFirebase(() => userId ? doc(firestore, 'users', userId) : null, [firestore, userId]);
+    const userProfileRef = useMemoFirebase(() => {
+        if (!firestore || !userId) return null;
+        return doc(firestore, 'users', userId);
+    }, [firestore, userId]);
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
-    const shipmentsQuery = useMemoFirebase(() => userId ? query(collection(firestore, 'users', userId, 'shipments'), orderBy('shippingDate', 'desc')) : null, [firestore, userId]);
+    const shipmentsQuery = useMemoFirebase(() => {
+        if (!firestore || !userId) return null;
+        return query(collection(firestore, 'users', userId, 'shipments'), orderBy('shippingDate', 'desc'));
+    }, [firestore, userId]);
     const { data: userShipments, isLoading: isShipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
     const isLoading = isProfileLoading || isShipmentsLoading;
@@ -221,4 +226,3 @@ export default function UserDetailsPage() {
         </div>
     );
 }
-

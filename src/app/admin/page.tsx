@@ -100,10 +100,10 @@ export default function DashboardPage() {
   const firestore = useFirestore();
 
   // Build admin doc reference only when user exists
-  const adminRef = useMemoFirebase(
-    () => (user ? doc(firestore, 'roles_admin', user.uid) : null),
-    [firestore, user]
-  );
+  const adminRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'roles_admin', user.uid);
+  }, [firestore, user]);
 
   const { data: adminDoc, isLoading: isAdminLoading } = useDoc(adminRef);
 

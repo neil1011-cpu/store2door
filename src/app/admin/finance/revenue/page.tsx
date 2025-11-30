@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -30,10 +29,10 @@ export default function RevenuePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
-  const invoicesQuery = useMemoFirebase(() => 
-    !user ? null : query(collection(firestore, 'invoices'), where('status', '==', 'Paid')), 
-    [firestore, user]
-  );
+  const invoicesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'invoices'), where('status', '==', 'Paid'));
+  }, [firestore, user]);
   const { data: revenueData, isLoading: isLoadingInvoices } = useCollection<Invoice>(invoicesQuery);
 
   const loading = isUserLoading || isLoadingInvoices;

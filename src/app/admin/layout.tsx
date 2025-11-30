@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -60,7 +59,10 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
 
   // Build the doc ref only when user is present
   const adminRoleRef = useMemoFirebase(
-    () => (firestore && user ? doc(firestore, 'roles_admin', user.uid) : null),
+    () => {
+      if (!firestore || !user) return null;
+      return doc(firestore, 'roles_admin', user.uid);
+    },
     [firestore, user]
   );
 

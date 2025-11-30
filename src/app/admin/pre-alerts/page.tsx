@@ -149,16 +149,16 @@ export default function PreAlertsPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
-  const preAlertsQuery = useMemoFirebase(() => 
-    !user ? null : query(collectionGroup(firestore, 'pre_alerts'), orderBy('submissionDate', 'desc')), 
-    [firestore, user]
-  );
+  const preAlertsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collectionGroup(firestore, 'pre_alerts'), orderBy('submissionDate', 'desc'));
+  }, [firestore, user]);
   const { data: preAlerts, isLoading: isLoadingAlerts } = useCollection<PreAlert>(preAlertsQuery);
   
-  const usersQuery = useMemoFirebase(() => 
-    !user ? null : query(collection(firestore, 'users'), orderBy('fullName', 'asc')), 
-    [firestore, user]
-  );
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
+  }, [firestore, user]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   const loading = isUserLoading || isLoadingAlerts || isLoadingUsers;

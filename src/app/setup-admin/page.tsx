@@ -35,7 +35,10 @@ export default function SetupAdminPage() {
   const auth = useAuth();
   const firestore = useFirestore();
 
-  const adminRolesQuery = useMemoFirebase(() => query(collection(firestore, 'roles_admin'), limit(1)), [firestore]);
+  const adminRolesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'roles_admin'), limit(1));
+  }, [firestore]);
   const { data: adminRoles, isLoading: isLoadingAdmins } = useCollection(adminRolesQuery);
 
   useEffect(() => {

@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -113,10 +111,16 @@ export default function FinancePage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
   
-  const usersQuery = useMemoFirebase(() => !user ? null : query(collection(firestore, 'users'), orderBy('fullName', 'asc')), [firestore, user]);
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
+  }, [firestore, user]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
-  const invoicesQuery = useMemoFirebase(() => !user ? null : query(collection(firestore, 'invoices'), orderBy('date', 'desc')), [firestore, user]);
+  const invoicesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'invoices'), orderBy('date', 'desc'));
+  }, [firestore, user]);
   const { data: invoices, isLoading: isLoadingInvoices } = useCollection<Invoice>(invoicesQuery);
 
   const loading = isUserLoading || isLoadingUsers || isLoadingInvoices;
