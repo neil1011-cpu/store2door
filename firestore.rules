@@ -82,6 +82,10 @@ service cloud.firestore {
       allow get, list, create, update, delete: if isAdmin();
     }
 
+    match /transactions/{transactionId} {
+      allow get, list, create, update, delete: if isAdmin();
+    }
+
     // ----------------------------------------------------------
     // COLLECTION GROUP QUERIES (VERY IMPORTANT)
     // REQUIRED for collectionGroup('shipments'), etc.

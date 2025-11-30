@@ -1,4 +1,3 @@
-
 import type { Timestamp } from "firebase/firestore";
 
 export type DropoffAddress = {
@@ -103,4 +102,12 @@ export type Invoice = {
 export type Rate = {
   weight: number;
   price: number;
+}
+
+export type Transaction = {
+  id: string;
+  type: 'revenue' | 'expense';
+  description: string;
+  amount: number;
+  date: Timestamp | any;
 }

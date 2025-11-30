@@ -1,6 +1,6 @@
-
 'use client';
 
+import { useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -18,13 +18,37 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where, orderBy } from 'firebase/firestore';
+import type { Transaction } from '@/lib/types';
 
-const expensesData: any[] = [];
 
 export default function ExpensesPage() {
-  const totalExpenses = expensesData.reduce((acc, item) => acc + item.amount, 0);
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+
+  const transactionsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'transactions'), where('type', '==', 'expense'), orderBy('date', 'desc'));
+  }, [firestore, user]);
+
+  const { data: expensesData, isLoading: isLoadingTransactions } = useCollection<Transaction>(transactionsQuery);
+
+  const loading = isUserLoading || isLoadingTransactions;
+
+  const totalExpenses = useMemo(() => {
+    return expensesData?.reduce((acc, item) => acc + item.amount, 0) || 0;
+  }, [expensesData]);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,25 +80,23 @@ export default function ExpensesPage() {
               <TableRow>
                 <TableHead>Transaction ID</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Category</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {expensesData.length > 0 ? (
+              {expensesData && expensesData.length > 0 ? (
                 expensesData.map((item) => (
                     <TableRow key={item.id}>
                     <TableCell className="font-mono">{item.id}</TableCell>
-                    <TableCell>{item.date}</TableCell>
-                    <TableCell><Badge variant="outline">{item.category}</Badge></TableCell>
+                    <TableCell>{item.date ? new Date(item.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell>{item.description}</TableCell>
                     <TableCell className="text-right text-red-500 font-medium">${item.amount.toFixed(2)}</TableCell>
                     </TableRow>
                 ))
               ) : (
                 <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24">
+                    <TableCell colSpan={4} className="text-center h-24">
                         No expenses have been recorded yet.
                     </TableCell>
                 </TableRow>

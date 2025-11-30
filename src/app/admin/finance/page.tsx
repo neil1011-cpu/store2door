@@ -38,9 +38,9 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
-import type { Invoice, Shipment, UserProfile } from '@/lib/types';
+import type { Invoice, Shipment, UserProfile, Transaction } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, doc, setDoc, updateDoc, addDoc, where } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
@@ -100,13 +100,14 @@ export default function FinancePage() {
   const { user, isUserLoading } = useUser();
 
   const [newTransaction, setNewTransaction] = useState({
-      type: 'revenue',
+      type: 'expense' as 'revenue' | 'expense',
       description: '',
       amount: '',
       date: new Date().toISOString().split('T')[0],
   });
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isAddingTransaction, setIsAddingTransaction] = useState(false);
   
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -123,21 +124,23 @@ export default function FinancePage() {
   }, [firestore, user]);
   const { data: invoices, isLoading: isLoadingInvoices } = useCollection<Invoice>(invoicesQuery);
 
-  const loading = isUserLoading || isLoadingUsers || isLoadingInvoices;
+  const transactionsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'transactions'), orderBy('date', 'desc'));
+  }, [firestore, user]);
+  const { data: transactions, isLoading: isLoadingTransactions } = useCollection<Transaction>(transactionsQuery);
+
+  const loading = isUserLoading || isLoadingUsers || isLoadingInvoices || isLoadingTransactions;
 
   const financeSummary = useMemo(() => {
-    if (!invoices) {
-      return {
-        revenue: 0,
-        expenses: 0,
-        profit: 0,
-        chartData: [],
-      };
-    }
+    const paidInvoices = invoices?.filter(inv => inv.status === 'Paid') || [];
+    const invoiceRevenue = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    
+    const manualRevenue = transactions?.filter(t => t.type === 'revenue').reduce((sum, t) => sum + t.amount, 0) || 0;
+    const manualExpenses = transactions?.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) || 0;
 
-    const paidInvoices = invoices.filter(inv => inv.status === 'Paid');
-    const totalRevenue = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const expenses = 0; // No expense tracking yet
+    const totalRevenue = invoiceRevenue + manualRevenue;
+    const totalExpenses = manualExpenses;
 
     const monthlyData: { [key: string]: { month: string, revenue: number, expenses: number, profit: number } } = {};
 
@@ -145,11 +148,27 @@ export default function FinancePage() {
       const date = inv.date?.toDate();
       if (!date) return;
       
-      const month = date.toLocaleString('default', { month: 'long' });
+      const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
       if (!monthlyData[month]) {
         monthlyData[month] = { month, revenue: 0, expenses: 0, profit: 0 };
       }
       monthlyData[month].revenue += inv.amount;
+    });
+
+    transactions?.forEach(t => {
+      const date = t.date?.toDate();
+      if (!date) return;
+
+      const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+       if (!monthlyData[month]) {
+        monthlyData[month] = { month, revenue: 0, expenses: 0, profit: 0 };
+      }
+
+      if (t.type === 'revenue') {
+        monthlyData[month].revenue += t.amount;
+      } else {
+        monthlyData[month].expenses += t.amount;
+      }
     });
     
     for (const month in monthlyData) {
@@ -158,11 +177,11 @@ export default function FinancePage() {
 
     return {
       revenue: totalRevenue,
-      expenses: expenses,
-      profit: totalRevenue - expenses,
-      chartData: Object.values(monthlyData).reverse(),
+      expenses: totalExpenses,
+      profit: totalRevenue - totalExpenses,
+      chartData: Object.values(monthlyData).sort((a,b) => new Date(a.month).getTime() - new Date(b.month).getTime()),
     };
-  }, [invoices]);
+  }, [invoices, transactions]);
 
 
   const handleInvoiceCreated = (invoice: Invoice) => {
@@ -195,7 +214,7 @@ export default function FinancePage() {
         });
   }
 
-  const handleAddTransaction = () => {
+  const handleAddTransaction = async () => {
     if (!newTransaction.description || !newTransaction.amount) {
         toast({
             title: 'Missing Fields',
@@ -204,12 +223,31 @@ export default function FinancePage() {
         });
         return;
     }
-    // In a real app, this would be an API call to a 'transactions' collection
-    toast({
-        title: 'Transaction Added (Not Saved)',
-        description: `This form is a placeholder. A new ${newTransaction.type} of $${newTransaction.amount} has not been saved.`,
-    });
-    setNewTransaction({ type: 'revenue', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
+    setIsAddingTransaction(true);
+
+    const transactionCollectionRef = collection(firestore, 'transactions');
+    const transactionToAdd = {
+        ...newTransaction,
+        amount: parseFloat(newTransaction.amount),
+        date: new Date(newTransaction.date)
+    };
+
+    try {
+        await addDoc(transactionCollectionRef, transactionToAdd);
+        toast({
+            title: 'Transaction Added!',
+            description: `A new ${newTransaction.type} of $${newTransaction.amount} has been recorded.`,
+        });
+        setNewTransaction({ type: 'expense', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
+    } catch (error) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: transactionCollectionRef.path,
+            operation: 'create',
+            requestResourceData: transactionToAdd,
+        }));
+    } finally {
+        setIsAddingTransaction(false);
+    }
   };
 
   if (loading || !users || !invoices) {
@@ -259,7 +297,7 @@ export default function FinancePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">${financeSummary.expenses.toLocaleString()}</div>
-                 <p className="text-xs text-muted-foreground flex items-center">Expense tracking coming soon</p>
+                 <p className="text-xs text-muted-foreground flex items-center">From manual expense entries</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
             </Card>
@@ -291,7 +329,7 @@ export default function FinancePage() {
                         <FinanceChart data={financeSummary.chartData} />
                     ) : (
                         <div className="flex h-[300px] items-center justify-center text-muted-foreground">
-                            No paid invoices to display in chart.
+                            No financial data to display in chart.
                         </div>
                     )}
                 </CardContent>
@@ -299,7 +337,7 @@ export default function FinancePage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Detailed Breakdown</CardTitle>
-                    <CardDescription>Monthly financial data based on paid invoices.</CardDescription>
+                    <CardDescription>Monthly financial data based on paid invoices and manual transactions.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="relative w-full overflow-auto">
@@ -335,7 +373,7 @@ export default function FinancePage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                   <Label htmlFor="tx-type">Transaction Type</Label>
-                  <Select value={newTransaction.type} onValueChange={(value) => setNewTransaction({...newTransaction, type: value})}>
+                  <Select value={newTransaction.type} onValueChange={(value: 'revenue' | 'expense') => setNewTransaction({...newTransaction, type: value})}>
                       <SelectTrigger id="tx-type"><SelectValue placeholder="Select type" /></SelectTrigger>
                       <SelectContent><SelectItem value="revenue">Revenue</SelectItem><SelectItem value="expense">Expense</SelectItem></SelectContent>
                   </Select>
@@ -354,7 +392,10 @@ export default function FinancePage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleAddTransaction}><PlusCircle className="mr-2 h-4 w-4" />Add Transaction</Button>
+              <Button onClick={handleAddTransaction} disabled={isAddingTransaction}>
+                {isAddingTransaction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                Add Transaction
+              </Button>
             </CardFooter>
           </Card>
         </div>
