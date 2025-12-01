@@ -36,21 +36,25 @@ service cloud.firestore {
     // ----------------------------------------------------------
     match /users/{userId} {
 
-      // Owner or admin can read a user profile
+      // User or admin can read their profile
       allow get: if isOwner(userId) || isAdmin();
 
-      // Admin can list all users
+      // Admin can list all users normally
       allow list: if isAdmin();
 
-      // User can create their own profile, or an Admin can create one for them.
+      // NEW: allow getCountFromServer() for signup mailbox generation
+      allow list: if request.auth != null && query.limit == 0;
+
+      // User can create their own profile OR admin can create it for them
       allow create: if isOwner(userId) || isAdmin();
 
-      // Owner or admin can update
+      // User or admin can update
       allow update: if isOwner(userId) || isAdmin();
 
       // Only admin can delete
       allow delete: if isAdmin();
     }
+
 
     // ----------------------------------------------------------
     // USERS SUBCOLLECTIONS (ADDRESSES, SHIPMENTS, PRE_ALERTS, ETC.)
