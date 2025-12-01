@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/firebase/admin';
 
-// Initialize the Firebase Admin SDK
+// Initialize the Firebase Admin SDK.
+// This call ensures the backend can securely communicate with Firebase services.
 initAdminApp();
 
 export async function POST(request: NextRequest) {
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { uid, fullName, email, phone, trn } = body;
 
-    // Validate required fields
+    // Validate required fields from the client
     if (!uid || !fullName || !email) {
       return NextResponse.json({ message: 'Missing required fields: uid, fullName, and email.' }, { status: 400 });
     }
@@ -46,13 +47,16 @@ export async function POST(request: NextRequest) {
       dropoffAddresses: [],
     };
 
-    // Use the Admin SDK to set the document, bypassing client-side security rules
+    // Use the Admin SDK to set the document, which bypasses client-side security rules.
+    // This is the correct and secure way to create the user's profile document.
     await userDocRef.set(newUserProfile);
 
+    // Return a success response with the new mailbox number
     return NextResponse.json({ message: 'User profile created successfully', mailboxNumber }, { status: 201 });
 
   } catch (error: any) {
     console.error('API Error: create-user-profile:', error);
-    return NextResponse.json({ message: 'An unexpected error occurred.', error: error.message }, { status: 500 });
+    // Provide a clear error message if something goes wrong on the server
+    return NextResponse.json({ message: 'An unexpected server error occurred while creating the user profile.', error: error.message }, { status: 500 });
   }
 }

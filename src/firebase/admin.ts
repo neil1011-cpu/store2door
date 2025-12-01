@@ -5,15 +5,15 @@ import { initializeApp, getApps, App, cert, getApp } from 'firebase-admin/app';
 // This is a server-only file.
 
 export function initAdminApp(): App {
+  // If the apps are already initialized, return the existing app.
+  // This is crucial for serverless environments where functions can be reused.
   if (getApps().length > 0) {
-    // In a serverless environment like Vercel or Firebase Functions,
-    // the app might persist across invocations. Return the existing app.
     return getApp();
   }
 
-  // This is the recommended way to initialize in a serverless environment.
-  // It automatically uses the GOOGLE_APPLICATION_CREDENTIALS environment variable
-  // if it's set (which it should be in your hosting environment).
-  // No need to manually parse JSON from env vars.
+  // In a secure server environment (like Next.js API routes or Firebase Functions),
+  // the Admin SDK automatically discovers the GOOGLE_APPLICATION_CREDENTIALS
+  // environment variable if it's set. No manual parsing or passing of credentials is needed.
+  // This is the most secure and reliable method.
   return initializeApp();
 }
