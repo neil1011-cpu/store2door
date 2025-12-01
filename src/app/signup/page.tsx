@@ -70,7 +70,8 @@ export default function SignUpPage() {
         // This is enforced by the security rules.
         const userDocRef = doc(firestore, 'users', user.uid);
         
-        const newUserProfile: Omit<UserProfile, 'id'> = {
+        const newUserProfile: UserProfile = {
+            id: user.uid,
             fullName: values.fullName,
             email: values.email,
             phone: values.phone,

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -58,7 +59,6 @@ export default function SetupAdminPage() {
   });
 
   const setupAdminDocs = async (user: User) => {
-    // This function can remain as is, since user creation logic is handled before calling it.
     const batch = writeBatch(firestore);
 
     // 1. User Profile Document
@@ -85,14 +85,12 @@ export default function SetupAdminPage() {
     const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
     batch.set(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
     
-    // Commit the batch
     await batch.commit();
   }
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     
-    // Re-check just before submission to be absolutely sure.
     const checkQuery = query(collection(firestore, 'roles_admin'), limit(1));
     const checkSnapshot = await getDocs(checkQuery);
     if (!checkSnapshot.empty) {
@@ -102,16 +100,14 @@ export default function SetupAdminPage() {
             variant: 'destructive',
         });
         setLoading(false);
-        setIsSetupDone(true); // Force UI to update
+        setIsSetupDone(true);
         return;
     }
 
     try {
-        // Step 1: Create the user in Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
         
-        // Step 2: Create the corresponding Firestore documents
         await setupAdminDocs(user);
 
         toast({
