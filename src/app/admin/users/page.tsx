@@ -140,6 +140,8 @@ export default function UsersPage() {
     
     try {
         const usersCollection = collection(firestore, "users");
+        
+        // This is safe because only authenticated admins can trigger this.
         const snapshot = await getCountFromServer(usersCollection);
         const userCount = snapshot.data().count;
         const nextMailboxNumber = `FSTD${101 + userCount}`;

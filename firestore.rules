@@ -39,11 +39,9 @@ service cloud.firestore {
       // User or admin can read their profile
       allow get: if isOwner(userId) || isAdmin();
 
-      // Admin can list all users normally
-      allow list: if isAdmin();
-
-      // NEW: allow getCountFromServer() for signup mailbox generation
-      allow list: if request.auth != null && query.limit == 0;
+      // Combined list rule: Admins can list all users. 
+      // Any authenticated user can perform a count.
+      allow list: if isAdmin() || (request.auth != null && query.limit == 0);
 
       // User can create their own profile OR admin can create it for them
       allow create: if isOwner(userId) || isAdmin();
