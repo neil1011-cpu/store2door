@@ -1,4 +1,5 @@
 
+import 'dotenv/config';
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { initAdminApp } from '@/firebase/admin';
