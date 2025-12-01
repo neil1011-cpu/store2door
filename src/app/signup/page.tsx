@@ -22,7 +22,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth, useFirestore } from '@/firebase';
-import { createUserWithEmailAndPassword, onAuthStateChanged, type User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, type User } from 'firebase/auth';
 import { doc, setDoc, getCountFromServer, collection, serverTimestamp } from 'firebase/firestore';
 
 
@@ -53,14 +53,21 @@ export default function SignUpPage() {
     },
   });
 
-  const completeRegistration = async (user: User, values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setLoading(true);
+    
     try {
+        // 1. Create the user in Firebase Authentication
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
+
+        // 2. Get the count of existing users to generate a mailbox number
         const usersCollection = collection(firestore, "users");
-        // This getCountFromServer call is now made AFTER we know the user is authenticated.
         const snapshot = await getCountFromServer(usersCollection);
         const userCount = snapshot.data().count;
         const nextMailboxNumber = `FSTD${101 + userCount}`;
 
+        // 3. Create the user profile document in Firestore using the user's UID
         const userDocRef = doc(firestore, 'users', user.uid);
         
         const newUserProfile = {
@@ -78,8 +85,11 @@ export default function SignUpPage() {
                 zip: '33334',
             },
             createdAt: serverTimestamp(),
+            pickupPersonnel: [],
+            dropoffAddresses: [],
         };
         
+        // 4. Write the document to Firestore
         await setDoc(userDocRef, newUserProfile);
 
         toast({
@@ -88,43 +98,16 @@ export default function SignUpPage() {
         });
         router.push('/account');
 
-    } catch (dbError: any) {
-        console.error("Firestore Error:", dbError);
+    } catch (error: any) {
+        console.error("Sign up error:", error);
         toast({
-            title: 'Registration Failed',
-            description: `Could not save your profile: ${dbError.message}`,
+            title: 'Sign Up Failed',
+            description: error.code === 'auth/email-already-in-use' 
+                ? 'An account with this email already exists.' 
+                : error.message || "An unknown error occurred during sign-up.",
             variant: 'destructive',
         });
     } finally {
-        setLoading(false);
-    }
-  }
-
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setLoading(true);
-    
-    try {
-        await createUserWithEmailAndPassword(auth, values.email, values.password);
-        
-        // This is the key change. After creating the user, we don't assume the client is
-        // immediately authenticated. Instead, we use onAuthStateChanged to wait for
-        // the authentication state to be confirmed before proceeding.
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                unsubscribe(); // We have our authenticated user, no need to listen further.
-                completeRegistration(user, values);
-            }
-        });
-
-    } catch (authError: any) {
-        console.error("Sign up error:", authError);
-        toast({
-            title: 'Sign Up Failed',
-            description: authError.code === 'auth/email-already-in-use' 
-                ? 'An account with this email already exists.' 
-                : authError.message || "An unknown error occurred.",
-            variant: 'destructive',
-        });
         setLoading(false);
     }
   };
