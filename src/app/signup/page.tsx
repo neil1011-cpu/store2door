@@ -21,7 +21,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import type { UserProfile } from '@/lib/types';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, getCountFromServer, collection, serverTimestamp } from 'firebase/firestore';
@@ -58,19 +57,22 @@ export default function SignUpPage() {
     setLoading(true);
     
     try {
+        // 1. Create the user in Firebase Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
+        // 2. Prepare user profile data
         const usersCollection = collection(firestore, "users");
         const snapshot = await getCountFromServer(usersCollection);
         const userCount = snapshot.data().count;
         const nextMailboxNumber = `FSTD${101 + userCount}`;
 
-        // The id of the user document MUST match the authenticated user's UID.
-        // This is enforced by the security rules.
+        // 3. Create the document reference with the user's UID
+        // This is the critical step that makes the write operation comply with security rules.
         const userDocRef = doc(firestore, 'users', user.uid);
         
-        const newUserProfile: Omit<UserProfile, 'id'> = {
+        const newUserProfile = {
+            id: user.uid, // Store the UID inside the document for consistency
             fullName: values.fullName,
             email: values.email,
             phone: values.phone,
@@ -86,6 +88,7 @@ export default function SignUpPage() {
             createdAt: serverTimestamp(),
         };
         
+        // 4. Write the document to Firestore
         await setDoc(userDocRef, newUserProfile);
 
         toast({

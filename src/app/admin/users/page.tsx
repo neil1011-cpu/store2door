@@ -144,10 +144,11 @@ export default function UsersPage() {
         const userCount = snapshot.data().count;
         const nextMailboxNumber = `FSTD${101 + userCount}`;
         
+        // Admins can create users with any ID, so we let Firestore auto-generate one.
         const newDocRef = doc(usersCollection);
         
-        const userToAdd: UserProfile = {
-            id: newDocRef.id,
+        const userToAdd = {
+            id: newDocRef.id, // Use the auto-generated ID
             fullName: newUser.name,
             email: newUser.email,
             phone: 'N/A',

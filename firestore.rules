@@ -43,7 +43,7 @@ service cloud.firestore {
       allow list: if isAdmin();
 
       // User can create their own profile, or an Admin can create one for them.
-      allow create: if (request.auth != null && request.auth.uid == userId) || isAdmin();
+      allow create: if isOwner(userId) || isAdmin();
 
       // Owner or admin can update
       allow update: if isOwner(userId) || isAdmin();
