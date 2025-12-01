@@ -21,10 +21,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useAuth, useFirestore } from '@/firebase';
-import { createUserWithEmailAndPassword, type User } from 'firebase/auth';
-import { doc, setDoc, getCountFromServer, collection, serverTimestamp } from 'firebase/firestore';
-
+import { useAuth } from '@/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -40,7 +38,6 @@ export default function SignUpPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const auth = useAuth();
-  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,45 +54,36 @@ export default function SignUpPage() {
     setLoading(true);
     
     try {
-        // 1. Create the user in Firebase Authentication
+        // Step 1: Create the user in Firebase Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
-        // 2. Get the count of existing users to generate a mailbox number
-        const usersCollection = collection(firestore, "users");
-        const snapshot = await getCountFromServer(usersCollection);
-        const userCount = snapshot.data().count;
-        const nextMailboxNumber = `FSTD${101 + userCount}`;
+        // Step 2: Call the secure API endpoint to create the Firestore profile
+        const response = await fetch('/api/create-user-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                uid: user.uid,
+                fullName: values.fullName,
+                email: values.email,
+                phone: values.phone,
+                trn: values.trn,
+            }),
+        });
+        
+        const result = await response.json();
 
-        // 3. Create the user profile document in Firestore using the user's UID
-        const userDocRef = doc(firestore, 'users', user.uid);
-        
-        const newUserProfile = {
-            id: user.uid,
-            fullName: values.fullName,
-            email: values.email,
-            phone: values.phone,
-            trn: values.trn,
-            mailboxNumber: nextMailboxNumber,
-            address: {
-                address1: '4350 NE 5th Terrace Bay #3',
-                address2: `${nextMailboxNumber} -FSTD`,
-                city: 'Oakland Park',
-                state: 'Florida',
-                zip: '33334',
-            },
-            createdAt: serverTimestamp(),
-            pickupPersonnel: [],
-            dropoffAddresses: [],
-        };
-        
-        // 4. Write the document to Firestore
-        await setDoc(userDocRef, newUserProfile);
+        if (!response.ok) {
+            // If API call fails, throw an error to be caught by the catch block
+            throw new Error(result.message || 'Failed to create user profile.');
+        }
 
         toast({
             title: 'Sign Up Successful!',
-            description: 'Your account has been created. Redirecting...',
+            description: `Your account has been created with mailbox number: ${result.mailboxNumber}. Redirecting...`,
         });
+        
+        // Step 3: Redirect to the account page on full success
         router.push('/account');
 
     } catch (error: any) {
