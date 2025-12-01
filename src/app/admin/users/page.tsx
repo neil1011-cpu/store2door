@@ -121,7 +121,7 @@ export default function UsersPage() {
     return users.filter(user => 
         user.fullName.toLowerCase().includes(lowercasedTerm) ||
         user.email.toLowerCase().includes(lowercasedTerm) ||
-        user.mailboxNumber.toLowerCase().includes(lowercasedTerm) ||
+        (user.mailboxNumber && user.mailboxNumber.toLowerCase().includes(lowercasedTerm)) ||
         (user.trn && user.trn.includes(lowercasedTerm))
     );
   }, [users, searchTerm]);
@@ -138,52 +138,52 @@ export default function UsersPage() {
 
     setIsSubmitting(true);
     
-    const usersCollection = collection(firestore, "users");
-    const snapshot = await getCountFromServer(usersCollection);
-    const userCount = snapshot.data().count;
-    const nextMailboxNumber = `FSTD${101 + userCount}`;
-    
-    const newDocRef = doc(usersCollection);
-    
-    const userToAdd: UserProfile = {
-        id: newDocRef.id, // Use the generated document ID
-        fullName: newUser.name,
-        email: newUser.email,
-        phone: 'N/A',
-        trn: 'N/A',
-        mailboxNumber: nextMailboxNumber,
-        address: {
-            address1: '4350 NE 5th Terrace Bay #3',
-            address2: `${nextMailboxNumber} -FSTD`,
-            city: 'Oakland Park',
-            state: 'Florida',
-            zip: '33334',
-        },
-        createdAt: serverTimestamp(),
-    };
+    try {
+        const usersCollection = collection(firestore, "users");
+        const snapshot = await getCountFromServer(usersCollection);
+        const userCount = snapshot.data().count;
+        const nextMailboxNumber = `FSTD${101 + userCount}`;
+        
+        const newDocRef = doc(usersCollection);
+        
+        const userToAdd: UserProfile = {
+            id: newDocRef.id,
+            fullName: newUser.name,
+            email: newUser.email,
+            phone: 'N/A',
+            trn: 'N/A',
+            mailboxNumber: nextMailboxNumber,
+            address: {
+                address1: '4350 NE 5th Terrace Bay #3',
+                address2: `${nextMailboxNumber} -FSTD`,
+                city: 'Oakland Park',
+                state: 'Florida',
+                zip: '33334',
+            },
+            createdAt: serverTimestamp(),
+        };
 
-    setDoc(newDocRef, userToAdd)
-        .then(() => {
-            toast({
-                title: 'User Added',
-                description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
-            });
-            setOpenAddUser(false);
-            setNewUser({ name: '', email: '' });
-        })
-        .catch(error => {
-            errorEmitter.emit(
+        await setDoc(newDocRef, userToAdd);
+
+        toast({
+            title: 'User Added',
+            description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
+        });
+        setOpenAddUser(false);
+        setNewUser({ name: '', email: '' });
+    } catch (error: any) {
+        console.error("Error adding user:", error);
+         errorEmitter.emit(
                 'permission-error',
                 new FirestorePermissionError({
                 path: 'users',
                 operation: 'create',
-                requestResourceData: userToAdd,
+                requestResourceData: { name: newUser.name, email: newUser.email },
                 })
             )
-        })
-        .finally(() => {
-            setIsSubmitting(false);
-        });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
   
   const formatAddress = (address: UserProfile['address']) => {

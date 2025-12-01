@@ -24,7 +24,7 @@ service cloud.firestore {
       allow get: if request.auth != null && isOwner(userId);
       
       // ONLY the setup-admin page (or a server process) should create an admin.
-      // This rule is removed to prevent any client from creating an admin role.
+      // This rule is changed to prevent any client from creating an admin role.
       allow create: if false;
 
       // No client-side modifications to admin roles
@@ -42,8 +42,8 @@ service cloud.firestore {
       // Admin can list all users
       allow list: if isAdmin();
 
-      // User can create their own profile
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // User can create their own profile, or an Admin can create one for them.
+      allow create: if (request.auth != null && request.auth.uid == userId) || isAdmin();
 
       // Owner or admin can update
       allow update: if isOwner(userId) || isAdmin();

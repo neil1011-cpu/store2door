@@ -70,8 +70,7 @@ export default function SignUpPage() {
         // This is enforced by the security rules.
         const userDocRef = doc(firestore, 'users', user.uid);
         
-        const newUserProfile: UserProfile = {
-            id: user.uid,
+        const newUserProfile: Omit<UserProfile, 'id'> = {
             fullName: values.fullName,
             email: values.email,
             phone: values.phone,
@@ -101,7 +100,7 @@ export default function SignUpPage() {
             title: 'Sign Up Failed',
             description: error.code === 'auth/email-already-in-use' 
                 ? 'An account with this email already exists.' 
-                : error.message,
+                : error.message || "An unknown error occurred.",
             variant: 'destructive',
         });
     }
