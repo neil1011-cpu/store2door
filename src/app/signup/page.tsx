@@ -66,8 +66,11 @@ export default function SignUpPage() {
         const userCount = snapshot.data().count;
         const nextMailboxNumber = `FSTD${101 + userCount}`;
 
-        const newUserProfile: UserProfile = {
-            id: user.uid, // Use the user's UID as the document ID
+        // The id of the user document MUST match the authenticated user's UID.
+        // This is enforced by the security rules.
+        const userDocRef = doc(firestore, 'users', user.uid);
+        
+        const newUserProfile: Omit<UserProfile, 'id'> = {
             fullName: values.fullName,
             email: values.email,
             phone: values.phone,
@@ -82,9 +85,6 @@ export default function SignUpPage() {
             },
             createdAt: serverTimestamp(),
         };
-        
-        // Use the user's UID to create the document reference
-        const userDocRef = doc(firestore, 'users', user.uid);
         
         await setDoc(userDocRef, newUserProfile);
 

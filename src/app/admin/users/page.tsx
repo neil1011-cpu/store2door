@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -33,7 +34,7 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile, Invoice } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, serverTimestamp, doc, setDoc, getCountFromServer } from 'firebase/firestore';
+import { collection, query, serverTimestamp, doc, setDoc, getCountFromServer, addDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
@@ -142,11 +143,10 @@ export default function UsersPage() {
     const userCount = snapshot.data().count;
     const nextMailboxNumber = `FSTD${101 + userCount}`;
     
-    const userId = `manual-${Date.now()}`;
-    const userDocRef = doc(firestore, 'users', userId);
-
-    const userToAdd: UserProfile = {
-        id: userId,
+    // For manually added users, we let Firestore generate the ID.
+    // The user document 'id' field will be set after creation if needed, but often isn't required
+    // if the document ID itself is the source of truth.
+    const userToAdd: Omit<UserProfile, 'id'> = {
         fullName: newUser.name,
         email: newUser.email,
         phone: 'N/A',
@@ -162,7 +162,7 @@ export default function UsersPage() {
         createdAt: serverTimestamp(),
     };
 
-    setDoc(userDocRef, userToAdd, { merge: true })
+    addDoc(usersCollection, userToAdd)
         .then(() => {
             toast({
                 title: 'User Added',
@@ -175,8 +175,8 @@ export default function UsersPage() {
             errorEmitter.emit(
                 'permission-error',
                 new FirestorePermissionError({
-                path: userDocRef.path,
-                operation: 'write',
+                path: 'users',
+                operation: 'create',
                 requestResourceData: userToAdd,
                 })
             )
