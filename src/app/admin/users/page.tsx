@@ -143,10 +143,10 @@ export default function UsersPage() {
     const userCount = snapshot.data().count;
     const nextMailboxNumber = `FSTD${101 + userCount}`;
     
-    // For manually added users, we let Firestore generate the ID.
-    // The user document 'id' field will be set after creation if needed, but often isn't required
-    // if the document ID itself is the source of truth.
-    const userToAdd: Omit<UserProfile, 'id'> = {
+    const newDocRef = doc(usersCollection);
+    
+    const userToAdd: UserProfile = {
+        id: newDocRef.id, // Use the generated document ID
         fullName: newUser.name,
         email: newUser.email,
         phone: 'N/A',
@@ -162,7 +162,7 @@ export default function UsersPage() {
         createdAt: serverTimestamp(),
     };
 
-    addDoc(usersCollection, userToAdd)
+    setDoc(newDocRef, userToAdd)
         .then(() => {
             toast({
                 title: 'User Added',

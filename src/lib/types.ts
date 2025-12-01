@@ -16,7 +16,7 @@ export type PickupPerson = {
 
 
 export type UserProfile = {
-  id: string;
+  id: string; // This is the Firebase Auth UID
   fullName: string;
   email: string;
   phone: string;
