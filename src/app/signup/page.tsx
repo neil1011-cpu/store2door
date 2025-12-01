@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -65,7 +66,8 @@ export default function SignUpPage() {
         const userCount = snapshot.data().count;
         const nextMailboxNumber = `FSTD${101 + userCount}`;
 
-        const newUserProfile: Omit<UserProfile, 'id' | 'createdAt'> = {
+        const newUserProfile: UserProfile = {
+            id: user.uid, // Use the user's UID as the document ID
             fullName: values.fullName,
             email: values.email,
             phone: values.phone,
@@ -78,15 +80,13 @@ export default function SignUpPage() {
                 state: 'Florida',
                 zip: '33334',
             },
+            createdAt: serverTimestamp(),
         };
         
+        // Use the user's UID to create the document reference
         const userDocRef = doc(firestore, 'users', user.uid);
         
-        await setDoc(userDocRef, {
-            ...newUserProfile,
-            id: user.uid,
-            createdAt: serverTimestamp()
-        });
+        await setDoc(userDocRef, newUserProfile);
 
         toast({
             title: 'Sign Up Successful!',
