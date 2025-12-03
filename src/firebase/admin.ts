@@ -1,29 +1,31 @@
 
 import { initializeApp, getApps, App, cert, ServiceAccount } from 'firebase-admin/app';
 
-// IMPORTANT: Do not expose this file or these credentials to the client-side.
 // This is a server-only file.
 
 export function initAdminApp(): App {
-  // If the apps are already initialized, return the existing app.
-  // This is crucial for serverless environments where functions can be reused.
-  if (getApps().length > 0) {
+  // If the app is already initialized, return it to prevent re-initialization.
+  if (getApps().length) {
     return getApps()[0];
   }
 
   try {
     const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
     if (!serviceAccountString) {
-      throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set.');
+      throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set. This is required for server-side operations.');
     }
 
+    // Parse the service account JSON string into an object.
     const serviceAccount: ServiceAccount = JSON.parse(serviceAccountString);
 
+    // Initialize the Firebase Admin app with the service account credentials.
     return initializeApp({
       credential: cert(serviceAccount),
     });
+
   } catch (error: any) {
-    console.error('Firebase Admin SDK initialization error:', error.message);
-    throw new Error('Could not initialize Firebase Admin SDK. Please check your service account credentials.');
+    console.error('Firebase Admin SDK Initialization Error:', error.message);
+    // Throw a more descriptive error to aid in debugging.
+    throw new Error('Could not initialize Firebase Admin SDK. Please check your FIREBASE_SERVICE_ACCOUNT environment variable.');
   }
 }
