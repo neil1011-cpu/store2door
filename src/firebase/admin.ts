@@ -1,5 +1,5 @@
 
-import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, App, cert, ServiceAccount } from 'firebase-admin/app';
 
 // IMPORTANT: Do not expose this file or these credentials to the client-side.
 // This is a server-only file.
@@ -11,9 +11,19 @@ export function initAdminApp(): App {
     return getApps()[0];
   }
 
-  // In a secure server environment (like Next.js API routes or Firebase Functions),
-  // the Admin SDK automatically discovers the GOOGLE_APPLICATION_CREDENTIALS
-  // environment variable if it's set. No manual parsing or passing of credentials is needed.
-  // This is the most secure and reliable method.
-  return initializeApp();
+  try {
+    const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (!serviceAccountString) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set.');
+    }
+
+    const serviceAccount: ServiceAccount = JSON.parse(serviceAccountString);
+
+    return initializeApp({
+      credential: cert(serviceAccount),
+    });
+  } catch (error: any) {
+    console.error('Firebase Admin SDK initialization error:', error.message);
+    throw new Error('Could not initialize Firebase Admin SDK. Please check your service account credentials.');
+  }
 }

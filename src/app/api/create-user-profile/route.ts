@@ -6,7 +6,12 @@ import { initAdminApp } from '@/firebase/admin';
 
 // Initialize the Firebase Admin SDK.
 // This call ensures the backend can securely communicate with Firebase services.
-initAdminApp();
+try {
+  initAdminApp();
+} catch (e: any) {
+  console.error('API Route: Firebase Admin initialization failed.', e);
+}
+
 
 export async function POST(request: NextRequest) {
   try {
