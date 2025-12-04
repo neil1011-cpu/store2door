@@ -207,27 +207,6 @@ export default function UsersPage() {
         setIsSubmitting(false);
     }
   };
-
-  const handleMakeAdmin = async (userToPromote: UserProfile) => {
-    const adminRoleRef = doc(firestore, 'roles_admin', userToPromote.id);
-    
-    try {
-        await setDoc(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
-        toast({
-            title: 'Success!',
-            description: `${userToPromote.fullName} has been promoted to an admin.`
-        });
-    } catch (error) {
-        errorEmitter.emit(
-            'permission-error',
-            new FirestorePermissionError({
-                path: adminRoleRef.path,
-                operation: 'create',
-                requestResourceData: { isAdmin: true },
-            })
-        )
-    }
-  };
   
   const formatAddress = (address: UserProfile['address']) => {
     return `${address.address1}, ${address.address2}, ${address.city}, ${address.state} ${address.zip}`;
@@ -372,27 +351,6 @@ export default function UsersPage() {
                        <Button variant="secondary" size="sm" onClick={() => openInvoiceDialog(user)}>
                           <Receipt className="mr-2 h-4 w-4" /> Create Invoice
                        </Button>
-                        {!adminIds.has(user.id) && (
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm">
-                                        <ShieldCheck className="mr-2 h-4 w-4" /> Make Admin
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action will grant full administrator privileges to {user.fullName}. This cannot be easily undone.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleMakeAdmin(user)}>Yes, promote to admin</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        )}
                     </TableCell>
                     </TableRow>
                 ))

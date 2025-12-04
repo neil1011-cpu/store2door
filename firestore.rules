@@ -35,8 +35,9 @@ service cloud.firestore {
       // Admin can read their own role doc or other admin docs
       allow get, list: if isAdmin();
       
-      // An existing admin can create a new admin role document.
-      allow create: if isAdmin();
+      // No client-side admin creation is allowed for security.
+      // Admins should be created via the Firebase Console or a secure backend function.
+      allow create: if false;
 
       // No client-side modifications to admin roles
       allow update, delete: if false;
