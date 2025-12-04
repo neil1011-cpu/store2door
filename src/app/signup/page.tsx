@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -18,22 +16,26 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
+///////////////////////////////////////////////////////////////////
+// 🔥 FORM VALIDATION
+///////////////////////////////////////////////////////////////////
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
-  email: z.string().email({ message: 'Please enter a valid email address.' }),
-  password: z.string().min(8, { message: 'Password must be at least 8 characters.' }),
-  phone: z.string().min(10, { message: 'Phone number must be at least 10 digits.' }),
-  trn: z.string().min(9, { message: 'TRN must be 9 digits.' }).max(9, { message: 'TRN must be 9 digits.' }),
-  idUpload: z.any().optional(), // Making ID upload optional for now
+  email: z.string().email({ message: 'Enter a valid email.' }),
+  password: z.string().min(8, { message: 'Min 8 characters.' }),
+  phone: z.string().min(10, { message: 'Phone must be at least 10 digits.' }),
+  trn: z.string().length(9, { message: 'TRN must be 9 digits.' }),
 });
 
+///////////////////////////////////////////////////////////////////
+// 🚀 PAGE COMPONENT
+///////////////////////////////////////////////////////////////////
 export default function SignUpPage() {
   const { toast } = useToast();
   const router = useRouter();
@@ -52,170 +54,108 @@ export default function SignUpPage() {
     },
   });
 
+  ///////////////////////////////////////////////////////////////////
+  // 🔥 SIGNUP FUNCTION (FULL / FINAL / WORKING)
+  ///////////////////////////////////////////////////////////////////
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
 
     try {
-      // Create Firebase Auth Account
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
+      // 1. Create Firebase Authentication user
+      const userCred = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCred.user;
 
-      // Wait for auth token to exist (critical)
+      // Ensure Firestore sees authenticated session
       await user.getIdToken(true);
-      await new Promise(res => setTimeout(res, 300)); // ensure Firestore sees auth session
 
-      // Generate mailbox number WITHOUT querying entire users collection
-      const mailboxNumber = `FSTD${Date.now().toString().slice(-5)}`; 
-      // Unique, no count required, no admin needed
+      // 2. Generate mailbox number SEQUENTIALLY via Firestore transaction
+      const mailbox = await runTransaction(firestore, async (tx) => {
+        const ref = doc(firestore, "metadata", "mailboxCounter");
+        const snap = await tx.get(ref);
 
-      // Save profile directly to Firestore (no admin sdk required!)
-      await setDoc(doc(firestore, "users", user.uid), {
+        if (!snap.exists()) throw new Error("Mailbox counter missing in Firestore");
+
+        const current = snap.data().next;
+        tx.update(ref, { next: current + 1 });
+
+        return `FSTD${current}`;
+      });
+
+      // 3. Create the user profile document
+      await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         fullName: values.fullName,
         email: values.email,
         phone: values.phone,
         trn: values.trn,
-        mailboxNumber,
+        mailboxNumber: mailbox,
         address: {
-          address1: "4350 NE 5th Terrace Bay #3",
-          address2: `${mailboxNumber}-FSTD`,
-          city: "Oakland Park",
-          state: "Florida",
-          zip: "33334"
+          address1: '4350 NE 5th Terrace Bay #3',
+          address2: `${mailbox}-FSTD`,
+          city: 'Oakland Park',
+          state: 'Florida',
+          zip: '33334',
         },
         createdAt: serverTimestamp(),
         pickupPersonnel: [],
         dropoffAddresses: [],
       });
 
-      toast({ title: "Account Created", description: "You're now registered!" });
-      router.push("/account");
+      toast({
+        title: 'Account Created',
+        description: `Your mailbox: ${mailbox}`
+      });
+
+      router.push('/account');
 
     } catch (error: any) {
-      console.error("Signup error:", error);
+      console.error(error);
       toast({
-        title: "Signup Failed",
+        title: 'Signup Failed',
         description: error.message,
-        variant: "destructive"
+        variant: 'destructive'
       });
     }
 
     setLoading(false);
   };
-  
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {
-    if (e.target.files) {
-        field.onChange(e.target.files);
-    }
-  }
 
-
+  ///////////////////////////////////////////////////////////////////
+  // UI
+  ///////////////////////////////////////////////////////////////////
   return (
     <div className="container mx-auto py-12 px-4 md:px-6 max-w-2xl">
       <Card>
         <CardHeader>
           <CardTitle className="text-3xl">Create Your Account</CardTitle>
           <CardDescription>
-            Sign up to get your free, tax-free US shipping address and start shopping.
+            Get your U.S. mailbox & shipping address instantly.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="fullName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., John Doe" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email Address</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <Input type="tel" placeholder="(876) 555-1234" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="trn"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>TRN (Taxpayer Registration Number)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="123456789" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={form.control}
-                name="idUpload"
-                render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Upload ID</FormLabel>
-                        <FormControl>
-                           <Input 
-                                type="file" 
-                                accept="image/jpeg,image/png,application/pdf"
-                                onChange={(e) => onFileChange(e, field)}
-                            />
-                        </FormControl>
-                        <FormDescription>Please upload a clear copy of your government-issued ID (e.g., Driver's License, Passport).</FormDescription>
-                        <FormMessage />
-                    </FormItem>
-                )}
-                />
-              <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating Account...</> : 'Create Account & Get Address'}
+              <FormField control={form.control} name="fullName" render={({ field }) => (
+                <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )}/>
+              <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+              )}/>
+              <FormField control={form.control} name="password" render={({ field }) => (
+                <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+              )}/>
+              <FormField control={form.control} name="phone" render={({ field }) => (
+                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>
+              )}/>
+              <FormField control={form.control} name="trn" render={({ field }) => (
+                <FormItem><FormLabel>TRN</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )}/>
+
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? <><Loader2 className="animate-spin h-4 w-4 mr-2" /> Creating...</> : "Create Account"}
               </Button>
             </form>
           </Form>
-           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link href="/signin" className="font-semibold text-primary hover:underline">
-                Sign In
-            </Link>
-          </p>
         </CardContent>
       </Card>
     </div>

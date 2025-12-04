@@ -58,7 +58,7 @@ export default function SetupAdminPage() {
     },
   });
 
-  const setupAdminDocs = async (user: User) => {
+  const setupAdminAndMetadataDocs = async (user: User) => {
     const batch = writeBatch(firestore);
 
     // 1. User Profile Document
@@ -85,6 +85,10 @@ export default function SetupAdminPage() {
     const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
     batch.set(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
     
+    // 3. Initialize Mailbox Counter
+    const mailboxCounterRef = doc(firestore, 'metadata', 'mailboxCounter');
+    batch.set(mailboxCounterRef, { next: 101 });
+
     await batch.commit();
   }
 
@@ -108,7 +112,7 @@ export default function SetupAdminPage() {
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
         
-        await setupAdminDocs(user);
+        await setupAdminAndMetadataDocs(user);
 
         toast({
             title: 'Admin Account Configured!',
