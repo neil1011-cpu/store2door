@@ -21,8 +21,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -38,6 +39,7 @@ export default function SignUpPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const auth = useAuth();
+  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -52,52 +54,53 @@ export default function SignUpPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    
+
     try {
-        // Step 1: Create the user in Firebase Authentication
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
+      // Create Firebase Auth Account
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
 
-        // Step 2: Call the secure API endpoint to create the Firestore profile
-        const response = await fetch('/api/create-user-profile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                uid: user.uid,
-                fullName: values.fullName,
-                email: values.email,
-                phone: values.phone,
-                trn: values.trn,
-            }),
-        });
-        
-        const result = await response.json();
+      // Wait for auth token to exist (critical)
+      await user.getIdToken(true);
+      await new Promise(res => setTimeout(res, 300)); // ensure Firestore sees auth session
 
-        if (!response.ok) {
-            // If API call fails, throw an error to be caught by the catch block
-            throw new Error(result.message || 'Failed to create user profile.');
-        }
+      // Generate mailbox number WITHOUT querying entire users collection
+      const mailboxNumber = `FSTD${Date.now().toString().slice(-5)}`; 
+      // Unique, no count required, no admin needed
 
-        toast({
-            title: 'Sign Up Successful!',
-            description: `Your account has been created with mailbox number: ${result.mailboxNumber}. Redirecting...`,
-        });
-        
-        // Step 3: Redirect to the account page on full success
-        router.push('/account');
+      // Save profile directly to Firestore (no admin sdk required!)
+      await setDoc(doc(firestore, "users", user.uid), {
+        id: user.uid,
+        fullName: values.fullName,
+        email: values.email,
+        phone: values.phone,
+        trn: values.trn,
+        mailboxNumber,
+        address: {
+          address1: "4350 NE 5th Terrace Bay #3",
+          address2: `${mailboxNumber}-FSTD`,
+          city: "Oakland Park",
+          state: "Florida",
+          zip: "33334"
+        },
+        createdAt: serverTimestamp(),
+        pickupPersonnel: [],
+        dropoffAddresses: [],
+      });
+
+      toast({ title: "Account Created", description: "You're now registered!" });
+      router.push("/account");
 
     } catch (error: any) {
-        console.error("Sign up error:", error);
-        toast({
-            title: 'Sign Up Failed',
-            description: error.code === 'auth/email-already-in-use' 
-                ? 'An account with this email already exists.' 
-                : error.message || "An unknown error occurred during sign-up.",
-            variant: 'destructive',
-        });
-    } finally {
-        setLoading(false);
+      console.error("Signup error:", error);
+      toast({
+        title: "Signup Failed",
+        description: error.message,
+        variant: "destructive"
+      });
     }
+
+    setLoading(false);
   };
   
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {
