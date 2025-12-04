@@ -32,12 +32,11 @@ service cloud.firestore {
     // ----------------------------------------------------------
     match /roles_admin/{userId} {
 
-      // Admin can read their own role doc
-      allow get: if request.auth != null && isOwner(userId);
+      // Admin can read their own role doc or other admin docs
+      allow get, list: if isAdmin();
       
-      // ONLY the setup-admin page (or a server process) should create an admin.
-      // This rule is changed to prevent any client from creating an admin role.
-      allow create: if false;
+      // An existing admin can create a new admin role document.
+      allow create: if isAdmin();
 
       // No client-side modifications to admin roles
       allow update, delete: if false;

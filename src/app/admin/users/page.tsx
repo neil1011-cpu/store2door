@@ -17,8 +17,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2, Eye, Receipt, Download, Search } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2, Eye, Receipt, Download, Search, ShieldCheck } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -99,6 +110,12 @@ export default function UsersPage() {
   }, [firestore, user]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
   
+  const adminRolesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'roles_admin'));
+  }, [firestore, user]);
+  const { data: adminRoles, isLoading: isLoadingAdmins } = useCollection<{isAdmin: boolean}>(adminRolesQuery);
+
   const [openAddUser, setOpenAddUser] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
@@ -110,8 +127,10 @@ export default function UsersPage() {
   const [isViewInvoiceOpen, setIsViewInvoiceOpen] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const adminIds = useMemo(() => new Set(adminRoles?.map(role => role.id)), [adminRoles]);
 
-  const loading = isLoadingUsers || isUserLoading;
+  const loading = isLoadingUsers || isUserLoading || isLoadingAdmins;
   
   const filteredUsers = useMemo(() => {
     if (!users) return [];
@@ -186,6 +205,27 @@ export default function UsersPage() {
             )
     } finally {
         setIsSubmitting(false);
+    }
+  };
+
+  const handleMakeAdmin = async (userToPromote: UserProfile) => {
+    const adminRoleRef = doc(firestore, 'roles_admin', userToPromote.id);
+    
+    try {
+        await setDoc(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
+        toast({
+            title: 'Success!',
+            description: `${userToPromote.fullName} has been promoted to an admin.`
+        });
+    } catch (error) {
+        errorEmitter.emit(
+            'permission-error',
+            new FirestorePermissionError({
+                path: adminRoleRef.path,
+                operation: 'create',
+                requestResourceData: { isAdmin: true },
+            })
+        )
     }
   };
   
@@ -309,7 +349,10 @@ export default function UsersPage() {
               {filteredUsers && filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
                     <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.fullName}</TableCell>
+                    <TableCell className="font-medium flex items-center gap-2">
+                        {user.fullName}
+                        {adminIds.has(user.id) && <ShieldCheck className="h-4 w-4 text-primary" title="Admin" />}
+                    </TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                          <div className="flex items-center gap-2">
@@ -329,6 +372,27 @@ export default function UsersPage() {
                        <Button variant="secondary" size="sm" onClick={() => openInvoiceDialog(user)}>
                           <Receipt className="mr-2 h-4 w-4" /> Create Invoice
                        </Button>
+                        {!adminIds.has(user.id) && (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="sm">
+                                        <ShieldCheck className="mr-2 h-4 w-4" /> Make Admin
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action will grant full administrator privileges to {user.fullName}. This cannot be easily undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleMakeAdmin(user)}>Yes, promote to admin</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
                     </TableCell>
                     </TableRow>
                 ))
