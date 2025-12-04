@@ -1,54 +1,85 @@
 
 import { NextResponse } from 'next/server';
+import { initAdminApp } from '@/firebase/admin';
+import { collectionGroup, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import type { PreAlert, Shipment } from '@/lib/types';
 
 type Notification = {
   id: string;
   type: 'pre-alert' | 'status-update';
   title: string;
   description: string;
-  isRead: boolean;
+  isRead: boolean; // This will be handled on the client-side
   timestamp: string;
   href: string;
 };
 
-// Mock data simulating notifications from iPack or other systems
-const notifications: Notification[] = [
-  {
-    id: '1',
-    type: 'status-update',
-    title: 'Package Arrived at Warehouse',
-    description: 'Package JM789 from John Smith has arrived at the Florida warehouse.',
-    isRead: false,
-    timestamp: new Date().toISOString(),
-    href: '/admin/shipping'
-  },
-  {
-    id: '2',
-    type: 'pre-alert',
-    title: 'New Pre-Alert Received',
-    description: 'John Doe submitted a pre-alert for tracking number JM456.',
-    isRead: false,
-    timestamp: new Date(new Date().setHours(new Date().getHours() - 1)).toISOString(),
-    href: '/admin/pre-alerts'
-  },
-  {
-    id: '3',
-    type: 'status-update',
-    title: 'Customs Cleared',
-    description: 'Package JM101 for Alicia Keys has cleared customs in Jamaica.',
-    isRead: true,
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
-    href: '/admin/shipping'
-  },
-];
-
 export async function GET() {
   try {
-    // In a real application, you would fetch this data from your database,
-    // which would be populated by a webhook or service from iPack.
-    const updateNotifications = notifications.filter(n => n.type === 'status-update');
-    return NextResponse.json(updateNotifications);
-  } catch (error) {
-    return NextResponse.json({ message: 'Failed to fetch notifications', error }, { status: 500 });
+    const { firestore } = initAdminApp();
+
+    const notifications: Notification[] = [];
+
+    // 1. Fetch recent pre-alerts
+    const preAlertsQuery = query(
+      collectionGroup(firestore, 'pre_alerts'),
+      orderBy('submissionDate', 'desc'),
+      limit(10)
+    );
+    const preAlertsSnapshot = await getDocs(preAlertsQuery);
+
+    preAlertsSnapshot.forEach(doc => {
+      const data = doc.data() as PreAlert;
+      notifications.push({
+        id: `pa-${doc.id}`,
+        type: 'pre-alert',
+        title: `New Pre-Alert: ${data.trackingNumber}`,
+        description: `${data.customerName} submitted a pre-alert for "${data.contents}".`,
+        isRead: false,
+        timestamp: data.submissionDate.toDate().toISOString(),
+        href: '/admin/pre-alerts',
+      });
+    });
+
+    // 2. Fetch recent shipment status updates
+    const shipmentsQuery = query(
+      collectionGroup(firestore, 'shipments'),
+      orderBy('shippingDate', 'desc'),
+      limit(10)
+    );
+    const shipmentsSnapshot = await getDocs(shipmentsQuery);
+
+    shipmentsSnapshot.forEach(doc => {
+        const data = doc.data() as Shipment;
+        // To avoid redundancy, you might want to filter out 'Processed' shipments
+        // if they are created at the same time as a pre-alert is processed.
+        // For now, we'll include them.
+        notifications.push({
+            id: `ship-${doc.id}`,
+            type: 'status-update',
+            title: `Shipment Update: ${data.status}`,
+            description: `Package ${data.trackingNumber} status changed to "${data.status}".`,
+            isRead: false,
+            timestamp: data.shippingDate.toDate().toISOString(),
+            href: '/admin/shipping',
+        });
+    });
+
+    // 3. Sort all notifications by date, most recent first
+    const sortedNotifications = notifications.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    
+    // 4. Limit to the last 15 combined notifications
+    const finalNotifications = sortedNotifications.slice(0, 15);
+
+
+    return NextResponse.json(finalNotifications);
+  } catch (error: any) {
+    console.error('API Error fetching notifications:', error);
+    return NextResponse.json(
+      { message: 'Failed to fetch notifications', error: error.message },
+      { status: 500 }
+    );
   }
 }
