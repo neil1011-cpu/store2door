@@ -4,20 +4,27 @@ import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getFirestore, collectionGroup, getDocs, query, orderBy, limit } from "firebase-admin/firestore";
 import type { PreAlert, Shipment } from '@/lib/types';
 
-// -----------------------------
-// SAFELY INITIALIZE ADMIN
-// -----------------------------
+// This function safely initializes the admin app ONLY when called.
+// It checks for environment variables to prevent build-time errors.
 function getAdminDB() {
+  // Check if the required environment variables are available.
+  const serviceAccount = {
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  };
+
+  if (!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
+    throw new Error('Firebase admin credentials are not set in the environment.');
+  }
+
+  // Initialize the app if it hasn't been already.
   if (!getApps().length) {
     initializeApp({
-      credential: cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
-      })
-    })
+      credential: cert(serviceAccount)
+    });
   }
-  return getFirestore()
+  return getFirestore();
 }
 
 type Notification = {
@@ -32,6 +39,7 @@ type Notification = {
 
 export async function GET() {
   try {
+    // Initialize the DB inside the handler, not at the module level.
     const db = getAdminDB();
 
     const notifications: Notification[] = [];
@@ -87,10 +95,6 @@ export async function GET() {
 
   } catch (error: any) {
     console.error('API Error fetching notifications:', error);
-    // Ensure you have values for these env vars
-    console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Not Set');
-    console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Not Set');
-    console.log('FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? 'Set' : 'Not Set');
     return NextResponse.json(
       { message: 'Failed to fetch notifications', error: error.message },
       { status: 500 }
