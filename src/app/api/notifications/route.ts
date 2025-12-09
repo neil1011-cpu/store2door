@@ -95,8 +95,9 @@ export async function GET() {
 
   } catch (error: any) {
     console.error('API Error fetching notifications:', error);
+    // Do not expose detailed error messages in production
     return NextResponse.json(
-      { message: 'Failed to fetch notifications', error: error.message },
+      { message: 'Failed to fetch notifications' },
       { status: 500 }
     );
   }
