@@ -1,18 +1,22 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useMemo } from 'react';
-import { useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useMemo, useState } from 'react';
+import { useDoc, useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { doc, collection, query, orderBy } from 'firebase/firestore';
 import type { UserProfile, Shipment, DropoffAddress, PickupPerson } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, Package } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, Package, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 
 const getStatusVariant = (status: Shipment['status']) => {
   switch (status) {
@@ -25,6 +29,91 @@ const getStatusVariant = (status: Shipment['status']) => {
   }
 };
 
+
+function ResetPasswordDialog({ userId, userName }: { userId: string, userName: string }) {
+    const [open, setOpen] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [isResetting, setIsResetting] = useState(false);
+    const { toast } = useToast();
+    const auth = useAuth();
+
+    const handleResetPassword = async () => {
+        if (newPassword.length < 6) {
+            toast({ title: "Password Too Short", description: "Password must be at least 6 characters.", variant: "destructive" });
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            toast({ title: "Passwords Do Not Match", description: "Please ensure both passwords are the same.", variant: "destructive" });
+            return;
+        }
+
+        setIsResetting(true);
+
+        try {
+            const idToken = await auth.currentUser?.getIdToken(true);
+            const response = await fetch('/api/reset-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify({ userId, newPassword }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || "Failed to reset password.");
+            }
+
+            toast({ title: "Password Reset Successfully", description: `The password for ${userName} has been changed.` });
+            setOpen(false);
+            setNewPassword('');
+            setConfirmPassword('');
+
+        } catch (error: any) {
+            toast({ title: "Reset Failed", description: error.message, variant: "destructive" });
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="destructive">
+                    <KeyRound className="mr-2 h-4 w-4" /> Reset Password
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Reset Password for {userName}</DialogTitle>
+                    <DialogDescription>
+                        This action is permanent. Enter a new, strong password for the user.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="new-password">New Password</Label>
+                        <Input id="new-password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Enter new password" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="confirm-password">Confirm New Password</Label>
+                        <Input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm new password" />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleResetPassword} disabled={isResetting}>
+                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Confirm Reset
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function UserDetailsPage() {
     const params = useParams();
@@ -114,6 +203,9 @@ export default function UserDetailsPage() {
                                 <span className="font-semibold">Member Since:</span> {userProfile.createdAt ? new Date(userProfile.createdAt.toDate()).toLocaleDateString() : 'N/A'}
                             </div>
                         </CardContent>
+                        <CardFooter>
+                            <ResetPasswordDialog userId={userProfile.id} userName={userProfile.fullName} />
+                        </CardFooter>
                     </Card>
 
                      <Card>
