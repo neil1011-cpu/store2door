@@ -67,10 +67,12 @@ export default function NotificationsPage() {
     setLoading(true);
     try {
       const response = await fetch('/api/notifications');
-      if (!response.ok) {
-        throw new Error('Failed to fetch notifications');
-      }
       const data = await response.json();
+      
+      if (!response.ok || !Array.isArray(data)) {
+        throw new Error(data.message || 'Failed to fetch notifications');
+      }
+
       const readIds = getReadNotificationIds();
 
       const updatedNotifications = data.map((n: Notification) => ({

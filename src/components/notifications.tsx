@@ -70,6 +70,11 @@ export function Notifications() {
       try {
         const response = await fetch('/api/notifications');
         const data = await response.json();
+        
+        if (!response.ok || !Array.isArray(data)) {
+            throw new Error(data.message || 'Failed to fetch notifications.');
+        }
+
         const readIds = getReadNotificationIds();
 
         const updatedNotifications = data.map((n: Notification) => ({
@@ -80,6 +85,11 @@ export function Notifications() {
         setNotifications(updatedNotifications);
       } catch (error) {
         console.error('Failed to fetch notifications', error);
+        toast({
+            title: 'Could not load notifications',
+            description: (error as Error).message,
+            variant: 'destructive'
+        })
       } finally {
         setLoading(false);
       }
