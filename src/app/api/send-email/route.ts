@@ -39,7 +39,9 @@ The FromStore2Door Team`;
 <br><br>
 <p>--</p>
 <p>Best regards,</p>
-<p><b>The FromStore2Door Team</b></p>`;
+<p><b>The FromStore2Door Team</b></p>
+<img src="https://drive.google.com/uc?export=view&id=1KBo__X7BEK_-bA6S8uYOCTkm0YNxxXhk" alt="FromStore2Door Signature" style="width: 250px; height: auto;" />
+`;
 
         const fullBodyText = body + signatureText;
         const fullBodyHtml = `<p>${body.replace(/\n/g, "<br>")}</p>${signatureHtml}`;
