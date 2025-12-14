@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -82,6 +83,13 @@ export default function SignUpPage() {
       });
 
       // 3. Create the user profile document
+      const userAddress = {
+          address1: '4350 NE 5th Terrace Bay #3',
+          address2: `${mailbox}-FSTD`,
+          city: 'Oakland Park',
+          state: 'Florida',
+          zip: '33334',
+      };
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         fullName: values.fullName,
@@ -89,17 +97,29 @@ export default function SignUpPage() {
         phone: values.phone,
         trn: values.trn,
         mailboxNumber: mailbox,
-        address: {
-          address1: '4350 NE 5th Terrace Bay #3',
-          address2: `${mailbox}-FSTD`,
-          city: 'Oakland Park',
-          state: 'Florida',
-          zip: '33334',
-        },
+        address: userAddress,
         createdAt: serverTimestamp(),
         pickupPersonnel: [],
         dropoffAddresses: [],
       });
+
+      // 4. Send Welcome Email
+      try {
+        await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: values.email,
+            subject: 'Welcome to the FromStore2Door Family!',
+            body: `Hi ${values.fullName},\n\nWelcome to FromStore2Door! We're thrilled to have you with us.\n\nYour new, tax-free U.S. shipping address is ready. Your personal mailbox number is: ${mailbox}\n\nHere is your full address:\n\n${values.fullName}\n${userAddress.address1}\n${userAddress.address2}\n${userAddress.city}, ${userAddress.state} ${userAddress.zip}\n\nYou can start shopping at your favorite US stores right away. Just use this address at checkout, and we'll handle the rest.\n\nHappy Shopping!`,
+            recipientName: values.fullName,
+          }),
+        });
+      } catch (emailError) {
+        console.error("Welcome email could not be sent:", emailError);
+        // Do not block user creation if email fails, just log it.
+      }
+
 
       toast({
         title: 'Account Created',
