@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -8,9 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Send, History, PlusCircle, Terminal, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, History, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,15 +30,17 @@ type SentEmail = {
     recipientEmail: string;
     subject: string;
     body: string;
-    sentAt: string;
+    sentAt: {
+      toDate: () => Date;
+    };
 };
 
 export default function CommunicationsPage() {
     const { toast } = useToast();
-    const [sentEmails, setSentEmails] = useState<SentEmail[]>([]);
     
     const [isComposeOpen, setIsComposeOpen] = useState(false);
     const [composeRecipient, setComposeRecipient] = useState('');
+    const [customEmail, setCustomEmail] = useState('');
     const [composeSubject, setComposeSubject] = useState('');
     const [composeBody, setComposeBody] = useState('');
     const [isComposing, setIsComposing] = useState(false);
@@ -50,10 +52,15 @@ export default function CommunicationsPage() {
         if (!firestore || !user) return null;
         return query(collection(firestore, 'users'), orderBy('fullName', 'asc'))
     }, [firestore, user]);
-
     const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
     
-    const loading = isUserLoading || isLoadingUsers;
+    const sentEmailsQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'sent_emails'), orderBy('sentAt', 'desc'));
+    }, [firestore, user]);
+    const { data: sentEmails, isLoading: isLoadingSentEmails } = useCollection<SentEmail>(sentEmailsQuery);
+    
+    const loading = isUserLoading || isLoadingUsers || isLoadingSentEmails;
 
     const handleComposeEmail = async () => {
         if (!users) {
@@ -62,17 +69,36 @@ export default function CommunicationsPage() {
         }
 
         const isBulkSend = composeRecipient === 'all';
+        const isCustomEmail = composeRecipient === 'custom';
+
         let recipientUser: UserProfile | undefined;
-        if (!isBulkSend) {
+        let emailTarget: string | string[] = '';
+        let recipientName = '';
+
+        if (isBulkSend) {
+          emailTarget = users.map(u => u.email);
+          recipientName = 'All Users';
+        } else if (isCustomEmail) {
+            if (!customEmail.trim()) {
+                toast({ title: 'Missing fields', description: 'Please enter a custom email address.', variant: 'destructive' });
+                return;
+            }
+            emailTarget = customEmail;
+            recipientName = customEmail;
+        } else {
             recipientUser = users.find(u => u.id === composeRecipient);
+            if (recipientUser) {
+              emailTarget = recipientUser.email;
+              recipientName = recipientUser.fullName;
+            }
         }
         
-        if (!composeRecipient || !composeSubject.trim() || !composeBody.trim()) {
+        if (!emailTarget || (Array.isArray(emailTarget) && emailTarget.length === 0) || !composeSubject.trim() || !composeBody.trim()) {
             toast({ title: 'Missing fields', description: 'Please select a valid recipient and enter a subject and message.', variant: 'destructive' });
             return;
         }
 
-        if (!isBulkSend && !recipientUser) {
+        if (!isBulkSend && !isCustomEmail && !recipientUser) {
             toast({ title: 'Invalid Recipient', description: 'The selected user could not be found.', variant: 'destructive' });
             return;
         }
@@ -80,7 +106,6 @@ export default function CommunicationsPage() {
         setIsComposing(true);
         
         try {
-            const emailTarget = isBulkSend ? users.map(u => u.email) : (recipientUser?.email || '');
             const response = await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -88,6 +113,7 @@ export default function CommunicationsPage() {
                     to: emailTarget,
                     subject: composeSubject,
                     body: composeBody,
+                    recipientName: recipientName // Pass name for logging
                 }),
             });
 
@@ -96,24 +122,11 @@ export default function CommunicationsPage() {
                 throw new Error(errorData.message || 'Failed to send email.');
             }
 
-            const recipientName = isBulkSend ? 'All Users' : (recipientUser!.fullName);
-            const recipientEmail = isBulkSend ? `Multiple (${users.length}) recipients` : recipientUser!.email;
-
-            const newSentEmail: SentEmail = {
-                id: `email-${Date.now()}`,
-                recipientName: recipientName,
-                recipientEmail: recipientEmail,
-                subject: composeSubject,
-                body: composeBody,
-                sentAt: new Date().toISOString(),
-            };
-
-            setSentEmails(prev => [newSentEmail, ...prev]);
-
             toast({ title: 'Email Sent!', description: `Your email to ${recipientName} has been sent.` });
             
             setIsComposeOpen(false);
             setComposeRecipient('');
+            setCustomEmail('');
             setComposeSubject('');
             setComposeBody('');
         } catch (error) {
@@ -157,16 +170,23 @@ export default function CommunicationsPage() {
                         <Label htmlFor="recipient">Recipient</Label>
                          <Select value={composeRecipient} onValueChange={setComposeRecipient}>
                             <SelectTrigger id="recipient">
-                                <SelectValue placeholder={"Select a customer"} />
+                                <SelectValue placeholder={"Select a customer or option"} />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Users ({users.length})</SelectItem>
+                                <SelectItem value="custom">Custom Email Address</SelectItem>
                                 {users.map(user => (
                                     <SelectItem key={user.id} value={user.id}>{user.fullName} ({user.email})</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
+                    {composeRecipient === 'custom' && (
+                      <div className="space-y-2">
+                          <Label htmlFor="custom-email">Custom Email</Label>
+                          <Input id="custom-email" type="email" value={customEmail} onChange={e => setCustomEmail(e.target.value)} placeholder="Enter email address" />
+                      </div>
+                    )}
                      <div className="space-y-2">
                         <Label htmlFor="subject">Subject</Label>
                         <Input id="subject" value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="e.g., Your Weekly Update or Summer Sale!" />
@@ -212,13 +232,13 @@ export default function CommunicationsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {sentEmails.length === 0 ? (
-                            <TableRow>
+                        {isLoadingSentEmails ? (
+                           <TableRow>
                                 <TableCell colSpan={3} className="h-24 text-center">
-                                    No emails have been sent yet.
+                                    <Loader2 className="h-6 w-6 animate-spin" />
                                 </TableCell>
                             </TableRow>
-                        ) : (
+                        ) : sentEmails && sentEmails.length > 0 ? (
                             sentEmails.map(email => (
                                 <TableRow key={email.id}>
                                     <TableCell>
@@ -226,9 +246,15 @@ export default function CommunicationsPage() {
                                         <div className="text-sm text-muted-foreground">{email.recipientEmail}</div>
                                     </TableCell>
                                     <TableCell>{email.subject}</TableCell>
-                                    <TableCell>{new Date(email.sentAt).toLocaleString()}</TableCell>
+                                    <TableCell>{email.sentAt ? email.sentAt.toDate().toLocaleString() : 'N/A'}</TableCell>
                                 </TableRow>
                             ))
+                        ) : (
+                             <TableRow>
+                                <TableCell colSpan={3} className="h-24 text-center">
+                                    No emails have been sent yet.
+                                </TableCell>
+                            </TableRow>
                         )}
                     </TableBody>
                 </Table>
