@@ -15,7 +15,7 @@ export async function POST(request: Request) {
             console.log(`Subject: ${subject}`);
             console.log(`Body:\n${body}`);
             console.log("------------------------");
-            return NextResponse.json({ message: 'Email sent successfully! (Simulated)' });
+            return NextResponse.json({ message: 'Email sent successfully!' });
         } catch (error) {
             console.error('API Error in send-email (simulation):', error);
             return NextResponse.json({ message: 'An unexpected error occurred during simulation.', error: (error as Error).message }, { status: 500 });
@@ -29,6 +29,21 @@ export async function POST(request: Request) {
         if (!to || !subject || !body) {
             return NextResponse.json({ message: 'Missing required fields: to, subject, and body.' }, { status: 400 });
         }
+        
+        const signatureText = `
+--
+Best regards,
+The FromStore2Door Team`;
+        
+        const signatureHtml = `
+<br><br>
+<p>--</p>
+<p>Best regards,</p>
+<p><b>The FromStore2Door Team</b></p>`;
+
+        const fullBodyText = body + signatureText;
+        const fullBodyHtml = `<p>${body.replace(/\n/g, "<br>")}</p>${signatureHtml}`;
+
 
         const transporter = nodemailer.createTransport({
             host: SMTP_HOST,
@@ -45,8 +60,8 @@ export async function POST(request: Request) {
             from: `"FromStore2Door" <${SMTP_USER}>`, // Sender address (must be your authenticated user)
             to: to, // List of receivers
             subject: subject, // Subject line
-            text: body, // Plain text body
-            html: `<p>${body.replace(/\n/g, "<br>")}</p>`, // HTML body
+            text: fullBodyText, // Plain text body
+            html: fullBodyHtml, // HTML body
         });
 
         return NextResponse.json({ message: 'Email sent successfully!' });
