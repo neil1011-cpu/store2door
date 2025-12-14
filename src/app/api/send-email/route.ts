@@ -11,7 +11,7 @@ export async function POST(request: Request) {
             const { to, subject, body } = await request.json();
             console.log("--- SIMULATING EMAIL (SMTP not configured) ---");
             console.log("This is a mock email. In production, this would be sent to the user.");
-            console.log(`To: ${to}`);
+            console.log(`To: ${Array.isArray(to) ? to.join(', ') : to}`);
             console.log(`Subject: ${subject}`);
             console.log(`Body:\n${body}`);
             console.log("------------------------");
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
             },
         });
 
+        // The 'to' field can be a single string or an array of strings
         await transporter.sendMail({
             from: `"FromStore2Door" <${SMTP_USER}>`, // Sender address (must be your authenticated user)
             to: to, // List of receivers

@@ -60,20 +60,32 @@ export default function CommunicationsPage() {
             toast({ title: 'Users not loaded', description: 'Please wait for users to load.', variant: 'destructive'});
             return;
         }
-        const recipientUser = users.find(u => u.id === composeRecipient);
-        if (!composeRecipient || !composeSubject.trim() || !composeBody.trim() || !recipientUser) {
+
+        const isBulkSend = composeRecipient === 'all';
+        let recipientUser: UserProfile | undefined;
+        if (!isBulkSend) {
+            recipientUser = users.find(u => u.id === composeRecipient);
+        }
+        
+        if (!composeRecipient || !composeSubject.trim() || !composeBody.trim()) {
             toast({ title: 'Missing fields', description: 'Please select a valid recipient and enter a subject and message.', variant: 'destructive' });
+            return;
+        }
+
+        if (!isBulkSend && !recipientUser) {
+            toast({ title: 'Invalid Recipient', description: 'The selected user could not be found.', variant: 'destructive' });
             return;
         }
 
         setIsComposing(true);
         
         try {
+            const emailTarget = isBulkSend ? users.map(u => u.email) : (recipientUser?.email || '');
             const response = await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    to: recipientUser.email,
+                    to: emailTarget,
                     subject: composeSubject,
                     body: composeBody,
                 }),
@@ -84,10 +96,13 @@ export default function CommunicationsPage() {
                 throw new Error(errorData.message || 'Failed to send email.');
             }
 
+            const recipientName = isBulkSend ? 'All Users' : (recipientUser!.fullName);
+            const recipientEmail = isBulkSend ? `Multiple (${users.length}) recipients` : recipientUser!.email;
+
             const newSentEmail: SentEmail = {
                 id: `email-${Date.now()}`,
-                recipientName: recipientUser.fullName,
-                recipientEmail: recipientUser.email,
+                recipientName: recipientName,
+                recipientEmail: recipientEmail,
                 subject: composeSubject,
                 body: composeBody,
                 sentAt: new Date().toISOString(),
@@ -95,7 +110,7 @@ export default function CommunicationsPage() {
 
             setSentEmails(prev => [newSentEmail, ...prev]);
 
-            toast({ title: 'Email Sent! (Simulated)', description: `Your email to ${recipientUser.fullName} has been sent.` });
+            toast({ title: 'Email Sent!', description: `Your email to ${recipientName} has been sent.` });
             
             setIsComposeOpen(false);
             setComposeRecipient('');
@@ -145,6 +160,7 @@ export default function CommunicationsPage() {
                                 <SelectValue placeholder={"Select a customer"} />
                             </SelectTrigger>
                             <SelectContent>
+                                <SelectItem value="all">All Users ({users.length})</SelectItem>
                                 {users.map(user => (
                                     <SelectItem key={user.id} value={user.id}>{user.fullName} ({user.email})</SelectItem>
                                 ))}
@@ -178,14 +194,6 @@ export default function CommunicationsPage() {
         </div>
       </div>
       
-        <Alert>
-            <Info className="h-4 w-4" />
-            <AlertTitle>Developer Notice</AlertTitle>
-            <AlertDescription>
-                Email sending is currently simulated. Emails are not actually sent to recipients; instead, they are logged to the server console. This allows for testing without a real email service.
-            </AlertDescription>
-        </Alert>
-
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
