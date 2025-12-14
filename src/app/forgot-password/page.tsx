@@ -16,21 +16,18 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
-  password: z.string().min(1, { message: 'Password is required.' }),
 });
 
-export default function SignInPage() {
+export default function ForgotPasswordPage() {
   const { toast } = useToast();
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const auth = useAuth();
 
@@ -38,7 +35,6 @@ export default function SignInPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
-      password: '',
     },
   });
 
@@ -46,18 +42,19 @@ export default function SignInPage() {
     setLoading(true);
     
     try {
-        await signInWithEmailAndPassword(auth, values.email, values.password);
+        await sendPasswordResetEmail(auth, values.email);
         toast({
-          title: 'Sign In Successful!',
-          description: 'Welcome back! Redirecting to your account...',
+          title: 'Password Reset Email Sent',
+          description: 'If an account exists for this email, a reset link has been sent. Please check your inbox.',
         });
-        router.push('/account');
+        form.reset();
     } catch (error: any) {
-        console.error("Sign in error:", error);
+        console.error("Password reset error:", error);
+        // For security, we don't reveal if an email doesn't exist.
+        // We show the same success message regardless of the outcome.
         toast({
-            title: 'Sign In Failed',
-            description: error.message || 'Invalid email or password.',
-            variant: 'destructive',
+            title: 'Password Reset Email Sent',
+            description: 'If an account exists for this email, a reset link has been sent. Please check your inbox.',
         });
     }
 
@@ -68,9 +65,9 @@ export default function SignInPage() {
     <div className="container mx-auto py-12 px-4 md:px-6 max-w-lg">
       <Card>
         <CardHeader>
-          <CardTitle className="text-3xl">Sign In</CardTitle>
+          <CardTitle className="text-3xl">Reset Your Password</CardTitle>
           <CardDescription>
-            Welcome back! Access your account dashboard.
+            Enter your email address and we'll send you a link to reset your password.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -89,36 +86,15 @@ export default function SignInPage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center">
-                        <FormLabel>Password</FormLabel>
-                        <Link
-                            href="/forgot-password"
-                            className="ml-auto inline-block text-sm text-primary hover:underline"
-                        >
-                            Forgot your password?
-                        </Link>
-                    </div>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                 {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing In...</> : 'Sign In'}
+                 {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending Link...</> : 'Send Reset Link'}
               </Button>
             </form>
           </Form>
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href="/signup" className="font-semibold text-primary hover:underline">
-              Sign Up
+            Remember your password?{' '}
+            <Link href="/signin" className="font-semibold text-primary hover:underline">
+              Sign In
             </Link>
           </p>
         </CardContent>
