@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { LayoutDashboard, FileUp, Package, MessageSquare, User, LogOut } from 'lucide-react';
+import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -98,16 +99,16 @@ export default function AccountPage() {
                 <div className="flex-shrink-0 md:w-1/5 lg:w-1/6">
                     <TabsList className="flex-col h-auto items-stretch p-1 w-full">
                         <TabsTrigger value="dashboard" className="w-full justify-start gap-2">
-                            <LayoutDashboard className="h-5 w-5" /> Dashboard
+                            <LayoutGrid className="h-5 w-5" /> Dashboard
                         </TabsTrigger>
                         <TabsTrigger value="pre-alert" className="w-full justify-start gap-2">
-                            <FileUp className="h-5 w-5" /> Pre-Alert
+                            <BellRing className="h-5 w-5" /> Pre-Alert
                         </TabsTrigger>
                         <TabsTrigger value="packages" className="w-full justify-start gap-2">
                             <Package className="h-5 w-5" /> My Packages
                         </TabsTrigger>
                         <TabsTrigger value="support" className="w-full justify-start gap-2">
-                            <MessageSquare className="h-5 w-5" /> Support
+                            <LifeBuoy className="h-5 w-5" /> Support
                         </TabsTrigger>
                         <TabsTrigger value="account" className="w-full justify-start gap-2">
                             <User className="h-5 w-5" /> My Account
