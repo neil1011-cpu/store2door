@@ -6,14 +6,55 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth, useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { UserProfile } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
+type View = 'dashboard' | 'pre-alert' | 'packages' | 'support' | 'account';
+
+const featureCards = [
+    {
+        view: 'dashboard' as View,
+        title: 'Dashboard',
+        description: 'View a summary of your account activity.',
+        icon: <LayoutGrid className="h-8 w-8" />,
+        color: 'bg-blue-500 text-white',
+    },
+    {
+        view: 'pre-alert' as View,
+        title: 'Pre-Alert',
+        description: 'Notify us of an incoming package.',
+        icon: <BellRing className="h-8 w-8" />,
+        color: 'bg-orange-500 text-white',
+    },
+    {
+        view: 'packages' as View,
+        title: 'My Packages',
+        description: 'Track all your shipments and invoices.',
+        icon: <Package className="h-8 w-8" />,
+        color: 'bg-green-500 text-white',
+    },
+    {
+        view: 'support' as View,
+        title: 'Support',
+        description: 'Get help via our WhatsApp channel.',
+        icon: <LifeBuoy className="h-8 w-8" />,
+        color: 'bg-purple-500 text-white',
+    },
+    {
+        view: 'account' as View,
+        title: 'My Account',
+        description: 'Manage your profile and addresses.',
+        icon: <User className="h-8 w-8" />,
+        color: 'bg-red-500 text-white',
+    },
+];
 
 export default function AccountPage() {
     const router = useRouter();
@@ -21,6 +62,7 @@ export default function AccountPage() {
     const auth = useAuth();
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
+    const [currentView, setCurrentView] = useState<View>('dashboard');
 
     const userProfileRef = useMemoFirebase(() => {
         if (!firestore || !user) return null;
@@ -29,15 +71,8 @@ export default function AccountPage() {
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
     useEffect(() => {
-        // Wait for the initial user loading to complete
-        if (isUserLoading) {
-            return;
-        }
-
-        // If after loading, there's no user, redirect to sign-in
-        if (!user) {
-            router.push('/signin');
-        }
+        if (isUserLoading) return;
+        if (!user) router.push('/signin');
     }, [user, isUserLoading, router]);
 
     const handleSignOut = async () => {
@@ -58,7 +93,6 @@ export default function AccountPage() {
         }
     }
     
-    // Show skeleton while initial auth or profile loading is happening.
     if (isUserLoading || isProfileLoading) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
@@ -66,20 +100,14 @@ export default function AccountPage() {
                     <Skeleton className="h-9 w-64 mb-2" />
                     <Skeleton className="h-5 w-80" />
                 </div>
-                <div className="flex flex-col md:flex-row gap-6">
-                    <div className="flex-shrink-0 md:w-1/5 lg:w-1/6">
-                        <Skeleton className="h-48 w-full" />
-                        <Skeleton className="h-9 w-full mt-4" />
-                    </div>
-                    <Skeleton className="h-96 flex-1" />
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}
                 </div>
             </div>
         );
     }
 
     if (!userProfile) {
-        // This can happen if the user is authenticated but the profile document doesn't exist or hasn't loaded.
-        // You might want to show an error message or a different UI.
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
                  <h1 className="text-2xl md:text-3xl font-bold">Account Not Found</h1>
@@ -88,6 +116,17 @@ export default function AccountPage() {
             </div>
         );
     }
+
+    const renderContent = () => {
+        switch (currentView) {
+            case 'dashboard': return <DashboardTab details={userProfile} />;
+            case 'pre-alert': return <PreAlertTab customerId={userProfile.id} customerName={userProfile.fullName} />;
+            case 'packages': return <PackagesTab customerId={userProfile.id} />;
+            case 'support': return <SupportTab details={userProfile} />;
+            case 'account': return <AccountTab details={userProfile} />;
+            default: return <DashboardTab details={userProfile} />;
+        }
+    };
     
     return (
         <div className="container mx-auto py-8 px-4 md:px-6">
@@ -95,49 +134,36 @@ export default function AccountPage() {
                 <h1 className="text-2xl md:text-3xl font-bold">Welcome, {userProfile.fullName}!</h1>
                 <p className="text-muted-foreground">Manage your shipments and account details here.</p>
             </div>
-             <Tabs defaultValue="dashboard" className="flex flex-col md:flex-row gap-6 lg:gap-8">
-                <div className="flex-shrink-0 md:w-1/5 lg:w-1/6">
-                    <TabsList className="flex-col h-auto items-stretch p-1 w-full">
-                        <TabsTrigger value="dashboard" className="w-full justify-start gap-2">
-                            <LayoutGrid className="h-5 w-5" /> Dashboard
-                        </TabsTrigger>
-                        <TabsTrigger value="pre-alert" className="w-full justify-start gap-2">
-                            <BellRing className="h-5 w-5" /> Pre-Alert
-                        </TabsTrigger>
-                        <TabsTrigger value="packages" className="w-full justify-start gap-2">
-                            <Package className="h-5 w-5" /> My Packages
-                        </TabsTrigger>
-                        <TabsTrigger value="support" className="w-full justify-start gap-2">
-                            <LifeBuoy className="h-5 w-5" /> Support
-                        </TabsTrigger>
-                        <TabsTrigger value="account" className="w-full justify-start gap-2">
-                            <User className="h-5 w-5" /> My Account
-                        </TabsTrigger>
-                    </TabsList>
-                     <Button variant="outline" onClick={handleSignOut} className="w-full justify-start gap-2 mt-4 text-left p-2 h-auto text-sm font-medium">
-                        <LogOut className="h-5 w-5" /> Sign Out
-                    </Button>
-                </div>
 
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
+                {featureCards.map(card => (
+                     <Card 
+                        key={card.view}
+                        className={cn(
+                            "cursor-pointer transform transition-transform hover:scale-105 hover:shadow-lg",
+                            currentView === card.view ? "ring-2 ring-primary ring-offset-2" : "border"
+                         )}
+                         onClick={() => setCurrentView(card.view)}
+                    >
+                        <CardHeader className="items-center text-center p-4">
+                            <div className={cn("p-4 rounded-lg mb-2", card.color)}>
+                                {card.icon}
+                            </div>
+                            <CardTitle className="text-base font-semibold">{card.title}</CardTitle>
+                        </CardHeader>
+                    </Card>
+                ))}
+            </div>
 
-                <div className="flex-1 min-w-0">
-                    <TabsContent value="dashboard">
-                        <DashboardTab details={userProfile} />
-                    </TabsContent>
-                    <TabsContent value="pre-alert">
-                        <PreAlertTab customerId={userProfile.id} customerName={userProfile.fullName} />
-                    </TabsContent>
-                    <TabsContent value="packages">
-                        <PackagesTab customerId={userProfile.id} />
-                    </TabsContent>
-                    <TabsContent value="support">
-                        <SupportTab details={userProfile} />
-                    </TabsContent>
-                    <TabsContent value="account">
-                        <AccountTab details={userProfile} />
-                    </TabsContent>
-                </div>
-            </Tabs>
+            <div className="min-w-0">
+                {renderContent()}
+            </div>
+            
+            <div className="mt-12 text-center">
+                 <Button variant="outline" onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" /> Sign Out
+                </Button>
+            </div>
         </div>
     );
 }
