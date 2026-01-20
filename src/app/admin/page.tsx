@@ -1,173 +1,109 @@
+
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  ScanText,
-  Truck,
-  FileText,
-  Banknote,
-  ArrowRight,
-  Users,
-  Bell,
-  DollarSign,
-  Settings,
-  Calculator,
-  Megaphone,
-} from 'lucide-react';
 import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
+import {
+  Building2,
+  Package,
+  Users,
+  Inbox,
+  CheckSquare,
+  Truck,
+  PackageCheck,
+  Archive,
+  ArrowRightCircle,
+  Loader2,
+} from 'lucide-react';
+import { useMemo } from 'react';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collectionGroup, query, where } from 'firebase/firestore';
+import type { Shipment, PreAlert, UserProfile } from '@/lib/types';
 
-const features = [
-  {
-    title: 'Pre-Alerts',
-    description: 'View and process incoming package alerts.',
-    icon: <ScanText className="h-8 w-8 text-primary" />,
-    href: '/admin/pre-alerts',
-  },
-  {
-    title: 'Shipping Status',
-    description: 'Track and update all shipments.',
-    icon: <Truck className="h-8 w-8 text-primary" />,
-    href: '/admin/shipping',
-  },
-  {
-    title: 'Flight Manifests',
-    description: 'Manage and view flight manifest documents.',
-    icon: <FileText className="h-8 w-8 text-primary" />,
-    href: '/admin/manifests',
-  },
-  {
-    title: 'Communications',
-    description: 'Manage customer messages and send emails.',
-    icon: <Megaphone className="h-8 w-8 text-primary" />,
-    href: '/admin/communications',
-  },
-  {
-    title: 'Notifications',
-    description: 'View system and warehouse notifications.',
-    icon: <Bell className="h-8 w-8 text-primary" />,
-    href: '/admin/notifications',
-  },
-  {
-    title: 'Finance & Invoices',
-    description: 'View financial statements and manage invoices.',
-    icon: <Banknote className="h-8 w-8 text-primary" />,
-    href: '/admin/finance',
-  },
-  {
-    title: 'Users',
-    description: 'Manage users and their addresses.',
-    icon: <Users className="h-8 w-8 text-primary" />,
-    href: '/admin/users',
-  },
-  {
-    title: 'Courier Rates',
-    description: 'Manage your shipping rates.',
-    icon: <DollarSign className="h-8 w-8 text-primary" />,
-    href: '/admin/rates',
-  },
-  {
-    title: 'Customs Calculator',
-    description: 'Estimate customs fees.',
-    icon: <Calculator className="h-8 w-8 text-primary" />,
-    href: '/admin/customs-calculator',
-  },
-  {
-    title: 'Settings',
-    description: 'Manage application settings.',
-    icon: <Settings className="h-8 w-8 text-primary" />,
-    href: '/admin/settings',
-  },
-];
+
+const StatCard = ({ title, value, icon, color, href }: { title: string, value: string, icon: React.ReactNode, color: string, href: string }) => {
+    return (
+        <div className={`${color} rounded-lg text-white p-4 flex flex-col justify-between min-h-[140px] shadow-md`}>
+            <div className="flex justify-between items-start relative">
+                <div className="flex flex-col z-10">
+                    <span className="text-4xl font-bold">{value}</span>
+                    <p className="font-medium">{title}</p>
+                </div>
+                <div className="absolute -right-2 -top-2 text-black opacity-20">
+                    {icon}
+                </div>
+            </div>
+            <Link href={href} className="text-sm mt-4 bg-black bg-opacity-10 rounded p-1 text-center flex items-center justify-center gap-1 hover:bg-opacity-20 transition-colors z-10">
+                More info <ArrowRightCircle className="h-4 w-4" />
+            </Link>
+        </div>
+    );
+};
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const { toast } = useToast();
+    const firestore = useFirestore();
 
-  // Firebase authentication
-  const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
+    const preAlertsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collectionGroup(firestore, 'pre_alerts'));
+    }, [firestore]);
+    const { data: preAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
 
-  // Build admin doc reference only when user exists
-  const adminRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'roles_admin', user.uid);
-  }, [firestore, user]);
+    const shipmentsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collectionGroup(firestore, 'shipments'));
+    }, [firestore]);
+    const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
 
-  const { data: adminDoc, isLoading: isAdminLoading } = useDoc(adminRef);
+    const usersQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        // This is not a collection group, it is a root collection
+        return query(collection(firestore, 'users'));
+    }, [firestore]);
+    const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
-  // Handle authentication + authorization
-  useEffect(() => {
-    if (isUserLoading || isAdminLoading) return;
+    const stats = useMemo(() => {
+        const totalParcels = shipments?.length ?? 0;
+        const totalStaff = 1; // Simplified, as admin roles are complex to query here.
+        const itemsAccepted = preAlerts?.filter(pa => pa.status === 'Pending').length ?? 0;
+        const collected = shipments?.filter(s => s.status === 'Processed').length ?? 0;
+        const shipped = shipments?.filter(s => s.status === 'In Transit').length ?? 0;
+        const delivered = shipments?.filter(s => s.status === 'Delivered').length ?? 0;
 
-    // Not logged in
-    if (!user) {
-      router.replace('/admin-login');
-      return;
-    }
+        return [
+            { title: 'Total Branch', value: '1', icon: <Building2 size={80} />, color: 'bg-cyan-500', href: '/admin/settings' },
+            { title: 'Total Parcel', value: totalParcels.toString(), icon: <Package size={80} />, color: 'bg-emerald-500', href: '/admin/shipping' },
+            { title: 'Total Staff', value: totalStaff.toString(), icon: <Users size={80} />, color: 'bg-amber-500', href: '/admin/users' },
+            { title: 'Item Accepted By Courier', value: itemsAccepted.toString(), icon: <Inbox size={80} />, color: 'bg-red-500', href: '/admin/pre-alerts' },
+            { title: 'Collected', value: collected.toString(), icon: <CheckSquare size={80} />, color: 'bg-blue-500', href: '/admin/shipping' },
+            { title: 'Shipped', value: shipped.toString(), icon: <Truck size={80} />, color: 'bg-red-600', href: '/admin/shipping' },
+            { title: 'Delivered', value: delivered.toString(), icon: <PackageCheck size={80} />, color: 'bg-teal-500', href: '/admin/shipping' },
+            { title: 'Pickup', value: '0', icon: <Archive size={80} />, color: 'bg-green-600', href: '#' },
+        ];
+    }, [shipments, users, preAlerts]);
 
-    // Logged in but not admin
-    if (!adminDoc) {
-      toast({
-        title: 'Access Denied',
-        description: "You don't have admin permissions.",
-        variant: 'destructive',
-      });
-      router.replace('/admin-login');
-    }
-  }, [isUserLoading, isAdminLoading, user, adminDoc, router, toast]);
+    const isLoading = isLoadingPreAlerts || isLoadingShipments || isLoadingUsers;
 
-  // Global loading screen until Firebase finishes checking
-  if (isUserLoading || isAdminLoading || !user || !adminDoc) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-4">Loading admin dashboard...</span>
-      </div>
+        <div className="flex flex-col gap-6">
+            <div>
+                <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+            </div>
+            {isLoading ? (
+                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {[...Array(8)].map((_, i) => (
+                        <div key={i} className="h-[140px] bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+                    ))}
+                </div>
+            ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {stats.map((stat) => (
+                        <StatCard key={stat.title} {...stat} />
+                    ))}
+                </div>
+            )}
+             <div className="text-center text-muted-foreground text-sm mt-8">
+                Copyright © {new Date().getFullYear()} Developed By FromStore2Door. All rights reserved.
+            </div>
+        </div>
     );
-  }
-
-  // User + Admin confirmed → show dashboard
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          FromStore2Door Admin Panel
-        </h1>
-        <p className="text-muted-foreground">
-          Your all-in-one solution for courier management.
-        </p>
-      </div>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {features.map((feature) => (
-          <Link href={feature.href} key={feature.title} className="block">
-            <Card className="group h-full transition-all hover:shadow-lg hover:-translate-y-1">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {feature.title}
-                </CardTitle>
-                {feature.icon}
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  {feature.description}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
 }

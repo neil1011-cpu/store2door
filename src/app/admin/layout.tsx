@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -11,34 +12,28 @@ import {
   SidebarInset,
   SidebarTrigger,
   SidebarFooter,
+  SidebarInput,
 } from '@/components/ui/sidebar';
 import Link from 'next/link';
 import {
   LayoutDashboard,
-  ScanText,
-  Truck,
-  FileText,
-  Banknote,
-  Route,
+  Building2,
   Users,
-  Bell,
-  DollarSign,
+  Package,
+  Search,
   Settings,
-  Calculator,
-  Megaphone,
   LogOut,
   Loader2,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Notifications } from '@/components/notifications';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
-import { AppLogo } from '@/components/app-logo';
-
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 // Guard that assumes a user already exists (Auth is done in AdminLayout)
 function AdminAuthGuard({ children }: { children: ReactNode }) {
@@ -116,8 +111,8 @@ export default function AdminLayout({
   const { toast } = useToast();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
+  const pathname = usePathname();
 
-  // If auth has finished and there is no user, go to admin-login
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace('/admin-login');
@@ -142,152 +137,80 @@ export default function AdminLayout({
   };
 
   // Global auth loading: don't show layout until Firebase Auth is done
-  if (isUserLoading) {
+  if (isUserLoading || !user) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
         <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-4">Authenticating...</span>
+        <span className="ml-4">Loading...</span>
       </div>
     );
   }
 
-  // No user after auth resolved: the effect above is redirecting, we render a minimal fallback
-  if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-4">Redirecting to login...</span>
-      </div>
-    );
-  }
+  const sidebarLinks = [
+    { href: "/admin", icon: <LayoutDashboard />, label: "Dashboard" },
+    { href: "/admin/settings", icon: <Building2 />, label: "Branch List" },
+    { href: "/admin/users", icon: <Users />, label: "Branch Staff" },
+    { href: "/admin/shipping", icon: <Package />, label: "Parcels" },
+    { href: "/admin/shipping", icon: <Search />, label: "Track Parcels" }, // The screenshot's track parcels might be internal. Shipping is closest.
+    { href: "/admin/settings", icon: <Settings />, label: "System Setting" },
+  ];
 
-  // Auth ok; now we render the layout and let AdminAuthGuard handle admin role
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarHeader>
-          <div className="flex items-center justify-between">
-            <AppLogo isLink={false} className="p-2" />
-            <SidebarTrigger className="md:hidden" />
-          </div>
+        <SidebarHeader className="p-2">
+           <div className="flex items-center gap-2 p-2 rounded-lg">
+                <Avatar className="size-9">
+                    <AvatarImage src={user.photoURL || undefined} alt="Admin avatar" />
+                    <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="text-sm overflow-hidden">
+                    <div className="font-semibold text-sidebar-foreground truncate">{user.displayName || 'Bishwagit Das'}</div>
+                    <div className="text-sidebar-foreground/80 truncate">{user.email}</div>
+                </div>
+            </div>
         </SidebarHeader>
         <SidebarContent>
+           <div className="p-2">
+               <div className="relative">
+                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sidebar-foreground/50" />
+                   <SidebarInput placeholder="Search..." className="pl-9 h-9" />
+               </div>
+           </div>
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Dashboard">
-                <Link href="/admin">
-                  <LayoutDashboard />
-                  Dashboard
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Pre-Alerts" size="sm">
-                <Link href="/admin/pre-alerts">
-                  <ScanText />
-                  Pre-Alerts
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Shipping Status" size="sm">
-                <Link href="/admin/shipping">
-                  <Truck />
-                  Shipping Status
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Flight Manifests" size="sm">
-                <Link href="/admin/manifests">
-                  <FileText />
-                  Flight Manifests
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Communications" size="sm">
-                <Link href="/admin/communications">
-                  <Megaphone />
-                  Communications
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Notifications" size="sm">
-                <Link href="/admin/notifications">
-                  <Bell />
-                  Notifications
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Finance">
-                <Link href="/admin/finance">
-                  <Banknote />
-                  Finance
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Courier Rates">
-                <Link href="/admin/rates">
-                  <DollarSign />
-                  Courier Rates
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Customs Calculator">
-                <Link href="/admin/customs-calculator">
-                  <Calculator />
-                  Customs Calculator
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Users">
-                <Link href="/admin/users">
-                  <Users />
-                  Users
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Settings">
-                <Link href="/admin/settings">
-                  <Settings />
-                  Settings
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {sidebarLinks.map((link, index) => (
+                 <SidebarMenuItem key={index}>
+                    <SidebarMenuButton asChild isActive={pathname === link.href} variant={pathname === link.href ? 'default' : 'ghost'} className="data-[active=true]:bg-sidebar-accent justify-start">
+                        <Link href={link.href}>
+                            {link.icon}
+                            {link.label}
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+            ))}
           </SidebarMenu>
         </SidebarContent>
-        <SidebarFooter className="space-y-1">
-          <SidebarMenuButton>
-            <Avatar className="size-7">
-              <AvatarImage src={user.photoURL || undefined} alt="Admin avatar" />
-              <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <span>{user.displayName || 'Admin'}</span>
-          </SidebarMenuButton>
-          <SidebarMenuButton variant="ghost" size="sm" onClick={handleSignOut}>
-            <LogOut />
-            Sign Out
-          </SidebarMenuButton>
+        <SidebarFooter>
+          <SidebarMenu>
+              <SidebarMenuItem>
+                 <SidebarMenuButton variant="ghost" onClick={handleSignOut}>
+                    <LogOut />
+                    Logout
+                 </SidebarMenuButton>
+              </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <header className="flex h-14 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-6">
-          <SidebarTrigger className="hidden md:flex" />
+        <header className="flex h-14 items-center gap-4 border-b bg-background px-6">
+          <SidebarTrigger />
+          <div className="text-sm text-muted-foreground">Home</div>
           <div className="flex-1" />
-          <Notifications />
-          <Avatar>
-            <AvatarImage src={user.photoURL || undefined} alt="Admin avatar" />
-            <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
-          </Avatar>
+           <Button variant="ghost" size="icon">
+                <Search className="h-5 w-5"/>
+           </Button>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+        <main className="flex-1 overflow-auto p-4 md:p-6 bg-gray-100 dark:bg-zinc-800/50">
           <AdminAuthGuard>{children}</AdminAuthGuard>
         </main>
       </SidebarInset>
