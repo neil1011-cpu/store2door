@@ -32,8 +32,11 @@ service cloud.firestore {
     // ----------------------------------------------------------
     match /roles_admin/{userId} {
 
-      // Admin can read their own role doc or other admin docs
-      allow get, list: if isAdmin();
+      // A user can check for their own admin role document. This is required for the isAdmin() helper to work.
+      allow get: if isOwner(userId);
+      
+      // Only an existing admin can list all other admin documents.
+      allow list: if isAdmin();
       
       // No client-side admin creation is allowed for security.
       // Admins should be created via the Firebase Console or a secure backend function.
