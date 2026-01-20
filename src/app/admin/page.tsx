@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collectionGroup, query, where } from 'firebase/firestore';
+import { collectionGroup, query, where, collection } from 'firebase/firestore';
 import type { Shipment, PreAlert, UserProfile } from '@/lib/types';
 
 
