@@ -53,7 +53,12 @@ export async function POST(request: Request) {
         try {
             console.log("--- SIMULATING EMAIL (SMTP not configured) ---");
             console.log("This is a mock email. In production, this would be sent to the user.");
-            console.log(`To: ${Array.isArray(to) ? to.join(', ') : to}`);
+            if (Array.isArray(to)) {
+                 console.log(`To: "Undisclosed Recipients" <${process.env.SMTP_USER || 'no-reply@example.com'}>`);
+                 console.log(`Bcc: ${to.length} recipients`);
+            } else {
+                console.log(`To: ${to}`);
+            }
             console.log(`Subject: ${subject}`);
             console.log(`Body:\n${body}`);
             console.log("------------------------");
@@ -99,13 +104,22 @@ The FromStore2Door Team`;
             },
         });
 
-        await transporter.sendMail({
+        const mailOptions: nodemailer.SendMailOptions = {
             from: `"FromStore2Door" <${SMTP_USER}>`,
-            to: to,
             subject: subject,
             text: fullBodyText,
             html: fullBodyHtml,
-        });
+        };
+
+        if (Array.isArray(to)) {
+            // When sending to multiple recipients, use BCC to protect privacy
+            mailOptions.to = `"Undisclosed Recipients" <${SMTP_USER}>`;
+            mailOptions.bcc = to;
+        } else {
+            mailOptions.to = to;
+        }
+
+        await transporter.sendMail(mailOptions);
 
         await logEmail();
 
