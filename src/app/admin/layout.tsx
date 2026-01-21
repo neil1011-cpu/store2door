@@ -17,13 +17,20 @@ import {
 import Link from 'next/link';
 import {
   LayoutDashboard,
-  Building2,
   Users,
   Package,
   Search,
   Settings,
   LogOut,
   Loader2,
+  Inbox,
+  Truck,
+  DollarSign,
+  Mail,
+  Plane,
+  Tag,
+  Calculator,
+  Bell,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
@@ -34,6 +41,9 @@ import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Notifications } from '@/components/notifications';
+import { ThemeToggle } from '@/components/theme-toggle';
+
 
 // Guard that assumes a user already exists (Auth is done in AdminLayout)
 function AdminAuthGuard({ children }: { children: ReactNode }) {
@@ -148,11 +158,16 @@ export default function AdminLayout({
 
   const sidebarLinks = [
     { href: "/admin", icon: <LayoutDashboard />, label: "Dashboard" },
-    { href: "/admin/settings", icon: <Building2 />, label: "Branch List" },
-    { href: "/admin/users", icon: <Users />, label: "Branch Staff" },
-    { href: "/admin/shipping", icon: <Package />, label: "Parcels" },
-    { href: "/admin/shipping", icon: <Search />, label: "Track Parcels" }, // The screenshot's track parcels might be internal. Shipping is closest.
-    { href: "/admin/settings", icon: <Settings />, label: "System Setting" },
+    { href: "/admin/pre-alerts", icon: <Inbox />, label: "Pre-Alerts" },
+    { href: "/admin/shipping", icon: <Truck />, label: "Shipping" },
+    { href: "/admin/users", icon: <Users />, label: "Users" },
+    { href: "/admin/finance", icon: <DollarSign />, label: "Finance" },
+    { href: "/admin/communications", icon: <Mail />, label: "Communications" },
+    { href: "/admin/manifests", icon: <Plane />, label: "Manifests" },
+    { href: "/admin/rates", icon: <Tag />, label: "Rates" },
+    { href: "/admin/customs-calculator", icon: <Calculator />, label: "Calculator" },
+    { href: "/admin/notifications", icon: <Bell />, label: "Notifications" },
+    { href: "/admin/settings", icon: <Settings />, label: "Settings" },
   ];
 
   return (
@@ -206,9 +221,8 @@ export default function AdminLayout({
           <SidebarTrigger />
           <div className="text-sm text-muted-foreground">Home</div>
           <div className="flex-1" />
-           <Button variant="ghost" size="icon">
-                <Search className="h-5 w-5"/>
-           </Button>
+           <ThemeToggle />
+           <Notifications />
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6 bg-gray-100 dark:bg-zinc-800/50">
           <AdminAuthGuard>{children}</AdminAuthGuard>
