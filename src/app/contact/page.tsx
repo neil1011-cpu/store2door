@@ -163,8 +163,8 @@ export default function ContactPage() {
                             <Phone className="h-6 w-6 text-primary mt-1 shrink-0" />
                             <div>
                                 <h4 className="font-semibold text-foreground">Phone Numbers</h4>
+                                <p>Digicel / WhatsApp: (876) 506-9727</p>
                                 <p>Flow: (876) 771-3071</p>
-                                <p>Digicel: (876) 506-9727</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4">
@@ -184,7 +184,7 @@ export default function ContactPage() {
                         </div>
                          <div className="pt-4">
                              <Button asChild className="w-full" size="lg" style={{ backgroundColor: '#25D366', color: 'white' }}>
-                                <Link href="https://wa.me/18767713071" target="_blank">
+                                <Link href="https://wa.me/18765069727" target="_blank">
                                     <WhatsAppIcon className="w-5 h-5 mr-2" />
                                     Chat with us on WhatsApp
                                 </Link>

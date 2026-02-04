@@ -529,7 +529,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
                     Our team is ready to assist you with any questions about your shipments, payments, or account.
                  </p>
                  <Button asChild size="lg" className="mt-4" style={{ backgroundColor: '#25D366', color: 'white' }}>
-                    <Link href="https://wa.me/18767713071" target="_blank">
+                    <Link href="https://wa.me/18765069727" target="_blank">
                          <WhatsAppIcon className="w-5 h-5 mr-2" />
                         Open WhatsApp Chat
                     </Link>
