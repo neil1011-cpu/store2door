@@ -27,16 +27,16 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const CUSTOMS_RATES = {
-  GENERAL: { duty: 0.20, gct: 0.15 },
-  LAPTOPS_TABLETS: { duty: 0, gct: 0.15 },
-  COMPUTERS: { duty: 0, gct: 0.15 },
-  CELL_PHONES: { duty: 0.20, gct: 0.15 },
-  CLOTHING: { duty: 0.20, gct: 0.15 },
-  SHOES: { duty: 0.20, gct: 0.15 },
-  AUTO_PARTS: { duty: 0.30, gct: 0.15 },
-  COSMETICS: { duty: 0.20, gct: 0.15 },
-  BOOKS: { duty: 0, gct: 0 },
-  ELECTRONICS_OTHER: { duty: 0.20, gct: 0.15 },
+  GENERAL: { duty: 0.20 },
+  LAPTOPS_TABLETS: { duty: 0 },
+  COMPUTERS: { duty: 0 },
+  CELL_PHONES: { duty: 0.20 },
+  CLOTHING: { duty: 0.20 },
+  SHOES: { duty: 0.20 },
+  AUTO_PARTS: { duty: 0.30 },
+  COSMETICS: { duty: 0.20 },
+  BOOKS: { duty: 0 },
+  ELECTRONICS_OTHER: { duty: 0.20 },
 };
 
 const USD_TO_JMD_RATE = 156; 
@@ -57,7 +57,6 @@ export default function PublicCustomsCalculatorPage() {
     importDuty: 0,
     scf: 0,
     caf: 0,
-    gct: 0,
     total: 0,
     isDutyFree: false,
     calculated: false,
@@ -83,7 +82,6 @@ export default function PublicCustomsCalculatorPage() {
             importDuty: 0,
             scf: 0,
             caf: 0,
-            gct: 0,
             total: 0,
             isDutyFree: true,
             calculated: true,
@@ -106,18 +104,14 @@ export default function PublicCustomsCalculatorPage() {
     const cafJmd = getCAF(itemPrice);
     const cafUsd = cafJmd / USD_TO_JMD_RATE;
     
-    // 6. GCT (Applied to all above)
-    const taxableValueForGCT = cif + importDuty + scf + cafUsd;
-    const gct = taxableValueForGCT * rates.gct;
-    
-    const total = importDuty + scf + cafUsd + gct;
+    // 6. Total = ID + SCF + CAF (No GCT)
+    const total = importDuty + scf + cafUsd;
 
     setCalculation({
       cif,
       importDuty,
       scf,
       caf: cafUsd,
-      gct,
       total,
       isDutyFree: false,
       calculated: true,
@@ -137,7 +131,7 @@ export default function PublicCustomsCalculatorPage() {
                     <div>
                         <h1 className="text-4xl font-bold tracking-tight">Customs Fee Estimator</h1>
                         <p className="text-lg text-muted-foreground mt-2">
-                            Using the official Jamaica Customs Agency (JCA) sequence.
+                            Estimate your charges based on official JCA logic (No GCT).
                         </p>
                     </div>
                     <Button variant="ghost" asChild>
@@ -224,7 +218,7 @@ export default function PublicCustomsCalculatorPage() {
                                             <Info className="h-4 w-4 text-green-600" />
                                             <AlertTitle className="text-green-800">Duty Free Shipment</AlertTitle>
                                             <AlertDescription className="text-green-700">
-                                                Since your item is $100 USD or less, you don't pay customs duties or GCT!
+                                                Since your item is $100 USD or less, you don't pay customs duties!
                                             </AlertDescription>
                                         </Alert>
                                     ) : (
@@ -252,16 +246,6 @@ export default function PublicCustomsCalculatorPage() {
                                                     <span className="text-muted-foreground">CAF (Admin Fee)</span>
                                                     <span className="font-semibold">{formatCurrency(calculation.caf)}</span>
                                                 </div>
-                                                <div className="flex justify-between text-sm">
-                                                    <span className="text-muted-foreground flex items-center gap-1">
-                                                        GCT (15%)
-                                                        <Tooltip>
-                                                            <TooltipTrigger><HelpCircle className="h-3 w-3" /></TooltipTrigger>
-                                                            <TooltipContent>15% of (CIF + Duty + Fees)</TooltipContent>
-                                                        </Tooltip>
-                                                    </span>
-                                                    <span className="font-semibold">{formatCurrency(calculation.gct)}</span>
-                                                </div>
                                                 <Separator />
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-xl font-bold">Total Estimate</span>
@@ -271,7 +255,7 @@ export default function PublicCustomsCalculatorPage() {
                                         </TooltipProvider>
                                     )}
                                     <p className="text-[11px] text-muted-foreground italic leading-relaxed">
-                                        Note: This estimate follows official JCA logic. Actual charges may vary based on exchange rates and valuation adjustments.
+                                        Note: This estimate uses official JCA logic. Actual charges may vary based on exchange rates and officer valuation.
                                     </p>
                                 </div>
                             ) : (

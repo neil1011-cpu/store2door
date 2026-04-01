@@ -28,16 +28,16 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 // Official-aligned Jamaica Customs Rates (Approximate for commonly shipped items)
 const CUSTOMS_RATES = {
-  GENERAL: { duty: 0.20, gct: 0.15 },
-  LAPTOPS_TABLETS: { duty: 0, gct: 0.15 },
-  COMPUTERS: { duty: 0, gct: 0.15 },
-  CELL_PHONES: { duty: 0.20, gct: 0.15 },
-  CLOTHING: { duty: 0.20, gct: 0.15 },
-  SHOES: { duty: 0.20, gct: 0.15 },
-  AUTO_PARTS: { duty: 0.30, gct: 0.15 },
-  COSMETICS: { duty: 0.20, gct: 0.15 },
-  BOOKS: { duty: 0, gct: 0 },
-  ELECTRONICS_OTHER: { duty: 0.20, gct: 0.15 },
+  GENERAL: { duty: 0.20 },
+  LAPTOPS_TABLETS: { duty: 0 },
+  COMPUTERS: { duty: 0 },
+  CELL_PHONES: { duty: 0.20 },
+  CLOTHING: { duty: 0.20 },
+  SHOES: { duty: 0.20 },
+  AUTO_PARTS: { duty: 0.30 },
+  COSMETICS: { duty: 0.20 },
+  BOOKS: { duty: 0 },
+  ELECTRONICS_OTHER: { duty: 0.20 },
 };
 
 const USD_TO_JMD_RATE = 156; 
@@ -61,7 +61,6 @@ export default function AdminCustomsCalculatorPage() {
     importDuty: 0,
     scf: 0,
     caf: 0,
-    gct: 0,
     total: 0,
     isDutyFree: false,
     calculated: false,
@@ -90,7 +89,6 @@ export default function AdminCustomsCalculatorPage() {
             importDuty: 0,
             scf: 0,
             caf: 0,
-            gct: 0,
             total: 0,
             isDutyFree: true,
             calculated: true,
@@ -114,12 +112,8 @@ export default function AdminCustomsCalculatorPage() {
     const cafJmd = getCAF(itemPrice);
     const cafUsd = cafJmd / USD_TO_JMD_RATE;
 
-    // 6. GCT = (CIF + ID + SCF + CAF) * GCT_Rate
-    // Note: GCT is applied to the sum of CIF and all other duties.
-    const taxableValueForGCT = cif + importDuty + scf + cafUsd;
-    const gct = taxableValueForGCT * rates.gct;
-    
-    const total = importDuty + scf + cafUsd + gct;
+    // 6. Total = ID + SCF + CAF (No GCT)
+    const total = importDuty + scf + cafUsd;
 
     setCalculation({
       cost: itemPrice,
@@ -129,7 +123,6 @@ export default function AdminCustomsCalculatorPage() {
       importDuty,
       scf,
       caf: cafUsd,
-      gct,
       total,
       isDutyFree: false,
       calculated: true,
@@ -147,7 +140,7 @@ export default function AdminCustomsCalculatorPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Customs Calculator</h1>
           <p className="text-muted-foreground">
-            Official Jamaica Customs Agency (JCA) Calculation Logic.
+            Official Jamaica Customs Agency (JCA) Calculation Logic (No GCT).
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -245,7 +238,7 @@ export default function AdminCustomsCalculatorPage() {
                         <Info className="h-4 w-4 text-green-600 dark:text-green-400" />
                         <AlertTitle>Duty Free!</AlertTitle>
                         <AlertDescription>
-                            This item is at or under the $100 USD de minimis threshold. No duties or GCT apply.
+                            This item is at or under the $100 USD de minimis threshold. No duties apply.
                         </AlertDescription>
                     </Alert>
                 ) : (
@@ -275,16 +268,6 @@ export default function AdminCustomsCalculatorPage() {
                                     <span className="text-muted-foreground">Customs Admin Fee (CAF)</span>
                                     <span className="font-medium">{formatCurrency(calculation.caf)}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-muted-foreground flex items-center gap-1">
-                                        GCT (15%)
-                                        <Tooltip>
-                                            <TooltipTrigger><HelpCircle className="h-3 w-3" /></TooltipTrigger>
-                                            <TooltipContent>15% of (CIF + ID + SCF + CAF)</TooltipContent>
-                                        </Tooltip>
-                                    </span>
-                                    <span className="font-medium">{formatCurrency(calculation.gct)}</span>
-                                </div>
                             </div>
                         </TooltipProvider>
                         <Separator className="h-0.5" />
@@ -296,7 +279,7 @@ export default function AdminCustomsCalculatorPage() {
                 )}
                 
                  <p className="text-[10px] text-muted-foreground pt-4 leading-relaxed">
-                    Disclaimer: This is an automated estimate using the official JCA calculation sequence. Actual charges are determined by Jamaica Customs at clearance and may vary. (Exchange Rate: 1 USD = 156 JMD).
+                    Disclaimer: This is an automated estimate using official JCA categories. Actual charges are determined by Jamaica Customs at clearance and may vary. (Exchange Rate: 1 USD = 156 JMD).
                 </p>
               </div>
             ) : (
