@@ -19,11 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Calculator, Info } from 'lucide-react';
+import { ArrowLeft, Calculator, Info, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Official-aligned Jamaica Customs Rates (Approximate for commonly shipped items)
 const CUSTOMS_RATES = {
@@ -53,6 +54,9 @@ export default function AdminCustomsCalculatorPage() {
   const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('USD');
 
   const [calculation, setCalculation] = useState({
+    cost: 0,
+    insurance: 0,
+    freight: 0,
     cif: 0,
     importDuty: 0,
     scf: 0,
@@ -76,9 +80,12 @@ export default function AdminCustomsCalculatorPage() {
     const itemPrice = parseFloat(price) || 0;
     const shippingCost = parseFloat(shipping) || 0;
     
-    // 1. Threshold Check
+    // 1. Threshold Check (De Minimis)
     if (itemPrice <= DE_MINIMIS_THRESHOLD) {
         setCalculation({
+            cost: itemPrice,
+            insurance: 0,
+            freight: shippingCost,
             cif: itemPrice + shippingCost,
             importDuty: 0,
             scf: 0,
@@ -92,6 +99,7 @@ export default function AdminCustomsCalculatorPage() {
     }
 
     // 2. CIF = Cost + Insurance + Freight
+    // JCA calculates ID on CIF value.
     const insurance = itemPrice * INSURANCE_RATE;
     const cif = itemPrice + insurance + shippingCost;
     
@@ -99,20 +107,24 @@ export default function AdminCustomsCalculatorPage() {
     const rates = CUSTOMS_RATES[category];
     const importDuty = cif * rates.duty;
 
-    // 4. SCF
+    // 4. SCF (Standard Compliance Fee) - 0.3% of CIF
     const scf = cif * SCF_RATE;
 
-    // 5. CAF (Customs Admin Fee) - calculated in JMD then converted if needed
+    // 5. CAF (Customs Admin Fee) - calculated in JMD brackets
     const cafJmd = getCAF(itemPrice);
     const cafUsd = cafJmd / USD_TO_JMD_RATE;
 
     // 6. GCT = (CIF + ID + SCF + CAF) * GCT_Rate
+    // Note: GCT is applied to the sum of CIF and all other duties.
     const taxableValueForGCT = cif + importDuty + scf + cafUsd;
     const gct = taxableValueForGCT * rates.gct;
     
     const total = importDuty + scf + cafUsd + gct;
 
     setCalculation({
+      cost: itemPrice,
+      insurance,
+      freight: shippingCost,
       cif,
       importDuty,
       scf,
@@ -135,7 +147,7 @@ export default function AdminCustomsCalculatorPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Customs Calculator</h1>
           <p className="text-muted-foreground">
-            Aligned with Jamaica Customs Agency (JCA) regulations.
+            Official Jamaica Customs Agency (JCA) Calculation Logic.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -163,7 +175,7 @@ export default function AdminCustomsCalculatorPage() {
                 onChange={(e) => setPrice(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Items under $100 USD (value only) are usually duty-free.
+                Items under $100 USD value (excluding freight) are duty-free.
               </p>
             </div>
             <div className="space-y-2">
@@ -209,7 +221,7 @@ export default function AdminCustomsCalculatorPage() {
           <CardHeader>
             <CardTitle>Calculation Result</CardTitle>
             <CardDescription>
-              Breakdown of estimated JCA charges.
+              Step-by-step breakdown of JCA charges.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1">
@@ -233,49 +245,63 @@ export default function AdminCustomsCalculatorPage() {
                         <Info className="h-4 w-4 text-green-600 dark:text-green-400" />
                         <AlertTitle>Duty Free!</AlertTitle>
                         <AlertDescription>
-                            This item is under the $100 USD threshold. No customs duties apply.
+                            This item is at or under the $100 USD de minimis threshold. No duties or GCT apply.
                         </AlertDescription>
                     </Alert>
                 ) : (
                     <div className="space-y-3">
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">CIF Value (Cost + Ins. + Freight)</span>
-                            <span className="font-medium">{formatCurrency(calculation.cif)}</span>
-                        </div>
-                        <Separator />
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">Import Duty (ID)</span>
-                                <span className="font-medium">{formatCurrency(calculation.importDuty)}</span>
+                        <TooltipProvider>
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground flex items-center gap-1">
+                                        CIF Value (Base)
+                                        <Tooltip>
+                                            <TooltipTrigger><HelpCircle className="h-3 w-3" /></TooltipTrigger>
+                                            <TooltipContent>Cost + Insurance (1.5%) + Freight</TooltipContent>
+                                        </Tooltip>
+                                    </span>
+                                    <span className="font-medium">{formatCurrency(calculation.cif)}</span>
+                                </div>
+                                <Separator />
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Import Duty (ID)</span>
+                                    <span className="font-medium">{formatCurrency(calculation.importDuty)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Standard Compliance (SCF)</span>
+                                    <span className="font-medium">{formatCurrency(calculation.scf)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Customs Admin Fee (CAF)</span>
+                                    <span className="font-medium">{formatCurrency(calculation.caf)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground flex items-center gap-1">
+                                        GCT (15%)
+                                        <Tooltip>
+                                            <TooltipTrigger><HelpCircle className="h-3 w-3" /></TooltipTrigger>
+                                            <TooltipContent>15% of (CIF + ID + SCF + CAF)</TooltipContent>
+                                        </Tooltip>
+                                    </span>
+                                    <span className="font-medium">{formatCurrency(calculation.gct)}</span>
+                                </div>
                             </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">Standard Compliance Fee (SCF)</span>
-                                <span className="font-medium">{formatCurrency(calculation.scf)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">Customs Admin Fee (CAF)</span>
-                                <span className="font-medium">{formatCurrency(calculation.caf)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">GCT (15%)</span>
-                                <span className="font-medium">{formatCurrency(calculation.gct)}</span>
-                            </div>
-                        </div>
+                        </TooltipProvider>
                         <Separator className="h-0.5" />
                         <div className="flex justify-between items-center pt-2">
-                            <span className="text-lg font-bold">Total Estimated Duties</span>
+                            <span className="text-lg font-bold">Total Estimate</span>
                             <span className="text-2xl font-bold text-primary">{formatCurrency(calculation.total)}</span>
                         </div>
                     </div>
                 )}
                 
                  <p className="text-[10px] text-muted-foreground pt-4 leading-relaxed">
-                    Disclaimer: This is an automated estimate for informational purposes only. Actual charges are determined by the Jamaica Customs Agency at the time of clearance and may vary based on item valuation, specific tariff codes, and exchange rate fluctuations. 1 USD = 156 JMD used for this calculation.
+                    Disclaimer: This is an automated estimate using the official JCA calculation sequence. Actual charges are determined by Jamaica Customs at clearance and may vary. (Exchange Rate: 1 USD = 156 JMD).
                 </p>
               </div>
             ) : (
               <div className="flex h-48 items-center justify-center text-muted-foreground text-center italic">
-                <p>Enter details and click calculate to see the breakdown.</p>
+                <p>Enter details and click calculate to see the official breakdown.</p>
               </div>
             )}
           </CardContent>

@@ -19,11 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calculator, Info, ArrowLeft } from 'lucide-react';
+import { Calculator, Info, ArrowLeft, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const CUSTOMS_RATES = {
   GENERAL: { duty: 0.20, gct: 0.15 },
@@ -75,6 +76,7 @@ export default function PublicCustomsCalculatorPage() {
     const itemPrice = parseFloat(price) || 0;
     const shippingCost = parseFloat(shipping) || 0;
     
+    // 1. De Minimis Check
     if (itemPrice <= DE_MINIMIS_THRESHOLD) {
         setCalculation({
             cif: itemPrice + shippingCost,
@@ -89,15 +91,25 @@ export default function PublicCustomsCalculatorPage() {
         return;
     }
 
+    // 2. CIF (Base)
     const insurance = itemPrice * INSURANCE_RATE;
     const cif = itemPrice + insurance + shippingCost;
+    
+    // 3. ID (Import Duty)
     const rates = CUSTOMS_RATES[category];
     const importDuty = cif * rates.duty;
+    
+    // 4. SCF (Standard Compliance Fee)
     const scf = cif * SCF_RATE;
+    
+    // 5. CAF (Customs Admin Fee)
     const cafJmd = getCAF(itemPrice);
     const cafUsd = cafJmd / USD_TO_JMD_RATE;
+    
+    // 6. GCT (Applied to all above)
     const taxableValueForGCT = cif + importDuty + scf + cafUsd;
     const gct = taxableValueForGCT * rates.gct;
+    
     const total = importDuty + scf + cafUsd + gct;
 
     setCalculation({
@@ -125,7 +137,7 @@ export default function PublicCustomsCalculatorPage() {
                     <div>
                         <h1 className="text-4xl font-bold tracking-tight">Customs Fee Estimator</h1>
                         <p className="text-lg text-muted-foreground mt-2">
-                            Estimate your Jamaica Customs charges before you ship.
+                            Using the official Jamaica Customs Agency (JCA) sequence.
                         </p>
                     </div>
                     <Button variant="ghost" asChild>
@@ -193,8 +205,8 @@ export default function PublicCustomsCalculatorPage() {
 
                     <Card className="shadow-lg border-primary/20">
                         <CardHeader>
-                            <CardTitle>Step 2: The Breakdown</CardTitle>
-                            <CardDescription>Estimated charges from Jamaica Customs Agency.</CardDescription>
+                            <CardTitle>Step 2: Official Breakdown</CardTitle>
+                            <CardDescription>Estimated charges from JCA.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             {calculation.calculated ? (
@@ -212,36 +224,54 @@ export default function PublicCustomsCalculatorPage() {
                                             <Info className="h-4 w-4 text-green-600" />
                                             <AlertTitle className="text-green-800">Duty Free Shipment</AlertTitle>
                                             <AlertDescription className="text-green-700">
-                                                Since your item is $100 USD or less, you won't pay any customs duties or taxes!
+                                                Since your item is $100 USD or less, you don't pay customs duties or GCT!
                                             </AlertDescription>
                                         </Alert>
                                     ) : (
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-muted-foreground">Import Duty</span>
-                                                <span className="font-semibold">{formatCurrency(calculation.importDuty)}</span>
+                                        <TooltipProvider>
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground flex items-center gap-1">
+                                                        CIF Value
+                                                        <Tooltip>
+                                                            <TooltipTrigger><HelpCircle className="h-3 w-3" /></TooltipTrigger>
+                                                            <TooltipContent>Value used for calculations (Cost + Ins. + Freight)</TooltipContent>
+                                                        </Tooltip>
+                                                    </span>
+                                                    <span className="font-semibold">{formatCurrency(calculation.cif)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">Import Duty</span>
+                                                    <span className="font-semibold">{formatCurrency(calculation.importDuty)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">SCF (Compliance)</span>
+                                                    <span className="font-semibold">{formatCurrency(calculation.scf)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">CAF (Admin Fee)</span>
+                                                    <span className="font-semibold">{formatCurrency(calculation.caf)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground flex items-center gap-1">
+                                                        GCT (15%)
+                                                        <Tooltip>
+                                                            <TooltipTrigger><HelpCircle className="h-3 w-3" /></TooltipTrigger>
+                                                            <TooltipContent>15% of (CIF + Duty + Fees)</TooltipContent>
+                                                        </Tooltip>
+                                                    </span>
+                                                    <span className="font-semibold">{formatCurrency(calculation.gct)}</span>
+                                                </div>
+                                                <Separator />
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-xl font-bold">Total Estimate</span>
+                                                    <span className="text-3xl font-extrabold text-primary">{formatCurrency(calculation.total)}</span>
+                                                </div>
                                             </div>
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-muted-foreground">SCF (Standard Compliance)</span>
-                                                <span className="font-semibold">{formatCurrency(calculation.scf)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-muted-foreground">CAF (Customs Admin Fee)</span>
-                                                <span className="font-semibold">{formatCurrency(calculation.caf)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-muted-foreground">GCT (15%)</span>
-                                                <span className="font-semibold">{formatCurrency(calculation.gct)}</span>
-                                            </div>
-                                            <Separator />
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xl font-bold">Total Estimate</span>
-                                                <span className="text-3xl font-extrabold text-primary">{formatCurrency(calculation.total)}</span>
-                                            </div>
-                                        </div>
+                                        </TooltipProvider>
                                     )}
-                                    <p className="text-[11px] text-muted-foreground italic">
-                                        Note: This estimate is based on standard JCA rates. Actual charges may vary. Local courier processing fees are not included.
+                                    <p className="text-[11px] text-muted-foreground italic leading-relaxed">
+                                        Note: This estimate follows official JCA logic. Actual charges may vary based on exchange rates and valuation adjustments.
                                     </p>
                                 </div>
                             ) : (
