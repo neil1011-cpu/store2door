@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -20,30 +19,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Calculator, Dices } from 'lucide-react';
+import { ArrowLeft, Calculator, Info } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-// Note: These are simplified, estimated rates for demonstration purposes,
-// reflecting common categories under Jamaican customs policy.
+// Official-aligned Jamaica Customs Rates (Approximate for commonly shipped items)
 const CUSTOMS_RATES = {
   GENERAL: { duty: 0.20, gct: 0.15 },
-  ELECTRONICS: { duty: 0.20, gct: 0.25 },
-  CLOTHING: { duty: 0.20, gct: 0.25 },
+  LAPTOPS_TABLETS: { duty: 0, gct: 0.15 },
+  COMPUTERS: { duty: 0, gct: 0.15 },
+  CELL_PHONES: { duty: 0.20, gct: 0.15 },
+  CLOTHING: { duty: 0.20, gct: 0.15 },
+  SHOES: { duty: 0.20, gct: 0.15 },
+  AUTO_PARTS: { duty: 0.30, gct: 0.15 },
+  COSMETICS: { duty: 0.20, gct: 0.15 },
   BOOKS: { duty: 0, gct: 0 },
-  AUTO_PARTS: { duty: 0.20, gct: 0.25 },
-  COSMETICS: { duty: 0.20, gct: 0.25 },
+  ELECTRONICS_OTHER: { duty: 0.20, gct: 0.15 },
 };
-const CUSTOMS_ADMIN_FEE_RATE = 0.075; // Standard CAF is 7.5%
-const ASSUMED_INSURANCE_RATE = 0.01; // Assume 1% of item cost for insurance
-const USD_TO_JMD_RATE = 156; // Static exchange rate for conversion
+
+const USD_TO_JMD_RATE = 156; 
+const DE_MINIMIS_THRESHOLD = 100; // New JCA limit for duty-free personal imports
+const INSURANCE_RATE = 0.015; // JCA standard is 1.5% if not provided
+const SCF_RATE = 0.003; // Standard Compliance Fee 0.3%
 
 type Category = keyof typeof CUSTOMS_RATES;
 
-export default function CustomsCalculatorPage() {
+export default function AdminCustomsCalculatorPage() {
   const [price, setPrice] = useState('');
-  const [weight, setWeight] = useState('');
   const [shipping, setShipping] = useState('');
   const [category, setCategory] = useState<Category>('GENERAL');
   const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('USD');
@@ -51,38 +55,71 @@ export default function CustomsCalculatorPage() {
   const [calculation, setCalculation] = useState({
     cif: 0,
     importDuty: 0,
-    customsAdminFee: 0,
+    scf: 0,
+    caf: 0,
     gct: 0,
     total: 0,
+    isDutyFree: false,
     calculated: false,
   });
+
+  const getCAF = (valueUsd: number) => {
+    if (valueUsd <= DE_MINIMIS_THRESHOLD) return 0;
+    if (valueUsd <= 500) return 2500;
+    if (valueUsd <= 1000) return 5000;
+    if (valueUsd <= 2500) return 10000;
+    if (valueUsd <= 5000) return 20000;
+    return 40000;
+  };
 
   const handleCalculate = () => {
     const itemPrice = parseFloat(price) || 0;
     const shippingCost = parseFloat(shipping) || 0;
     
-    // Insurance is often calculated on the item price if not provided.
-    const insuranceCost = itemPrice * ASSUMED_INSURANCE_RATE;
+    // 1. Threshold Check
+    if (itemPrice <= DE_MINIMIS_THRESHOLD) {
+        setCalculation({
+            cif: itemPrice + shippingCost,
+            importDuty: 0,
+            scf: 0,
+            caf: 0,
+            gct: 0,
+            total: 0,
+            isDutyFree: true,
+            calculated: true,
+        });
+        return;
+    }
+
+    // 2. CIF = Cost + Insurance + Freight
+    const insurance = itemPrice * INSURANCE_RATE;
+    const cif = itemPrice + insurance + shippingCost;
     
-    // CIF = Cost + Insurance + Freight
-    const cif = itemPrice + insuranceCost + shippingCost;
-    
+    // 3. Import Duty (ID)
     const rates = CUSTOMS_RATES[category];
     const importDuty = cif * rates.duty;
-    const customsAdminFee = cif * CUSTOMS_ADMIN_FEE_RATE;
-    
-    // GCT is levied on the CIF value plus all other duties and fees.
-    const taxableValueForGCT = cif + importDuty + customsAdminFee;
+
+    // 4. SCF
+    const scf = cif * SCF_RATE;
+
+    // 5. CAF (Customs Admin Fee) - calculated in JMD then converted if needed
+    const cafJmd = getCAF(itemPrice);
+    const cafUsd = cafJmd / USD_TO_JMD_RATE;
+
+    // 6. GCT = (CIF + ID + SCF + CAF) * GCT_Rate
+    const taxableValueForGCT = cif + importDuty + scf + cafUsd;
     const gct = taxableValueForGCT * rates.gct;
     
-    const total = importDuty + customsAdminFee + gct;
+    const total = importDuty + scf + cafUsd + gct;
 
     setCalculation({
       cif,
       importDuty,
-      customsAdminFee,
+      scf,
+      caf: cafUsd,
       gct,
       total,
+      isDutyFree: false,
       calculated: true,
     });
   };
@@ -98,7 +135,7 @@ export default function CustomsCalculatorPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Customs Calculator</h1>
           <p className="text-muted-foreground">
-            Estimate Jamaican customs fees for your shipments.
+            Aligned with Jamaica Customs Agency (JCA) regulations.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -112,12 +149,12 @@ export default function CustomsCalculatorPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         <Card>
           <CardHeader>
-            <CardTitle>Shipment Details</CardTitle>
-            <CardDescription>Enter the details of your item below.</CardDescription>
+            <CardTitle>Item Details</CardTitle>
+            <CardDescription>Enter the item value and shipping cost in USD.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="price">Price (USD)</Label>
+              <Label htmlFor="price">Item Value (USD)</Label>
               <Input
                 id="price"
                 type="number"
@@ -125,16 +162,9 @@ export default function CustomsCalculatorPage() {
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
               />
-            </div>
-             <div className="space-y-2">
-              <Label htmlFor="weight">Weight (lbs)</Label>
-              <Input
-                id="weight"
-                type="number"
-                placeholder="e.g., 5"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-              />
+              <p className="text-xs text-muted-foreground">
+                Items under $100 USD (value only) are usually duty-free.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="shipping">Shipping Cost (USD)</Label>
@@ -147,48 +177,49 @@ export default function CustomsCalculatorPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
+              <Label htmlFor="category">Item Category</Label>
               <Select onValueChange={(value: Category) => setCategory(value)} defaultValue={category}>
                 <SelectTrigger id="category">
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="GENERAL">General Items</SelectItem>
-                  <SelectItem value="ELECTRONICS">Electronics</SelectItem>
-                  <SelectItem value="CLOTHING">Clothing & Accessories</SelectItem>
-                  <SelectItem value="AUTO_PARTS">Auto Parts</SelectItem>
-                  <SelectItem value="COSMETICS">Cosmetics</SelectItem>
+                  <SelectItem value="GENERAL">General Items (20% Duty)</SelectItem>
+                  <SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0% Duty)</SelectItem>
+                  <SelectItem value="COMPUTERS">Computers (0% Duty)</SelectItem>
+                  <SelectItem value="CELL_PHONES">Cell Phones (20% Duty)</SelectItem>
+                  <SelectItem value="CLOTHING">Clothing (20% Duty)</SelectItem>
+                  <SelectItem value="SHOES">Shoes (20% Duty)</SelectItem>
+                  <SelectItem value="AUTO_PARTS">Auto Parts (30% Duty)</SelectItem>
+                  <SelectItem value="COSMETICS">Cosmetics (20% Duty)</SelectItem>
                   <SelectItem value="BOOKS">Books (Duty Free)</SelectItem>
+                  <SelectItem value="ELECTRONICS_OTHER">Other Electronics (20% Duty)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={handleCalculate}>
+            <Button onClick={handleCalculate} className="w-full">
               <Calculator className="mr-2 h-4 w-4" />
-              Calculate
+              Calculate Estimate
             </Button>
           </CardFooter>
         </Card>
 
         <Card className="flex flex-col sticky top-6">
           <CardHeader>
-            <CardTitle>Estimated Costs</CardTitle>
+            <CardTitle>Calculation Result</CardTitle>
             <CardDescription>
-              A breakdown of estimated customs charges.
+              Breakdown of estimated JCA charges.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1">
             {calculation.calculated ? (
               <div className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/50">
                   <div className="space-y-0.5">
-                    <Label htmlFor="currency-toggle" className="text-base">
-                      Display in {displayCurrency}
+                    <Label htmlFor="currency-toggle" className="text-sm font-semibold">
+                      Display Currency: {displayCurrency}
                     </Label>
-                    <p className="text-sm text-muted-foreground">
-                        Toggle to switch between USD and JMD.
-                    </p>
                   </div>
                   <Switch
                     id="currency-toggle"
@@ -197,39 +228,54 @@ export default function CustomsCalculatorPage() {
                   />
                 </div>
 
-                <div className="flex justify-between items-center border-b pb-2 text-sm">
-                  <span className="text-muted-foreground">CIF Value (Cost, Insurance, Freight)</span>
-                  <span className="font-medium">{formatCurrency(calculation.cif)}</span>
-                </div>
-                 <div className="space-y-2 pt-2">
-                    <h4 className="font-medium">Duties & Fees Breakdown:</h4>
-                    <div className="flex justify-between items-center pl-4 text-sm">
-                        <span className="text-muted-foreground">Import Duty</span>
-                        <span className="font-medium">{formatCurrency(calculation.importDuty)}</span>
+                {calculation.isDutyFree ? (
+                    <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-900">
+                        <Info className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <AlertTitle>Duty Free!</AlertTitle>
+                        <AlertDescription>
+                            This item is under the $100 USD threshold. No customs duties apply.
+                        </AlertDescription>
+                    </Alert>
+                ) : (
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-muted-foreground">CIF Value (Cost + Ins. + Freight)</span>
+                            <span className="font-medium">{formatCurrency(calculation.cif)}</span>
+                        </div>
+                        <Separator />
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Import Duty (ID)</span>
+                                <span className="font-medium">{formatCurrency(calculation.importDuty)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Standard Compliance Fee (SCF)</span>
+                                <span className="font-medium">{formatCurrency(calculation.scf)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Customs Admin Fee (CAF)</span>
+                                <span className="font-medium">{formatCurrency(calculation.caf)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">GCT (15%)</span>
+                                <span className="font-medium">{formatCurrency(calculation.gct)}</span>
+                            </div>
+                        </div>
+                        <Separator className="h-0.5" />
+                        <div className="flex justify-between items-center pt-2">
+                            <span className="text-lg font-bold">Total Estimated Duties</span>
+                            <span className="text-2xl font-bold text-primary">{formatCurrency(calculation.total)}</span>
+                        </div>
                     </div>
-                     <div className="flex justify-between items-center pl-4 text-sm">
-                        <span className="text-muted-foreground">Customs Admin. Fee (CAF)</span>
-                        <span className="font-medium">{formatCurrency(calculation.customsAdminFee)}</span>
-                    </div>
-                     <div className="flex justify-between items-center pl-4 text-sm">
-                        <span className="text-muted-foreground">General Consumption Tax (GCT)</span>
-                        <span className="font-medium">{formatCurrency(calculation.gct)}</span>
-                    </div>
-                </div>
-
-                <Separator />
+                )}
                 
-                <div className="flex justify-between items-center pt-2 text-lg">
-                  <span className="font-bold">Total Estimated Duties</span>
-                  <span className="font-bold text-primary">{formatCurrency(calculation.total)}</span>
-                </div>
-                 <p className="text-xs text-muted-foreground pt-4">
-                    Disclaimer: This is an estimate only and does not include local freight or courier fees. Actual charges from the Jamaica Customs Agency may vary. Insurance is estimated at 1% of the item price. Exchange rate is an estimate.
+                 <p className="text-[10px] text-muted-foreground pt-4 leading-relaxed">
+                    Disclaimer: This is an automated estimate for informational purposes only. Actual charges are determined by the Jamaica Customs Agency at the time of clearance and may vary based on item valuation, specific tariff codes, and exchange rate fluctuations. 1 USD = 156 JMD used for this calculation.
                 </p>
               </div>
             ) : (
-              <div className="flex h-full items-center justify-center text-muted-foreground">
-                <p>Enter shipment details to see the cost estimate.</p>
+              <div className="flex h-48 items-center justify-center text-muted-foreground text-center italic">
+                <p>Enter details and click calculate to see the breakdown.</p>
               </div>
             )}
           </CardContent>
