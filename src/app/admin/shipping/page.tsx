@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, ArrowLeft, Edit, Loader2 } from 'lucide-react';
+import { Mail, ArrowLeft, Edit, Loader2, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
-import type { Shipment, UserProfile } from '@/lib/types';
+import type { Shipment, UserProfile, ShipmentStatus } from '@/lib/types';
 import {
   Select,
   SelectContent,
@@ -58,20 +58,22 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 
-const getStatusVariant = (status: string) => {
+const getStatusVariant = (status: ShipmentStatus) => {
   switch (status) {
     case 'In Transit':
+    case 'Being Shipped':
       return 'default';
     case 'Customs':
     case 'Processed':
     case 'In Review':
+    case 'Received at Warehouse (FL)':
+    case 'Arrived in Jamaica':
       return 'secondary';
     case 'Delivered':
       return 'outline';
     case 'Pending':
     case 'Pre-Alert':
       return 'destructive';
-    case 'Being Shipped':
     case 'On Route':
         return 'default'
     default:
@@ -81,6 +83,7 @@ const getStatusVariant = (status: string) => {
 
 export default function ShippingPage() {
   const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState('');
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<
@@ -117,12 +120,22 @@ export default function ShippingPage() {
     
     const usersMap = new Map(users.map(u => [u.id, u]));
 
-    return shipments.map(shipment => ({
+    const mapped = shipments.map(shipment => ({
         ...shipment,
         user: usersMap.get(shipment.customerId)
     }));
 
-  }, [shipments, users]);
+    if (!searchTerm) return mapped;
+
+    const lowerTerm = searchTerm.toLowerCase();
+    return mapped.filter(s => 
+        s.trackingNumber.toLowerCase().includes(lowerTerm) || 
+        s.user?.fullName?.toLowerCase().includes(lowerTerm) ||
+        s.user?.email?.toLowerCase().includes(lowerTerm) ||
+        s.contents.toLowerCase().includes(lowerTerm)
+    );
+
+  }, [shipments, users, searchTerm]);
 
 
   const handleOpenEmailDialog = (
@@ -196,7 +209,7 @@ export default function ShippingPage() {
         });
         toast({
           title: 'Shipment Updated',
-          description: `Shipment ${editableShipment.trackingNumber} has been updated.`,
+          description: `Shipment ${editableShipment.trackingNumber} has been updated to "${editableShipment.status}".`,
         });
         setIsEditDialogOpen(false);
         setEditableShipment(null);
@@ -239,7 +252,7 @@ export default function ShippingPage() {
             Shipping Status
           </h1>
           <p className="text-muted-foreground">
-            Track all current shipments.
+            Track all current shipments and update their status.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -252,10 +265,23 @@ export default function ShippingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Shipments</CardTitle>
-          <CardDescription>
-            An overview of all packages currently in the system.
-          </CardDescription>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <CardTitle>All Shipments</CardTitle>
+                <CardDescription>
+                    An overview of all packages currently in the system.
+                </CardDescription>
+            </div>
+            <div className="relative w-full md:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                    placeholder="Search tracking, user..." 
+                    className="pl-9"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -309,7 +335,7 @@ export default function ShippingPage() {
                       }
                     >
                       <Edit className="mr-2 h-4 w-4" />
-                      Edit
+                      Update
                     </Button>
                     <Button
                       variant="outline"
@@ -421,12 +447,11 @@ export default function ShippingPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              Edit Shipment #
+              Update Shipment #
               {editableShipment?.trackingNumber}
             </DialogTitle>
             <DialogDescription>
-              Update the details for this shipment. Click save
-              when you're done.
+              Set the current status showing if the package has arrived or moved to the next stage.
             </DialogDescription>
           </DialogHeader>
           {editableShipment && (
@@ -461,30 +486,17 @@ export default function ShippingPage() {
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Pending">
-                        Pending
-                      </SelectItem>
-                      <SelectItem value="Processed">
-                        Processed
-                      </SelectItem>
-                       <SelectItem value="In Review">
-                        In Review
-                      </SelectItem>
-                      <SelectItem value="Being Shipped">
-                        Being Shipped
-                      </SelectItem>
-                      <SelectItem value="In Transit">
-                        In Transit
-                      </SelectItem>
-                       <SelectItem value="On Route">
-                        On Route
-                      </SelectItem>
-                      <SelectItem value="Customs">
-                        Customs
-                      </SelectItem>
-                      <SelectItem value="Delivered">
-                        Delivered
-                      </SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Pre-Alert">Pre-Alert</SelectItem>
+                      <SelectItem value="Received at Warehouse (FL)">Received at Warehouse (FL)</SelectItem>
+                      <SelectItem value="Processed">Processed</SelectItem>
+                       <SelectItem value="In Review">In Review</SelectItem>
+                      <SelectItem value="Being Shipped">Being Shipped</SelectItem>
+                      <SelectItem value="In Transit">In Transit</SelectItem>
+                      <SelectItem value="Arrived in Jamaica">Arrived in Jamaica</SelectItem>
+                      <SelectItem value="Customs">Customs</SelectItem>
+                      <SelectItem value="On Route">On Route (Delivery)</SelectItem>
+                      <SelectItem value="Delivered">Delivered</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -547,7 +559,7 @@ export default function ShippingPage() {
               {isSaving && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Save Changes
+              Update Package Status
             </Button>
           </DialogFooter>
         </DialogContent>

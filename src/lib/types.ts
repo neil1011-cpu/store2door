@@ -34,11 +34,24 @@ export type UserProfile = {
   pickupPersonnel?: PickupPerson[];
 };
 
+export type ShipmentStatus = 
+  | 'Pending' 
+  | 'Pre-Alert' 
+  | 'Received at Warehouse (FL)'
+  | 'Processed' 
+  | 'In Review' 
+  | 'Being Shipped' 
+  | 'In Transit' 
+  | 'Arrived in Jamaica'
+  | 'Customs' 
+  | 'On Route' 
+  | 'Delivered';
+
 export type Shipment = {
   id: string;
   trackingNumber: string;
   contents: string;
-  status: 'Pending' | 'Processed' | 'In Review' | 'Being Shipped' | 'In Transit' | 'On Route' | 'Customs' | 'Delivered';
+  status: ShipmentStatus;
   shippingDate: Timestamp | any; 
   cost?: number;
   paymentStatus?: 'Paid' | 'Unpaid';
