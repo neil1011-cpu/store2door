@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -19,12 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calculator, Info, ArrowLeft, HelpCircle, Truck } from 'lucide-react';
+import { Calculator, Info, ArrowLeft, Truck, DollarSign, Weight } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const CUSTOMS_RATES = {
   GENERAL: { duty: 0.20 },
@@ -58,7 +58,7 @@ export default function PublicCustomsCalculatorPage() {
   const [price, setPrice] = useState('');
   const [weight, setWeight] = useState('');
   const [category, setCategory] = useState<Category>('GENERAL');
-  const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('JMD'); // Default to JMD
+  const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('JMD');
 
   const [calculation, setCalculation] = useState({
     freight: 0,
@@ -103,7 +103,6 @@ export default function PublicCustomsCalculatorPage() {
     const w = parseFloat(weight) || 0;
     const shippingCostUsd = calculateShippingFromWeight(w);
     
-    // 1. De Minimis Check
     if (itemPrice <= DE_MINIMIS_THRESHOLD) {
         setCalculation({
             freight: shippingCostUsd,
@@ -118,25 +117,14 @@ export default function PublicCustomsCalculatorPage() {
         return;
     }
 
-    // 2. CIF (Base)
     const insurance = itemPrice * INSURANCE_RATE;
     const cif = itemPrice + insurance + shippingCostUsd;
-    
-    // 3. ID (Import Duty)
     const rates = CUSTOMS_RATES[category];
     const importDuty = cif * rates.duty;
-    
-    // 4. SCF (Standard Compliance Fee)
     const scf = cif * SCF_RATE;
-    
-    // 5. CAF (Customs Admin Fee)
     const cafJmd = getCAF(itemPrice);
     const cafUsd = cafJmd / USD_TO_JMD_RATE;
-    
-    // 6. Subtotal Customs
     const customsTotal = importDuty + scf + cafUsd;
-
-    // 7. Grand Total
     const total = shippingCostUsd + customsTotal;
 
     setCalculation({
@@ -188,25 +176,32 @@ export default function PublicCustomsCalculatorPage() {
                         <CardContent className="space-y-6">
                             <div className="space-y-2">
                                 <Label htmlFor="price">Item Value (USD)</Label>
-                                <Input
-                                    id="price"
-                                    type="number"
-                                    placeholder="0.00"
-                                    value={price}
-                                    onChange={(e) => setPrice(e.target.value)}
-                                    className="text-lg"
-                                />
+                                <div className="relative">
+                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        id="price"
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={price}
+                                        onChange={(e) => setPrice(e.target.value)}
+                                        className="text-lg pl-10"
+                                    />
+                                </div>
                                 <p className="text-xs text-muted-foreground">Value used for customs. $100 or less is duty-free.</p>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="weight">Weight (lbs)</Label>
-                                <Input
-                                    id="weight"
-                                    type="number"
-                                    placeholder="0.00"
-                                    value={weight}
-                                    onChange={(e) => setWeight(e.target.value)}
-                                />
+                                <div className="relative">
+                                    <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        id="weight"
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={weight}
+                                        onChange={(e) => setWeight(e.target.value)}
+                                        className="pl-10"
+                                    />
+                                </div>
                                 <p className="text-xs text-muted-foreground">Determines your air freight shipping cost.</p>
                             </div>
                             <div className="space-y-2">
@@ -256,7 +251,7 @@ export default function PublicCustomsCalculatorPage() {
                                         <div className="flex justify-between items-center text-sm font-semibold">
                                             <span className="flex items-center gap-2">
                                                 <Truck className="h-4 w-4 text-primary" />
-                                                SwiftRoute Shipping Fee
+                                                Shipping Fee
                                             </span>
                                             <span className="text-lg">{formatCurrency(calculation.freight)}</span>
                                         </div>
@@ -294,11 +289,11 @@ export default function PublicCustomsCalculatorPage() {
                                             </div>
                                         )}
 
-                                        <div className="p-4 rounded-xl bg-primary text-primary-foreground shadow-inner">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-lg font-bold">Estimated Total</span>
-                                                <span className="text-3xl font-black">{formatCurrency(calculation.total)}</span>
-                                            </div>
+                                        <div className="p-6 rounded-xl bg-primary text-primary-foreground shadow-xl text-center">
+                                            <span className="text-sm font-medium uppercase tracking-widest block opacity-80 mb-2">Estimated Total</span>
+                                            <span className="text-5xl font-black block tracking-tighter">
+                                                {formatCurrency(calculation.total)}
+                                            </span>
                                         </div>
                                     </div>
                                     

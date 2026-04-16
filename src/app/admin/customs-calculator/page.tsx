@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -19,12 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Calculator, Info, HelpCircle, Truck, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Calculator, Info, Truck, DollarSign, Weight } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Official Jamaica Customs Rates
 const CUSTOMS_RATES = {
@@ -45,7 +45,7 @@ const DE_MINIMIS_THRESHOLD = 100;
 const INSURANCE_RATE = 0.015;
 const SCF_RATE = 0.003;
 
-// Official Shipping Rates
+// Official Shipping Rates (JMD)
 const pricingTiers: Record<number, number> = {
     1: 750, 2: 1200, 3: 1650, 4: 2100, 5: 2550,
     6: 3000, 7: 3450, 8: 3900, 9: 4350, 10: 4850,
@@ -59,7 +59,7 @@ export default function AdminCustomsCalculatorPage() {
   const [price, setPrice] = useState('');
   const [weight, setWeight] = useState('');
   const [category, setCategory] = useState<Category>('GENERAL');
-  const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('JMD'); // Default to JMD to match rates
+  const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('JMD');
 
   const [calculation, setCalculation] = useState({
     cost: 0,
@@ -107,7 +107,6 @@ export default function AdminCustomsCalculatorPage() {
     const w = parseFloat(weight) || 0;
     const shippingCostUsd = calculateShippingFromWeight(w);
     
-    // 1. De Minimis Check
     if (itemPrice <= DE_MINIMIS_THRESHOLD) {
         setCalculation({
             cost: itemPrice,
@@ -118,32 +117,21 @@ export default function AdminCustomsCalculatorPage() {
             scf: 0,
             caf: 0,
             customsTotal: 0,
-            total: shippingCostUsd, // Just the shipping rate
+            total: shippingCostUsd,
             isDutyFree: true,
             calculated: true,
         });
         return;
     }
 
-    // 2. CIF = Cost + Insurance + Freight
     const insurance = itemPrice * INSURANCE_RATE;
     const cif = itemPrice + insurance + shippingCostUsd;
-    
-    // 3. Import Duty (ID)
     const rates = CUSTOMS_RATES[category];
     const importDuty = cif * rates.duty;
-
-    // 4. SCF (Standard Compliance Fee)
     const scf = cif * SCF_RATE;
-
-    // 5. CAF (Customs Admin Fee)
     const cafJmd = getCAF(itemPrice);
     const cafUsd = cafJmd / USD_TO_JMD_RATE;
-
-    // 6. Customs Subtotal
     const customsTotal = importDuty + scf + cafUsd;
-
-    // 7. Grand Total = Shipping + Customs
     const total = shippingCostUsd + customsTotal;
 
     setCalculation({
@@ -177,7 +165,7 @@ export default function AdminCustomsCalculatorPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Customs Calculator</h1>
           <p className="text-muted-foreground">
-            Official Jamaica Customs Agency (JCA) Logic + SwiftRoute Shipping Rates.
+            Official Jamaica Customs Agency (JCA) Logic + FromStore2Door Shipping Rates.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -197,26 +185,34 @@ export default function AdminCustomsCalculatorPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="price">Item Value (USD)</Label>
-              <Input
-                id="price"
-                type="number"
-                placeholder="e.g., 100.00"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-              />
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    id="price"
+                    type="number"
+                    placeholder="0.00"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="pl-10"
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
                 Items under $100 USD value (excluding freight) are duty-free.
               </p>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="weight">Weight (lbs)</Label>
-                <Input
-                    id="weight"
-                    type="number"
-                    placeholder="e.g., 1"
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                />
+                <div className="relative">
+                    <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        id="weight"
+                        type="number"
+                        placeholder="0.00"
+                        value={weight}
+                        onChange={(e) => setWeight(e.target.value)}
+                        className="pl-10"
+                    />
+                </div>
                 <p className="text-xs text-muted-foreground">Used to automatically calculate shipping rates.</p>
             </div>
             <div className="space-y-2">
@@ -313,13 +309,13 @@ export default function AdminCustomsCalculatorPage() {
                         </div>
                     )}
                     
-                    <div className="rounded-xl border-2 border-primary/20 p-4 bg-primary/5">
-                        <div className="flex justify-between items-center">
-                            <span className="text-lg font-bold">Grand Total Estimate</span>
-                            <span className="text-3xl font-black text-primary">{formatCurrency(calculation.total)}</span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground text-center mt-4">
-                            Exchange Rate Used: 1 USD = 156 JMD. Landed cost includes shipping and estimated JCA charges.
+                    <div className="rounded-xl border-2 border-primary/20 p-6 bg-primary/5 text-center">
+                        <span className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-2 block">Grand Total Estimate</span>
+                        <span className="text-5xl font-black text-primary tracking-tighter">
+                            {formatCurrency(calculation.total)}
+                        </span>
+                        <p className="text-[10px] text-muted-foreground mt-4">
+                            Exchange Rate Used: 1 USD = {USD_TO_JMD_RATE} JMD.
                         </p>
                     </div>
                 </div>
