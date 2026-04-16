@@ -49,7 +49,6 @@ type Category = keyof typeof CUSTOMS_RATES;
 export default function PublicCustomsCalculatorPage() {
   const [price, setPrice] = useState('');
   const [weight, setWeight] = useState('');
-  const [shipping, setShipping] = useState('');
   const [category, setCategory] = useState<Category>('GENERAL');
   const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('USD');
 
@@ -87,17 +86,6 @@ export default function PublicCustomsCalculatorPage() {
     return priceJMD / USD_TO_JMD_RATE;
   };
 
-  // Update shipping estimate automatically when weight changes
-  useEffect(() => {
-    const w = parseFloat(weight);
-    if (!isNaN(w) && w > 0) {
-        const estimatedShipping = calculateShippingFromWeight(w);
-        setShipping(estimatedShipping.toFixed(2));
-    } else {
-        setShipping('');
-    }
-  }, [weight]);
-
   const getCAF = (valueUsd: number) => {
     if (valueUsd <= DE_MINIMIS_THRESHOLD) return 0;
     if (valueUsd <= 500) return 2500;
@@ -109,7 +97,8 @@ export default function PublicCustomsCalculatorPage() {
 
   const handleCalculate = () => {
     const itemPrice = parseFloat(price) || 0;
-    const shippingCost = parseFloat(shipping) || 0;
+    const w = parseFloat(weight) || 0;
+    const shippingCost = calculateShippingFromWeight(w);
     
     // 1. De Minimis Check
     if (itemPrice <= DE_MINIMIS_THRESHOLD) {
@@ -167,7 +156,7 @@ export default function PublicCustomsCalculatorPage() {
                     <div>
                         <h1 className="text-4xl font-bold tracking-tight">Customs Fee Estimator</h1>
                         <p className="text-lg text-muted-foreground mt-2">
-                            Estimate your charges based on official JCA logic (No GCT).
+                            Estimate your charges based on official JCA logic.
                         </p>
                     </div>
                     <Button variant="ghost" asChild>
@@ -196,27 +185,15 @@ export default function PublicCustomsCalculatorPage() {
                                 />
                                 <p className="text-xs text-muted-foreground">Items $100 USD or less are duty-free for personal use.</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="weight">Weight (lbs)</Label>
-                                    <Input
-                                        id="weight"
-                                        type="number"
-                                        placeholder="0.00"
-                                        value={weight}
-                                        onChange={(e) => setWeight(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="shipping">Shipping Cost (USD)</Label>
-                                    <Input
-                                        id="shipping"
-                                        type="number"
-                                        placeholder="Estimated..."
-                                        value={shipping}
-                                        onChange={(e) => setShipping(e.target.value)}
-                                    />
-                                </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="weight">Weight (lbs)</Label>
+                                <Input
+                                    id="weight"
+                                    type="number"
+                                    placeholder="0.00"
+                                    value={weight}
+                                    onChange={(e) => setWeight(e.target.value)}
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="category">What are you shipping?</Label>
@@ -277,7 +254,7 @@ export default function PublicCustomsCalculatorPage() {
                                                         CIF Value
                                                         <Tooltip>
                                                             <TooltipTrigger><HelpCircle className="h-3 w-3" /></TooltipTrigger>
-                                                            <TooltipContent>Value used for calculations (Cost + Ins. + Freight)</TooltipContent>
+                                                            <TooltipContent>Value used for calculations (Cost + Ins. + Estimated Freight)</TooltipContent>
                                                         </Tooltip>
                                                     </span>
                                                     <span className="font-semibold">{formatCurrency(calculation.cif)}</span>
@@ -303,7 +280,7 @@ export default function PublicCustomsCalculatorPage() {
                                         </TooltipProvider>
                                     )}
                                     <p className="text-[11px] text-muted-foreground italic leading-relaxed">
-                                        Note: This estimate uses official JCA logic. Actual charges may vary based on exchange rates and officer valuation.
+                                        Note: This estimate uses official logic. Actual charges may vary based on exchange rates and officer valuation.
                                     </p>
                                 </div>
                             ) : (

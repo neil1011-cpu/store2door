@@ -26,7 +26,7 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-// Official-aligned Jamaica Customs Rates (Approximate for commonly shipped items)
+// Official-aligned Jamaica Customs Rates
 const CUSTOMS_RATES = {
   GENERAL: { duty: 0.20 },
   LAPTOPS_TABLETS: { duty: 0 },
@@ -41,16 +41,15 @@ const CUSTOMS_RATES = {
 };
 
 const USD_TO_JMD_RATE = 156; 
-const DE_MINIMIS_THRESHOLD = 100; // New JCA limit for duty-free personal imports
-const INSURANCE_RATE = 0.015; // JCA standard is 1.5% if not provided
-const SCF_RATE = 0.003; // Standard Compliance Fee 0.3%
+const DE_MINIMIS_THRESHOLD = 100;
+const INSURANCE_RATE = 0.015;
+const SCF_RATE = 0.003;
 
 type Category = keyof typeof CUSTOMS_RATES;
 
 export default function AdminCustomsCalculatorPage() {
   const [price, setPrice] = useState('');
   const [weight, setWeight] = useState('');
-  const [shipping, setShipping] = useState('');
   const [category, setCategory] = useState<Category>('GENERAL');
   const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('USD');
 
@@ -91,17 +90,6 @@ export default function AdminCustomsCalculatorPage() {
     return priceJMD / USD_TO_JMD_RATE;
   };
 
-  // Update shipping estimate automatically when weight changes
-  useEffect(() => {
-    const w = parseFloat(weight);
-    if (!isNaN(w) && w > 0) {
-        const estimatedShipping = calculateShippingFromWeight(w);
-        setShipping(estimatedShipping.toFixed(2));
-    } else {
-        setShipping('');
-    }
-  }, [weight]);
-
   const getCAF = (valueUsd: number) => {
     if (valueUsd <= DE_MINIMIS_THRESHOLD) return 0;
     if (valueUsd <= 500) return 2500;
@@ -113,7 +101,8 @@ export default function AdminCustomsCalculatorPage() {
 
   const handleCalculate = () => {
     const itemPrice = parseFloat(price) || 0;
-    const shippingCost = parseFloat(shipping) || 0;
+    const w = parseFloat(weight) || 0;
+    const shippingCost = calculateShippingFromWeight(w);
     
     // 1. Threshold Check (De Minimis)
     if (itemPrice <= DE_MINIMIS_THRESHOLD) {
@@ -140,10 +129,10 @@ export default function AdminCustomsCalculatorPage() {
     const rates = CUSTOMS_RATES[category];
     const importDuty = cif * rates.duty;
 
-    // 4. SCF (Standard Compliance Fee) - 0.3% of CIF
+    // 4. SCF (Standard Compliance Fee)
     const scf = cif * SCF_RATE;
 
-    // 5. CAF (Customs Admin Fee) - calculated in JMD brackets
+    // 5. CAF (Customs Admin Fee)
     const cafJmd = getCAF(itemPrice);
     const cafUsd = cafJmd / USD_TO_JMD_RATE;
 
@@ -175,7 +164,7 @@ export default function AdminCustomsCalculatorPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Customs Calculator</h1>
           <p className="text-muted-foreground">
-            Official Jamaica Customs Agency (JCA) Calculation Logic (No GCT).
+            Official Jamaica Customs Agency (JCA) Calculation Logic.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -206,27 +195,15 @@ export default function AdminCustomsCalculatorPage() {
                 Items under $100 USD value (excluding freight) are duty-free.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="weight">Weight (lbs)</Label>
-                    <Input
-                        id="weight"
-                        type="number"
-                        placeholder="e.g., 5"
-                        value={weight}
-                        onChange={(e) => setWeight(e.target.value)}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="shipping">Shipping Cost (USD)</Label>
-                    <Input
-                        id="shipping"
-                        type="number"
-                        placeholder="Estimated..."
-                        value={shipping}
-                        onChange={(e) => setShipping(e.target.value)}
-                    />
-                </div>
+            <div className="space-y-2">
+                <Label htmlFor="weight">Weight (lbs)</Label>
+                <Input
+                    id="weight"
+                    type="number"
+                    placeholder="e.g., 5"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                />
             </div>
             <div className="space-y-2">
               <Label htmlFor="category">Item Category</Label>
@@ -297,7 +274,7 @@ export default function AdminCustomsCalculatorPage() {
                                         CIF Value (Base)
                                         <Tooltip>
                                             <TooltipTrigger><HelpCircle className="h-3 w-3" /></TooltipTrigger>
-                                            <TooltipContent>Cost + Insurance (1.5%) + Freight</TooltipContent>
+                                            <TooltipContent>Cost + Insurance (1.5%) + Estimated Freight</TooltipContent>
                                         </Tooltip>
                                     </span>
                                     <span className="font-medium">{formatCurrency(calculation.cif)}</span>
@@ -326,7 +303,7 @@ export default function AdminCustomsCalculatorPage() {
                 )}
                 
                  <p className="text-[10px] text-muted-foreground pt-4 leading-relaxed">
-                    Disclaimer: This is an automated estimate using official JCA categories. Actual charges are determined by Jamaica Customs at clearance and may vary. (Exchange Rate: 1 USD = 156 JMD).
+                    Disclaimer: This is an automated estimate. Actual charges are determined by Jamaica Customs at clearance and may vary. (Exchange Rate: 1 USD = 156 JMD).
                 </p>
               </div>
             ) : (
