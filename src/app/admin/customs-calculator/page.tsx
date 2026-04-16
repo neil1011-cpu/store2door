@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -49,6 +49,7 @@ type Category = keyof typeof CUSTOMS_RATES;
 
 export default function AdminCustomsCalculatorPage() {
   const [price, setPrice] = useState('');
+  const [weight, setWeight] = useState('');
   const [shipping, setShipping] = useState('');
   const [category, setCategory] = useState<Category>('GENERAL');
   const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('USD');
@@ -65,6 +66,41 @@ export default function AdminCustomsCalculatorPage() {
     isDutyFree: false,
     calculated: false,
   });
+
+  // Calculate Shipping based on company rates (JMD to USD)
+  const calculateShippingFromWeight = (weightLbs: number): number => {
+    if (weightLbs <= 0) return 0;
+    const roundedWeight = Math.ceil(weightLbs);
+    let priceJMD = 0;
+    
+    const rates: Record<number, number> = {
+        1: 750, 2: 1200, 3: 1650, 4: 2100, 5: 2550,
+        6: 3000, 7: 3450, 8: 3900, 9: 4350, 10: 4850,
+        23: 9900, 24: 10200, 25: 10500, 26: 10850, 
+        27: 11200, 28: 11550, 29: 11900, 30: 12250
+    };
+
+    if (roundedWeight in rates) {
+        priceJMD = rates[roundedWeight];
+    } else if (roundedWeight >= 11 && roundedWeight <= 22) {
+        priceJMD = 4850 + (roundedWeight - 10) * 450;
+    } else if (roundedWeight >= 31) {
+        priceJMD = 12250 + (roundedWeight - 30) * 400;
+    }
+
+    return priceJMD / USD_TO_JMD_RATE;
+  };
+
+  // Update shipping estimate automatically when weight changes
+  useEffect(() => {
+    const w = parseFloat(weight);
+    if (!isNaN(w) && w > 0) {
+        const estimatedShipping = calculateShippingFromWeight(w);
+        setShipping(estimatedShipping.toFixed(2));
+    } else {
+        setShipping('');
+    }
+  }, [weight]);
 
   const getCAF = (valueUsd: number) => {
     if (valueUsd <= DE_MINIMIS_THRESHOLD) return 0;
@@ -97,7 +133,6 @@ export default function AdminCustomsCalculatorPage() {
     }
 
     // 2. CIF = Cost + Insurance + Freight
-    // JCA calculates ID on CIF value.
     const insurance = itemPrice * INSURANCE_RATE;
     const cif = itemPrice + insurance + shippingCost;
     
@@ -112,7 +147,7 @@ export default function AdminCustomsCalculatorPage() {
     const cafJmd = getCAF(itemPrice);
     const cafUsd = cafJmd / USD_TO_JMD_RATE;
 
-    // 6. Total = ID + SCF + CAF (No GCT)
+    // 6. Total = ID + SCF + CAF
     const total = importDuty + scf + cafUsd;
 
     setCalculation({
@@ -155,7 +190,7 @@ export default function AdminCustomsCalculatorPage() {
         <Card>
           <CardHeader>
             <CardTitle>Item Details</CardTitle>
-            <CardDescription>Enter the item value and shipping cost in USD.</CardDescription>
+            <CardDescription>Enter the item value and weight to estimate charges.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -171,15 +206,27 @@ export default function AdminCustomsCalculatorPage() {
                 Items under $100 USD value (excluding freight) are duty-free.
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="shipping">Shipping Cost (USD)</Label>
-              <Input
-                id="shipping"
-                type="number"
-                placeholder="e.g., 25.00"
-                value={shipping}
-                onChange={(e) => setShipping(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="weight">Weight (lbs)</Label>
+                    <Input
+                        id="weight"
+                        type="number"
+                        placeholder="e.g., 5"
+                        value={weight}
+                        onChange={(e) => setWeight(e.target.value)}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="shipping">Shipping Cost (USD)</Label>
+                    <Input
+                        id="shipping"
+                        type="number"
+                        placeholder="Estimated..."
+                        value={shipping}
+                        onChange={(e) => setShipping(e.target.value)}
+                    />
+                </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="category">Item Category</Label>
