@@ -103,7 +103,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   
   // If the admin doc doesn't exist after loading, render nothing.
   // The useEffect above is already handling the redirect.
-  // This prevents child components from rendering prematurely.
   if (!adminRoleDoc) {
     return null;
   }
@@ -180,7 +179,7 @@ export default function AdminLayout({
                     <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div className="text-sm overflow-hidden">
-                    <div className="font-semibold text-sidebar-foreground truncate">{user.displayName || 'Bishwagit Das'}</div>
+                    <div className="font-semibold text-sidebar-foreground truncate">{user.displayName || 'Admin User'}</div>
                     <div className="text-sidebar-foreground/80 truncate">{user.email}</div>
                 </div>
             </div>
@@ -219,7 +218,7 @@ export default function AdminLayout({
       <SidebarInset>
         <header className="flex h-14 items-center gap-4 border-b bg-background px-6">
           <SidebarTrigger />
-          <div className="text-sm text-muted-foreground">Home</div>
+          <div className="text-sm text-muted-foreground">Admin Portal</div>
           <div className="flex-1" />
            <ThemeToggle />
            <Notifications />
