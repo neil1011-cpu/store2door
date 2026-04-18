@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRouter } from 'next/navigation';
@@ -12,8 +11,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAccountProfile } from './layout';
-
-type View = 'dashboard' | 'pre-alert' | 'packages' | 'support' | 'account' | 'calculator';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const featureCards = [
     {
@@ -84,9 +82,12 @@ export default function AccountPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Welcome, {userProfile.fullName}!</h1>
                     <p className="text-muted-foreground mt-1">Manage your imports and account settings.</p>
                 </div>
-                <Button variant="outline" onClick={handleSignOut} size="sm">
-                    <LogOut className="mr-2 h-4 w-4" /> Sign Out
-                </Button>
+                <div className="flex items-center gap-2">
+                    <ThemeToggle />
+                    <Button variant="outline" onClick={handleSignOut} size="sm">
+                        <LogOut className="mr-2 h-4 w-4" /> Sign Out
+                    </Button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Trash2, Home, Inbox, Calculator, Info, Truck, DollarSign, Weight } from 'lucide-react';
+import { Copy, Check, Send, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Trash2, Home, Inbox, Calculator, Info, Truck, DollarSign, Weight, Sun, Moon, Laptop } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -26,6 +26,9 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useTheme } from 'next-themes';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -56,7 +59,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
     if (!firestore || !details) return null;
     return query(collection(firestore, 'users', details.id, 'shipments'), orderBy('shippingDate', 'desc'), limit(1));
   }, [firestore, details]);
-  const { data: shipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
+  const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
 
   const recentShipment = shipments?.[0];
 
@@ -73,7 +76,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                     <Package className="h-5 w-5" /> Latest Shipment Status
                 </CardTitle>
             </CardHeader>
-            {isLoading ? <CardContent><div className="flex justify-center items-center h-24"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent> :
+            {isLoadingShipments ? <CardContent><div className="flex justify-center items-center h-24"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent> :
              recentShipment ? (
             <CardContent className="space-y-2">
                 <div className="flex justify-between">
@@ -105,7 +108,9 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                 </CardDescription>
             </CardHeader>
             <CardContent>
-               <Button>Go to Pre-Alert</Button>
+               <Button asChild>
+                   <Link href="/account/pre-alert">Go to Pre-Alert</Link>
+               </Button>
             </CardContent>
         </Card>
       </CardContent>
@@ -833,6 +838,12 @@ export function AccountTab({ details }: { details: UserProfile }) {
     const [copied, setCopied] = useState(false);
     const { toast } = useToast();
     const firestore = useFirestore();
+    const { theme, setTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const userDocRef = doc(firestore, 'users', details.id);
 
@@ -938,6 +949,43 @@ export function AccountTab({ details }: { details: UserProfile }) {
                     </p>
                 </div>
                 <Separator />
+                
+                <div>
+                    <h3 className="font-semibold text-lg mb-2">Appearance Settings</h3>
+                    <p className="text-sm text-muted-foreground mb-4">Choose your preferred application background.</p>
+                    {mounted ? (
+                        <RadioGroup
+                        value={theme}
+                        onValueChange={setTheme}
+                        className="grid max-w-md grid-cols-3 gap-4"
+                        >
+                        <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-accent", theme === 'light' && "border-primary bg-primary/5")}>
+                            <Sun className="h-5 w-5"/>
+                            <RadioGroupItem value="light" id="light" className="sr-only" />
+                            <span>Light</span>
+                        </Label>
+                        <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-accent", theme === 'dark' && "border-primary bg-primary/5")}>
+                            <Moon className="h-5 w-5" />
+                            <RadioGroupItem value="dark" id="dark" className="sr-only" />
+                            <span>Dark</span>
+                        </Label>
+                        <Label className={cn("rounded-md border-2 p-4 flex flex-col items-center gap-2 cursor-pointer transition-all hover:bg-accent", theme === 'system' && "border-primary bg-primary/5")}>
+                            <Laptop className="h-5 w-5" />
+                            <RadioGroupItem value="system" id="system" className="sr-only" />
+                            <span>System</span>
+                        </Label>
+                        </RadioGroup>
+                    ) : (
+                        <div className="grid max-w-md grid-cols-3 gap-4">
+                            <Skeleton className="h-[90px]" />
+                            <Skeleton className="h-[90px]" />
+                            <Skeleton className="h-[90px]" />
+                        </div>
+                    )}
+                </div>
+
+                <Separator />
+
                 <div>
                     <h3 className="font-semibold text-lg mb-2">Account Details</h3>
                     <div className="space-y-2 text-sm">
