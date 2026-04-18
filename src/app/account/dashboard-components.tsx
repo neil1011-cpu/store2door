@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Trash2, Home, Inbox, Calculator, Info, Truck, DollarSign, Weight, Sun, Moon, Laptop } from 'lucide-react';
+import { Copy, Check, Send, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Trash2, Home, Inbox, Calculator, Info, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,11 +44,11 @@ const getStatusVariant = (status: string) => {
 const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg
       {...props}
-      xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
       fill="currentColor"
     >
-      <path d="M16.75 13.96c.25.13.43.2.5.28.07.08.15.18.2.3.04.13.06.2.06.25 0 .2-.1.4-.24.54-.14.15-.32.28-.53.4-.2.13-.44.2-.7.28-.27.08-.5.1-.7.1-.73 0-1.4-.15-2-.45-.6-.3-1.15-.7-1.63-1.2-.48-.5-.9-1.07-1.2-1.66-.3-.6-.48-1.2-.48-1.87 0-.55.13-1.04.4-1.45.28-.4.63-.74 1.04-1l.1.12c.1.13.18.25.27.38.08.13.15.25.2.36.1.2.15.38.18.5.03.14.02.28 0 .4-.02.13-.08.25-.2.4-.1.13-.23.28-.37.42-.1.1-.2.2-.3.3-.13.13-.2.22-.24.27-.04.05-.08.1-.08.13 0 .04.02.08.05.13.04.05.1.1.17.18.07.08.17.18.28.28.1.1.2.2.32.3.1.1.2.18.3.27.1.1.18.17.25.24.13.13.25.22.33.27.1.05.17.08.23.08.06,0,.14-.02.23-.08.1-.05.18-.1.25-.17.07-.07.13-.14.18-.2.05-.06.1-.12.1-.17 0-.05-.02-.1-.05-.16-.03-.06-.08-.13-.14-.2-.06-.08-.14-.15-.22-.22-.08-.07-.17-.13-.26-.2-.1-.06-.18-.1-.25-.1-.07 0-.13.02-.18.05-.05.03-.1.08-.13.13-.03.05-.05.1-.06.14 0 .04.02.1.06.15.04.05.1.1.18.17.08.07.18.13.28.18.1.05.2.1.3.13.1.03.2.05.3.06.1 0 .2-.02.3-.06.1-.04.2-.1.3-.18.1-.08.2-.17.28-.27.08-.1.15-.2.2-.3.04-.1.08-.2.1-.3zm-2.1-13.3C12.9.25 10.7 0 8.5 0 3.8 0 0 3.8 0 8.5c0 1.6.46 3.14 1.28 4.45L0 18l5.24-1.38c1.28.75 2.77 1.2 4.36 1.2h.01c4.7 0 8.5-3.8 8.5-8.5 0-2.2-.84-4.3-2.35-5.8z" />
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.328-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.05-.148-.471-1.138-.646-1.557-.171-.406-.347-.35-.471-.35h-.402c-.138 0-.363.05-.552.27-.19.218-.724.708-.724 1.728s.742 2.006.845 2.141c.103.134 1.458 2.228 3.532 3.125.493.214.877.341 1.176.437.496.157.947.135 1.303.075.397-.066 1.21-.495 1.38-.97.169-.475.169-.88.118-.97-.05-.091-.183-.146-.48-.295zm-5.462 8.163c-1.92 0-3.805-.494-5.474-1.433l-3.929 1.028 1.047-3.83c-1.028-1.786-1.571-3.821-1.571-5.908 0-6.438 5.238-11.671 11.678-11.671 3.122 0 6.056 1.214 8.261 3.42 2.205 2.207 3.418 5.143 3.418 8.256 0 6.439-5.238 11.679-11.67 11.679z" />
     </svg>
 );
 
@@ -346,8 +346,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
                                     <TableCell>{alert.submissionDate ? new Date((alert.submissionDate as any).toDate()).toLocaleDateString() : 'N/A'}</TableCell>
                                     <TableCell>
                                         <Badge variant={getStatusVariant(alert.status)}>{alert.status}</Badge>
-                                    </TableCell>
-                                </TableRow>
+                                    </TableRow>
                             ))
                         ) : (
                             <TableRow>
@@ -521,25 +520,37 @@ export function PackagesTab({ customerId }: { customerId: string }) {
 
 export function SupportTab({ details }: { details: UserProfile }) {
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Support Center</CardTitle>
-                <CardDescription>
-                Need help? Chat with us directly on WhatsApp for the fastest support.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center text-center gap-4 py-12">
-                 <WhatsAppIcon className="w-16 h-16 text-green-500" />
-                 <h3 className="text-xl font-semibold">Chat with us on WhatsApp</h3>
-                 <p className="text-muted-foreground max-w-sm">
-                    Our team is ready to assist you with any questions about your shipments, payments, or account.
-                 </p>
-                 <Button asChild size="lg" className="mt-4" style={{ backgroundColor: '#25D366', color: 'white' }}>
-                    <Link href="https://wa.me/18765069727" target="_blank">
-                         <WhatsAppIcon className="w-5 h-5 mr-2" />
-                        Open WhatsApp Chat
-                    </Link>
-                </Button>
+        <Card className="overflow-hidden border-none shadow-xl">
+            <div className="bg-[#25D366] p-8 text-white flex flex-col items-center justify-center text-center space-y-4">
+                <WhatsAppIcon className="w-20 h-20 drop-shadow-lg" />
+                <h3 className="text-3xl font-bold tracking-tight">WhatsApp Support</h3>
+                <p className="text-white/90 max-w-md mx-auto leading-relaxed">
+                    Get instant assistance from our support team. We're available to help with tracking, payments, and account inquiries.
+                </p>
+            </div>
+            <CardContent className="flex flex-col items-center justify-center py-12 px-6">
+                 <div className="space-y-6 w-full max-w-sm">
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50 transition-colors hover:bg-muted">
+                        <div className="bg-[#25D366]/10 p-3 rounded-full">
+                            <Clock className="h-6 w-6 text-[#25D366]" />
+                        </div>
+                        <div className="text-left">
+                            <p className="font-semibold text-sm">Response Time</p>
+                            <p className="text-xs text-muted-foreground">Usually responds within minutes</p>
+                        </div>
+                    </div>
+                    
+                    <Button asChild size="lg" className="w-full h-14 text-lg font-bold shadow-lg transition-transform active:scale-95" style={{ backgroundColor: '#25D366', color: 'white' }}>
+                        <Link href="https://wa.me/18765069727" target="_blank">
+                             <WhatsAppIcon className="w-6 h-6 mr-3" />
+                            Message Support Now
+                        </Link>
+                    </Button>
+                    
+                    <p className="text-[10px] text-center text-muted-foreground uppercase tracking-widest font-semibold">
+                        Available Mon-Sat: 9AM - 5PM
+                    </p>
+                 </div>
             </CardContent>
         </Card>
     );
