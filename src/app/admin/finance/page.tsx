@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -236,7 +237,7 @@ export default function FinancePage() {
         await addDoc(transactionCollectionRef, transactionToAdd);
         toast({
             title: 'Transaction Added!',
-            description: `A new ${newTransaction.type} of $${newTransaction.amount} has been recorded.`,
+            description: `A new ${newTransaction.type} of JMD $${newTransaction.amount} has been recorded.`,
         });
         setNewTransaction({ type: 'expense', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
     } catch (error) {
@@ -279,11 +280,11 @@ export default function FinancePage() {
         <Link href="/admin/finance/revenue">
             <Card className="hover:bg-accent transition-colors">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Revenue (JMD)</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${financeSummary.revenue.toLocaleString()}</div>
+                <div className="text-2xl font-bold">JMD ${financeSummary.revenue.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground flex items-center">From all paid invoices</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
@@ -292,11 +293,11 @@ export default function FinancePage() {
         <Link href="/admin/finance/expenses">
             <Card className="hover:bg-accent transition-colors">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Expenses (JMD)</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${financeSummary.expenses.toLocaleString()}</div>
+                <div className="text-2xl font-bold">JMD ${financeSummary.expenses.toLocaleString()}</div>
                  <p className="text-xs text-muted-foreground flex items-center">From manual expense entries</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
@@ -305,11 +306,11 @@ export default function FinancePage() {
         <Link href="/admin/finance">
             <Card className="hover:bg-accent transition-colors">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+                <CardTitle className="text-sm font-medium">Net Profit (JMD)</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${financeSummary.profit.toLocaleString()}</div>
+                <div className="text-2xl font-bold">JMD ${financeSummary.profit.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground flex items-center">Based on current data</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
@@ -348,9 +349,9 @@ export default function FinancePage() {
                                 financeSummary.chartData.map((item) => (
                                 <TableRow key={item.month}>
                                     <TableCell className="font-medium">{item.month}</TableCell>
-                                    <TableCell className="text-right text-green-500">${item.revenue.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right text-red-500">${item.expenses.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right font-bold">${item.profit.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-green-500">JMD ${item.revenue.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-red-500">JMD ${item.expenses.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right font-bold">JMD ${item.profit.toLocaleString()}</TableCell>
                                 </TableRow>
                                 ))
                             ) : (
@@ -383,8 +384,8 @@ export default function FinancePage() {
                   <Input id="tx-desc" placeholder="e.g., Shipping supplies" value={newTransaction.description} onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})} />
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="tx-amount">Amount (USD)</Label>
-                  <Input id="tx-amount" type="number" placeholder="e.g., 150.00" value={newTransaction.amount} onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})} />
+                  <Label htmlFor="tx-amount">Amount (JMD)</Label>
+                  <Input id="tx-amount" type="number" placeholder="e.g., 1500.00" value={newTransaction.amount} onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})} />
               </div>
               <div className="space-y-2">
                   <Label htmlFor="tx-date">Date</Label>
@@ -422,7 +423,7 @@ export default function FinancePage() {
                         <TableCell className="font-mono">{invoice.invoiceId}</TableCell>
                         <TableCell className="font-medium">{invoice.customerName}</TableCell>
                         <TableCell>{invoice.date ? new Date((invoice.date as any).toDate()).toLocaleDateString() : 'N/A'}</TableCell>
-                        <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                        <TableCell>JMD ${invoice.amount.toFixed(2)}</TableCell>
                         <TableCell><Badge variant={invoice.status === 'Paid' ? 'outline' : 'destructive'}>{invoice.status}</Badge></TableCell>
                         <TableCell className="text-right">
                             <DropdownMenu>

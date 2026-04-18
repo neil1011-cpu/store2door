@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -38,8 +39,8 @@ const generateInvoiceHtml = (invoiceData: {
     <tr>
       <td>${item.description}</td>
       <td class="text-center">${item.quantity}</td>
-      <td class="text-right">$${item.price.toFixed(2)}</td>
-      <td class="text-right">$${(item.quantity * item.price).toFixed(2)}</td>
+      <td class="text-right">JMD $${item.price.toFixed(2)}</td>
+      <td class="text-right">JMD $${(item.quantity * item.price).toFixed(2)}</td>
     </tr>
   `).join('');
 
@@ -63,7 +64,7 @@ const generateInvoiceHtml = (invoiceData: {
         <div class="header"><h1>INVOICE</h1><div><strong>FromStore2Door</strong><br>Florida, USA</div></div>
         <div style="margin-top: 20px;"><strong>BILL TO:</strong> ${customerName}<br>Invoice #: ${invoiceId}<br>Date: ${invoiceDate.toLocaleDateString()}</div>
         <table><thead><tr><th>Description</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${lineItemsHtml}</tbody></table>
-        <div class="text-right" style="margin-top: 20px;"><div class="grand-total">Total: $${totalAmount.toFixed(2)}</div></div>
+        <div class="text-right" style="margin-top: 20px;"><div class="grand-total">Total: JMD $${totalAmount.toFixed(2)}</div></div>
       </div>
     </body></html>`;
 };
@@ -201,7 +202,7 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
             <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Create Shipment</DialogTitle></DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="space-y-2"><Label>Tracking #</Label><Input value={preAlert.trackingNumber} readOnly disabled /></div>
-                    <div className="space-y-2"><Label>Cost (USD)</Label><Input type="number" placeholder="55.00" value={cost} onChange={(e) => setCost(e.target.value)} /></div>
+                    <div className="space-y-2"><Label>Cost (JMD)</Label><Input type="number" placeholder="5500.00" value={cost} onChange={(e) => setCost(e.target.value)} /></div>
                 </div>
                 <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button onClick={() => { onShipmentCreated(preAlert, parseFloat(cost)); setOpen(false); }}>Confirm</Button></DialogFooter>
             </DialogContent>

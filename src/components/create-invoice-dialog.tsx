@@ -41,8 +41,8 @@ const generateInvoiceHtml = (invoiceData: {
     <tr>
       <td>${item.description}</td>
       <td class="text-center">${item.quantity}</td>
-      <td class="text-right">$${item.price.toFixed(2)}</td>
-      <td class="text-right">$${(item.quantity * item.price).toFixed(2)}</td>
+      <td class="text-right">JMD $${item.price.toFixed(2)}</td>
+      <td class="text-right">JMD $${(item.quantity * item.price).toFixed(2)}</td>
     </tr>
   `
     )
@@ -117,7 +117,7 @@ const generateInvoiceHtml = (invoiceData: {
           <table>
             <tr>
               <td class="label">Total:</td>
-              <td class="grand-total">$${totalAmount.toFixed(2)}</td>
+              <td class="grand-total">JMD $${totalAmount.toFixed(2)}</td>
             </tr>
           </table>
         </div>
@@ -274,14 +274,14 @@ export function CreateInvoiceDialog({
                         <Label>Line Items</Label>
                         <div className="relative w-full overflow-auto">
                             <Table>
-                                <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="w-24">Qty</TableHead><TableHead className="w-32 text-right">Price</TableHead><TableHead className="w-32 text-right">Total</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="w-24">Qty</TableHead><TableHead className="w-32 text-right">Price (JMD)</TableHead><TableHead className="w-32 text-right">Total (JMD)</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {lineItems.map((item, index) => (
                                         <TableRow key={index}>
                                             <TableCell><Input placeholder="Item or service description" value={item.description} onChange={(e) => handleLineItemChange(index, 'description', e.target.value)} /></TableCell>
                                             <TableCell><Input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)} min="1" /></TableCell>
                                             <TableCell><Input type="number" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', e.target.value)} className="text-right" placeholder="0.00" /></TableCell>
-                                            <TableCell className="text-right font-medium">${(item.quantity * item.price).toFixed(2)}</TableCell>
+                                            <TableCell className="text-right font-medium">JMD ${(item.quantity * item.price).toFixed(2)}</TableCell>
                                             <TableCell><Button variant="ghost" size="icon" onClick={() => removeLineItem(index)} disabled={lineItems.length <= 1}><Trash2 className="h-4 w-4" /></Button></TableCell>
                                         </TableRow>
                                     ))}
@@ -291,7 +291,7 @@ export function CreateInvoiceDialog({
                         <Button variant="outline" size="sm" onClick={addLineItem} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Add Line Item</Button>
                     </div>
                     <div className="flex justify-end pt-4 border-t">
-                        <div className="text-right"><p className="text-muted-foreground">Total Amount</p><p className="text-2xl font-bold">${calculateTotal().toFixed(2)}</p></div>
+                        <div className="text-right"><p className="text-muted-foreground">Total Amount (JMD)</p><p className="text-2xl font-bold">JMD ${calculateTotal().toFixed(2)}</p></div>
                     </div>
                 </div>
             </ScrollArea>

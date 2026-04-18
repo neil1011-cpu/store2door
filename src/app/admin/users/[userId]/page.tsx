@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -246,7 +247,7 @@ export default function UserDetailsPage() {
                                                 <Badge variant={getStatusVariant(shipment.status)}>{shipment.status}</Badge>
                                             </TableCell>
                                             <TableCell className="text-right font-medium">
-                                                {shipment.cost ? `$${shipment.cost.toFixed(2)}` : 'N/A'}
+                                                {shipment.cost ? `JMD $${shipment.cost.toFixed(2)}` : 'N/A'}
                                             </TableCell>
                                         </TableRow>
                                         ))

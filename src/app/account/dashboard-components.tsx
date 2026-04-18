@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -449,7 +450,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
   const handlePayNow = (shipment: Shipment) => {
     toast({
         title: "Payment Gateway",
-        description: `Redirecting to payment for invoice ${shipment.invoiceId} - Total: $${shipment.cost?.toFixed(2)}`,
+        description: `Redirecting to payment for invoice ${shipment.invoiceId} - Total: JMD $${shipment.cost?.toFixed(2)}`,
     });
   };
 
@@ -522,7 +523,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                   </div>
                 </TableCell>
                 <TableCell className="font-medium">
-                    {shipment.cost ? `$${shipment.cost.toFixed(2)}` : 'N/A'}
+                    {shipment.cost ? `JMD $${shipment.cost.toFixed(2)}` : 'N/A'}
                 </TableCell>
                 <TableCell>
                     {shipment.paymentStatus === 'Unpaid' && shipment.cost ? (
@@ -870,7 +871,7 @@ export function CustomsCalculatorTab() {
                     <Separator />
 
                     {calculation.isDutyFree ? (
-                        <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-900">
+                        <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-blue-900">
                             <Info className="h-4 w-4 text-green-600 dark:text-green-400" />
                             <AlertTitle>Customs Duty Free!</AlertTitle>
                             <AlertDescription className="text-xs">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -301,7 +302,7 @@ export default function ShippingPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-cost">Cost (USD)</Label>
+                <Label htmlFor="edit-cost">Cost (JMD)</Label>
                 <Input id="edit-cost" type="number" value={editableShipment.cost} onChange={(e) => setEditableShipment({ ...editableShipment, cost: Number(e.target.value) })} />
               </div>
             </div>

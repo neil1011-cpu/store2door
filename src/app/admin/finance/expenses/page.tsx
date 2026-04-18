@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -71,7 +72,7 @@ export default function ExpensesPage() {
         <CardHeader>
           <CardTitle>All Expense Transactions</CardTitle>
           <CardDescription>
-            Total Expenses: <span className="font-bold text-red-500">${totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            Total Expenses: <span className="font-bold text-red-500">JMD ${totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -91,7 +92,7 @@ export default function ExpensesPage() {
                     <TableCell className="font-mono">{item.id}</TableCell>
                     <TableCell>{item.date ? new Date(item.date.toDate()).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell>{item.description}</TableCell>
-                    <TableCell className="text-right text-red-500 font-medium">${item.amount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-red-500 font-medium">JMD ${item.amount.toFixed(2)}</TableCell>
                     </TableRow>
                 ))
               ) : (
