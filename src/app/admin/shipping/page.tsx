@@ -16,7 +16,7 @@ import Link from 'next/link';
 import type { Shipment, UserProfile, ShipmentStatus, PreAlert } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, collectionGroup, query, doc, updateDoc, addDoc, serverTimestamp, where, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, collectionGroup, query, doc, updateDoc, serverTimestamp, where, getDocs, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -335,16 +335,24 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
                 return;
             }
 
-            const q = query(collectionGroup(firestore, 'pre_alerts'), where('trackingNumber', '==', trackingNumber));
-            const snap = await getDocs(q);
-            
-            if (!snap.empty) {
-                const alert = snap.docs[0].data() as PreAlert;
-                setFoundPreAlert({ ...alert, id: snap.docs[0].id });
-                setCustomerId(alert.customerId);
-                setContents(alert.contents);
-            } else {
-                setFoundPreAlert(null);
+            try {
+              const q = query(collectionGroup(firestore, 'pre_alerts'), where('trackingNumber', '==', trackingNumber));
+              const snap = await getDocs(q);
+              
+              if (!snap.empty) {
+                  const alert = snap.docs[0].data() as PreAlert;
+                  setFoundPreAlert({ ...alert, id: snap.docs[0].id });
+                  setCustomerId(alert.customerId);
+                  setContents(alert.contents);
+              } else {
+                  setFoundPreAlert(null);
+              }
+            } catch (error: any) {
+              // If index is missing, handle gracefully.
+              if (error.code === 'failed-precondition' || error.message?.includes('index')) {
+                console.warn("Firestore Collection Group Index missing for pre_alerts trackingNumber. Click the link in the console error to fix.");
+              }
+              setFoundPreAlert(null);
             }
         };
 
