@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2 } from 'lucide-react';
+import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -267,8 +267,8 @@ const generatePreAlertInvoiceHtml = (data: {
   `;
 };
 
-export function PreAlertTab({ customerId, customerName }: { customerId: string, customerName: string }) {
-  const [trackingNumber, setTrackingNumber] = useState('');
+export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber }: { customerId: string, customerName: string, prefilledTrackingNumber?: string }) {
+  const [trackingNumber, setTrackingNumber] = useState(prefilledTrackingNumber || '');
   const [contents, setContents] = useState('');
   const [invoice, setInvoice] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -437,15 +437,23 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
   );
 }
 
-export function PackagesTab({ customerId }: { customerId: string }) {
+export function PackagesTab({ customerId, customerName }: { customerId: string, customerName: string }) {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const [isPreAlertDialogOpen, setIsPreAlertDialogOpen] = useState(false);
+  const [selectedTrackingNumber, setSelectedTrackingNumber] = useState('');
   
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !customerId) return null;
     return query(collection(firestore, 'users', customerId, 'shipments'), orderBy('shippingDate', 'desc'));
   }, [firestore, customerId]);
-  const { data: userShipments, isLoading } = useCollection<Shipment>(shipmentsQuery);
+  const { data: userShipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
+
+  const preAlertsQuery = useMemoFirebase(() => {
+      if (!firestore || !customerId) return null;
+      return query(collection(firestore, 'users', customerId, 'pre_alerts'));
+  }, [firestore, customerId]);
+  const { data: userPreAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
 
   const handlePayNow = (shipment: Shipment) => {
     toast({
@@ -477,6 +485,13 @@ export function PackagesTab({ customerId }: { customerId: string }) {
       }, 500);
   };
 
+  const handleUploadPreAlert = (trackingNumber: string) => {
+      setSelectedTrackingNumber(trackingNumber);
+      setIsPreAlertDialogOpen(true);
+  };
+
+  const isLoading = isLoadingShipments || isLoadingPreAlerts;
+
   if (isLoading) {
     return (
         <Card>
@@ -491,7 +506,11 @@ export function PackagesTab({ customerId }: { customerId: string }) {
     );
   }
 
+  // Cross-reference shipments with pre-alerts to see which ones are missing
+  const preAlertMap = new Map(userPreAlerts?.map(pa => [pa.trackingNumber, pa]));
+
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>My Packages</CardTitle>
@@ -510,13 +529,24 @@ export function PackagesTab({ customerId }: { customerId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {userShipments && userShipments.map((shipment) => (
+            {userShipments && userShipments.map((shipment) => {
+              const hasPreAlert = preAlertMap.has(shipment.trackingNumber);
+              const isIntakenButNoInvoice = !hasPreAlert && (shipment.status === 'Received at Warehouse (FL)' || shipment.status === 'Processed' || shipment.status === 'Arrived in Jamaica');
+
+              return (
               <TableRow key={shipment.id} className="group hover:bg-muted/30 transition-colors">
-                <TableCell className="font-mono font-bold">{shipment.trackingNumber}</TableCell>
+                <TableCell className="font-mono font-bold">
+                    <div className="flex flex-col">
+                        <span>{shipment.trackingNumber}</span>
+                        {isIntakenButNoInvoice && (
+                            <span className="text-[10px] text-orange-600 font-bold uppercase animate-pulse">Invoice Required</span>
+                        )}
+                    </div>
+                </TableCell>
                 <TableCell>{shipment.contents}</TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={getStatusVariant(shipment.status)} className="flex items-center gap-1.5 px-3 py-1">
+                  <div className="flex flex-col gap-1">
+                    <Badge variant={getStatusVariant(shipment.status)} className="flex items-center gap-1.5 px-3 py-1 w-fit">
                         {getStatusIcon(shipment.status)}
                         {shipment.status}
                     </Badge>
@@ -538,54 +568,62 @@ export function PackagesTab({ customerId }: { customerId: string }) {
                     )}
                 </TableCell>
                  <TableCell className="text-right">
-                    <Dialog>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" disabled={!shipment.invoiceUrl || !shipment.invoiceId}>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className="sr-only">More actions</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DialogTrigger asChild>
-                                    <DropdownMenuItem>
-                                        <FileText className="mr-2 h-4 w-4" />
-                                        View Invoice
-                                    </DropdownMenuItem>
-                                </DialogTrigger>
-                                {shipment.invoiceUrl && shipment.invoiceId && (
-                                    <DropdownMenuItem onClick={() => handleDownloadInvoice(shipment)}>
-                                        <Download className="mr-2 h-4 w-4" />
-                                        Print/Save Invoice
-                                    </DropdownMenuItem>
-                                )}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <DialogContent className="sm:max-w-3xl">
-                            <DialogHeader>
-                                <DialogTitle>Invoice for {shipment.trackingNumber}</DialogTitle>
-                                <DialogDescription>Invoice for your shipment: {shipment.contents}.</DialogDescription>
-                            </DialogHeader>
-                             <div className="relative h-[600px] overflow-hidden rounded-md border">
-                                <iframe 
-                                    srcDoc={shipment.invoiceUrl}
-                                    title={`Invoice for ${shipment.trackingNumber}`}
-                                    width="100%"
-                                    height="100%"
-                                    style={{ border: 'none' }}
-                                />
-                            </div>
-                            <DialogFooter>
-                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                                <Button onClick={() => handleDownloadInvoice(shipment)} disabled={!shipment.invoiceUrl}>
-                                    <Download className="mr-2 h-4 w-4" /> Print to PDF
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                    <div className="flex justify-end gap-2">
+                        {isIntakenButNoInvoice && (
+                            <Button size="sm" variant="outline" className="h-8 bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 hover:text-orange-800" onClick={() => handleUploadPreAlert(shipment.trackingNumber)}>
+                                <UploadCloud className="mr-2 h-4 w-4" />
+                                Upload Invoice
+                            </Button>
+                        )}
+                        <Dialog>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" disabled={!shipment.invoiceUrl || !shipment.invoiceId}>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        <span className="sr-only">More actions</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DialogTrigger asChild>
+                                        <DropdownMenuItem>
+                                            <FileText className="mr-2 h-4 w-4" />
+                                            View Invoice
+                                        </DropdownMenuItem>
+                                    </DialogTrigger>
+                                    {shipment.invoiceUrl && shipment.invoiceId && (
+                                        <DropdownMenuItem onClick={() => handleDownloadInvoice(shipment)}>
+                                            <Download className="mr-2 h-4 w-4" />
+                                            Print/Save Invoice
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <DialogContent className="sm:max-w-3xl">
+                                <DialogHeader>
+                                    <DialogTitle>Invoice for {shipment.trackingNumber}</DialogTitle>
+                                    <DialogDescription>Invoice for your shipment: {shipment.contents}.</DialogDescription>
+                                </DialogHeader>
+                                <div className="relative h-[600px] overflow-hidden rounded-md border">
+                                    <iframe 
+                                        srcDoc={shipment.invoiceUrl}
+                                        title={`Invoice for ${shipment.trackingNumber}`}
+                                        width="100%"
+                                        height="100%"
+                                        style={{ border: 'none' }}
+                                    />
+                                </div>
+                                <DialogFooter>
+                                    <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                                    <Button onClick={() => handleDownloadInvoice(shipment)} disabled={!shipment.invoiceUrl}>
+                                        <Download className="mr-2 h-4 w-4" /> Print to PDF
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                  </TableCell>
               </TableRow>
-            ))}
+            )})}
              {!isLoading && (!userShipments || userShipments.length === 0) && (
                 <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground h-24">You have no shipments.</TableCell>
@@ -595,6 +633,28 @@ export function PackagesTab({ customerId }: { customerId: string }) {
         </Table>
       </CardContent>
     </Card>
+
+    <Dialog open={isPreAlertDialogOpen} onOpenChange={setIsPreAlertDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+                <DialogTitle>Upload Invoice for {selectedTrackingNumber}</DialogTitle>
+                <DialogDescription>
+                    Provide the invoice for this package to avoid delays in customs clearance.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <PreAlertTab 
+                    customerId={customerId} 
+                    customerName={customerName} 
+                    prefilledTrackingNumber={selectedTrackingNumber} 
+                />
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsPreAlertDialogOpen(false)}>Close</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
