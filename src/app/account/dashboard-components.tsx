@@ -1,26 +1,22 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, Send, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, MessageSquare, Trash2, Home, Inbox, Calculator, Info, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock } from 'lucide-react';
+import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import Image from 'next/image';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import placeholderImages from '@/lib/placeholder-images.json';
-import type { UserProfile, Shipment, Conversation, Message, PickupPerson, DropoffAddress, PreAlert, LineItem } from '@/lib/types';
+import type { UserProfile, Shipment, PickupPerson, DropoffAddress, PreAlert } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
@@ -51,7 +47,6 @@ const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
       <path d="M12.012 2c-5.508 0-9.988 4.48-9.988 9.988 0 1.76.46 3.46 1.332 4.964L2 22l6.216-1.628c1.456.792 3.096 1.208 4.796 1.208 5.508 0 9.988-4.48 9.988-9.988S17.52 2 12.012 2zm0 18.284c-1.584 0-3.132-.424-4.488-1.228l-.324-.188-3.336.872.888-3.244-.208-.332c-.88-1.4-1.344-3.028-1.344-4.7 0-4.464 3.632-8.096 8.096-8.096s8.096 3.632 8.096 8.096c0 4.464-3.632 8.096-8.096 8.096zm4.568-6.192c-.248-.124-1.472-.728-1.7-.8-.228-.08-.396-.124-.56.124-.164.248-.64.8-.784.968-.144.168-.288.192-.536.068-.248-.124-1.048-.388-1.996-1.232-.736-.656-1.232-1.468-1.376-1.716-.144-.248-.016-.384.108-.508.112-.112.248-.284.372-.424.124-.144.164-.248.248-.412.084-.168.044-.316-.02-.44-.064-.124-.56-1.348-.768-1.848-.204-.492-.428-.424-.584-.432h-.5c-.172 0-.452.064-.688.312-.236.248-1 .824-1 2.012s.864 2.324.984 2.492c.12.168 1.7 2.596 4.116 3.64.576.248 1.024.396 1.376.508.58.184 1.108.156 1.524.092.464-.072 1.472-.604 1.68-1.188.208-.584.208-1.084.144-1.188-.064-.108-.228-.172-.476-.296z" />
     </svg>
 );
-
 
 export function DashboardTab({ details }: { details: UserProfile }) {
   const firestore = useFirestore();
@@ -123,7 +118,6 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   );
 }
 
-// Pro-forma invoice generator for pre-alerts
 const generatePreAlertInvoiceHtml = (data: {
   customerName: string;
   trackingNumber: string;
@@ -136,7 +130,7 @@ const generatePreAlertInvoiceHtml = (data: {
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta charset="UTF--8">
+      <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Pro-Forma Invoice for ${trackingNumber}</title>
       <style>
@@ -155,7 +149,6 @@ const generatePreAlertInvoiceHtml = (data: {
         th, td { padding: 12px 15px; border-bottom: 1px solid #dee2e6; }
         thead th { background-color: #e9ecef; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 0.85em; }
         .text-right { text-align: right; }
-        .text-center { text-align: center; }
         .total-section { margin-top: 30px; text-align: right; }
         .total-section .grand-total { font-size: 1.4em; font-weight: bold; color: #dc3545; }
         .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6; text-align: center; font-size: 0.9em; color: #6c757d; }
@@ -225,9 +218,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
   const fileToDataUri = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => {
-            resolve(reader.result as string);
-        };
+        reader.onload = () => resolve(reader.result as string);
         reader.onerror = reject;
         reader.readAsDataURL(file);
     });
@@ -238,6 +229,17 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
     if (!trackingNumber || !contents || !invoice) {
         toast({ title: 'Missing Fields', description: 'Please fill out all fields and upload an invoice.', variant: 'destructive'});
         return;
+    }
+
+    // Firestore document limit is 1MB. Base64 encoding increases size by ~33%.
+    // We check for ~700KB to be safe.
+    if (invoice.size > 700 * 1024) {
+      toast({ 
+        title: 'File Too Large', 
+        description: 'Please upload an image smaller than 700KB. Try resizing or taking a lower quality photo.', 
+        variant: 'destructive'
+      });
+      return;
     }
 
     setLoading(true);
@@ -260,14 +262,21 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
             customerId,
             trackingNumber,
             contents,
-            status: 'Pending' as 'Pending',
+            status: 'Pending' as const,
             submissionDate: serverTimestamp(),
             invoiceHtml: invoiceHtml,
             uploadedInvoiceUrl: uploadedInvoiceUrl
         };
         
-        // Use addDoc to let Firestore generate the ID
-        await addDoc(preAlertsCollection, newPreAlert);
+        // Non-blocking mutation
+        addDoc(preAlertsCollection, newPreAlert)
+          .catch(async (error) => {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `users/${customerId}/pre_alerts`,
+                operation: 'create',
+                requestResourceData: newPreAlert
+              }));
+          });
 
         toast({ title: 'Pre-Alert Submitted!', description: 'We have received your pre-alert and will process it shortly.' });
         setTrackingNumber('');
@@ -278,15 +287,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
         if(fileInput) fileInput.value = '';
 
     } catch (error: any) {
-        console.error("Pre-alert submission error:", error);
-        if (error.message?.includes('permission-denied') || error.code?.includes('permission-denied')) {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: `users/${customerId}/pre_alerts`,
-              operation: 'create',
-            }));
-        } else {
-             toast({ title: 'Submission Failed', description: 'There was an error submitting your pre-alert.', variant: 'destructive'});
-        }
+        toast({ title: 'Submission Error', description: 'There was an error processing your request.', variant: 'destructive'});
     } finally {
         setLoading(false);
     }
@@ -314,7 +315,9 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
                 <div className="space-y-2">
                     <Label htmlFor="invoice-upload">Upload Invoice</Label>
                     <Input id="invoice-upload" type="file" accept="image/*,.pdf" onChange={(e) => setInvoice(e.target.files ? e.target.files[0] : null)} />
-                    <p className="text-sm text-muted-foreground">Please upload a clear image or PDF of your invoice.</p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" /> Max size: 700KB. PDF or Image.
+                    </p>
                 </div>
                 <Button type="submit" disabled={loading}>
                     {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : 'Submit Pre-Alert'}
@@ -348,7 +351,11 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
                                 <TableRow key={alert.id}>
                                     <TableCell className="font-mono">{alert.trackingNumber}</TableCell>
                                     <TableCell>{alert.contents}</TableCell>
-                                    <TableCell>{alert.submissionDate ? new Date((alert.submissionDate as any).toDate()).toLocaleDateString() : 'N/A'}</TableCell>
+                                    <TableCell>
+                                      {alert.submissionDate && typeof alert.submissionDate.toDate === 'function' 
+                                        ? new Date(alert.submissionDate.toDate()).toLocaleDateString() 
+                                        : 'Processing...'}
+                                    </TableCell>
                                     <TableCell>
                                         <Badge variant={getStatusVariant(alert.status)}>{alert.status}</Badge>
                                     </TableCell>
@@ -356,7 +363,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center h-24">You have not submitted any pre-alerts.</TableCell>
+                                <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">You have no pre-alerts.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
@@ -406,7 +413,6 @@ export function PackagesTab({ customerId }: { customerId: string }) {
           document.body.removeChild(iframe);
       }, 500);
   };
-
 
   if (isLoading) {
     return (
@@ -514,7 +520,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
             ))}
              {!isLoading && (!userShipments || userShipments.length === 0) && (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center">You have no shipments yet.</TableCell>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground h-24">You have no shipments.</TableCell>
                 </TableRow>
              )}
           </TableBody>
@@ -849,7 +855,6 @@ export function CustomsCalculatorTab() {
       </div>
   );
 }
-
 
 export function AccountTab({ details }: { details: UserProfile }) {
     const [copied, setCopied] = useState(false);
