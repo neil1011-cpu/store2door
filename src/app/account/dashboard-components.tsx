@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle } from 'lucide-react';
+import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { UserProfile, Shipment, PickupPerson, DropoffAddress, PreAlert } from '@/lib/types';
+import type { UserProfile, Shipment, PickupPerson, DropoffAddress, PreAlert, ShipmentStatus } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -26,16 +26,47 @@ import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const getStatusVariant = (status: string) => {
+const getStatusVariant = (status: ShipmentStatus) => {
   switch (status) {
-    case 'In Transit': return 'default';
-    case 'Customs': return 'secondary';
-    case 'Delivered': return 'outline';
-    case 'Pending': return 'destructive';
-    case 'Processed': return 'secondary';
-    default: return 'default';
+    case 'In Transit': 
+    case 'Being Shipped':
+    case 'On Route':
+        return 'default';
+    case 'Customs': 
+    case 'Processed':
+    case 'In Review':
+    case 'Received at Warehouse (FL)':
+    case 'Arrived in Jamaica':
+        return 'secondary';
+    case 'Delivered': 
+        return 'outline';
+    case 'Pending': 
+    case 'Pre-Alert':
+        return 'destructive';
+    default: 
+        return 'default';
   }
 };
+
+const getStatusIcon = (status: ShipmentStatus) => {
+    switch (status) {
+        case 'Received at Warehouse (FL)': return <WarehouseIcon className="h-4 w-4" />;
+        case 'Arrived in Jamaica': return <MapPin className="h-4 w-4" />;
+        case 'Delivered': return <CheckCircle2 className="h-4 w-4" />;
+        case 'In Transit':
+        case 'Being Shipped':
+        case 'On Route':
+            return <Truck className="h-4 w-4" />;
+        default: return <Package className="h-4 w-4" />;
+    }
+}
+
+const WarehouseIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 21V7L12 3L21 7V21" />
+        <path d="M9 21V11H15V21" />
+    </svg>
+)
 
 const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg
@@ -65,50 +96,84 @@ export function DashboardTab({ details }: { details: UserProfile }) {
         <CardDescription>A quick overview of your account.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <Card>
-            <CardHeader>
+        <Card className="border-primary/10 overflow-hidden shadow-md">
+            <CardHeader className="bg-muted/30 pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
-                    <Package className="h-5 w-5" /> Latest Shipment Status
+                    <Package className="h-5 w-5 text-primary" /> Latest Shipment Status
                 </CardTitle>
             </CardHeader>
             {isLoadingShipments ? (
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="flex justify-center items-center h-24">
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
               </CardContent>
             ) : recentShipment ? (
-            <CardContent className="space-y-2">
-                <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tracking #:</span>
-                    <span className="font-mono">{recentShipment.trackingNumber}</span>
+            <CardContent className="space-y-4 pt-6">
+                <div className="flex justify-between items-center bg-muted/20 p-3 rounded-lg">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-primary/10 p-2 rounded-full">
+                            {getStatusIcon(recentShipment.status)}
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Tracking Number</p>
+                            <p className="font-mono font-bold text-lg">{recentShipment.trackingNumber}</p>
+                        </div>
+                    </div>
+                    <Badge variant={getStatusVariant(recentShipment.status)} className="px-4 py-1">
+                        {recentShipment.status}
+                    </Badge>
                 </div>
-                <div className="flex justify-between">
-                    <span className="text-muted-foreground">Contents:</span>
-                    <span>{recentShipment.contents}</span>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-1">
+                        <span className="text-muted-foreground block text-xs uppercase font-semibold">Contents</span>
+                        <span className="font-medium text-foreground">{recentShipment.contents}</span>
+                    </div>
+                    <div className="space-y-1">
+                        <span className="text-muted-foreground block text-xs uppercase font-semibold">Last Update</span>
+                        <span className="font-medium text-foreground">
+                            {recentShipment.shippingDate && typeof recentShipment.shippingDate.toDate === 'function' 
+                                ? recentShipment.shippingDate.toDate().toLocaleString() 
+                                : 'Processing...'}
+                        </span>
+                    </div>
                 </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Status:</span>
-                    <Badge variant={getStatusVariant(recentShipment.status)}>{recentShipment.status}</Badge>
-                </div>
+
+                {recentShipment.status === 'Arrived in Jamaica' && (
+                    <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-900">
+                        <Info className="h-4 w-4 text-blue-600" />
+                        <AlertTitle>Package in Jamaica!</AlertTitle>
+                        <AlertDescription className="text-xs">
+                            Your package has arrived at our Kingston hub and is currently clearing customs.
+                        </AlertDescription>
+                    </Alert>
+                )}
+
+                <Button variant="outline" className="w-full" asChild>
+                    <Link href="/account/packages">View All Packages</Link>
+                </Button>
             </CardContent>
              ) : (
-                <CardContent>
-                    <p className="text-muted-foreground">You have no active shipments.</p>
+                <CardContent className="pt-6">
+                    <div className="text-center py-6 space-y-3">
+                         <Package className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+                         <p className="text-muted-foreground italic">You have no active shipments at the moment.</p>
+                    </div>
                 </CardContent>
              )}
         </Card>
-         <Card>
+         <Card className="border-orange-100 dark:border-orange-900/30">
             <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                    <FileUp className="h-5 w-5" /> Create a Pre-Alert
+                    <FileUp className="h-5 w-5 text-orange-500" /> Create a Pre-Alert
                 </CardTitle>
                  <CardDescription>
-                    Upload your invoice to notify us of an incoming package.
+                    Upload your invoice to notify us of an incoming package for faster processing.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-               <Button asChild>
+               <Button asChild className="bg-orange-500 hover:bg-orange-600">
                    <Link href="/account/pre-alert">Go to Pre-Alert</Link>
                </Button>
             </CardContent>
@@ -231,8 +296,6 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
         return;
     }
 
-    // Firestore document limit is 1MB. Base64 encoding increases size by ~33%.
-    // We check for ~700KB to be safe.
     if (invoice.size > 700 * 1024) {
       toast({ 
         title: 'File Too Large', 
@@ -260,7 +323,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
         const newPreAlert = {
             customerName,
             customerId,
-            trackingNumber,
+            trackingNumber: trackingNumber.trim().toUpperCase(),
             contents,
             status: 'Pending' as const,
             submissionDate: serverTimestamp(),
@@ -268,7 +331,6 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
             uploadedInvoiceUrl: uploadedInvoiceUrl
         };
         
-        // Non-blocking mutation
         addDoc(preAlertsCollection, newPreAlert)
           .catch(async (error) => {
              errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -357,7 +419,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
                                         : 'Processing...'}
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={getStatusVariant(alert.status)}>{alert.status}</Badge>
+                                        <Badge variant={alert.status === 'Processed' ? 'secondary' : 'destructive'}>{alert.status}</Badge>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -432,7 +494,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
     <Card>
       <CardHeader>
         <CardTitle>My Packages</CardTitle>
-        <CardDescription>Here is the status of all your shipments.</CardDescription>
+        <CardDescription>Here is the live status of all your shipments.</CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
@@ -440,7 +502,7 @@ export function PackagesTab({ customerId }: { customerId: string }) {
             <TableRow>
               <TableHead>Tracking #</TableHead>
               <TableHead>Contents</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Current Status</TableHead>
               <TableHead>Cost</TableHead>
               <TableHead>Payment</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -448,18 +510,23 @@ export function PackagesTab({ customerId }: { customerId: string }) {
           </TableHeader>
           <TableBody>
             {userShipments && userShipments.map((shipment) => (
-              <TableRow key={shipment.id}>
-                <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
+              <TableRow key={shipment.id} className="group hover:bg-muted/30 transition-colors">
+                <TableCell className="font-mono font-bold">{shipment.trackingNumber}</TableCell>
                 <TableCell>{shipment.contents}</TableCell>
                 <TableCell>
-                  <Badge variant={getStatusVariant(shipment.status)}>{shipment.status}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={getStatusVariant(shipment.status)} className="flex items-center gap-1.5 px-3 py-1">
+                        {getStatusIcon(shipment.status)}
+                        {shipment.status}
+                    </Badge>
+                  </div>
                 </TableCell>
                 <TableCell className="font-medium">
                     {shipment.cost ? `$${shipment.cost.toFixed(2)}` : 'N/A'}
                 </TableCell>
                 <TableCell>
                     {shipment.paymentStatus === 'Unpaid' && shipment.cost ? (
-                        <Button size="sm" onClick={() => handlePayNow(shipment)}>
+                        <Button size="sm" onClick={() => handlePayNow(shipment)} className="h-8">
                             <CreditCard className="mr-2 h-4 w-4" />
                             Pay Now
                         </Button>
