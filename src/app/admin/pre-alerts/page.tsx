@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, Truck, Download } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Truck, Download, FileText, Eye, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -150,7 +150,10 @@ export default function PreAlertsPage() {
   return (
     <div className="flex flex-col gap-6">
        <div className="flex items-center justify-between">
-        <div><h1 className="text-3xl font-bold tracking-tight">Pre-Alerts</h1><p className="text-muted-foreground">Manage incoming pre-alerts.</p></div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Pre-Alerts</h1>
+          <p className="text-muted-foreground">Manage incoming pre-alerts and process them into shipments.</p>
+        </div>
         <div className="flex gap-2">
             <Button variant="outline" asChild><Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link></Button>
             <Dialog open={open} onOpenChange={setOpen}>
@@ -173,23 +176,120 @@ export default function PreAlertsPage() {
         </div>
       </div>
 
-      <Card><CardHeader><CardTitle>Incoming Pre-Alerts</CardTitle></CardHeader>
+      <Card>
+        <CardHeader>
+          <CardTitle>Incoming Pre-Alerts</CardTitle>
+          <CardDescription>Review customer-submitted invoices and tracking numbers.</CardDescription>
+        </CardHeader>
         <CardContent>
-          <Table><TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Tracking #</TableHead><TableHead>Contents</TableHead><TableHead>Date</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Customer</TableHead>
+                <TableHead>Tracking #</TableHead>
+                <TableHead>Contents</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {preAlerts?.map((alert) => (
                   <TableRow key={alert.id}>
                     <TableCell className="font-medium">{alert.customerName}</TableCell>
-                    <TableCell>{alert.trackingNumber}</TableCell>
+                    <TableCell className="font-mono">{alert.trackingNumber}</TableCell>
                     <TableCell>{alert.contents}</TableCell>
-                    <TableCell>{alert.submissionDate && typeof alert.submissionDate.toDate === 'function' ? alert.submissionDate.toDate().toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell>
+                      {alert.submissionDate && typeof alert.submissionDate.toDate === 'function' 
+                        ? alert.submissionDate.toDate().toLocaleDateString() 
+                        : 'N/A'}
+                    </TableCell>
                     <TableCell><Badge variant={getStatusVariant(alert.status)}>{alert.status}</Badge></TableCell>
-                     <TableCell><CreateShipmentDialog preAlert={alert} onShipmentCreated={handleShipmentCreated} /></TableCell>
+                     <TableCell className="text-right">
+                       <div className="flex justify-end gap-2">
+                          <ViewReceiptDialog preAlert={alert} />
+                          <CreateShipmentDialog preAlert={alert} onShipmentCreated={handleShipmentCreated} />
+                       </div>
+                     </TableCell>
                   </TableRow>
                 ))}
-            </TableBody></Table>
-        </CardContent></Card>
+                {preAlerts?.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No incoming pre-alerts.</TableCell>
+                  </TableRow>
+                )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
+  const { toast } = useToast();
+  
+  const handleDownload = () => {
+    if (!preAlert.uploadedInvoiceUrl) return;
+    
+    const link = document.createElement('a');
+    link.href = preAlert.uploadedInvoiceUrl;
+    link.download = `Invoice-${preAlert.trackingNumber}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "Downloading Invoice",
+      description: `The file for tracking ${preAlert.trackingNumber} is being saved.`
+    });
+  };
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" disabled={!preAlert.uploadedInvoiceUrl}>
+          <FileText className="mr-2 h-4 w-4 text-primary" />
+          View Receipt
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Receipt for {preAlert.trackingNumber}</DialogTitle>
+          <DialogDescription>
+            Submitted by {preAlert.customerName} on {preAlert.submissionDate && typeof preAlert.submissionDate.toDate === 'function' ? preAlert.submissionDate.toDate().toLocaleDateString() : 'N/A'}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-auto rounded-lg border bg-muted/20 mt-4 min-h-[400px]">
+          {preAlert.uploadedInvoiceUrl ? (
+             preAlert.uploadedInvoiceUrl.startsWith('data:application/pdf') ? (
+                <iframe 
+                  src={preAlert.uploadedInvoiceUrl} 
+                  className="w-full h-full min-h-[500px]" 
+                  title="Invoice PDF"
+                />
+             ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img 
+                  src={preAlert.uploadedInvoiceUrl} 
+                  alt="Customer Invoice" 
+                  className="w-full h-auto object-contain"
+                />
+             )
+          ) : (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              No invoice file attached to this pre-alert.
+            </div>
+          )}
+        </div>
+        <DialogFooter className="mt-4">
+          <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+          <Button onClick={handleDownload} disabled={!preAlert.uploadedInvoiceUrl}>
+            <Download className="mr-2 h-4 w-4" /> Download Original
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
