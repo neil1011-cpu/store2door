@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut } from 'lucide-react';
-import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab } from './dashboard-components';
+import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator } from 'lucide-react';
+import { DashboardTab, PreAlertTab, PackagesTab, SupportTab, AccountTab, CustomsCalculatorTab } from './dashboard-components';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth, useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-type View = 'dashboard' | 'pre-alert' | 'packages' | 'support' | 'account';
+type View = 'dashboard' | 'pre-alert' | 'packages' | 'support' | 'account' | 'calculator';
 
 const featureCards = [
     {
@@ -39,6 +39,13 @@ const featureCards = [
         description: 'Track all your shipments and invoices.',
         icon: <Package className="h-8 w-8" />,
         color: 'bg-green-500 text-white',
+    },
+    {
+        view: 'calculator' as View,
+        title: 'Calculator',
+        description: 'Estimate your customs and shipping costs.',
+        icon: <Calculator className="h-8 w-8" />,
+        color: 'bg-indigo-500 text-white',
     },
     {
         view: 'support' as View,
@@ -101,7 +108,7 @@ export default function AccountPage() {
                     <Skeleton className="h-5 w-80" />
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}
+                    {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}
                 </div>
             </div>
         );
@@ -122,6 +129,7 @@ export default function AccountPage() {
             case 'dashboard': return <DashboardTab details={userProfile} />;
             case 'pre-alert': return <PreAlertTab customerId={userProfile.id} customerName={userProfile.fullName} />;
             case 'packages': return <PackagesTab customerId={userProfile.id} />;
+            case 'calculator': return <CustomsCalculatorTab />;
             case 'support': return <SupportTab details={userProfile} />;
             case 'account': return <AccountTab details={userProfile} />;
             default: return <DashboardTab details={userProfile} />;
@@ -135,7 +143,7 @@ export default function AccountPage() {
                 <p className="text-muted-foreground">Manage your shipments and account details here.</p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
                 {featureCards.map(card => (
                      <Card 
                         key={card.view}
