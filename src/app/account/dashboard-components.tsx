@@ -76,8 +76,13 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                     <Package className="h-5 w-5" /> Latest Shipment Status
                 </CardTitle>
             </CardHeader>
-            {isLoadingShipments ? <CardContent><div className="flex justify-center items-center h-24"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent> :
-             recentShipment ? (
+            {isLoadingShipments ? (
+              <CardContent>
+                <div className="flex justify-center items-center h-24">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              </CardContent>
+            ) : recentShipment ? (
             <CardContent className="space-y-2">
                 <div className="flex justify-between">
                     <span className="text-muted-foreground">Tracking #:</span>
@@ -274,7 +279,7 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
 
     } catch (error: any) {
         console.error("Pre-alert submission error:", error);
-        if (error.message.includes('permission-denied') || error.code?.includes('permission-denied')) {
+        if (error.message?.includes('permission-denied') || error.code?.includes('permission-denied')) {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
               path: `users/${customerId}/pre_alerts`,
               operation: 'create',
@@ -346,7 +351,8 @@ export function PreAlertTab({ customerId, customerName }: { customerId: string, 
                                     <TableCell>{alert.submissionDate ? new Date((alert.submissionDate as any).toDate()).toLocaleDateString() : 'N/A'}</TableCell>
                                     <TableCell>
                                         <Badge variant={getStatusVariant(alert.status)}>{alert.status}</Badge>
-                                    </TableRow>
+                                    </TableCell>
+                                </TableRow>
                             ))
                         ) : (
                             <TableRow>
