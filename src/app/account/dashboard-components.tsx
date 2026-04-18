@@ -275,6 +275,12 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber 
   const { toast } = useToast();
   const firestore = useFirestore();
 
+  useEffect(() => {
+    if (prefilledTrackingNumber) {
+        setTrackingNumber(prefilledTrackingNumber);
+    }
+  }, [prefilledTrackingNumber]);
+
   const preAlertsQuery = useMemoFirebase(() => {
     if (!firestore || !customerId) return null;
     return query(collection(firestore, 'users', customerId, 'pre_alerts'), orderBy('submissionDate', 'desc'));
@@ -469,7 +475,7 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
       
       const doc = iframe.contentWindow?.document;
       if (!doc || !shipment.invoiceUrl) {
-          toast({ title: 'Could not print invoice', variant: 'destructive'});
+          toast({ title: 'Could not print invoice', description: 'No printable invoice found for this shipment.', variant: 'destructive'});
           document.body.removeChild(iframe);
           return;
       }
@@ -507,7 +513,7 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
   }
 
   // Cross-reference shipments with pre-alerts to see which ones are missing
-  const preAlertMap = new Map(userPreAlerts?.map(pa => [pa.trackingNumber, pa]));
+  const preAlertMap = new Map(userPreAlerts?.map(pa => [pa.trackingNumber.toUpperCase(), pa]));
 
   return (
     <>
@@ -530,7 +536,7 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
           </TableHeader>
           <TableBody>
             {userShipments && userShipments.map((shipment) => {
-              const hasPreAlert = preAlertMap.has(shipment.trackingNumber);
+              const hasPreAlert = preAlertMap.has(shipment.trackingNumber.toUpperCase());
               const isIntakenButNoInvoice = !hasPreAlert && (shipment.status === 'Received at Warehouse (FL)' || shipment.status === 'Processed' || shipment.status === 'Arrived in Jamaica');
 
               return (
@@ -570,7 +576,12 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
                  <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                         {isIntakenButNoInvoice && (
-                            <Button size="sm" variant="outline" className="h-8 bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 hover:text-orange-800" onClick={() => handleUploadPreAlert(shipment.trackingNumber)}>
+                            <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-8 bg-orange-500 text-white border-orange-600 hover:bg-orange-600 transition-colors shadow-sm" 
+                                onClick={() => handleUploadPreAlert(shipment.trackingNumber)}
+                            >
                                 <UploadCloud className="mr-2 h-4 w-4" />
                                 Upload Invoice
                             </Button>
