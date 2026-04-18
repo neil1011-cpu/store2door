@@ -1,21 +1,22 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useMemo, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, ArrowLeft, Edit, Loader2, Search } from 'lucide-react';
+import { Mail, ArrowLeft, Edit, Loader2, Search, PlusCircle, ScanLine, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
-import type { Shipment, UserProfile, ShipmentStatus } from '@/lib/types';
+import type { Shipment, UserProfile, ShipmentStatus, PreAlert } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, collectionGroup, query, doc, updateDoc } from 'firebase/firestore';
+import { collection, collectionGroup, query, doc, updateDoc, addDoc, serverTimestamp, where, getDocs, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -47,6 +48,7 @@ export default function ShippingPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isReceiveDialogOpen, setIsReceiveDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<(Shipment & { user?: Partial<UserProfile> }) | null>(null);
   const [editableShipment, setEditableShipment] = useState<Shipment | null>(null);
   const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
@@ -161,9 +163,15 @@ export default function ShippingPage() {
           <h1 className="text-3xl font-bold tracking-tight">Shipping Status</h1>
           <p className="text-muted-foreground">Track all current shipments and update their status.</p>
         </div>
-        <Button variant="outline" asChild>
-          <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link>
-        </Button>
+        <div className="flex gap-2">
+            <Button onClick={() => setIsReceiveDialogOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Receive Package
+            </Button>
+            <Button variant="outline" asChild>
+                <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link>
+            </Button>
+        </div>
       </div>
 
       <Card>
@@ -223,6 +231,12 @@ export default function ShippingPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <ReceivePackageDialog 
+        open={isReceiveDialogOpen} 
+        onOpenChange={setIsReceiveDialogOpen} 
+        users={users || []} 
+      />
 
       <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
         <DialogContent className="sm:max-w-[625px]">
@@ -300,4 +314,218 @@ export default function ShippingPage() {
       </Dialog>
     </div>
   );
+}
+
+function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, onOpenChange: (open: boolean) => void, users: UserProfile[] }) {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [trackingNumber, setTrackingNumber] = useState('');
+    const [customerId, setCustomerId] = useState('');
+    const [contents, setContents] = useState('');
+    const [status, setStatus] = useState<ShipmentStatus>('Received at Warehouse (FL)');
+    const [notifyCustomer, setNotifyCustomer] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [foundPreAlert, setFoundPreAlert] = useState<PreAlert | null>(null);
+
+    // Auto-search for Pre-Alerts when tracking number changes
+    useEffect(() => {
+        const searchPreAlert = async () => {
+            if (trackingNumber.length < 5) {
+                setFoundPreAlert(null);
+                return;
+            }
+
+            const q = query(collectionGroup(firestore, 'pre_alerts'), where('trackingNumber', '==', trackingNumber));
+            const snap = await getDocs(q);
+            
+            if (!snap.empty) {
+                const alert = snap.docs[0].data() as PreAlert;
+                setFoundPreAlert({ ...alert, id: snap.docs[0].id });
+                setCustomerId(alert.customerId);
+                setContents(alert.contents);
+            } else {
+                setFoundPreAlert(null);
+            }
+        };
+
+        const timer = setTimeout(searchPreAlert, 500);
+        return () => clearTimeout(timer);
+    }, [trackingNumber, firestore]);
+
+    const handleReceive = async () => {
+        if (!trackingNumber || !customerId || !contents) {
+            toast({ title: 'Missing Fields', description: 'Please ensure tracking number, customer, and contents are provided.', variant: 'destructive' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const batch = writeBatch(firestore);
+        const selectedUser = users.find(u => u.id === customerId);
+
+        if (!selectedUser) {
+            toast({ title: 'User Not Found', variant: 'destructive' });
+            setIsSubmitting(false);
+            return;
+        }
+
+        const shipmentData = {
+            trackingNumber,
+            customerId,
+            contents,
+            status,
+            shippingDate: serverTimestamp(),
+            paymentStatus: 'Unpaid' as const,
+            invoiceUrl: '',
+            invoiceId: '',
+            cost: 0,
+        };
+
+        // 1. Create the Shipment
+        const shipmentRef = doc(collection(firestore, 'users', customerId, 'shipments'));
+        batch.set(shipmentRef, shipmentData);
+
+        // 2. If matching Pre-Alert exists, mark it as Processed
+        if (foundPreAlert) {
+            const preAlertRef = doc(firestore, 'users', customerId, 'pre_alerts', foundPreAlert.id);
+            batch.update(preAlertRef, { status: 'Processed' });
+        }
+
+        try {
+            await batch.commit();
+            
+            // 3. Optional Email Notification
+            if (notifyCustomer) {
+                fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: selectedUser.email,
+                        subject: `Package Received: ${trackingNumber}`,
+                        body: `Hi ${selectedUser.fullName},\n\nWe have received your package (Tracking: ${trackingNumber}) at our Florida warehouse.\n\nStatus: ${status}\nContents: ${contents}\n\nYou will receive further updates as it moves through transit to Jamaica.\n\nThank you for choosing FromStore2Door!`,
+                        recipientName: selectedUser.fullName
+                    }),
+                });
+            }
+
+            toast({ title: 'Package Received!', description: `Shipment for ${selectedUser.fullName} has been recorded.` });
+            onOpenChange(false);
+            // Reset form
+            setTrackingNumber('');
+            setCustomerId('');
+            setContents('');
+            setFoundPreAlert(null);
+        } catch (error) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `users/${customerId}/shipments`,
+                operation: 'create',
+                requestResourceData: shipmentData
+            }));
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-xl">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <ScanLine className="h-5 w-5 text-primary" />
+                        Receive New Shipment
+                    </DialogTitle>
+                    <DialogDescription>
+                        Manually enter a package or scan a barcode to intake it into the system.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="track-in">Tracking Number (Scan or Type)</Label>
+                        <div className="relative">
+                             <Input 
+                                id="track-in" 
+                                placeholder="JMXXXXXXXXX" 
+                                value={trackingNumber} 
+                                onChange={(e) => setTrackingNumber(e.target.value.toUpperCase())}
+                                autoFocus
+                            />
+                            {foundPreAlert && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-green-600 text-xs font-medium">
+                                    <CheckCircle2 className="h-4 w-4" /> Pre-Alert Found
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Customer</Label>
+                            <Select value={customerId} onValueChange={setCustomerId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select Customer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {users.map(user => (
+                                        <SelectItem key={user.id} value={user.id}>
+                                            {user.fullName} ({user.mailboxNumber})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Initial Status</Label>
+                            <Select value={status} onValueChange={(v: ShipmentStatus) => setStatus(v)}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Received at Warehouse (FL)">Received at Warehouse (FL)</SelectItem>
+                                    <SelectItem value="Processed">Processed</SelectItem>
+                                    <SelectItem value="In Transit">In Transit</SelectItem>
+                                    <SelectItem value="Arrived in Jamaica">Arrived in Jamaica</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Package Contents</Label>
+                        <Input 
+                            placeholder="e.g., Electronics, Clothing" 
+                            value={contents} 
+                            onChange={(e) => setContents(e.target.value)} 
+                        />
+                    </div>
+
+                    {foundPreAlert && (
+                        <div className="p-3 bg-green-50 border border-green-100 rounded-lg flex gap-3 items-start">
+                            <AlertCircle className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                            <div className="text-sm">
+                                <p className="font-semibold text-green-800">Matching Pre-Alert Matched!</p>
+                                <p className="text-green-700">This package was expected by {foundPreAlert.customerName}. Submitting will mark their pre-alert as processed.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30">
+                        <div className="space-y-0.5">
+                            <Label className="text-base">Notify Customer</Label>
+                            <p className="text-sm text-muted-foreground">Send an automated receipt email update.</p>
+                        </div>
+                        <Switch 
+                            checked={notifyCustomer} 
+                            onCheckedChange={setNotifyCustomer} 
+                        />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleReceive} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                        Intake Shipment
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
