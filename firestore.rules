@@ -16,133 +16,65 @@ service cloud.firestore {
     }
 
     // ----------------------------------------------------------
-    // METADATA COLLECTION (FOR COUNTERS, ETC.)
+    // COLLECTION GROUPS (CRITICAL for global dashboard queries)
     // ----------------------------------------------------------
-    match /metadata/mailboxCounter {
-      // Any authenticated user can read and update the counter.
-      // This is safe because updates are handled within a transaction
-      // in the sign-up logic, preventing race conditions.
-      allow read, update: if request.auth != null;
-      allow create, delete: if false; // Should only be created on setup
-    }
-
-
-    // ----------------------------------------------------------
-    // ADMIN ROLES COLLECTION
-    // ----------------------------------------------------------
-    match /roles_admin/{userId} {
-
-      // A user can check for their own admin role document. This is required for the isAdmin() helper to work.
-      allow get: if isOwner(userId);
-      
-      // Only an existing admin can list all other admin documents.
-      allow list: if isAdmin();
-      
-      // No client-side admin creation is allowed for security.
-      // Admins should be created via the Firebase Console or a secure backend function.
-      allow create: if false;
-
-      // No client-side modifications to admin roles
-      allow update, delete: if false;
-    }
-
-    // ----------------------------------------------------------
-    // USERS ROOT COLLECTION
-    // ----------------------------------------------------------
-    match /users/{userId} {
-
-      // User or admin can read their profile
-      allow get: if isOwner(userId) || isAdmin();
-
-      // Combined list rule: Admins can list all users. 
-      // Any authenticated user can perform a count.
-      allow list: if isAdmin() || (request.auth != null && query.limit == 0);
-
-      // User can create their own profile OR admin can create it for them
-      allow create: if isOwner(userId) || isAdmin();
-
-      // User or admin can update
-      allow update: if isOwner(userId) || isAdmin();
-
-      // Only admin can delete
-      allow delete: if isAdmin();
-    }
-
-
-    // ----------------------------------------------------------
-    // USERS SUBCOLLECTIONS (ADDRESSES, SHIPMENTS, PRE_ALERTS, ETC.)
-    // ----------------------------------------------------------
-    match /users/{userId}/{subcollection}/{docId} {
-
-      // Admin can see any document; user can see their own
-      allow get, list: if isOwner(userId) || isAdmin();
-
-      // Admin or owner can write
-      allow create, update, delete: if isOwner(userId) || isAdmin();
-    }
     
+    match /{path=**}/shipments/{id} {
+      allow read, write: if isAdmin();
+      allow read: if request.auth != null && resource.data.customerId == request.auth.uid;
+    }
+
+    match /{path=**}/pre_alerts/{id} {
+      allow read, write: if isAdmin();
+      allow read: if request.auth != null && resource.data.customerId == request.auth.uid;
+    }
+
     // ----------------------------------------------------------
-    // SENT EMAILS COLLECTION (For Backend Logging)
+    // ROOT COLLECTIONS
     // ----------------------------------------------------------
+
+    match /metadata/mailboxCounter {
+      allow read, update: if request.auth != null;
+    }
+
+    match /roles_admin/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+
+      // Subcollections (Shipments, PreAlerts, etc)
+      match /{subcollection}/{docId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
     match /sent_emails/{emailId} {
-        // Only allow backend processes (where request.auth is null) to write.
-        allow write: if request.auth == null;
-
-        // Only allow admins to read the history.
-        allow read: if isAdmin();
-
-        // Prevent any client-side deletion.
-        allow delete: if false;
+      allow read: if isAdmin();
+      allow create: if request.auth == null; // For backend logging
     }
 
-
-    // ----------------------------------------------------------
-    // GLOBAL ADMIN-ONLY COLLECTIONS
-    // ----------------------------------------------------------
     match /invoices/{invoiceId} {
-      allow get, list, create, update, delete: if isAdmin();
-    }
-
-    match /rates/{rateId} {
-      allow get, list, create, update, delete: if isAdmin();
-    }
-
-    match /flight_manifests/{manifestId} {
-      allow get, list, create, update, delete: if isAdmin();
-    }
-
-    match /profit_loss_statements/{plsId} {
-      allow get, list, create, update, delete: if isAdmin();
+      allow read, write: if isAdmin();
+      allow read: if request.auth != null && resource.data.customerId == request.auth.uid;
     }
 
     match /transactions/{transactionId} {
-      allow get, list, create, update, delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
-    // ----------------------------------------------------------
-    // COLLECTION GROUP QUERIES (VERY IMPORTANT)
-    // REQUIRED for collectionGroup('shipments'), etc.
-    // ----------------------------------------------------------
-
-    // SHIPMENTS
-    match /{path=**}/shipments/{shipmentId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow update, delete, create: if isAdmin();
+    match /flight_manifests/{manifestId} {
+      allow read, write: if isAdmin();
     }
 
-    // PRE ALERTS
-    match /{path=**}/pre_alerts/{preAlertId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow update, delete, create: if isAdmin();
-    }
-
-    // CONVERSATIONS
-    match /{path=**}/conversations/{convoId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow update, delete, create: if isAdmin();
+    match /rates/{rateId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

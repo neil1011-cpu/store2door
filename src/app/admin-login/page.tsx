@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Loader2, Route } from 'lucide-react';
+import { Loader2, Route, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth, useFirestore } from '@/firebase';
@@ -40,127 +40,72 @@ export default function AdminLoginPage() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
-      const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      const adminDocSnap = await getDoc(adminRoleRef);
+      const cred = await signInWithEmailAndPassword(auth, values.email, values.password);
+      const adminSnap = await getDoc(doc(firestore, 'roles_admin', cred.user.uid));
       
-      if (adminDocSnap.exists()) {
-        toast({
-            title: 'Admin Sign In Successful!',
-            description: 'Welcome back!',
-        });
-        setShowWelcome(true); // Trigger the animation
+      if (adminSnap.exists()) {
+        setShowWelcome(true);
       } else {
         await signOut(auth);
-        toast({
-            title: 'Sign In Failed',
-            description: 'You do not have admin privileges.',
-            variant: 'destructive',
-        });
+        toast({ title: 'Access Denied', description: 'No admin privileges.', variant: 'destructive' });
       }
     } catch (error: any) {
-        toast({
-            title: 'Sign In Failed',
-            description: error.message || 'Invalid email or password.',
-            variant: 'destructive',
-        });
+        toast({ title: 'Login Failed', description: 'Invalid credentials.', variant: 'destructive' });
     } finally {
         setLoading(false);
     }
   };
 
-  if (showWelcome) {
-    return <AdminWelcomeAnimation onComplete={() => router.push('/admin')} />;
-  }
+  if (showWelcome) return <AdminWelcomeAnimation onComplete={() => router.push('/admin')} />;
 
   return (
-    <div className="w-full h-screen lg:grid lg:grid-cols-2">
-       <div className="relative hidden h-full flex-col bg-muted p-10 text-white dark:border-r lg:flex">
+    <div className="w-full min-h-screen lg:grid lg:grid-cols-2 bg-background">
+       <div className="relative hidden h-full flex-col bg-muted p-10 text-white lg:flex">
          <Image 
-            src="https://picsum.photos/seed/computer/1200/1800"
-            alt="Admin panel background"
+            src="https://picsum.photos/seed/delivery-van/1200/1800"
+            alt="Admin panel"
             fill
             className="object-cover brightness-50"
-            data-ai-hint="computer technology"
+            data-ai-hint="delivery van"
         />
-        <div className="relative z-20 flex items-center text-lg font-medium">
-          <Route className="mr-2 h-6 w-6" />
-          FromStore2Door Admin
+        <div className="relative z-20 flex items-center text-2xl font-bold italic tracking-tighter">
+          FromStore2Door Logistical OS
         </div>
-        <div className="relative z-20 mt-auto">
-          <blockquote className="space-y-2">
-            <p className="text-lg">
-              &ldquo;Innovation distinguishes between a leader and a follower. This is where we lead.&rdquo;
-            </p>
-            <footer className="text-sm">Steve Jobs, Co-founder of Apple</footer>
-          </blockquote>
+        <div className="relative z-20 mt-auto bg-black/20 backdrop-blur-md p-6 rounded-xl border border-white/10">
+          <ShieldCheck className="h-8 w-8 mb-4 text-primary" />
+          <p className="text-lg font-medium leading-relaxed italic">
+            "Reliability is the foundation of every successful logistical network. Access restricted to authorized personnel only."
+          </p>
         </div>
       </div>
-      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto grid w-[350px] gap-6">
-          <div className="grid gap-2 text-center">
-            <h1 className="text-3xl font-bold">Admin Login</h1>
-            <p className="text-balance text-muted-foreground">
-              Enter your credentials to access the dashboard
-            </p>
+      <div className="flex items-center justify-center p-8">
+        <div className="mx-auto w-full max-w-[400px] space-y-8">
+          <div className="space-y-2 text-center">
+            <h1 className="text-4xl font-black tracking-tight uppercase">Admin Entry</h1>
+            <p className="text-muted-foreground text-sm font-medium">Verify your credentials to manage the network.</p>
           </div>
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
-                <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Email Address</FormLabel>
-                        <FormControl>
-                        <Input type="email" placeholder="admin@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                    <FormItem>
-                        <div className="flex items-center">
-                            <FormLabel>Password</FormLabel>
-                             <Link
-                                href="#"
-                                className="ml-auto inline-block text-sm underline"
-                            >
-                                Forgot your password?
-                            </Link>
-                        </div>
-                        <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                    {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing In...</> : 'Sign In'}
-                </Button>
-                </form>
-            </Form>
-            <div className="mt-4 text-center text-sm">
-                <Link href="/" className="underline">
-                    Back to main website
-                </Link>
-            </div>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem><FormLabel>Admin Email</FormLabel><FormControl><Input placeholder="admin@fstd.com" {...field} className="h-12 border-2" /></FormControl><FormMessage /></FormItem>
+              )}/>
+              <FormField control={form.control} name="password" render={({ field }) => (
+                <FormItem><FormLabel>Secure Key</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} className="h-12 border-2" /></FormControl><FormMessage /></FormItem>
+              )}/>
+              <Button type="submit" size="lg" className="w-full h-14 text-lg font-bold shadow-xl" disabled={loading}>
+                  {loading ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : "Authorize Access"}
+              </Button>
+            </form>
+          </Form>
+          <div className="pt-4 text-center border-t">
+              <Button variant="link" asChild className="text-muted-foreground"><Link href="/">Return to Public Website</Link></Button>
+          </div>
         </div>
       </div>
     </div>

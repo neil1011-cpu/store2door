@@ -45,24 +45,14 @@ import { Notifications } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 
-// Guard that assumes a user already exists (Auth is done in AdminLayout)
+// Guard that ensures a user exists and has admin role BEFORE rendering logistical UI
 function AdminAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  // If for some reason user is missing, don't even try to load admin doc
-  if (!user) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-4">Redirecting to login...</span>
-      </div>
-    );
-  }
-
-  // Build the doc ref only when user is present
+  // 1. Build the doc ref only when user is present
   const adminRoleRef = useMemoFirebase(
     () => {
       if (!firestore || !user) return null;
@@ -76,38 +66,41 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     isLoading: isAdminLoading,
   } = useDoc(adminRoleRef, { skipCache: true });
 
-  // Redirect once the admin doc has finished loading and does NOT exist
+  // 2. Auth redirection
   useEffect(() => {
-    if (isAdminLoading) return;
+    if (!isUserLoading && !user) {
+      router.replace('/admin-login');
+    }
+  }, [user, isUserLoading, router]);
+
+  // 3. Admin privilege redirection
+  useEffect(() => {
+    if (isAdminLoading || !user) return;
 
     if (!adminRoleDoc) {
       toast({
-        title: 'Access denied',
-        description: "You don't have permission to access the admin panel.",
+        title: 'Access Denied',
+        description: "Your account does not have administrator privileges.",
         variant: 'destructive',
       });
-
       router.replace('/admin-login');
     }
-  }, [isAdminLoading, adminRoleDoc, router, toast]);
+  }, [isAdminLoading, adminRoleDoc, router, toast, user]);
 
-  // While we're still checking admin status, show a loader
-  if (isAdminLoading) {
+  // 4. Loading State
+  if (isUserLoading || isAdminLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-4">Verifying admin privileges...</span>
+      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-muted-foreground animate-pulse font-medium">Verifying Credentials...</p>
       </div>
     );
   }
   
-  // If the admin doc doesn't exist after loading, render nothing.
-  // The useEffect above is already handling the redirect.
-  if (!adminRoleDoc) {
+  if (!user || !adminRoleDoc) {
     return null;
   }
 
-  // Only render children if the admin role is confirmed.
   return <>{children}</>;
 }
 
@@ -116,44 +109,15 @@ export default function AdminLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const router = useRouter();
-  const { toast } = useToast();
   const auth = useAuth();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const pathname = usePathname();
-
-  useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.replace('/admin-login');
-    }
-  }, [user, isUserLoading, router]);
+  const router = useRouter();
 
   const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      toast({
-        title: 'Signed out',
-        description: 'You have been successfully signed out.',
-      });
-      router.replace('/admin-login');
-    } catch (error) {
-      toast({
-        title: 'Sign out failed',
-        description: 'Something went wrong.',
-        variant: 'destructive',
-      });
-    }
+    await signOut(auth);
+    router.replace('/admin-login');
   };
-
-  // Global auth loading: don't show layout until Firebase Auth is done
-  if (isUserLoading || !user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-4">Loading...</span>
-      </div>
-    );
-  }
 
   const sidebarLinks = [
     { href: "/admin", icon: <LayoutDashboard />, label: "Dashboard" },
@@ -170,63 +134,64 @@ export default function AdminLayout({
   ];
 
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader className="p-2">
-           <div className="flex items-center gap-2 p-2 rounded-lg">
-                <Avatar className="size-9">
-                    <AvatarImage src={user.photoURL || undefined} alt="Admin avatar" />
-                    <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="text-sm overflow-hidden">
-                    <div className="font-semibold text-sidebar-foreground truncate">{user.displayName || 'Admin User'}</div>
-                    <div className="text-sidebar-foreground/80 truncate">{user.email}</div>
-                </div>
+    <AdminAuthGuard>
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarHeader className="p-4">
+             <div className="flex items-center gap-3 p-1">
+                  <Avatar className="h-9 w-9 border-2 border-primary/20">
+                      <AvatarImage src={user?.photoURL || undefined} />
+                      <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                        {user?.email?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                  </Avatar>
+                  <div className="text-sm overflow-hidden">
+                      <div className="font-bold truncate">{user?.displayName || 'Admin'}</div>
+                      <div className="text-muted-foreground text-[10px] truncate">{user?.email}</div>
+                  </div>
+              </div>
+          </SidebarHeader>
+          <SidebarContent>
+            <SidebarMenu className="px-2">
+              {sidebarLinks.map((link) => (
+                   <SidebarMenuItem key={link.href}>
+                      <SidebarMenuButton asChild isActive={pathname === link.href} className="h-10">
+                          <Link href={link.href}>
+                              {link.icon}
+                              <span className="font-medium">{link.label}</span>
+                          </Link>
+                      </SidebarMenuButton>
+                  </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarContent>
+          <SidebarFooter className="p-4 border-t">
+              <SidebarMenu>
+                  <SidebarMenuItem>
+                     <SidebarMenuButton variant="outline" onClick={handleSignOut} className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/5">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sign Out
+                     </SidebarMenuButton>
+                  </SidebarMenuItem>
+              </SidebarMenu>
+          </SidebarFooter>
+        </Sidebar>
+        <SidebarInset>
+          <header className="flex h-16 items-center gap-4 border-b bg-background px-6 sticky top-0 z-30">
+            <SidebarTrigger />
+            <div className="h-6 w-px bg-border mx-2 hidden md:block" />
+            <div className="text-sm font-bold tracking-tight uppercase text-muted-foreground hidden md:block">
+              FSTD Logistical OS v2.0
             </div>
-        </SidebarHeader>
-        <SidebarContent>
-           <div className="p-2">
-               <div className="relative">
-                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sidebar-foreground/50" />
-                   <SidebarInput placeholder="Search..." className="pl-9 h-9" />
-               </div>
-           </div>
-          <SidebarMenu>
-            {sidebarLinks.map((link, index) => (
-                 <SidebarMenuItem key={index}>
-                    <SidebarMenuButton asChild isActive={pathname === link.href} variant={pathname === link.href ? 'default' : 'ghost'} className="data-[active=true]:bg-sidebar-accent justify-start">
-                        <Link href={link.href}>
-                            {link.icon}
-                            {link.label}
-                        </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter>
-          <SidebarMenu>
-              <SidebarMenuItem>
-                 <SidebarMenuButton variant="ghost" onClick={handleSignOut}>
-                    <LogOut />
-                    Logout
-                 </SidebarMenuButton>
-              </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <header className="flex h-14 items-center gap-4 border-b bg-background px-6">
-          <SidebarTrigger />
-          <div className="text-sm text-muted-foreground">Admin Portal</div>
-          <div className="flex-1" />
-           <ThemeToggle />
-           <Notifications />
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-gray-100 dark:bg-zinc-800/50">
-          <AdminAuthGuard>{children}</AdminAuthGuard>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+            <div className="flex-1" />
+             <ThemeToggle />
+             <Notifications />
+          </header>
+          <main className="flex-1 p-6 lg:p-8 max-w-[1600px] mx-auto w-full">
+            {children}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </AdminAuthGuard>
   );
 }

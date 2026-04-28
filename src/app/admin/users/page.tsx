@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -17,19 +17,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2, Eye, Receipt, Download, Search, ShieldCheck } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2, Eye, Receipt, Download, Search, ShieldCheck, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -38,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,343 +35,283 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile, Invoice } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, serverTimestamp, doc, setDoc, getCountFromServer, addDoc } from 'firebase/firestore';
+import { collection, query, serverTimestamp, doc, setDoc, getCountFromServer, addDoc, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
 
-
-function InvoiceViewDialog({ invoice, open, onOpenChange }: { invoice: Invoice | null, open: boolean, onOpenChange: (open: boolean) => void }) {
-    const { toast } = useToast();
-    
-    if (!invoice) return null;
-
-    const handlePrintInvoice = () => {
-        const iframe = document.getElementById('invoice-iframe-users') as HTMLIFrameElement;
-        if (iframe && iframe.contentWindow) {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-        } else {
-            toast({ title: 'Could not print invoice', description: 'There was an issue finding the invoice content to print.', variant: 'destructive'});
-        }
-    };
-    
-    const isPrintable = invoice.invoiceUrl && invoice.invoiceUrl.startsWith('<!DOCTYPE html>');
-    
-    const displayDate = invoice.date && typeof (invoice.date as any).toDate === 'function' 
-        ? new Date((invoice.date as any).toDate()).toLocaleDateString()
-        : (invoice.date ? new Date(invoice.date).toLocaleDateString() : 'N/A');
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle>Invoice {invoice.invoiceId}</DialogTitle>
-                    <DialogDescription>Invoice for {invoice.customerName} dated {displayDate}.</DialogDescription>
-                </DialogHeader>
-                 <div className="relative h-[600px] overflow-hidden rounded-md border">
-                    <iframe 
-                        id="invoice-iframe-users"
-                        srcDoc={invoice.invoiceUrl}
-                        title={`Invoice ${invoice.invoiceId}`}
-                        width="100%"
-                        height="100%"
-                        style={{ border: 'none' }}
-                    />
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-                    <Button onClick={handlePrintInvoice} disabled={!isPrintable}><Download className="mr-2 h-4 w-4" /> Print to PDF</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-
 export default function UsersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user: adminUser } = useUser();
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore) return null;
     return query(collection(firestore, 'users'));
-  }, [firestore, user]);
+  }, [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
   
   const adminRolesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore) return null;
     return query(collection(firestore, 'roles_admin'));
-  }, [firestore, user]);
-  const { data: adminRoles, isLoading: isLoadingAdmins } = useCollection<{isAdmin: boolean}>(adminRolesQuery);
+  }, [firestore]);
+  const { data: adminRoles } = useCollection<{isAdmin: boolean}>(adminRolesQuery);
 
   const [openAddUser, setOpenAddUser] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
-  
-  const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
-  const [selectedUserForInvoice, setSelectedUserForInvoice] = useState<UserProfile | null>(null);
-
-  const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
-  const [isViewInvoiceOpen, setIsViewInvoiceOpen] = useState(false);
-  
   const [searchTerm, setSearchTerm] = useState('');
   
   const adminIds = useMemo(() => new Set(adminRoles?.map(role => role.id)), [adminRoles]);
 
-  const loading = isLoadingUsers || isUserLoading || isLoadingAdmins;
-  
   const filteredUsers = useMemo(() => {
     if (!users) return [];
     if (!searchTerm) return users;
-
-    const lowercasedTerm = searchTerm.toLowerCase();
-    return users.filter(user => 
-        user.fullName.toLowerCase().includes(lowercasedTerm) ||
-        user.email.toLowerCase().includes(lowercasedTerm) ||
-        (user.mailboxNumber && user.mailboxNumber.toLowerCase().includes(lowercasedTerm)) ||
-        (user.trn && user.trn.includes(lowercasedTerm))
+    const lower = searchTerm.toLowerCase();
+    return users.filter(u => 
+        u.fullName.toLowerCase().includes(lower) ||
+        u.email.toLowerCase().includes(lower) ||
+        u.mailboxNumber?.toLowerCase().includes(lower)
     );
   }, [users, searchTerm]);
 
   const handleAddUser = async () => {
-    if(!newUser.name || !newUser.email) {
-        toast({
-            title: 'Missing Fields',
-            description: 'Please enter a name and email for the new user.',
-            variant: 'destructive',
-        });
-        return;
-    }
-
+    if(!newUser.name || !newUser.email) return;
     setIsSubmitting(true);
-    
     try {
         const usersCollection = collection(firestore, "users");
-        
-        // This is safe because only authenticated admins can trigger this.
         const snapshot = await getCountFromServer(usersCollection);
-        const userCount = snapshot.data().count;
-        const nextMailboxNumber = `FSTD${101 + userCount}`;
+        const count = snapshot.data().count;
+        const mailbox = `FSTD${101 + count}`;
+        const newRef = doc(usersCollection);
         
-        // Admins can create users with any ID, so we let Firestore auto-generate one.
-        const newDocRef = doc(usersCollection);
-        
-        const userToAdd = {
-            id: newDocRef.id, // Use the auto-generated ID
+        await setDoc(newRef, {
+            id: newRef.id,
             fullName: newUser.name,
             email: newUser.email,
             phone: 'N/A',
             trn: 'N/A',
-            mailboxNumber: nextMailboxNumber,
+            mailboxNumber: mailbox,
             address: {
                 address1: '4350 NE 5th Terrace Bay #3',
-                address2: `${nextMailboxNumber} -FSTD`,
+                address2: `${mailbox}-FSTD`,
                 city: 'Oakland Park',
                 state: 'Florida',
                 zip: '33334',
             },
             createdAt: serverTimestamp(),
-        };
-
-        await setDoc(newDocRef, userToAdd);
-
-        toast({
-            title: 'User Added',
-            description: `${newUser.name} has been added with mailbox number: ${nextMailboxNumber}`,
+            pickupPersonnel: [],
+            dropoffAddresses: [],
         });
+
+        toast({ title: 'User Created', description: `Assigned Mailbox: ${mailbox}` });
         setOpenAddUser(false);
         setNewUser({ name: '', email: '' });
-    } catch (error: any) {
-        console.error("Error adding user:", error);
-         errorEmitter.emit(
-                'permission-error',
-                new FirestorePermissionError({
-                path: 'users',
-                operation: 'create',
-                requestResourceData: { name: newUser.name, email: newUser.email },
-                })
-            )
+    } catch (e) {
+        toast({ title: 'Error', description: 'Permission denied or network failure.', variant: 'destructive' });
     } finally {
         setIsSubmitting(false);
     }
   };
-  
-  const formatAddress = (address: UserProfile['address']) => {
-    return `${address.address1}, ${address.address2}, ${address.city}, ${address.state} ${address.zip}`;
-  };
-
-  const copyToClipboard = (textToCopy: string) => {
-    navigator.clipboard.writeText(textToCopy);
-    toast({
-        title: 'Copied to Clipboard',
-    });
-  };
-
-  const openInvoiceDialog = (user: UserProfile) => {
-    setSelectedUserForInvoice(user);
-    setIsInvoiceDialogOpen(true);
-  }
-
-  const handleInvoiceCreated = (invoice: Invoice) => {
-    // A new invoice was created by the dialog, close the creation dialog...
-    setIsInvoiceDialogOpen(false);
-    setSelectedUserForInvoice(null);
-    // ...and immediately open the view dialog for the new invoice.
-    setViewInvoice(invoice);
-    setIsViewInvoiceOpen(true);
-  }
-
-  if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground">
-            View and manage user addresses.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
+          <p className="text-muted-foreground">Manage accounts and generate mailing addresses.</p>
         </div>
         <div className="flex gap-2">
-            <Button variant="outline" asChild>
-                <Link href="/admin">
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Dashboard
-                </Link>
-            </Button>
+            <ImportCSVDialog />
             <Dialog open={openAddUser} onOpenChange={setOpenAddUser}>
-            <DialogTrigger asChild>
-                <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add User
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                <DialogTitle>Add New User</DialogTitle>
-                <DialogDescription>
-                    Manually create a new user profile and generate their US address.
-                </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">
-                    Name
-                    </Label>
-                    <Input id="name" value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="email" className="text-right">
-                    Email
-                    </Label>
-                    <Input id="email" type="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} className="col-span-3" />
-                </div>
-                </div>
-                <DialogFooter>
-                <Button type="submit" onClick={handleAddUser} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add User"}
-                </Button>
-                </DialogFooter>
-            </DialogContent>
+                <DialogTrigger asChild>
+                    <Button><PlusCircle className="mr-2 h-4 w-4" /> Add User</Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>New User Account</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Full Name</Label>
+                            <Input value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} placeholder="Jane Doe" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Email</Label>
+                            <Input type="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} placeholder="jane@example.com" />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={handleAddUser} disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Account"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
             </Dialog>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
-          <CardDescription>
-            A list of all users and their assigned addresses.
-          </CardDescription>
-           <div className="pt-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, mailbox..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-sm pl-10"
-              />
-            </div>
+          <div className="flex justify-between items-center">
+              <CardTitle>Registered Users</CardTitle>
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search users..." className="pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              </div>
           </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>Customer</TableHead>
                 <TableHead>Mailbox #</TableHead>
-                <TableHead>TRN</TableHead>
+                <TableHead>Contact</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers && filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                    <TableCell className="font-medium flex items-center gap-2">
-                        {user.fullName}
-                        {adminIds.has(user.id) && <ShieldCheck className="h-4 w-4 text-primary" title="Admin" />}
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                         <div className="flex items-center gap-2">
-                            <span>{user.mailboxNumber}</span>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => copyToClipboard(user.mailboxNumber)}>
-                                <Copy className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </TableCell>
-                    <TableCell>{user.trn}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                       <Button variant="outline" size="sm" asChild>
-                         <Link href={`/admin/users/${user.id}`}>
-                           <Eye className="mr-2 h-4 w-4" /> View
-                         </Link>
-                       </Button>
-                       <Button variant="secondary" size="sm" onClick={() => openInvoiceDialog(user)}>
-                          <Receipt className="mr-2 h-4 w-4" /> Create Invoice
-                       </Button>
-                    </TableCell>
-                    </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24">
-                        {searchTerm ? 'No users match your search.' : 'No users found.'}
-                    </TableCell>
+              {isLoadingUsers ? (
+                  <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-6 w-6 animate-spin inline mr-2" />Loading...</TableCell></TableRow>
+              ) : filteredUsers.map((u) => (
+                <TableRow key={u.id} className="group">
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                        <span className="font-bold">{u.fullName}</span>
+                        {adminIds.has(u.id) && <ShieldCheck className="h-3 w-3 text-primary" />}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{u.email}</div>
+                  </TableCell>
+                  <TableCell className="font-mono font-bold text-primary">{u.mailboxNumber}</TableCell>
+                  <TableCell className="text-sm">{u.phone}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/admin/users/${u.id}`}><Eye className="h-4 w-4 mr-2" />Profile</Link>
+                    </Button>
+                  </TableCell>
                 </TableRow>
-              )}
+              ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-        {selectedUserForInvoice && (
-         <CreateInvoiceDialog 
-            open={isInvoiceDialogOpen}
-            onOpenChange={setIsInvoiceDialogOpen}
-            users={users || []}
-            preselectedUser={selectedUserForInvoice}
-            onInvoiceCreated={handleInvoiceCreated}
-        />
-      )}
-
-      {viewInvoice && (
-        <InvoiceViewDialog 
-            invoice={viewInvoice}
-            open={isViewInvoiceOpen}
-            onOpenChange={setIsViewInvoiceOpen}
-        />
-      )}
     </div>
   );
+}
+
+function ImportCSVDialog() {
+    const [isImporting, setIsSubmitting] = useState(false);
+    const [open, setOpen] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { toast } = useToast();
+    const firestore = useFirestore();
+
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsSubmitting(true);
+        const reader = new FileReader();
+
+        reader.onload = async (event) => {
+            const text = event.target?.result as string;
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            
+            // Expected headers: fullName, email, phone, trn
+            const dataRows = lines.slice(1);
+            
+            try {
+                const usersCollection = collection(firestore, "users");
+                const snapshot = await getCountFromServer(usersCollection);
+                let currentCount = snapshot.data().count;
+                
+                const batch = writeBatch(firestore);
+                let count = 0;
+
+                for (const row of dataRows) {
+                    const values = row.split(',').map(v => v.trim());
+                    const uData: any = {};
+                    headers.forEach((header, i) => {
+                        if (header === 'fullname') uData.fullName = values[i];
+                        else if (header === 'email') uData.email = values[i];
+                        else if (header === 'phone') uData.phone = values[i];
+                        else if (header === 'trn') uData.trn = values[i];
+                    });
+
+                    if (!uData.email || !uData.fullName) continue;
+
+                    const mailbox = `FSTD${101 + currentCount + count}`;
+                    const newRef = doc(usersCollection);
+                    
+                    batch.set(newRef, {
+                        ...uData,
+                        id: newRef.id,
+                        mailboxNumber: mailbox,
+                        address: {
+                            address1: '4350 NE 5th Terrace Bay #3',
+                            address2: `${mailbox}-FSTD`,
+                            city: 'Oakland Park',
+                            state: 'Florida',
+                            zip: '33334',
+                        },
+                        createdAt: serverTimestamp(),
+                        pickupPersonnel: [],
+                        dropoffAddresses: [],
+                    });
+                    count++;
+                    if (count >= 450) break; // Firestore batch limit safety
+                }
+
+                await batch.commit();
+                toast({ title: 'Import Successful', description: `Successfully added ${count} users.` });
+                setOpen(false);
+            } catch (err) {
+                toast({ title: 'Import Failed', variant: 'destructive' });
+            } finally {
+                setIsSubmitting(false);
+            }
+        };
+
+        reader.readAsText(file);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline"><FileSpreadsheet className="mr-2 h-4 w-4" /> Import CSV</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Transfer User Data</DialogTitle>
+                    <DialogDescription>
+                        Upload a CSV file to bulk-import users from your previous system.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="p-4 bg-muted/50 rounded-lg border border-dashed text-sm space-y-3">
+                    <p className="font-bold flex items-center gap-2"><AlertCircle className="h-4 w-4" /> Required CSV Format:</p>
+                    <code className="block p-2 bg-black text-white rounded text-[10px]">
+                        fullName, email, phone, trn
+                    </code>
+                    <p className="text-xs text-muted-foreground italic">
+                        Note: Mailing addresses and mailbox numbers will be generated automatically upon import.
+                    </p>
+                </div>
+                <div className="py-4">
+                    <Input 
+                        type="file" 
+                        accept=".csv" 
+                        ref={fileInputRef} 
+                        onChange={handleImport} 
+                        disabled={isImporting}
+                    />
+                </div>
+                <DialogFooter>
+                    {isImporting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }

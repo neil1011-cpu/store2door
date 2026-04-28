@@ -9,14 +9,16 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuFooter,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Bell, ScanText, Truck, CircleDot, Check } from 'lucide-react';
+import { Bell, ScanText, Truck, CircleDot, Check, Loader2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collectionGroup, query, orderBy, limit } from 'firebase/firestore';
+import type { PreAlert, Shipment } from '@/lib/types';
 
 const READ_NOTIFICATIONS_KEY = 'read-notifications';
 
@@ -26,7 +28,7 @@ type Notification = {
   title: string;
   description: string;
   isRead: boolean;
-  timestamp: string;
+  timestamp: any;
   href: string;
 };
 
@@ -43,87 +45,87 @@ const getNotificationIcon = (type: Notification['type']) => {
 
 export function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const firestore = useFirestore();
 
-  const getReadNotificationIds = (): string[] => {
-    try {
-        const stored = localStorage.getItem(READ_NOTIFICATIONS_KEY);
-        return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-        console.error("Failed to parse read notifications from localStorage", e);
-        return [];
-    }
-  };
+  // 1. Real-time Pre-Alerts
+  const preAlertsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collectionGroup(firestore, 'pre_alerts'), orderBy('submissionDate', 'desc'), limit(10));
+  }, [firestore]);
+  const { data: preAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
 
-  const saveReadNotificationIds = (ids: string[]) => {
-      try {
-          localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(ids));
-      } catch (e) {
-          console.error("Failed to save read notifications to localStorage", e);
-      }
-  };
+  // 2. Real-time Shipments
+  const shipmentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collectionGroup(firestore, 'shipments'), orderBy('shippingDate', 'desc'), limit(10));
+  }, [firestore]);
+  const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      setLoading(true);
+    if (!preAlerts && !shipments) return;
+
+    const getReadNotificationIds = (): string[] => {
       try {
-        const response = await fetch('/api/notifications');
-        const data = await response.json();
-        
-        if (!response.ok || !Array.isArray(data)) {
-            throw new Error(data.message || 'Failed to fetch notifications.');
-        }
-
-        const readIds = getReadNotificationIds();
-
-        const updatedNotifications = data.map((n: Notification) => ({
-            ...n,
-            isRead: readIds.includes(n.id)
-        })).sort((a: Notification, b: Notification) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-        setNotifications(updatedNotifications);
-      } catch (error) {
-        console.error('Failed to fetch notifications', error);
-        toast({
-            title: 'Could not load notifications',
-            description: (error as Error).message,
-            variant: 'destructive'
-        })
-      } finally {
-        setLoading(false);
+        const stored = localStorage.getItem(READ_NOTIFICATIONS_KEY);
+        return stored ? JSON.parse(stored) : [];
+      } catch (e) {
+        return [];
       }
     };
 
-    fetchNotifications();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const readIds = getReadNotificationIds();
+    const combined: Notification[] = [];
+
+    preAlerts?.forEach((pa) => {
+      combined.push({
+        id: `pa-${pa.id}`,
+        type: 'pre-alert',
+        title: `New Pre-Alert: ${pa.trackingNumber}`,
+        description: `${pa.customerName} submitted a pre-alert for ${pa.contents}.`,
+        isRead: readIds.includes(`pa-${pa.id}`),
+        timestamp: pa.submissionDate,
+        href: '/admin/pre-alerts',
+      });
+    });
+
+    shipments?.forEach((s) => {
+      combined.push({
+        id: `ship-${s.id}`,
+        type: 'status-update',
+        title: `Shipment: ${s.status}`,
+        description: `Package ${s.trackingNumber} (${s.contents}) is now ${s.status}.`,
+        isRead: readIds.includes(`ship-${s.id}`),
+        timestamp: s.shippingDate,
+        href: '/admin/shipping',
+      });
+    });
+
+    const sorted = combined.sort((a, b) => {
+      const timeA = a.timestamp?.toMillis?.() || 0;
+      const timeB = b.timestamp?.toMillis?.() || 0;
+      return timeB - timeA;
+    });
+
+    setNotifications(sorted.slice(0, 15));
+  }, [preAlerts, shipments]);
 
   const handleMarkAsRead = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    const readIds = getReadNotificationIds();
-    if (!readIds.includes(id)) {
-        const newReadIds = [...readIds, id];
-        saveReadNotificationIds(newReadIds);
-    }
-    
-    setNotifications(prev =>
-      prev.map(n => n.id === id ? { ...n, isRead: true } : n)
-    );
-  };
-
-  const handleMarkAllAsRead = () => {
-    const allIds = notifications.map(n => n.id);
-    saveReadNotificationIds(allIds);
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    toast({
-        title: 'All notifications marked as read.'
-    })
+    try {
+      const stored = localStorage.getItem(READ_NOTIFICATIONS_KEY);
+      const readIds = stored ? JSON.parse(stored) : [];
+      if (!readIds.includes(id)) {
+        localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify([...readIds, id]));
+      }
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    } catch (e) {}
   };
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const isLoading = isLoadingPreAlerts || isLoadingShipments;
 
   return (
     <DropdownMenu>
@@ -131,63 +133,55 @@ export function Notifications() {
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0"
-            >
+            <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0">
               {unreadCount}
             </Badge>
           )}
-          <span className="sr-only">Toggle notifications</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-96">
+      <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel className="flex justify-between items-center">
-          <span>Notifications</span>
-          {unreadCount > 0 && <Badge variant="secondary">{unreadCount} Unread</Badge>}
+          <span>Activity Feed</span>
+          {unreadCount > 0 && <Badge variant="secondary">{unreadCount} New</Badge>}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <div className="max-h-80 overflow-y-auto">
-            {loading ? (
-            <DropdownMenuItem disabled>Loading...</DropdownMenuItem>
-            ) : notifications.length === 0 ? (
-            <DropdownMenuItem disabled className="text-center text-muted-foreground">No notifications</DropdownMenuItem>
-            ) : (
-            notifications.map((notification) => (
-                <DropdownMenuItem key={notification.id} asChild className={cn("group data-[disabled]:opacity-100", notification.isRead && "opacity-60")}>
-                    <Link href={notification.href} className="flex items-start gap-3 relative">
-                        <div className="mt-1">{getNotificationIcon(notification.type)}</div>
-                        <div className="flex-1">
-                            <p className={cn("font-medium", !notification.isRead && "font-semibold")}>{notification.title}</p>
-                            <p className="text-xs text-muted-foreground">{notification.description}</p>
-                        </div>
-                        {!notification.isRead &&
-                            <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={(e) => handleMarkAsRead(notification.id, e)}
-                                title="Mark as read"
-                            >
-                                <Check className="h-4 w-4" />
-                            </Button>
-                        }
-                    </Link>
-                </DropdownMenuItem>
+        <div className="max-h-96 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground px-4 text-sm">
+              No recent activity found.
+            </div>
+          ) : (
+            notifications.map((n) => (
+              <DropdownMenuItem key={n.id} asChild className={cn("p-3 cursor-pointer", n.isRead && "opacity-60")}>
+                <Link href={n.href} className="flex items-start gap-3 group">
+                  <div className="mt-1">{getNotificationIcon(n.type)}</div>
+                  <div className="flex-1 space-y-1">
+                    <p className={cn("text-sm font-medium leading-none", !n.isRead && "font-bold")}>{n.title}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{n.description}</p>
+                  </div>
+                  {!n.isRead && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => handleMarkAsRead(n.id, e)}
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                  )}
+                </Link>
+              </DropdownMenuItem>
             ))
-            )}
+          )}
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuFooter className="p-1 space-y-1">
-            <Button variant="secondary" size="sm" className="w-full" onClick={handleMarkAllAsRead} disabled={unreadCount === 0}>
-                Mark all as read
-            </Button>
-            <Button variant="outline" size="sm" asChild className="w-full">
-                <Link href="/admin/notifications">
-                    View all notifications
-                </Link>
-            </Button>
-        </DropdownMenuFooter>
+        <DropdownMenuItem asChild className="justify-center text-primary font-medium cursor-pointer">
+          <Link href="/admin/notifications">View All Notifications</Link>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
