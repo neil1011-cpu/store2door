@@ -1,80 +1,196 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ----------------------------------------------------------
-    // HELPERS
-    // ----------------------------------------------------------
+    /**
+     * DOCUMENTATION: SwiftRoute Security Rules
+     *
+     * CORE PHILOSOPHY:
+     * This ruleset implements a strict User-Ownership model for customer data and a Database Access Control (DBAC) 
+     * model for administrative functions. We prioritize Authorization Independence by denormalizing ownership 
+     * identifiers (userId) into documents and matching them against the path and the authenticated user.
+     *
+     * DATA STRUCTURE:
+     * - /user_profiles/{userId}: Public/Private profile data.
+     * - /users/{userId}/...: Hierarchical user-owned data including PreAlerts, Shipments, and Logs.
+     * - /admin_roles & /staff_roles: Control collections for role-based access.
+     * - /flight_manifests, /revenue, /expenses: Operational data managed by staff/admins.
+     *
+     * KEY SECURITY DECISIONS:
+     * 1. Authorization Independence: Every user-owned document contains a `userId` or `ownerId` to 
+     *    avoid expensive parent-document lookups via get().
+     * 2. QAP (Queryable Authorization Policies): Listing is scoped to specific user paths to prevent 
+     *    broad data leaks and ensure users only see their own records.
+     * 3. DBAC: Administrative privileges are checked by verifying the existence of a document in 
+     *    /admin_roles or /staff_roles, which is more performant than checking custom claims or profile fields.
+     */
+
+    // --- Helper Functions ---
+
+    /** @description Checks if the user is authenticated with Firebase. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** @description Checks if the user's UID matches the provided ID. */
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
+    /** @description Checks if the user has administrative privileges via DBAC. */
     function isAdmin() {
-      return request.auth != null &&
-        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
 
-    // ----------------------------------------------------------
-    // COLLECTION GROUPS (CRITICAL for global dashboard queries)
-    // ----------------------------------------------------------
-    
-    match /{path=**}/shipments/{id} {
-      allow read, write: if isAdmin();
-      allow read: if request.auth != null && resource.data.customerId == request.auth.uid;
+    /** @description Checks if the user has staff privileges via DBAC. */
+    function isStaff() {
+      return isSignedIn() && exists(/databases/$(database)/documents/staff_roles/$(request.auth.uid));
     }
 
-    match /{path=**}/pre_alerts/{id} {
-      allow read, write: if isAdmin();
-      allow read: if request.auth != null && resource.data.customerId == request.auth.uid;
+    /** @description Combined check for any privileged system actor. */
+    function isPrivileged() {
+      return isAdmin() || isStaff();
     }
 
-    // ----------------------------------------------------------
-    // ROOT COLLECTIONS
-    // ----------------------------------------------------------
-
-    match /metadata/mailboxCounter {
-      allow read, update: if request.auth != null;
+    /** @description Verifies ownership of an existing document for update/delete. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
     }
 
-    match /roles_admin/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if isAdmin();
+    /** @description Verifies the resource exists and the requester is privileged. */
+    function isExistingPrivileged() {
+      return resource != null && isPrivileged();
     }
 
-    match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
-      allow create, update: if isOwner(userId) || isAdmin();
+    // --- Collection Rules ---
+
+    /**
+     * @description User profile records linked by Auth UID.
+     * @path /user_profiles/{userId}
+     * @allow (get) Any signed-in user or staff. (write) The user themselves or admins.
+     * @principle Ownership and Role-based access.
+     */
+    match /user_profiles/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isPrivileged();
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if (isOwner(userId) || isAdmin()) && request.resource.data.id == userId;
       allow delete: if isAdmin();
-
-      // Subcollections (Shipments, PreAlerts, etc)
-      match /{subcollection}/{docId} {
-        allow read, write: if isOwner(userId) || isAdmin();
-      }
     }
 
-    match /sent_emails/{emailId} {
-      allow read: if isAdmin();
-      allow create: if request.auth == null; // For backend logging
+    /**
+     * @description User-specific pre-alert requests.
+     * @path /users/{userId}/pre_alerts/{preAlertId}
+     * @allow (list) The owner for their own subcollection or staff for all.
+     * @deny (list) A user trying to access another user's pre_alerts path.
+     * @principle Structural Segregation for QAPs.
+     */
+    match /users/{userId}/pre_alerts/{preAlertId} {
+      allow get: if isOwner(userId) || isPrivileged();
+      allow list: if isOwner(userId) || isPrivileged();
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if (isOwner(userId) || isPrivileged()) && request.resource.data.userId == userId;
+      allow delete: if isExistingOwner(userId) || isExistingPrivileged();
     }
 
-    match /invoices/{invoiceId} {
-      allow read, write: if isAdmin();
-      allow read: if request.auth != null && resource.data.customerId == request.auth.uid;
+    /**
+     * @description User-specific shipment records.
+     * @path /users/{userId}/shipments/{shipmentId}
+     * @allow (create) The owner or staff.
+     * @principle Path-consistent relational integrity.
+     */
+    match /users/{userId}/shipments/{shipmentId} {
+      allow get: if isOwner(userId) || isPrivileged();
+      allow list: if isOwner(userId) || isPrivileged();
+      allow create: if (isOwner(userId) || isPrivileged()) && request.resource.data.userId == userId;
+      allow update: if (isOwner(userId) || isPrivileged()) && request.resource.data.userId == userId;
+      allow delete: if isExistingPrivileged();
     }
 
-    match /transactions/{transactionId} {
-      allow read, write: if isAdmin();
+    /**
+     * @description History of status changes for a specific shipment.
+     * @path /users/{userId}/shipments/{shipmentId}/status_logs/{logId}
+     * @allow (read) Owner of the parent shipment or staff.
+     * @principle Recursive ownership access.
+     */
+    match /users/{userId}/shipments/{shipmentId}/status_logs/{logId} {
+      allow get, list: if isOwner(userId) || isPrivileged();
+      allow create, update: if isPrivileged();
+      allow delete: if isExistingPrivileged();
     }
 
-    match /flight_manifests/{manifestId} {
-      allow read, write: if isAdmin();
+    /**
+     * @description Global collection of flight manifests for logistics management.
+     * @path /flight_manifests/{flightManifestId}
+     * @allow (read) Any authenticated user (to see details of their shipments' flights).
+     * @allow (write) Staff or Admin only.
+     */
+    match /flight_manifests/{flightManifestId} {
+      allow get: if isSignedIn();
+      allow list: if isPrivileged();
+      allow create, update, delete: if isPrivileged();
     }
 
-    match /rates/{rateId} {
-      allow read: if true;
-      allow write: if isAdmin();
+    /**
+     * @description Financial revenue tracking.
+     * @path /revenue/{revenueId}
+     * @deny (read/write) Regular customers.
+     * @principle Role-based isolation of sensitive financial data.
+     */
+    match /revenue/{revenueId} {
+      allow get, list: if isPrivileged();
+      allow create: if isPrivileged() && request.resource.data.collectedByUserId == request.auth.uid;
+      allow update, delete: if isExistingPrivileged();
     }
+
+    /**
+     * @description Financial expense tracking.
+     * @path /expenses/{expenseId}
+     * @allow (write) Restricted to Staff/Admin.
+     * @principle DBAC for operational overhead.
+     */
+    match /expenses/{expenseId} {
+      allow get, list: if isPrivileged();
+      allow create: if isPrivileged() && request.resource.data.recordedByUserId == request.auth.uid;
+      allow update, delete: if isExistingPrivileged();
+    }
+
+    /**
+     * @description DBAC role assignment collections.
+     * @path /admin_roles/{uid} and /staff_roles/{uid}
+     * @allow (read) Any signed-in user (required for exists() checks in rules).
+     * @allow (write) System Admin only.
+     */
+    match /admin_roles/{uid} {
+      allow get: if isSignedIn();
+      allow list, create, update, delete: if isAdmin();
+    }
+    match /staff_roles/{uid} {
+      allow get: if isSignedIn();
+      allow list: if isPrivileged();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- Collection Group Rules (to support cross-user queries if needed by Admin) ---
+
+    /**
+     * @description Support for collection group queries on pre_alerts.
+     * This addresses the "Missing or insufficient permissions" error for list operations.
+     */
+    match /{path=**}/pre_alerts/{preAlertId} {
+      allow list: if isSignedIn() && (
+        // Allow the user to list their own across paths if the query is filtered by userId
+        (request.query.limit <= 100 && resource.data.userId == request.auth.uid) || 
+        isPrivileged()
+      );
+    }
+
+    match /{path=**}/shipments/{shipmentId} {
+      allow list: if isSignedIn() && (
+        (request.query.limit <= 100 && resource.data.userId == request.auth.uid) || 
+        isPrivileged()
+      );
+    }
+
   }
 }

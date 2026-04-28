@@ -154,19 +154,16 @@ export const useFirebaseApp = (): FirebaseApp => {
   return firebaseApp;
 };
 
-/**
- * A correctly typed and implemented wrapper around React.useMemo for Firestore queries.
- * This ensures that Firestore queries or document references are stable across re-renders,
- * preventing infinite loops in hooks like useCollection or useDoc.
- * @param factory A function that creates a Firestore query or document reference.
- * @param deps The dependency array for the useMemo hook.
- * @returns The memoized query or document reference.
- */
-export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(factory, deps);
-}
+type MemoFirebase <T> = T & {__memo?: boolean};
 
+export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | (MemoFirebase<T>) {
+  const memoized = useMemo(factory, deps);
+  
+  if(typeof memoized !== 'object' || memoized === null) return memoized;
+  (memoized as MemoFirebase<T>).__memo = true;
+  
+  return memoized;
+}
 
 /**
  * Hook specifically for accessing the authenticated user's state.
