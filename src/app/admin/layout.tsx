@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -12,14 +11,12 @@ import {
   SidebarInset,
   SidebarTrigger,
   SidebarFooter,
-  SidebarInput,
 } from '@/components/ui/sidebar';
 import Link from 'next/link';
 import {
   LayoutDashboard,
   Users,
   Package,
-  Search,
   Settings,
   LogOut,
   Loader2,
@@ -39,24 +36,19 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Notifications } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme-toggle';
 
-
-// Guard that ensures a user exists and has admin role BEFORE rendering logistical UI
 function AdminAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  // 1. Build the doc ref only when user is present
   const adminRoleRef = useMemoFirebase(
     () => {
       if (!firestore || !user) return null;
-      return doc(firestore, 'roles_admin', user.uid);
+      return doc(firestore, 'admin_roles', user.uid);
     },
     [firestore, user]
   );
@@ -64,42 +56,37 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   const {
     data: adminRoleDoc,
     isLoading: isAdminLoading,
-  } = useDoc(adminRoleRef, { skipCache: true });
+  } = useDoc(adminRoleRef);
 
-  // 2. Auth redirection
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace('/admin-login');
     }
   }, [user, isUserLoading, router]);
 
-  // 3. Admin privilege redirection
   useEffect(() => {
     if (isAdminLoading || !user) return;
 
     if (!adminRoleDoc) {
       toast({
         title: 'Access Denied',
-        description: "Your account does not have administrator privileges.",
+        description: "Administrator privileges required.",
         variant: 'destructive',
       });
       router.replace('/admin-login');
     }
   }, [isAdminLoading, adminRoleDoc, router, toast, user]);
 
-  // 4. Loading State
   if (isUserLoading || isAdminLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse font-medium">Verifying Credentials...</p>
+        <p className="text-muted-foreground animate-pulse font-medium">Verifying Admin Access...</p>
       </div>
     );
   }
   
-  if (!user || !adminRoleDoc) {
-    return null;
-  }
+  if (!user || !adminRoleDoc) return null;
 
   return <>{children}</>;
 }
@@ -181,7 +168,7 @@ export default function AdminLayout({
             <SidebarTrigger />
             <div className="h-6 w-px bg-border mx-2 hidden md:block" />
             <div className="text-sm font-bold tracking-tight uppercase text-muted-foreground hidden md:block">
-              FSTD Logistical OS v2.0
+              SwiftRoute Logistics v3.0
             </div>
             <div className="flex-1" />
              <ThemeToggle />

@@ -1,6 +1,5 @@
-
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Package, ShieldCheck, ArrowRight, Truck, Quote } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -27,7 +26,7 @@ const testimonials = [
     {
         name: "David Chen",
         role: "Small Business Owner",
-        review: "FromStore2Door has been a game-changer for my business. Their reliable service and transparent pricing have saved me time and money."
+        review: "SwiftRoute has been a game-changer for my business. Their reliable service and transparent pricing have saved me time and money."
     },
     {
         name: "Maria Garcia",
@@ -43,13 +42,13 @@ const testimonials = [
 
 export default function HomePage() {
   const homeHeroImage = {
-      src: "https://picsum.photos/seed/delivery-van/1200/800",
+      src: "https://picsum.photos/seed/delivery-van-pro/1200/800",
       alt: "Professional delivery van delivering packages",
       hint: "delivery van"
   };
 
   return (
-    <div className="flex flex-col bg-background">
+    <div className="flex flex-col bg-background font-body">
       <section className="relative w-full py-24 md:py-40 lg:py-56 overflow-hidden">
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-background via-background/60 to-transparent" />
         <div className="absolute inset-0">
@@ -112,7 +111,7 @@ export default function HomePage() {
               <Card key={f.title} className="text-center border-none shadow-none bg-transparent">
                 <CardHeader className="items-center">
                   <div className="bg-primary/10 p-4 rounded-2xl mb-4">{f.icon}</div>
-                  <CardTitle className="text-2xl">{f.title}</CardTitle>
+                  <CardTitle className="text-2xl font-headline">{f.title}</CardTitle>
                 </CardHeader>
                 <CardContent><p className="text-muted-foreground leading-relaxed">{f.description}</p></CardContent>
               </Card>
@@ -144,7 +143,7 @@ export default function HomePage() {
       <footer className="py-12 bg-zinc-950 text-zinc-400 border-t border-white/5">
          <div className="container mx-auto px-4 md:px-6 flex flex-col md:flex-row justify-between items-center gap-8">
             <div className="space-y-2 text-center md:text-left">
-                <p className="text-white font-bold text-lg">FromStore2Door</p>
+                <p className="text-white font-bold text-lg">SwiftRoute</p>
                 <p className="text-sm">Connecting Florida & Jamaica since 2024.</p>
             </div>
              <div className="flex gap-8 text-sm">

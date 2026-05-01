@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -7,13 +6,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, Truck, Download, FileText, Eye, ExternalLink } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Download, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
-import type { Shipment, PreAlert, UserProfile, Invoice, LineItem } from '@/lib/types';
+import type { Shipment, PreAlert, UserProfile, LineItem } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, collectionGroup, query, serverTimestamp, doc, addDoc, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -61,7 +60,7 @@ const generateInvoiceHtml = (invoiceData: {
     </head>
     <body>
       <div class="container">
-        <div class="header"><h1>INVOICE</h1><div><strong>FromStore2Door</strong><br>Florida, USA</div></div>
+        <div class="header"><h1>INVOICE</h1><div><strong>SwiftRoute</strong><br>Florida, USA</div></div>
         <div style="margin-top: 20px;"><strong>BILL TO:</strong> ${customerName}<br>Invoice #: ${invoiceId}<br>Date: ${invoiceDate.toLocaleDateString()}</div>
         <table><thead><tr><th>Description</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${lineItemsHtml}</tbody></table>
         <div class="text-right" style="margin-top: 20px;"><div class="grand-total">Total: JMD $${totalAmount.toFixed(2)}</div></div>
@@ -76,18 +75,17 @@ export default function PreAlertsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore) return null;
     return query(collection(firestore, 'users'));
-  }, [firestore, user]);
+  }, [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   const preAlertsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore) return null;
     return query(collectionGroup(firestore, 'pre_alerts'));
-  }, [firestore, user]);
+  }, [firestore]);
   const { data: preAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
 
   const handleCreateAlert = async () => {
@@ -143,7 +141,7 @@ export default function PreAlertsPage() {
       .catch(() => toast({ title: "Error creating shipment", variant: "destructive" }));
   }
 
-  if (isLoadingUsers || isLoadingPreAlerts || isUserLoading) {
+  if (isLoadingUsers || isLoadingPreAlerts) {
     return <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
@@ -302,7 +300,7 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
             <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Create Shipment</DialogTitle></DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="space-y-2"><Label>Tracking #</Label><Input value={preAlert.trackingNumber} readOnly disabled /></div>
-                    <div className="space-y-2"><Label>Cost (JMD)</Label><Input type="number" placeholder="5500.00" value={cost} onChange={(e) => setCost(e.target.value)} /></div>
+                    <div className="space-y-2"><Label>Cost (JMD $)</Label><Input type="number" placeholder="5500.00" value={cost} onChange={(e) => setCost(e.target.value)} /></div>
                 </div>
                 <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button onClick={() => { onShipmentCreated(preAlert, parseFloat(cost)); setOpen(false); }}>Confirm</Button></DialogFooter>
             </DialogContent>

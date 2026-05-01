@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,7 +14,6 @@ import { Bell, ScanText, Truck, CircleDot, Check, Loader2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collectionGroup, query, orderBy, limit } from 'firebase/firestore';
 import type { PreAlert, Shipment } from '@/lib/types';
@@ -45,17 +43,14 @@ const getNotificationIcon = (type: Notification['type']) => {
 
 export function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const { toast } = useToast();
   const firestore = useFirestore();
 
-  // 1. Real-time Pre-Alerts
   const preAlertsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collectionGroup(firestore, 'pre_alerts'), orderBy('submissionDate', 'desc'), limit(10));
   }, [firestore]);
   const { data: preAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
 
-  // 2. Real-time Shipments
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collectionGroup(firestore, 'shipments'), orderBy('shippingDate', 'desc'), limit(10));

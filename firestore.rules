@@ -4,72 +4,41 @@ service cloud.firestore {
 
     /**
      * DOCUMENTATION: SwiftRoute Security Rules
-     *
-     * CORE PHILOSOPHY:
-     * This ruleset implements a strict User-Ownership model for customer data and a Database Access Control (DBAC) 
-     * model for administrative functions. We prioritize Authorization Independence by denormalizing ownership 
-     * identifiers (userId) into documents and matching them against the path and the authenticated user.
-     *
-     * DATA STRUCTURE:
-     * - /user_profiles/{userId}: Public/Private profile data.
-     * - /users/{userId}/...: Hierarchical user-owned data including PreAlerts, Shipments, and Logs.
-     * - /admin_roles & /staff_roles: Control collections for role-based access.
-     * - /flight_manifests, /revenue, /expenses: Operational data managed by staff/admins.
-     *
-     * KEY SECURITY DECISIONS:
-     * 1. Authorization Independence: Every user-owned document contains a `userId` or `ownerId` to 
-     *    avoid expensive parent-document lookups via get().
-     * 2. QAP (Queryable Authorization Policies): Listing is scoped to specific user paths to prevent 
-     *    broad data leaks and ensure users only see their own records.
-     * 3. DBAC: Administrative privileges are checked by verifying the existence of a document in 
-     *    /admin_roles or /staff_roles, which is more performant than checking custom claims or profile fields.
+     * Standardized to use 'admin_roles' for DBAC as per backend blueprint.
      */
 
     // --- Helper Functions ---
 
-    /** @description Checks if the user is authenticated with Firebase. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Checks if the user's UID matches the provided ID. */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /** @description Checks if the user has administrative privileges via DBAC. */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
 
-    /** @description Checks if the user has staff privileges via DBAC. */
     function isStaff() {
       return isSignedIn() && exists(/databases/$(database)/documents/staff_roles/$(request.auth.uid));
     }
 
-    /** @description Combined check for any privileged system actor. */
     function isPrivileged() {
       return isAdmin() || isStaff();
     }
 
-    /** @description Verifies ownership of an existing document for update/delete. */
     function isExistingOwner(userId) {
       return resource != null && isOwner(userId);
     }
 
-    /** @description Verifies the resource exists and the requester is privileged. */
     function isExistingPrivileged() {
       return resource != null && isPrivileged();
     }
 
     // --- Collection Rules ---
 
-    /**
-     * @description User profile records linked by Auth UID.
-     * @path /user_profiles/{userId}
-     * @allow (get) Any signed-in user or staff. (write) The user themselves or admins.
-     * @principle Ownership and Role-based access.
-     */
     match /user_profiles/{userId} {
       allow get: if isSignedIn();
       allow list: if isPrivileged();
@@ -78,13 +47,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    /**
-     * @description User-specific pre-alert requests.
-     * @path /users/{userId}/pre_alerts/{preAlertId}
-     * @allow (list) The owner for their own subcollection or staff for all.
-     * @deny (list) A user trying to access another user's pre_alerts path.
-     * @principle Structural Segregation for QAPs.
-     */
+    match /users/{userId} {
+       allow read: if isOwner(userId) || isPrivileged();
+       allow write: if isOwner(userId) || isPrivileged();
+    }
+
     match /users/{userId}/pre_alerts/{preAlertId} {
       allow get: if isOwner(userId) || isPrivileged();
       allow list: if isOwner(userId) || isPrivileged();
@@ -93,12 +60,6 @@ service cloud.firestore {
       allow delete: if isExistingOwner(userId) || isExistingPrivileged();
     }
 
-    /**
-     * @description User-specific shipment records.
-     * @path /users/{userId}/shipments/{shipmentId}
-     * @allow (create) The owner or staff.
-     * @principle Path-consistent relational integrity.
-     */
     match /users/{userId}/shipments/{shipmentId} {
       allow get: if isOwner(userId) || isPrivileged();
       allow list: if isOwner(userId) || isPrivileged();
@@ -107,60 +68,30 @@ service cloud.firestore {
       allow delete: if isExistingPrivileged();
     }
 
-    /**
-     * @description History of status changes for a specific shipment.
-     * @path /users/{userId}/shipments/{shipmentId}/status_logs/{logId}
-     * @allow (read) Owner of the parent shipment or staff.
-     * @principle Recursive ownership access.
-     */
     match /users/{userId}/shipments/{shipmentId}/status_logs/{logId} {
       allow get, list: if isOwner(userId) || isPrivileged();
       allow create, update: if isPrivileged();
       allow delete: if isExistingPrivileged();
     }
 
-    /**
-     * @description Global collection of flight manifests for logistics management.
-     * @path /flight_manifests/{flightManifestId}
-     * @allow (read) Any authenticated user (to see details of their shipments' flights).
-     * @allow (write) Staff or Admin only.
-     */
     match /flight_manifests/{flightManifestId} {
       allow get: if isSignedIn();
       allow list: if isPrivileged();
       allow create, update, delete: if isPrivileged();
     }
 
-    /**
-     * @description Financial revenue tracking.
-     * @path /revenue/{revenueId}
-     * @deny (read/write) Regular customers.
-     * @principle Role-based isolation of sensitive financial data.
-     */
     match /revenue/{revenueId} {
       allow get, list: if isPrivileged();
       allow create: if isPrivileged() && request.resource.data.collectedByUserId == request.auth.uid;
       allow update, delete: if isExistingPrivileged();
     }
 
-    /**
-     * @description Financial expense tracking.
-     * @path /expenses/{expenseId}
-     * @allow (write) Restricted to Staff/Admin.
-     * @principle DBAC for operational overhead.
-     */
     match /expenses/{expenseId} {
       allow get, list: if isPrivileged();
       allow create: if isPrivileged() && request.resource.data.recordedByUserId == request.auth.uid;
       allow update, delete: if isExistingPrivileged();
     }
 
-    /**
-     * @description DBAC role assignment collections.
-     * @path /admin_roles/{uid} and /staff_roles/{uid}
-     * @allow (read) Any signed-in user (required for exists() checks in rules).
-     * @allow (write) System Admin only.
-     */
     match /admin_roles/{uid} {
       allow get: if isSignedIn();
       allow list, create, update, delete: if isAdmin();
@@ -170,16 +101,25 @@ service cloud.firestore {
       allow list: if isPrivileged();
       allow create, update, delete: if isAdmin();
     }
+    
+    match /metadata/{id} {
+      allow read: if isSignedIn();
+      allow write: if isPrivileged();
+    }
 
-    // --- Collection Group Rules (to support cross-user queries if needed by Admin) ---
+    match /invoices/{id} {
+        allow read: if isSignedIn();
+        allow write: if isPrivileged();
+    }
+    
+    match /transactions/{id} {
+        allow read, write: if isPrivileged();
+    }
 
-    /**
-     * @description Support for collection group queries on pre_alerts.
-     * This addresses the "Missing or insufficient permissions" error for list operations.
-     */
+    // --- Collection Group Rules ---
+
     match /{path=**}/pre_alerts/{preAlertId} {
       allow list: if isSignedIn() && (
-        // Allow the user to list their own across paths if the query is filtered by userId
         (request.query.limit <= 100 && resource.data.userId == request.auth.uid) || 
         isPrivileged()
       );
@@ -191,6 +131,5 @@ service cloud.firestore {
         isPrivileged()
       );
     }
-
   }
 }

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Loader2, Route, ShieldCheck } from 'lucide-react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth, useFirestore } from '@/firebase';
@@ -47,13 +46,13 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, values.email, values.password);
-      const adminSnap = await getDoc(doc(firestore, 'roles_admin', cred.user.uid));
+      const adminSnap = await getDoc(doc(firestore, 'admin_roles', cred.user.uid));
       
       if (adminSnap.exists()) {
         setShowWelcome(true);
       } else {
         await signOut(auth);
-        toast({ title: 'Access Denied', description: 'No admin privileges.', variant: 'destructive' });
+        toast({ title: 'Access Denied', description: 'No admin privileges detected.', variant: 'destructive' });
       }
     } catch (error: any) {
         toast({ title: 'Login Failed', description: 'Invalid credentials.', variant: 'destructive' });
@@ -65,17 +64,17 @@ export default function AdminLoginPage() {
   if (showWelcome) return <AdminWelcomeAnimation onComplete={() => router.push('/admin')} />;
 
   return (
-    <div className="w-full min-h-screen lg:grid lg:grid-cols-2 bg-background">
+    <div className="w-full min-h-screen lg:grid lg:grid-cols-2 bg-background font-body">
        <div className="relative hidden h-full flex-col bg-muted p-10 text-white lg:flex">
          <Image 
-            src="https://picsum.photos/seed/delivery-van/1200/1800"
+            src="https://picsum.photos/seed/delivery-van-dark/1200/1800"
             alt="Admin panel"
             fill
             className="object-cover brightness-50"
             data-ai-hint="delivery van"
         />
-        <div className="relative z-20 flex items-center text-2xl font-bold italic tracking-tighter">
-          FromStore2Door Logistical OS
+        <div className="relative z-20 flex items-center text-2xl font-bold italic tracking-tighter font-headline">
+          SwiftRoute OS v3.0
         </div>
         <div className="relative z-20 mt-auto bg-black/20 backdrop-blur-md p-6 rounded-xl border border-white/10">
           <ShieldCheck className="h-8 w-8 mb-4 text-primary" />
@@ -87,13 +86,13 @@ export default function AdminLoginPage() {
       <div className="flex items-center justify-center p-8">
         <div className="mx-auto w-full max-w-[400px] space-y-8">
           <div className="space-y-2 text-center">
-            <h1 className="text-4xl font-black tracking-tight uppercase">Admin Entry</h1>
+            <h1 className="text-4xl font-black tracking-tight uppercase font-headline">Admin Entry</h1>
             <p className="text-muted-foreground text-sm font-medium">Verify your credentials to manage the network.</p>
           </div>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField control={form.control} name="email" render={({ field }) => (
-                <FormItem><FormLabel>Admin Email</FormLabel><FormControl><Input placeholder="admin@fstd.com" {...field} className="h-12 border-2" /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Admin Email</FormLabel><FormControl><Input placeholder="admin@swiftroute.com" {...field} className="h-12 border-2" /></FormControl><FormMessage /></FormItem>
               )}/>
               <FormField control={form.control} name="password" render={({ field }) => (
                 <FormItem><FormLabel>Secure Key</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} className="h-12 border-2" /></FormControl><FormMessage /></FormItem>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
@@ -18,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, MoreHorizontal, Copy, ArrowLeft, Loader2, Eye, Receipt, Download, Search, ShieldCheck, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -33,17 +32,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import type { UserProfile, Invoice } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, serverTimestamp, doc, setDoc, getCountFromServer, addDoc, writeBatch } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
+import type { UserProfile } from '@/lib/types';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, serverTimestamp, doc, setDoc, getCountFromServer, writeBatch } from 'firebase/firestore';
 
 export default function UsersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
-  const { user: adminUser } = useUser();
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -53,7 +48,7 @@ export default function UsersPage() {
   
   const adminRolesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'roles_admin'));
+    return query(collection(firestore, 'admin_roles'));
   }, [firestore]);
   const { data: adminRoles } = useCollection<{isAdmin: boolean}>(adminRolesQuery);
 
@@ -219,7 +214,6 @@ function ImportCSVDialog() {
             const lines = text.split('\n').filter(line => line.trim() !== '');
             const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
             
-            // Expected headers: fullName, email, phone, trn
             const dataRows = lines.slice(1);
             
             try {
@@ -261,7 +255,7 @@ function ImportCSVDialog() {
                         dropoffAddresses: [],
                     });
                     count++;
-                    if (count >= 450) break; // Firestore batch limit safety
+                    if (count >= 450) break;
                 }
 
                 await batch.commit();
@@ -295,7 +289,7 @@ function ImportCSVDialog() {
                         fullName, email, phone, trn
                     </code>
                     <p className="text-xs text-muted-foreground italic">
-                        Note: Mailing addresses and mailbox numbers will be generated automatically upon import.
+                        Note: Mailing addresses and mailbox numbers will be generated automatically.
                     </p>
                 </div>
                 <div className="py-4">

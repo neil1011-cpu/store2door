@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -12,7 +11,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
 import type { Shipment, UserProfile, ShipmentStatus, PreAlert } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -57,7 +55,6 @@ export default function ShippingPage() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const firestore = useFirestore();
-  const { user: adminUser } = useUser();
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -94,7 +91,7 @@ export default function ShippingPage() {
     const customerName = shipment.user?.fullName || 'Valued Customer';
     setEmailContent({
       subject: `Update for your shipment: ${shipment.trackingNumber}`,
-      body: `Dear ${customerName},\n\nHere's an update on your shipment ${shipment.trackingNumber}:\n\nThe current status is: ${shipment.status}.\n\nThank you for shipping with us!\nFromStore2Door`,
+      body: `Dear ${customerName},\n\nHere's an update on your shipment ${shipment.trackingNumber}:\n\nThe current status is: ${shipment.status}.\n\nThank you for shipping with us!\nSwiftRoute`,
     });
     setIsEmailDialogOpen(true);
   };
