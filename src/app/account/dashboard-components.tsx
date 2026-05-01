@@ -393,7 +393,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <Card>
                 <CardHeader>
-                    <CardTitle>Your U.S. Mailing Address</CardTitle>
+                    <CardTitle>Your Global Shipping Address</CardTitle>
                     <CardDescription>Use this address exactly as shown when shopping online.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">

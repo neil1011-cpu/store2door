@@ -7,8 +7,8 @@ import Link from 'next/link';
 const features = [
   {
     icon: <Globe className="h-8 w-8 text-primary" />,
-    title: 'Anywhere to Anywhere',
-    description: 'We ship from any store worldwide directly to your doorstep in Jamaica with unmatched efficiency.',
+    title: 'Global Reach',
+    description: 'We deliver your packages from anywhere in the world directly to your doorstep in Jamaica with unmatched efficiency.',
   },
   {
     icon: <ShieldCheck className="h-8 w-8 text-primary" />,
@@ -68,7 +68,7 @@ export default function HomePage() {
                 Your Global Bridge to Jamaica
               </h1>
               <p className="text-lg text-gray-200 max-w-2xl mx-auto">
-                Shipping from anywhere in the world directly to your doorstep. We provide a premium, reliable, and affordable experience.
+                Shipping from any store worldwide directly to your doorstep. We provide a premium, reliable, and affordable experience for all your logistical needs.
               </p>
               <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button size="lg" className="h-14 px-8 text-lg" asChild>

@@ -53,14 +53,14 @@ export function UserHeader() {
                     </Link>
                 </Button>
             ) : (
-                <>
-                    <Button asChild variant="outline">
+                <div className="flex items-center gap-2">
+                    <Button asChild variant="outline" size="sm">
                         <Link href="/signin">Sign In</Link>
                     </Button>
-                    <Button asChild>
+                    <Button asChild size="sm">
                         <Link href="/signup">Sign Up</Link>
                     </Button>
-                </>
+                </div>
             )}
         </div>
       </div>

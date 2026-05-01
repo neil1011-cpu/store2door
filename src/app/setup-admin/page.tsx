@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { createUserWithEmailAndPassword, type User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, type User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, limit, writeBatch, getDocs } from 'firebase/firestore';
 
 const formSchema = z.object({
@@ -51,7 +51,7 @@ export default function SetupAdminPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: 'admin@example.com',
+      email: 'admin@neilussolutions.com',
       password: '',
     },
   });
@@ -79,7 +79,7 @@ export default function SetupAdminPage() {
     };
     batch.set(userDocRef, userProfile);
 
-    // 2. Admin Role Document - Standardized to admin_roles
+    // 2. Admin Role Document
     const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
     batch.set(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
     
@@ -93,22 +93,19 @@ export default function SetupAdminPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     
-    const checkQuery = query(collection(firestore, 'admin_roles'), limit(1));
-    const checkSnapshot = await getDocs(checkQuery);
-    if (!checkSnapshot.empty) {
-        toast({
-            title: 'Setup Already Complete',
-            description: 'An admin account has already been created.',
-            variant: 'destructive',
-        });
-        setLoading(false);
-        setIsSetupDone(true);
-        return;
-    }
-
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
+        let user: User;
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+            user = userCredential.user;
+        } catch (authError: any) {
+            if (authError.code === 'auth/email-already-in-use') {
+                const signInCred = await signInWithEmailAndPassword(auth, values.email, values.password);
+                user = signInCred.user;
+            } else {
+                throw authError;
+            }
+        }
         
         await setupAdminAndMetadataDocs(user);
 
@@ -122,14 +119,12 @@ export default function SetupAdminPage() {
         console.error("Admin setup error:", error);
         toast({
             title: 'Setup Failed',
-            description: error.code === 'auth/email-already-in-use' 
-                ? 'This email is already in use. Please use the admin login page if you have already set up an account.' 
-                : error.message,
+            description: error.message,
             variant: 'destructive',
         });
+    } finally {
+        setLoading(false);
     }
-
-    setLoading(false);
   };
   
   if (isSetupDone === null || isLoadingAdmins) {

@@ -42,7 +42,9 @@ service cloud.firestore {
 
     match /admin_roles/{uid} {
       allow read: if isSignedIn();
-      allow write: if false; // Only manageable via Firebase Console or special scripts
+      // Allow creation for initial setup
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
 
     match /invoices/{id} {
@@ -60,12 +62,15 @@ service cloud.firestore {
 
     match /metadata/{id} {
       allow read: if isSignedIn();
+      allow write: if isSignedIn(); // Allow initial setup
+    }
+
+    match /flight_manifests/{id} {
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     // --- Collection Group Rules ---
-    // Required for the Admin Dashboard and Notifications activity feed
-
     match /{path=**}/pre_alerts/{preAlertId} {
       allow list: if isAdmin();
       allow get: if isSignedIn();
