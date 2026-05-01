@@ -48,7 +48,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   const adminRoleRef = useMemoFirebase(
     () => {
       if (!firestore || !user) return null;
-      // Consistent collection name
       return doc(firestore, 'admin_roles', user.uid);
     },
     [firestore, user]
@@ -60,29 +59,31 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   } = useDoc(adminRoleRef);
 
   useEffect(() => {
+    // Only redirect if authentication loading is finished and user is definitely missing
     if (!isUserLoading && !user) {
       router.replace('/admin-login');
     }
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (isAdminLoading || !user) return;
+    // CRITICAL: Wait for ALL loading to finish and ensure firestore ref was generated
+    if (isUserLoading || isAdminLoading || !user || !adminRoleRef) return;
 
     if (!adminRoleDoc) {
       toast({
         title: 'Access Denied',
-        description: "Administrator privileges required.",
+        description: "Administrator privileges required for this area.",
         variant: 'destructive',
       });
       router.replace('/admin-login');
     }
-  }, [isAdminLoading, adminRoleDoc, router, toast, user]);
+  }, [isUserLoading, isAdminLoading, adminRoleDoc, adminRoleRef, router, toast, user]);
 
   if (isUserLoading || isAdminLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse font-medium">Verifying Admin Access...</p>
+        <p className="text-muted-foreground animate-pulse font-medium">Verifying Credentials...</p>
       </div>
     );
   }
@@ -169,7 +170,7 @@ export default function AdminLayout({
             <SidebarTrigger />
             <div className="h-6 w-px bg-border mx-2 hidden md:block" />
             <div className="text-sm font-bold tracking-tight uppercase text-muted-foreground hidden md:block">
-              SwiftRoute Logistics v3.0
+              FromStore2Door Admin
             </div>
             <div className="flex-1" />
              <ThemeToggle />

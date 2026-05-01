@@ -18,10 +18,10 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AdminWelcomeAnimation } from '@/components/admin-welcome-animation';
 
 const formSchema = z.object({
@@ -46,17 +46,24 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, values.email, values.password);
-      // Standardized to admin_roles
       const adminSnap = await getDoc(doc(firestore, 'admin_roles', cred.user.uid));
       
       if (adminSnap.exists()) {
         setShowWelcome(true);
       } else {
         await signOut(auth);
-        toast({ title: 'Access Denied', description: 'No admin privileges detected.', variant: 'destructive' });
+        toast({ 
+            title: 'Access Denied', 
+            description: 'This account does not have administrator privileges.', 
+            variant: 'destructive' 
+        });
       }
     } catch (error: any) {
-        toast({ title: 'Login Failed', description: 'Invalid credentials.', variant: 'destructive' });
+        toast({ 
+            title: 'Login Failed', 
+            description: 'Invalid email or secure key.', 
+            variant: 'destructive' 
+        });
     } finally {
         setLoading(false);
     }
@@ -65,49 +72,50 @@ export default function AdminLoginPage() {
   if (showWelcome) return <AdminWelcomeAnimation onComplete={() => router.push('/admin')} />;
 
   return (
-    <div className="w-full min-h-screen lg:grid lg:grid-cols-2 bg-background font-body">
-       <div className="relative hidden h-full flex-col bg-muted p-10 text-white lg:flex">
-         <Image 
-            src="https://picsum.photos/seed/delivery-van-dark/1200/1800"
-            alt="Admin panel"
-            fill
-            className="object-cover brightness-50"
-            data-ai-hint="delivery van"
-        />
-        <div className="relative z-20 flex items-center text-2xl font-bold italic tracking-tighter font-headline">
-          SwiftRoute OS v3.0
-        </div>
-        <div className="relative z-20 mt-auto bg-black/20 backdrop-blur-md p-6 rounded-xl border border-white/10">
-          <ShieldCheck className="h-8 w-8 mb-4 text-primary" />
-          <p className="text-lg font-medium leading-relaxed italic">
-            "Reliability is the foundation of every successful logistical network. Access restricted to authorized personnel only."
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center justify-center p-8">
-        <div className="mx-auto w-full max-w-[400px] space-y-8">
-          <div className="space-y-2 text-center">
-            <h1 className="text-4xl font-black tracking-tight uppercase font-headline">Admin Entry</h1>
-            <p className="text-muted-foreground text-sm font-medium">Verify your credentials to manage the network.</p>
-          </div>
+    <div className="w-full min-h-screen flex items-center justify-center bg-muted/30 p-4">
+      <Card className="w-full max-w-[450px] shadow-2xl border-none">
+        <CardHeader className="text-center space-y-2">
+            <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-2">
+                <ShieldCheck className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-3xl font-black tracking-tight uppercase">Admin Entry</CardTitle>
+            <CardDescription className="font-medium">
+                Verify your credentials to manage the FromStore2Door network.
+            </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField control={form.control} name="email" render={({ field }) => (
-                <FormItem><FormLabel>Admin Email</FormLabel><FormControl><Input placeholder="admin@swiftroute.com" {...field} className="h-12 border-2" /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                    <FormLabel>Admin Email</FormLabel>
+                    <FormControl>
+                        <Input placeholder="admin@example.com" {...field} className="h-12" />
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
               )}/>
               <FormField control={form.control} name="password" render={({ field }) => (
-                <FormItem><FormLabel>Secure Key</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} className="h-12 border-2" /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                    <FormLabel>Secure Key</FormLabel>
+                    <FormControl>
+                        <Input type="password" placeholder="••••••••" {...field} className="h-12" />
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
               )}/>
-              <Button type="submit" size="lg" className="w-full h-14 text-lg font-bold shadow-xl" disabled={loading}>
+              <Button type="submit" size="lg" className="w-full h-14 text-lg font-bold shadow-lg mt-2" disabled={loading}>
                   {loading ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : "Authorize Access"}
               </Button>
             </form>
           </Form>
           <div className="pt-4 text-center border-t">
-              <Button variant="link" asChild className="text-muted-foreground"><Link href="/">Return to Public Website</Link></Button>
+              <Button variant="link" asChild className="text-muted-foreground">
+                  <Link href="/">Return to Public Website</Link>
+              </Button>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
