@@ -38,13 +38,12 @@ export default function SetupAdminPage() {
 
   const adminRolesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'roles_admin'), limit(1));
+    return query(collection(firestore, 'admin_roles'), limit(1));
   }, [firestore]);
   const { data: adminRoles, isLoading: isLoadingAdmins } = useCollection(adminRolesQuery);
 
   useEffect(() => {
     if (!isLoadingAdmins) {
-      // If adminRoles is not null and has items, setup is done.
       setIsSetupDone(adminRoles !== null && adminRoles.length > 0);
     }
   }, [adminRoles, isLoadingAdmins]);
@@ -82,7 +81,7 @@ export default function SetupAdminPage() {
     batch.set(userDocRef, userProfile);
 
     // 2. Admin Role Document
-    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+    const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
     batch.set(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
     
     // 3. Initialize Mailbox Counter
@@ -95,7 +94,7 @@ export default function SetupAdminPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     
-    const checkQuery = query(collection(firestore, 'roles_admin'), limit(1));
+    const checkQuery = query(collection(firestore, 'admin_roles'), limit(1));
     const checkSnapshot = await getDocs(checkQuery);
     if (!checkSnapshot.empty) {
         toast({
@@ -150,7 +149,7 @@ export default function SetupAdminPage() {
                      <AlertTriangle className="mx-auto h-12 w-12 text-destructive" />
                     <CardTitle className="text-3xl mt-4">Setup Complete</CardTitle>
                     <CardDescription>
-                        The initial admin account has already been created. This setup page is no longer available for security reasons.
+                        The initial admin account has already been created.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

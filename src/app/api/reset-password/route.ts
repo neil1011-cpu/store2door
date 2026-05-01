@@ -42,7 +42,8 @@ export async function POST(request: Request) {
         const adminUid = decodedToken.uid;
 
         // 3. Check if the authenticated user is an admin
-        const adminRoleDoc = await firestore.collection('roles_admin').doc(adminUid).get();
+        // IMPORTANT: Standardized to 'admin_roles' collection
+        const adminRoleDoc = await firestore.collection('admin_roles').doc(adminUid).get();
         if (!adminRoleDoc.exists) {
             return NextResponse.json({ message: 'Forbidden: Caller is not an admin.' }, { status: 403 });
         }

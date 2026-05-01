@@ -50,28 +50,16 @@ service cloud.firestore {
     match /users/{userId} {
        allow read: if isOwner(userId) || isPrivileged();
        allow write: if isOwner(userId) || isPrivileged();
-    }
-
-    match /users/{userId}/pre_alerts/{preAlertId} {
-      allow get: if isOwner(userId) || isPrivileged();
-      allow list: if isOwner(userId) || isPrivileged();
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if (isOwner(userId) || isPrivileged()) && request.resource.data.userId == userId;
-      allow delete: if isExistingOwner(userId) || isExistingPrivileged();
-    }
-
-    match /users/{userId}/shipments/{shipmentId} {
-      allow get: if isOwner(userId) || isPrivileged();
-      allow list: if isOwner(userId) || isPrivileged();
-      allow create: if (isOwner(userId) || isPrivileged()) && request.resource.data.userId == userId;
-      allow update: if (isOwner(userId) || isPrivileged()) && request.resource.data.userId == userId;
-      allow delete: if isExistingPrivileged();
-    }
-
-    match /users/{userId}/shipments/{shipmentId}/status_logs/{logId} {
-      allow get, list: if isOwner(userId) || isPrivileged();
-      allow create, update: if isPrivileged();
-      allow delete: if isExistingPrivileged();
+       
+       match /pre_alerts/{id} {
+         allow read: if isOwner(userId) || isPrivileged();
+         allow write: if isOwner(userId) || isPrivileged();
+       }
+       
+       match /shipments/{id} {
+         allow read: if isOwner(userId) || isPrivileged();
+         allow write: if isOwner(userId) || isPrivileged();
+       }
     }
 
     match /flight_manifests/{flightManifestId} {
@@ -115,21 +103,28 @@ service cloud.firestore {
     match /transactions/{id} {
         allow read, write: if isPrivileged();
     }
+    
+    match /sent_emails/{id} {
+        allow read, write: if isPrivileged();
+    }
 
     // --- Collection Group Rules ---
+    // Critical for real-time notifications and global searches
 
     match /{path=**}/pre_alerts/{preAlertId} {
       allow list: if isSignedIn() && (
-        (request.query.limit <= 100 && resource.data.userId == request.auth.uid) || 
-        isPrivileged()
+        isPrivileged() || 
+        (resource.data.userId == request.auth.uid || resource.data.customerId == request.auth.uid)
       );
+      allow get: if isSignedIn();
     }
 
     match /{path=**}/shipments/{shipmentId} {
       allow list: if isSignedIn() && (
-        (request.query.limit <= 100 && resource.data.userId == request.auth.uid) || 
-        isPrivileged()
+        isPrivileged() || 
+        (resource.data.userId == request.auth.uid || resource.data.customerId == request.auth.uid)
       );
+      allow get: if isSignedIn();
     }
   }
 }
