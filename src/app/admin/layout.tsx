@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -49,7 +48,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   const adminRoleRef = useMemoFirebase(
     () => {
       if (!firestore || !user) return null;
-      // Sync with setup-admin path: admin_roles
+      // Consistent collection name
       return doc(firestore, 'admin_roles', user.uid);
     },
     [firestore, user]

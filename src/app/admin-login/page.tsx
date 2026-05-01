@@ -46,6 +46,7 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, values.email, values.password);
+      // Standardized to admin_roles
       const adminSnap = await getDoc(doc(firestore, 'admin_roles', cred.user.uid));
       
       if (adminSnap.exists()) {

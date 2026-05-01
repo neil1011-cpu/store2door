@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -80,7 +79,7 @@ export default function SetupAdminPage() {
     };
     batch.set(userDocRef, userProfile);
 
-    // 2. Admin Role Document
+    // 2. Admin Role Document - Standardized to admin_roles
     const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
     batch.set(adminRoleRef, { isAdmin: true, createdAt: serverTimestamp() });
     

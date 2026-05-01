@@ -6,7 +6,7 @@ export default function PrivacyPage() {
             
             <section className="space-y-4">
                 <h2 className="text-2xl font-semibold font-headline">1. Introduction</h2>
-                <p>SwiftRoute ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how your personal information is collected, used, and disclosed by SwiftRoute.</p>
+                <p>FromStore2Door ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how your personal information is collected, used, and disclosed by our services.</p>
             </section>
 
             <section className="space-y-4">
@@ -17,7 +17,7 @@ export default function PrivacyPage() {
             <section className="space-y-4">
                 <h2 className="text-2xl font-semibold font-headline">3. How We Use Your Information</h2>
                 <ul className="list-disc pl-6 space-y-2">
-                    <li>To provide and maintain our courier services.</li>
+                    <li>To provide and maintain our global courier services.</li>
                     <li>To facilitate customs clearance procedures in Jamaica.</li>
                     <li>To communicate with you regarding your shipments and account status.</li>
                     <li>To process payments and generate invoices.</li>

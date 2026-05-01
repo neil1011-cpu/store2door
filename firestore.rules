@@ -2,128 +2,77 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * DOCUMENTATION: SwiftRoute Security Rules
-     * Standardized to use 'admin_roles' for DBAC as per backend blueprint.
-     */
-
     // --- Helper Functions ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
 
-    function isStaff() {
-      return isSignedIn() && exists(/databases/$(database)/documents/staff_roles/$(request.auth.uid));
-    }
-
-    function isPrivileged() {
-      return isAdmin() || isStaff();
-    }
-
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
-    }
-
-    function isExistingPrivileged() {
-      return resource != null && isPrivileged();
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     // --- Collection Rules ---
 
     match /user_profiles/{userId} {
       allow get: if isSignedIn();
-      allow list: if isPrivileged();
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if (isOwner(userId) || isAdmin()) && request.resource.data.id == userId;
-      allow delete: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
     }
 
     match /users/{userId} {
-       allow read: if isOwner(userId) || isPrivileged();
-       allow write: if isOwner(userId) || isPrivileged();
+       allow read: if isOwner(userId) || isAdmin();
+       allow write: if isOwner(userId) || isAdmin();
        
        match /pre_alerts/{id} {
-         allow read: if isOwner(userId) || isPrivileged();
-         allow write: if isOwner(userId) || isPrivileged();
+         allow read: if isOwner(userId) || isAdmin();
+         allow write: if isOwner(userId) || isAdmin();
        }
        
        match /shipments/{id} {
-         allow read: if isOwner(userId) || isPrivileged();
-         allow write: if isOwner(userId) || isPrivileged();
+         allow read: if isOwner(userId) || isAdmin();
+         allow write: if isOwner(userId) || isAdmin();
        }
     }
 
-    match /flight_manifests/{flightManifestId} {
-      allow get: if isSignedIn();
-      allow list: if isPrivileged();
-      allow create, update, delete: if isPrivileged();
-    }
-
-    match /revenue/{revenueId} {
-      allow get, list: if isPrivileged();
-      allow create: if isPrivileged() && request.resource.data.collectedByUserId == request.auth.uid;
-      allow update, delete: if isExistingPrivileged();
-    }
-
-    match /expenses/{expenseId} {
-      allow get, list: if isPrivileged();
-      allow create: if isPrivileged() && request.resource.data.recordedByUserId == request.auth.uid;
-      allow update, delete: if isExistingPrivileged();
-    }
-
     match /admin_roles/{uid} {
-      allow get: if isSignedIn();
-      allow list, create, update, delete: if isAdmin();
-    }
-    match /staff_roles/{uid} {
-      allow get: if isSignedIn();
-      allow list: if isPrivileged();
-      allow create, update, delete: if isAdmin();
-    }
-    
-    match /metadata/{id} {
       allow read: if isSignedIn();
-      allow write: if isPrivileged();
+      allow write: if false; // Only manageable via Firebase Console or special scripts
     }
 
     match /invoices/{id} {
-        allow read: if isSignedIn();
-        allow write: if isPrivileged();
+        allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
+        allow write: if isAdmin();
     }
     
     match /transactions/{id} {
-        allow read, write: if isPrivileged();
+        allow read, write: if isAdmin();
     }
     
     match /sent_emails/{id} {
-        allow read, write: if isPrivileged();
+        allow read, write: if isAdmin();
+    }
+
+    match /metadata/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // --- Collection Group Rules ---
-    // Critical for real-time notifications and global searches
+    // Required for the Admin Dashboard and Notifications activity feed
 
     match /{path=**}/pre_alerts/{preAlertId} {
-      allow list: if isSignedIn() && (
-        isPrivileged() || 
-        (resource.data.userId == request.auth.uid || resource.data.customerId == request.auth.uid)
-      );
+      allow list: if isAdmin();
       allow get: if isSignedIn();
     }
 
     match /{path=**}/shipments/{shipmentId} {
-      allow list: if isSignedIn() && (
-        isPrivileged() || 
-        (resource.data.userId == request.auth.uid || resource.data.customerId == request.auth.uid)
-      );
+      allow list: if isAdmin();
       allow get: if isSignedIn();
     }
   }

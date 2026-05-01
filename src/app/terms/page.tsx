@@ -6,17 +6,17 @@ export default function TermsPage() {
             
             <section className="space-y-4">
                 <h2 className="text-2xl font-semibold font-headline">1. Acceptance of Terms</h2>
-                <p>By using the SwiftRoute website and services, you agree to be bound by these Terms of Service. If you do not agree, please do not use our services.</p>
+                <p>By using the FromStore2Door website and services, you agree to be bound by these Terms of Service. If you do not agree, please do not use our services.</p>
             </section>
 
             <section className="space-y-4">
                 <h2 className="text-2xl font-semibold font-headline">2. Description of Service</h2>
-                <p>SwiftRoute provides international courier and logistical services, shipping items from Florida, USA to various locations in Jamaica. Services include warehouse storage, air/sea freight, and customs brokerage.</p>
+                <p>FromStore2Door provides international courier and logistical services, shipping items from worldwide locations to various locations in Jamaica. Services include warehouse storage, air/sea freight, and customs brokerage.</p>
             </section>
 
             <section className="space-y-4">
                 <h2 className="text-2xl font-semibold font-headline">3. Prohibited Items</h2>
-                <p>You agree not to ship any items that are illegal, hazardous, or prohibited by the laws of the United States or Jamaica, including but not limited to explosives, firearms, narcotics, and highly flammable materials.</p>
+                <p>You agree not to ship any items that are illegal, hazardous, or prohibited by the laws of the origin country or Jamaica, including but not limited to explosives, firearms, narcotics, and highly flammable materials.</p>
             </section>
 
             <section className="space-y-4">
@@ -26,7 +26,7 @@ export default function TermsPage() {
 
             <section className="space-y-4">
                 <h2 className="text-2xl font-semibold font-headline">5. Limitation of Liability</h2>
-                <p>SwiftRoute is not liable for delays caused by third-party carriers, customs inspections, or acts of nature. Liability for lost or damaged packages is limited to the declared value of the item, provided sufficient insurance was purchased.</p>
+                <p>FromStore2Door is not liable for delays caused by third-party carriers, customs inspections, or acts of nature. Liability for lost or damaged packages is limited to the declared value of the item, provided sufficient insurance was purchased.</p>
             </section>
         </div>
     )
