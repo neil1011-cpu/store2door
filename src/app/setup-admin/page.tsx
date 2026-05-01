@@ -130,7 +130,7 @@ export default function SetupAdminPage() {
     }
 
     setLoading(false);
-  };
+  };Loaders
   
   if (isSetupDone === null || isLoadingAdmins) {
       return (
