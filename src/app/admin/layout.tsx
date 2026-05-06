@@ -59,23 +59,24 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   } = useDoc(adminRoleRef);
 
   useEffect(() => {
-    // Wait until user session is confirmed
-    if (!isUserLoading && !user) {
+    // Only proceed if auth state is determined
+    if (isUserLoading) return;
+
+    if (!user) {
       router.replace('/admin-login');
+      return;
     }
-  }, [user, isUserLoading, router]);
 
-  useEffect(() => {
-    // Only check roles once loading is finished and user exists
-    if (isUserLoading || isAdminLoading || !user || !adminRoleRef) return;
-
-    if (!adminRoleDoc) {
-      toast({
-        title: 'Access Denied',
-        description: "Administrator privileges required for this area.",
-        variant: 'destructive',
-      });
-      router.replace('/admin-login');
+    // Only redirect once both auth and role data have finished loading
+    if (!isAdminLoading && adminRoleRef) {
+      if (!adminRoleDoc || !adminRoleDoc.isAdmin) {
+        toast({
+          title: 'Access Denied',
+          description: "Administrator privileges required for this area.",
+          variant: 'destructive',
+        });
+        router.replace('/admin-login');
+      }
     }
   }, [isUserLoading, isAdminLoading, adminRoleDoc, adminRoleRef, router, toast, user]);
 
@@ -88,7 +89,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     );
   }
   
-  if (!user || !adminRoleDoc) return null;
+  if (!user || !adminRoleDoc || !adminRoleDoc.isAdmin) return null;
 
   return <>{children}</>;
 }

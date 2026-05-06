@@ -42,9 +42,8 @@ service cloud.firestore {
 
     match /admin_roles/{uid} {
       allow read: if isSignedIn();
-      // Recovery mode: allow creation for signed-in users (restricted in production)
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
+      // Expanded for recovery mode
+      allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
 
     match /invoices/{id} {

@@ -224,13 +224,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber 
             uploadedInvoiceUrl
         };
         
-        addDoc(preAlertsCollection, newPreAlert).catch(e => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `users/${customerId}/pre_alerts`,
-                operation: 'create',
-                requestResourceData: newPreAlert
-              }));
-        });
+        await addDoc(preAlertsCollection, newPreAlert);
 
         toast({ title: 'Pre-Alert Submitted!', description: 'We will process your package as soon as it arrives.' });
         setTrackingNumber(''); setContents(''); setInvoice(null);
