@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,9 +22,6 @@ import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
-///////////////////////////////////////////////////////////////////
-// 🔥 FORM VALIDATION
-///////////////////////////////////////////////////////////////////
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
   email: z.string().email({ message: 'Enter a valid email.' }),
@@ -34,9 +30,6 @@ const formSchema = z.object({
   trn: z.string().length(9, { message: 'TRN must be 9 digits.' }),
 });
 
-///////////////////////////////////////////////////////////////////
-// 🚀 PAGE COMPONENT
-///////////////////////////////////////////////////////////////////
 export default function SignUpPage() {
   const { toast } = useToast();
   const router = useRouter();
@@ -55,26 +48,23 @@ export default function SignUpPage() {
     },
   });
 
-  ///////////////////////////////////////////////////////////////////
-  // 🔥 SIGNUP FUNCTION (FULL / FINAL / WORKING)
-  ///////////////////////////////////////////////////////////////////
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
 
     try {
-      // 1. Create Firebase Authentication user
       const userCred = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCred.user;
 
-      // Ensure Firestore sees authenticated session
       await user.getIdToken(true);
 
-      // 2. Generate mailbox number SEQUENTIALLY via Firestore transaction
       const mailbox = await runTransaction(firestore, async (tx) => {
         const ref = doc(firestore, "metadata", "mailboxCounter");
         const snap = await tx.get(ref);
 
-        if (!snap.exists()) throw new Error("Mailbox counter missing in Firestore");
+        if (!snap.exists()) {
+            tx.set(ref, { next: 102 });
+            return `FSTD101`;
+        }
 
         const current = snap.data().next;
         tx.update(ref, { next: current + 1 });
@@ -82,7 +72,6 @@ export default function SignUpPage() {
         return `FSTD${current}`;
       });
 
-      // 3. Create the user profile document
       const userAddress = {
           address1: '4350 NE 5th Terrace Bay #3',
           address2: `${mailbox}-FSTD`,
@@ -90,6 +79,7 @@ export default function SignUpPage() {
           state: 'Florida',
           zip: '33334',
       };
+      
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         fullName: values.fullName,
@@ -103,7 +93,6 @@ export default function SignUpPage() {
         dropoffAddresses: [],
       });
 
-      // 4. Send Welcome Email
       try {
         await fetch('/api/send-email', {
           method: 'POST',
@@ -111,15 +100,11 @@ export default function SignUpPage() {
           body: JSON.stringify({
             to: values.email,
             subject: 'Welcome to the FromStore2Door Family!',
-            body: `Hi ${values.fullName},\n\nWelcome to FromStore2Door! We're thrilled to have you with us.\n\nYour new, tax-free U.S. shipping address is ready. Your personal mailbox number is: ${mailbox}\n\nHere is your full address:\n\n${values.fullName}\n${userAddress.address1}\n${userAddress.address2}\n${userAddress.city}, ${userAddress.state} ${userAddress.zip}\n\nYou can start shopping at your favorite US stores right away. Just use this address at checkout, and we'll handle the rest.\n\nHappy Shopping!`,
+            body: `Hi ${values.fullName},\n\nWelcome to FromStore2Door! We're thrilled to have you with us.\n\nYour new, tax-free worldwide shipping credentials are ready.\n\nYour personal mailbox number is: ${mailbox}\n\nHere is your network shipping address for global store checkouts:\n\n${values.fullName}\n${userAddress.address1}\n${userAddress.address2}\n${userAddress.city}, ${userAddress.state} ${userAddress.zip}\n\nYou can start shopping at your favorite stores worldwide right away. Just use this address at checkout, and we'll handle the rest.\n\nHappy Shopping!`,
             recipientName: values.fullName,
           }),
         });
-      } catch (emailError) {
-        console.error("Welcome email could not be sent:", emailError);
-        // Do not block user creation if email fails, just log it.
-      }
-
+      } catch (emailError) {}
 
       toast({
         title: 'Account Created',
@@ -140,16 +125,13 @@ export default function SignUpPage() {
     setLoading(false);
   };
 
-  ///////////////////////////////////////////////////////////////////
-  // UI
-  ///////////////////////////////////////////////////////////////////
   return (
     <div className="container mx-auto py-12 px-4 md:px-6 max-w-2xl">
       <Card>
         <CardHeader>
           <CardTitle className="text-3xl">Create Your Account</CardTitle>
           <CardDescription>
-            Get your U.S. mailbox & shipping address instantly.
+            Get your global mailbox & shipping address instantly.
           </CardDescription>
         </CardHeader>
         <CardContent>

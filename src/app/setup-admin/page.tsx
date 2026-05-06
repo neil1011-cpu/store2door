@@ -20,7 +20,7 @@ import { useState } from 'react';
 import { Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, type User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, serverTimestamp, writeBatch, getDoc } from 'firebase/firestore';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const formSchema = z.object({
@@ -43,14 +43,14 @@ export default function SetupAdminPage() {
     },
   });
 
-  const setupAdminAndMetadataDocs = async (user: User) => {
+  const setupAdminPrivileges = async (user: User) => {
     const batch = writeBatch(firestore);
 
     // 1. User Profile Document
     const userDocRef = doc(firestore, 'users', user.uid);
-    const userProfile = {
+    batch.set(userDocRef, {
         id: user.uid,
-        fullName: 'Administrator',
+        fullName: 'System Administrator',
         email: user.email,
         phone: 'N/A',
         trn: 'N/A',
@@ -63,16 +63,18 @@ export default function SetupAdminPage() {
             zip: '33334',
         },
         createdAt: serverTimestamp(),
-    };
-    batch.set(userDocRef, userProfile, { merge: true });
+    }, { merge: true });
 
-    // 2. Admin Role Document
+    // 2. Admin Role Document (Standardized to 'admin_roles')
     const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
     batch.set(adminRoleRef, { isAdmin: true, updatedAt: serverTimestamp() }, { merge: true });
     
-    // 3. Initialize Mailbox Counter
+    // 3. Initialize Mailbox Counter if missing
     const mailboxCounterRef = doc(firestore, 'metadata', 'mailboxCounter');
-    batch.set(mailboxCounterRef, { next: 101 }, { merge: true });
+    const counterSnap = await getDoc(mailboxCounterRef);
+    if (!counterSnap.exists()) {
+        batch.set(mailboxCounterRef, { next: 101 }, { merge: true });
+    }
 
     await batch.commit();
   }
@@ -94,11 +96,11 @@ export default function SetupAdminPage() {
             }
         }
         
-        await setupAdminAndMetadataDocs(user);
+        await setupAdminPrivileges(user);
 
         toast({
-            title: 'Admin Account Configured!',
-            description: 'You can now log in at the admin login page.',
+            title: 'Privileges Restored!',
+            description: 'Your account has been granted administrator access.',
         });
         router.push('/admin-login');
 
@@ -116,20 +118,20 @@ export default function SetupAdminPage() {
 
   return (
     <div className="container mx-auto py-12 px-4 md:px-6 max-w-lg">
-      <Card>
+      <Card className="shadow-xl">
         <CardHeader className="text-center">
           <ShieldCheck className="mx-auto h-12 w-12 text-primary" />
-          <CardTitle className="text-3xl mt-4">Admin Account Setup</CardTitle>
+          <CardTitle className="text-3xl mt-4">Admin Recovery Tool</CardTitle>
           <CardDescription>
-            Create or recover your primary administrator account.
+            Re-assign administrator privileges to your primary account.
           </CardDescription>
         </CardHeader>
         <CardContent>
-           <Alert className="mb-6 bg-amber-50 border-amber-200">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <AlertTitle className="text-amber-800">Recovery Mode</AlertTitle>
-                <AlertDescription className="text-amber-700 text-xs">
-                    This tool will assign administrator privileges to the email provided. Use it if you are locked out of your admin dashboard.
+           <Alert className="mb-6 bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-900">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <AlertTitle>Privilege Linker</AlertTitle>
+                <AlertDescription className="text-xs">
+                    This tool will verify your credentials and link your account to the <strong>admin_roles</strong> database collection.
                 </AlertDescription>
             </Alert>
           <Form {...form}>
@@ -141,7 +143,7 @@ export default function SetupAdminPage() {
                   <FormItem>
                     <FormLabel>Admin Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="admin@example.com" {...field} />
+                      <Input type="email" placeholder="admin@neilussolutions.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -161,7 +163,7 @@ export default function SetupAdminPage() {
                 )}
               />
               <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Configuring Account...</> : 'Apply Admin Privileges'}
+                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Authorizing...</> : 'Apply Admin Privileges'}
               </Button>
             </form>
           </Form>

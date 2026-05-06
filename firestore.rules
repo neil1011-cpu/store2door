@@ -42,7 +42,7 @@ service cloud.firestore {
 
     match /admin_roles/{uid} {
       allow read: if isSignedIn();
-      // Allow creation for initial setup
+      // Recovery mode: allow creation for signed-in users (restricted in production)
       allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
@@ -62,7 +62,7 @@ service cloud.firestore {
 
     match /metadata/{id} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn(); // Allow initial setup
+      allow write: if isSignedIn(); // Allow initial setup/recovery
     }
 
     match /flight_manifests/{id} {
@@ -70,7 +70,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // --- Collection Group Rules ---
+    // --- Collection Group Rules for Admin Dashboards ---
     match /{path=**}/pre_alerts/{preAlertId} {
       allow list: if isAdmin();
       allow get: if isSignedIn();
