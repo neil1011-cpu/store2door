@@ -29,14 +29,8 @@ service cloud.firestore {
        allow read: if isOwner(userId) || isAdmin();
        allow write: if isOwner(userId) || isAdmin();
        
-       match /pre_alerts/{id} {
-         allow read: if isOwner(userId) || isAdmin();
-         allow write: if isOwner(userId) || isAdmin();
-       }
-       
-       match /shipments/{id} {
-         allow read: if isOwner(userId) || isAdmin();
-         allow write: if isOwner(userId) || isAdmin();
+       match /{allSubcollections=**} {
+         allow read, write: if isOwner(userId) || isAdmin();
        }
     }
 
@@ -49,6 +43,10 @@ service cloud.firestore {
       allow read: if isSignedIn();
       // Allow users to update their own admin role for recovery purposes in this prototype
       allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+    
+    match /admin_roles {
+      allow list: if isSignedIn();
     }
 
     match /invoices/{id} {
@@ -78,12 +76,12 @@ service cloud.firestore {
     // --- Collection Group Rules for Admin Dashboards ---
     match /{path=**}/pre_alerts/{preAlertId} {
       allow list: if isAdmin();
-      allow get: if isSignedIn();
+      allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
     }
 
     match /{path=**}/shipments/{shipmentId} {
       allow list: if isAdmin();
-      allow get: if isSignedIn();
+      allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
     }
   }
 }

@@ -68,7 +68,7 @@ export default function SetupAdminPage() {
         createdAt: serverTimestamp(),
     }, { merge: true });
 
-    // 2. Admin Role Document
+    // 2. Admin Role Document - Critical for DBAC pattern
     const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
     batch.set(adminRoleRef, { isAdmin: true, updatedAt: serverTimestamp() }, { merge: true });
     
