@@ -75,8 +75,6 @@ export default function UsersPage() {
     if(!newUser.firstName || !newUser.lastName || !newUser.email) return;
     setIsSubmitting(true);
     try {
-        const auth = doc(firestore, 'metadata', 'none').firestore.app; // Stub to get auth instance if needed, but we use API
-        // For individual adds, we still use the API to ensure Auth account is created
         const idToken = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
         
         const res = await fetch('/api/admin/create-user', {
@@ -207,7 +205,6 @@ function ImportCSVDialog() {
     const [progress, setProgress] = useState({ current: 0, total: 0 });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
-    const auth = (await import('firebase/auth')).getAuth();
 
     const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -223,7 +220,7 @@ function ImportCSVDialog() {
             const dataRows = lines.slice(1);
             
             setProgress({ current: 0, total: dataRows.length });
-            const idToken = await auth.currentUser?.getIdToken();
+            const idToken = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
 
             let successCount = 0;
             let failCount = 0;
