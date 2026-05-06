@@ -457,7 +457,7 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
                 </div>
                 <DialogFooter className="pt-4 border-t border-dashed">
                     <Button onClick={handleReceive} disabled={isSubmitting} className="w-full h-14 font-black uppercase text-lg shadow-xl tracking-tighter italic">
-                        {isSubmitting ? <Loader2 className="h-6 w-6 animate-spin" /> : "Authorize Package Intake"}
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Package Intake"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
