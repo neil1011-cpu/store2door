@@ -40,32 +40,38 @@ service cloud.firestore {
        }
     }
 
+    // Admin List Users for Dashboard
+    match /users {
+      allow list: if isAdmin();
+    }
+
     match /admin_roles/{uid} {
       allow read: if isSignedIn();
-      // Expanded for recovery mode
+      // Allow users to update their own admin role for recovery purposes in this prototype
       allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
 
     match /invoices/{id} {
         allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
         allow write: if isAdmin();
+        allow list: if isAdmin();
     }
     
     match /transactions/{id} {
-        allow read, write: if isAdmin();
+        allow read, write, list: if isAdmin();
     }
     
     match /sent_emails/{id} {
-        allow read, write: if isAdmin();
+        allow read, write, list: if isAdmin();
     }
 
     match /metadata/{id} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn(); // Allow initial setup/recovery
+      allow write: if isSignedIn();
     }
 
     match /flight_manifests/{id} {
-      allow read: if isSignedIn();
+      allow read, list: if isSignedIn();
       allow write: if isAdmin();
     }
 
