@@ -69,11 +69,11 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
 
     // Only make a decision once the document fetch is complete
     if (!isAdminLoading && adminRoleRef) {
-      // In recovery mode, we treat the existence of the document as authorization
+      // Treat the existence of the document as authorization
       if (!adminRoleDoc) {
         toast({
           title: 'Access Denied',
-          description: "This account does not have database privileges. Please use the /setup-admin tool.",
+          description: "This account does not have administrator privileges. Please use the /setup-admin recovery tool.",
           variant: 'destructive',
         });
         router.replace('/admin-login');
