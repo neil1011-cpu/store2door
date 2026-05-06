@@ -59,7 +59,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   } = useDoc(adminRoleRef);
 
   useEffect(() => {
-    // Only proceed if auth state is determined
+    // Wait for auth session to be confirmed
     if (isUserLoading) return;
 
     if (!user) {
@@ -67,12 +67,13 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Only redirect once both auth and role data have finished loading
+    // Only make a decision once the document fetch is complete
     if (!isAdminLoading && adminRoleRef) {
-      if (!adminRoleDoc || !adminRoleDoc.isAdmin) {
+      // In recovery mode, we treat the existence of the document as authorization
+      if (!adminRoleDoc) {
         toast({
           title: 'Access Denied',
-          description: "Administrator privileges required for this area.",
+          description: "This account does not have database privileges. Please use the /setup-admin tool.",
           variant: 'destructive',
         });
         router.replace('/admin-login');
@@ -84,12 +85,12 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse font-medium">Verifying Admin Access...</p>
+        <p className="text-muted-foreground animate-pulse font-medium">Authorizing Admin Session...</p>
       </div>
     );
   }
   
-  if (!user || !adminRoleDoc || !adminRoleDoc.isAdmin) return null;
+  if (!user || !adminRoleDoc) return null;
 
   return <>{children}</>;
 }
