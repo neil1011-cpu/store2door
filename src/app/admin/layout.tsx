@@ -59,14 +59,14 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   } = useDoc(adminRoleRef);
 
   useEffect(() => {
-    // Only redirect if authentication loading is finished and user is definitely missing
+    // Wait until user session is confirmed
     if (!isUserLoading && !user) {
       router.replace('/admin-login');
     }
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    // CRITICAL: Wait for ALL loading to finish and ensure firestore ref was generated
+    // Only check roles once loading is finished and user exists
     if (isUserLoading || isAdminLoading || !user || !adminRoleRef) return;
 
     if (!adminRoleDoc) {
@@ -83,7 +83,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse font-medium">Verifying Credentials...</p>
+        <p className="text-muted-foreground animate-pulse font-medium">Verifying Admin Access...</p>
       </div>
     );
   }

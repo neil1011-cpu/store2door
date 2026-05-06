@@ -401,7 +401,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
                         <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-2 right-2 dummy-copy-btn opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={copyAddress}
                         >
                             {isCopying ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}

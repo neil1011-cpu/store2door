@@ -9,7 +9,7 @@ import { ThemeToggle } from './theme-toggle';
 import { useUser } from '@/firebase';
 import { Skeleton } from './ui/skeleton';
 import { AppLogo } from './app-logo';
-
+import { useEffect, useState } from 'react';
 
 const navLinks = [
     { href: '/tracking', label: 'Tracking' },
@@ -18,10 +18,35 @@ const navLinks = [
     { href: '/contact', label: 'Contact' },
 ];
 
-
 export function UserHeader() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Avoid hydration mismatch by not rendering user state until mounted
+  const userActions = !mounted || isUserLoading ? (
+    <Skeleton className="h-9 w-24" />
+  ) : user ? (
+    <Button asChild>
+        <Link href="/account">
+            <User className="mr-2 h-4 w-4" />
+            My Account
+        </Link>
+    </Button>
+  ) : (
+    <div className="flex items-center gap-2">
+        <Button asChild variant="outline" size="sm">
+            <Link href="/signin">Sign In</Link>
+        </Button>
+        <Button asChild size="sm">
+            <Link href="/signup">Sign Up</Link>
+        </Button>
+    </div>
+  );
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -43,25 +68,7 @@ export function UserHeader() {
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2">
              <ThemeToggle />
-             {isUserLoading ? (
-                 <Skeleton className="h-9 w-24" />
-             ) : user ? (
-                <Button asChild>
-                    <Link href="/account">
-                        <User className="mr-2 h-4 w-4" />
-                        My Account
-                    </Link>
-                </Button>
-            ) : (
-                <div className="flex items-center gap-2">
-                    <Button asChild variant="outline" size="sm">
-                        <Link href="/signin">Sign In</Link>
-                    </Button>
-                    <Button asChild size="sm">
-                        <Link href="/signup">Sign Up</Link>
-                    </Button>
-                </div>
-            )}
+             {userActions}
         </div>
       </div>
     </header>
