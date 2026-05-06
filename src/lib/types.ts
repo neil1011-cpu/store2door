@@ -18,6 +18,8 @@ export type PickupPerson = {
 export type UserProfile = {
   id: string; // This is the Firebase Auth UID
   fullName: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone: string;
   mailboxNumber: string;
@@ -30,6 +32,7 @@ export type UserProfile = {
     zip: string;
   };
   createdAt: Timestamp | any;
+  needsPasswordReset?: boolean;
   dropoffAddresses?: DropoffAddress[];
   pickupPersonnel?: PickupPerson[];
 };
@@ -72,30 +75,6 @@ export type PreAlert = {
   uploadedInvoiceUrl: string; // The original data URI of the user's uploaded image
 };
 
-export type Message = {
-  id: string;
-  conversationId: string;
-  customerName: string;
-  customerId: string;
-  subject: string;
-  message: string;
-  date: Timestamp | any;
-  sender: 'user' | 'agent';
-  status: 'Open' | 'Closed';
-  attachment?: string;
-};
-
-export type Conversation = {
-    id: string;
-    customerName: string;
-    customerId: string;
-    subject: string;
-    latestMessage: string;
-    latestDate: Timestamp | any;
-    isRead: boolean;
-    date: Timestamp | any;
-};
-
 export type LineItem = {
   description: string;
   quantity: number;
@@ -112,11 +91,6 @@ export type Invoice = {
   status: 'Paid' | 'Unpaid';
   invoiceUrl: string;
   lineItems: LineItem[];
-}
-
-export type Rate = {
-  weight: number;
-  price: number;
 }
 
 export type Transaction = {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -310,7 +311,6 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
   const isLoading = isLoadingShipments || isLoadingPreAlerts;
 
   return (
-    <>
     <Card>
       <CardHeader>
         <CardTitle>My Packages</CardTitle>
@@ -363,17 +363,16 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
             )}
           </TableBody>
         </Table>
+
+        <Dialog open={isPreAlertDialogOpen} onOpenChange={setIsPreAlertDialogOpen}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader><DialogTitle>Upload Invoice for {selectedTrackingNumber}</DialogTitle></DialogHeader>
+                <PreAlertTab customerId={customerId} customerName={customerName} prefilledTrackingNumber={selectedTrackingNumber} />
+                <DialogFooter><Button variant="outline" onClick={() => setIsPreAlertDialogOpen(false)}>Close</Button></DialogFooter>
+            </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
-
-    <Dialog open={isPreAlertDialogOpen} onOpenChange={setIsPreAlertDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-            <DialogHeader><DialogTitle>Upload Invoice for {selectedTrackingNumber}</DialogTitle></DialogHeader>
-            <PreAlertTab customerId={customerId} customerName={customerName} prefilledTrackingNumber={selectedTrackingNumber} />
-            <DialogFooter><Button variant="outline" onClick={() => setIsPreAlertDialogOpen(false)}>Close</Button></DialogFooter>
-        </DialogContent>
-    </Dialog>
-    </>
   );
 }
 

@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { UserProfile } from '@/lib/types';
@@ -16,6 +16,7 @@ export const useAccountProfile = () => useContext(UserProfileContext);
 
 export default function AccountLayout({ children }: { children: ReactNode }) {
     const router = useRouter();
+    const pathname = usePathname();
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
 
@@ -31,6 +32,13 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             router.push('/signin');
         }
     }, [user, isUserLoading, router]);
+
+    // Force Password Reset Check
+    useEffect(() => {
+        if (userProfile?.needsPasswordReset && pathname !== '/account/change-password') {
+            router.push('/account/change-password');
+        }
+    }, [userProfile, pathname, router]);
 
     if (isUserLoading || isProfileLoading) {
         return (
@@ -50,8 +58,8 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     if (!userProfile) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6 text-center">
-                 <h1 className="text-2xl font-bold">Account Error</h1>
-                <p className="text-muted-foreground mt-2">We couldn't load your profile. Please try refreshing or signing in again.</p>
+                 <h1 className="text-2xl font-bold italic uppercase tracking-tighter">Authentication Error</h1>
+                <p className="text-muted-foreground mt-2">Critical profile data missing from system. Contact worldwide support center.</p>
             </div>
         );
     }
