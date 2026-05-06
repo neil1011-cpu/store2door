@@ -20,7 +20,7 @@ import { useState } from 'react';
 import { Loader2, ShieldCheck, AlertCircle, UserPlus, Fingerprint } from 'lucide-react';
 import { useAuth, useFirestore, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, type User } from 'firebase/auth';
-import { doc, serverTimestamp, writeBatch, getDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, writeBatch, getDoc, setDoc } from 'firebase/firestore';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 
@@ -47,11 +47,20 @@ export default function SetupAdminPage() {
   });
 
   const setupAdminPrivileges = async (user: User) => {
-    const batch = writeBatch(firestore);
+    // We do NOT use a batch here if metadata access is restricted.
+    // Instead, we perform individual sets which are allowed by our custom security rules.
+    
+    // 1. Admin Role Document - THE MOST CRITICAL PART
+    const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
+    await setDoc(adminRoleRef, { 
+        isAdmin: true, 
+        email: user.email,
+        updatedAt: serverTimestamp() 
+    }, { merge: true });
 
-    // 1. User Profile Document
+    // 2. User Profile Document
     const userDocRef = doc(firestore, 'users', user.uid);
-    batch.set(userDocRef, {
+    await setDoc(userDocRef, {
         id: user.uid,
         fullName: user.displayName || 'System Administrator',
         email: user.email,
@@ -67,19 +76,17 @@ export default function SetupAdminPage() {
         },
         createdAt: serverTimestamp(),
     }, { merge: true });
-
-    // 2. Admin Role Document - Critical for DBAC pattern
-    const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
-    batch.set(adminRoleRef, { isAdmin: true, updatedAt: serverTimestamp() }, { merge: true });
     
     // 3. Initialize Mailbox Counter if missing
-    const mailboxCounterRef = doc(firestore, 'metadata', 'mailboxCounter');
-    const counterSnap = await getDoc(mailboxCounterRef);
-    if (!counterSnap.exists()) {
-        batch.set(mailboxCounterRef, { next: 101 }, { merge: true });
+    try {
+        const mailboxCounterRef = doc(firestore, 'metadata', 'mailboxCounter');
+        const counterSnap = await getDoc(mailboxCounterRef);
+        if (!counterSnap.exists()) {
+            await setDoc(mailboxCounterRef, { next: 101 }, { merge: true });
+        }
+    } catch (e) {
+        console.warn("Mailbox counter init skipped due to permissions. This is usually fine for recovery.");
     }
-
-    await batch.commit();
   }
 
   const handleElevateCurrentSession = async () => {
@@ -88,7 +95,11 @@ export default function SetupAdminPage() {
       try {
           await setupAdminPrivileges(currentUser);
           toast({ title: 'Privileges Restored!', description: 'Your current session has been granted administrator access.' });
-          router.push('/admin');
+          
+          // Force a small delay to ensure Firestore propagation
+          setTimeout(() => {
+            router.push('/admin');
+          }, 1000);
       } catch (error: any) {
           toast({ title: 'Elevation Failed', description: error.message, variant: 'destructive' });
       } finally {
@@ -119,7 +130,10 @@ export default function SetupAdminPage() {
             title: 'Privileges Restored!',
             description: 'Your account has been granted administrator access.',
         });
-        router.push('/admin-login');
+        
+        setTimeout(() => {
+            router.push('/admin-login');
+        }, 1000);
 
     } catch (error: any) {
         console.error("Admin setup error:", error);

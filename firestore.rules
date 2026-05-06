@@ -46,7 +46,7 @@ service cloud.firestore {
     }
     
     match /admin_roles {
-      allow list: if isSignedIn();
+      allow list: if isAdmin();
     }
 
     match /invoices/{id} {
