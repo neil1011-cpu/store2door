@@ -17,11 +17,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
-import { useAuth, useFirestore } from '@/firebase';
+import { Loader2, ShieldCheck, AlertCircle, UserPlus, Fingerprint } from 'lucide-react';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, type User } from 'firebase/auth';
 import { doc, serverTimestamp, writeBatch, getDoc } from 'firebase/firestore';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -32,8 +33,10 @@ export default function SetupAdminPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [isElevatingSession, setIsElevatingSession] = useState(false);
   const auth = useAuth();
   const firestore = useFirestore();
+  const { user: currentUser } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -50,7 +53,7 @@ export default function SetupAdminPage() {
     const userDocRef = doc(firestore, 'users', user.uid);
     batch.set(userDocRef, {
         id: user.uid,
-        fullName: 'System Administrator',
+        fullName: user.displayName || 'System Administrator',
         email: user.email,
         phone: 'N/A',
         trn: 'N/A',
@@ -65,7 +68,7 @@ export default function SetupAdminPage() {
         createdAt: serverTimestamp(),
     }, { merge: true });
 
-    // 2. Admin Role Document (Standardized to 'admin_roles')
+    // 2. Admin Role Document
     const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
     batch.set(adminRoleRef, { isAdmin: true, updatedAt: serverTimestamp() }, { merge: true });
     
@@ -77,6 +80,20 @@ export default function SetupAdminPage() {
     }
 
     await batch.commit();
+  }
+
+  const handleElevateCurrentSession = async () => {
+      if (!currentUser) return;
+      setIsElevatingSession(true);
+      try {
+          await setupAdminPrivileges(currentUser);
+          toast({ title: 'Privileges Restored!', description: 'Your current session has been granted administrator access.' });
+          router.push('/admin');
+      } catch (error: any) {
+          toast({ title: 'Elevation Failed', description: error.message, variant: 'destructive' });
+      } finally {
+          setIsElevatingSession(false);
+      }
   }
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -106,9 +123,13 @@ export default function SetupAdminPage() {
 
     } catch (error: any) {
         console.error("Admin setup error:", error);
+        let errorMessage = error.message;
+        if (error.code === 'auth/invalid-credential') {
+            errorMessage = "Incorrect password for the existing account. Please sign in normally first, then use the session elevation tool below.";
+        }
         toast({
             title: 'Setup Failed',
-            description: error.message,
+            description: errorMessage,
             variant: 'destructive',
         });
     } finally {
@@ -118,15 +139,15 @@ export default function SetupAdminPage() {
 
   return (
     <div className="container mx-auto py-12 px-4 md:px-6 max-w-lg">
-      <Card className="shadow-xl">
-        <CardHeader className="text-center">
+      <Card className="shadow-xl overflow-hidden">
+        <CardHeader className="text-center bg-primary/5 pb-8">
           <ShieldCheck className="mx-auto h-12 w-12 text-primary" />
           <CardTitle className="text-3xl mt-4">Admin Recovery Tool</CardTitle>
           <CardDescription>
             Re-assign administrator privileges to your primary account.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
            <Alert className="mb-6 bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-900">
                 <AlertCircle className="h-4 w-4 text-blue-600" />
                 <AlertTitle>Privilege Linker</AlertTitle>
@@ -134,6 +155,27 @@ export default function SetupAdminPage() {
                     This tool will verify your credentials and link your account to the <strong>admin_roles</strong> database collection.
                 </AlertDescription>
             </Alert>
+
+          {currentUser ? (
+              <div className="space-y-4 mb-8">
+                  <div className="p-4 border rounded-lg bg-muted/30 flex items-center gap-4">
+                      <Fingerprint className="h-8 w-8 text-primary" />
+                      <div>
+                          <p className="text-xs font-bold uppercase text-muted-foreground">Active Session Detected</p>
+                          <p className="font-bold">{currentUser.email}</p>
+                      </div>
+                  </div>
+                  <Button onClick={handleElevateCurrentSession} disabled={isElevatingSession} className="w-full h-12 font-bold" variant="secondary">
+                      {isElevatingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                      Link Current Session to Admin Roles
+                  </Button>
+                  <div className="relative py-4">
+                    <Separator />
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-[10px] uppercase font-bold text-muted-foreground">Or setup different account</span>
+                  </div>
+              </div>
+          ) : null}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
