@@ -68,6 +68,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     }
 
     // If the database has loaded and the admin role document is definitively missing
+    // we use !adminRoleDoc to check for existence
     if (adminRoleRef && !adminRoleDoc) {
         toast({
           title: 'Access Denied',
