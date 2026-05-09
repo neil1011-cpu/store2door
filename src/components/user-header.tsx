@@ -27,7 +27,6 @@ export function UserHeader() {
     setMounted(true);
   }, []);
 
-  // Use a strictly controlled display for auth-dependent items
   const userActions = !mounted || isUserLoading ? (
     <div className="flex items-center gap-2">
         <Skeleton className="h-9 w-20" />

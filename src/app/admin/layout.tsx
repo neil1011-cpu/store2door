@@ -67,7 +67,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Only make a final decision once loading is definitely finished
+    // Explicit check for document existence - handles both boolean and mere presence
     if (adminRoleRef && !adminRoleDoc) {
         toast({
           title: 'Access Denied',

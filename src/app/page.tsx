@@ -50,14 +50,14 @@ export default function HomePage() {
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <div className="absolute inset-0">
           <Image 
-            src="https://picsum.photos/seed/cargo-shipping-jet/1920/1080"
-            alt="Global Shipping Cargo Plane"
+            src="https://picsum.photos/seed/cargo-jet-global/1920/1080"
+            alt="Global Shipping Cargo Jet"
             fill
-            className="object-cover grayscale-[20%]"
+            className="object-cover grayscale-[10%]"
             priority
-            data-ai-hint="cargo plane"
+            data-ai-hint="cargo jet"
           />
-          <div className="absolute inset-0 bg-primary/30 mix-blend-multiply" />
+          <div className="absolute inset-0 bg-primary/20 mix-blend-multiply" />
         </div>
         <div className="container mx-auto px-4 md:px-6 relative z-20">
           <div className="max-w-4xl mx-auto text-center text-white space-y-8">
