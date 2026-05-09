@@ -75,6 +75,7 @@ service cloud.firestore {
     }
 
     // --- Collection Group Rules for Admin Dashboards ---
+    // These allow the collectionGroup(...) queries used in the dashboard
     match /{path=**}/pre_alerts/{preAlertId} {
       allow list: if isAdmin();
       allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
