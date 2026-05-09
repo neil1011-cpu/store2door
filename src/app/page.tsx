@@ -50,8 +50,8 @@ export default function HomePage() {
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <div className="absolute inset-0">
           <Image 
-            src="https://picsum.photos/seed/cargo-jet-shipping/1200/800"
-            alt="Global Shipping Jet"
+            src="https://picsum.photos/seed/cargo-shipping-jet/1920/1080"
+            alt="Global Shipping Cargo Plane"
             fill
             className="object-cover grayscale-[20%]"
             priority
