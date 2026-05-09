@@ -45,19 +45,19 @@ const testimonials = [
 export default function HomePage() {
   return (
     <div className="flex flex-col bg-background font-body">
-      {/* Hero Section with Worldwide Van Imagery */}
+      {/* Hero Section with Global Cargo Imagery */}
       <section className="relative w-full py-24 md:py-40 lg:py-56 overflow-hidden">
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <div className="absolute inset-0">
           <Image 
-            src="https://picsum.photos/seed/delivery-van-worldwide/1200/800"
-            alt="Worldwide Delivery Services"
+            src="https://picsum.photos/seed/cargo-jet-shipping/1200/800"
+            alt="Global Shipping Jet"
             fill
             className="object-cover grayscale-[20%]"
             priority
-            data-ai-hint="delivery van"
+            data-ai-hint="cargo plane"
           />
-          <div className="absolute inset-0 bg-primary/20 mix-blend-multiply" />
+          <div className="absolute inset-0 bg-primary/30 mix-blend-multiply" />
         </div>
         <div className="container mx-auto px-4 md:px-6 relative z-20">
           <div className="max-w-4xl mx-auto text-center text-white space-y-8">
