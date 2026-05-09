@@ -55,7 +55,7 @@ export default function HomePage() {
             fill
             className="object-cover grayscale-[10%]"
             priority
-            data-ai-hint="cargo jet"
+            data-ai-hint="cargo plane"
           />
           <div className="absolute inset-0 bg-primary/20 mix-blend-multiply" />
         </div>

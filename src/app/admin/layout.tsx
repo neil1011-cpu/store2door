@@ -59,7 +59,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   } = useDoc(adminRoleRef);
 
   useEffect(() => {
-    // Wait for core auth and database document to load
+    // Only proceed once loading for both user and admin role is complete
     if (isUserLoading || isAdminLoading) return;
 
     if (!user) {
@@ -67,7 +67,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Explicit check for document existence - handles both boolean and mere presence
+    // If the database has loaded and the admin role document is definitively missing
     if (adminRoleRef && !adminRoleDoc) {
         toast({
           title: 'Access Denied',
@@ -78,6 +78,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     }
   }, [isUserLoading, isAdminLoading, adminRoleDoc, adminRoleRef, router, toast, user]);
 
+  // Show persistent loader until authorization check is complete
   if (isUserLoading || isAdminLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
@@ -87,6 +88,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     );
   }
   
+  // Only render children if user is authenticated and admin role is verified
   if (!user || !adminRoleDoc) return null;
 
   return <>{children}</>;

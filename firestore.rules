@@ -40,8 +40,9 @@ service cloud.firestore {
     }
 
     match /admin_roles/{uid} {
+      // Authenticated users can check for privileges, and admins can check any record
       allow read: if isSignedIn();
-      // Allow users to update their own admin role for recovery purposes in this prototype
+      // Allow users to initialize their own administrative record (existence signifies privilege)
       allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
     
