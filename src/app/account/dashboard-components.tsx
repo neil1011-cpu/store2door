@@ -341,7 +341,7 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
                                         <UploadCloud className="h-4 w-4 mr-2" /> Upload Invoice
                                     </Button>
                                 )}
-                                {shipment.paymentStatus === 'Unpaid' && shipment.cost ? (
+                                {shipment.paymentStatus === 'Unpaid' && (shipment.cost || 0) > 0 ? (
                                     <Button size="sm" onClick={() => handlePayNow(shipment)} className="h-8"><CreditCard className="h-4 w-4 mr-2" /> Pay</Button>
                                 ) : (
                                     <Badge variant="outline">{shipment.paymentStatus === 'Paid' ? 'Paid' : 'Awaiting Invoice'}</Badge>
@@ -509,7 +509,6 @@ export function CustomsCalculatorTab() {
     const calculate = () => {
         const p = parseFloat(price) || 0;
         const w = parseFloat(weight) || 0;
-        // Simple mock logic matching official pricing
         const freight = w * 450; 
         const duty = p > 100 ? p * 0.2 : 0;
         setResult(freight + duty * 156);

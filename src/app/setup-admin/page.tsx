@@ -20,7 +20,7 @@ import { useState } from 'react';
 import { Loader2, ShieldCheck, AlertCircle, UserPlus, Fingerprint } from 'lucide-react';
 import { useAuth, useFirestore, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, type User } from 'firebase/auth';
-import { doc, serverTimestamp, writeBatch, getDoc, setDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 
@@ -47,10 +47,7 @@ export default function SetupAdminPage() {
   });
 
   const setupAdminPrivileges = async (user: User) => {
-    // We do NOT use a batch here if metadata access is restricted.
-    // Instead, we perform individual sets which are allowed by our custom security rules.
-    
-    // 1. Admin Role Document - THE MOST CRITICAL PART
+    // 1. Admin Role Document
     const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
     await setDoc(adminRoleRef, { 
         isAdmin: true, 
@@ -77,16 +74,9 @@ export default function SetupAdminPage() {
         createdAt: serverTimestamp(),
     }, { merge: true });
     
-    // 3. Initialize Mailbox Counter if missing
-    try {
-        const mailboxCounterRef = doc(firestore, 'metadata', 'mailboxCounter');
-        const counterSnap = await getDoc(mailboxCounterRef);
-        if (!counterSnap.exists()) {
-            await setDoc(mailboxCounterRef, { next: 101 }, { merge: true });
-        }
-    } catch (e) {
-        console.warn("Mailbox counter init skipped due to permissions. This is usually fine for recovery.");
-    }
+    // 3. Initialize Metadata if missing
+    const mailboxCounterRef = doc(firestore, 'metadata', 'mailboxCounter');
+    await setDoc(mailboxCounterRef, { next: 101 }, { merge: true });
   }
 
   const handleElevateCurrentSession = async () => {
@@ -95,11 +85,9 @@ export default function SetupAdminPage() {
       try {
           await setupAdminPrivileges(currentUser);
           toast({ title: 'Privileges Restored!', description: 'Your current session has been granted administrator access.' });
-          
-          // Force a small delay to ensure Firestore propagation
           setTimeout(() => {
             router.push('/admin');
-          }, 1000);
+          }, 1500);
       } catch (error: any) {
           toast({ title: 'Elevation Failed', description: error.message, variant: 'destructive' });
       } finally {
@@ -133,17 +121,12 @@ export default function SetupAdminPage() {
         
         setTimeout(() => {
             router.push('/admin-login');
-        }, 1000);
+        }, 1500);
 
     } catch (error: any) {
-        console.error("Admin setup error:", error);
-        let errorMessage = error.message;
-        if (error.code === 'auth/invalid-credential') {
-            errorMessage = "Incorrect password for the existing account. Please sign in normally first, then use the session elevation tool below.";
-        }
         toast({
             title: 'Setup Failed',
-            description: errorMessage,
+            description: error.message,
             variant: 'destructive',
         });
     } finally {

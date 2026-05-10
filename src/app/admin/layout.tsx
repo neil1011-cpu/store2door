@@ -70,25 +70,21 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     }
 
     // Definitive check: loading finished, but no admin record exists in the database
-    // We check if adminRoleDoc is null, which is what useDoc returns if the snapshot does not exist
     if (adminRoleRef && !adminRoleDoc && !adminError) {
         toast({
           title: 'Access Denied',
-          description: "Administrator privileges required. Use the recovery tool at /setup-admin if needed.",
+          description: "Administrator privileges required. If you are an admin, please use the recovery tool at /setup-admin.",
           variant: 'destructive',
         });
         router.replace('/admin-login');
     }
     
-    // Handle error state (e.g., permission denied to read own role)
     if (adminError) {
-        console.error("AdminAuthGuard Authorization Error:", adminError);
         toast({
             title: 'Authorization Error',
-            description: "Failed to verify admin privileges. Please try re-linking your session at /setup-admin.",
+            description: "Failed to verify admin privileges. Please try again or use the recovery tool.",
             variant: 'destructive'
         });
-        // Stay on page or redirect to recovery
     }
   }, [isUserLoading, isAdminLoading, adminRoleDoc, adminError, adminRoleRef, router, toast, user]);
 

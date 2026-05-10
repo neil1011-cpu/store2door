@@ -9,7 +9,6 @@ service cloud.firestore {
     }
 
     // Admins are defined by existence of a document in the admin_roles collection
-    // We use a robust path that works across all query types
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
@@ -19,12 +18,18 @@ service cloud.firestore {
     }
 
     // --- Global Admin Bypass ---
-    // This allows administrators full access to the database, ensuring admin panels work perfectly.
+    // Administrators have full access to all paths.
     match /{allPaths=**} {
       allow read, write: if isAdmin();
     }
 
     // --- Collection Rules ---
+
+    // Public read access to shipments by tracking number (for tracking page)
+    match /{path=**}/shipments/{id} {
+      allow read: if true;
+      allow list: if isAdmin();
+    }
 
     match /users/{userId} {
        allow read: if isOwner(userId) || isAdmin();
@@ -35,36 +40,33 @@ service cloud.firestore {
        }
     }
 
-    // Allow authenticated users to read and initialize their own admin role
-    // This is CRITICAL for the recovery tool and AuthGuard to work.
+    // Allow authenticated users to initialize their own admin role
+    // This is required for the recovery tool to function.
     match /admin_roles/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
     
     match /invoices/{id} {
         allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
     }
     
-    // Tracking page needs public read access to specific shipments by tracking number
-    // Added explicit 'list' permission for collection group queries for admins
-    match /{path=**}/shipments/{id} {
-      allow read: if true;
-      allow list: if isAdmin();
-    }
-
     match /{path=**}/pre_alerts/{id} {
       allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
       allow list: if isAdmin();
     }
     
-    // Collection group matches for administrative listing
+    // Explicit list permissions for collection group queries
     match /{path=**}/pre_alerts {
        allow list: if isAdmin();
     }
     
     match /{path=**}/shipments {
        allow list: if isAdmin();
+    }
+
+    // Metadata access for mailbox sequence
+    match /metadata/{id} {
+      allow read, write: if isSignedIn();
     }
   }
 }
