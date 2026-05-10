@@ -18,13 +18,6 @@ service cloud.firestore {
 
     // --- Collection Rules ---
 
-    match /user_profiles/{userId} {
-      allow get: if isSignedIn();
-      allow list: if isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
-    }
-
     match /users/{userId} {
        allow read: if isOwner(userId) || isAdmin();
        allow write: if isOwner(userId) || isAdmin();
@@ -40,9 +33,8 @@ service cloud.firestore {
     }
 
     match /admin_roles/{uid} {
-      // Authenticated users can check for privileges, and admins can check any record
+      // Authenticated users can check for privileges, and users can initialize their own record
       allow read: if isSignedIn();
-      // Allow users to initialize their own administrative record (existence signifies privilege)
       allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
     
@@ -75,7 +67,6 @@ service cloud.firestore {
     }
 
     // --- Collection Group Rules for Admin Dashboards ---
-    // These allow the collectionGroup(...) queries used in the dashboard
     match /{path=**}/pre_alerts/{preAlertId} {
       allow list: if isAdmin();
       allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);

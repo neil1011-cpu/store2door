@@ -56,40 +56,55 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   const {
     data: adminRoleDoc,
     isLoading: isAdminLoading,
+    error: adminError,
   } = useDoc(adminRoleRef);
 
   useEffect(() => {
-    // Only proceed once loading for both user and admin role is complete
+    // Wait for everything to load
     if (isUserLoading || isAdminLoading) return;
 
+    // Not logged in at all
     if (!user) {
       router.replace('/admin-login');
       return;
     }
 
-    // If the database has loaded and the admin role document is definitively missing
-    // we use !adminRoleDoc to check for existence
-    if (adminRoleRef && !adminRoleDoc) {
+    // Definitive check: loading finished, but no admin record exists
+    if (adminRoleRef && !adminRoleDoc && !adminError) {
         toast({
           title: 'Access Denied',
-          description: "Administrator privileges required for this area. Use the recovery tool if needed.",
+          description: "Administrator privileges required for this area. Use the recovery tool at /setup-admin if needed.",
           variant: 'destructive',
         });
         router.replace('/admin-login');
     }
-  }, [isUserLoading, isAdminLoading, adminRoleDoc, adminRoleRef, router, toast, user]);
+    
+    // Handle error state (e.g., permission denied to read own role)
+    if (adminError) {
+        console.error("AdminAuthGuard Error:", adminError);
+        toast({
+            title: 'Security Error',
+            description: "Failed to verify admin privileges. Please try re-linking your session.",
+            variant: 'destructive'
+        });
+        router.replace('/setup-admin');
+    }
+  }, [isUserLoading, isAdminLoading, adminRoleDoc, adminError, adminRoleRef, router, toast, user]);
 
-  // Show persistent loader until authorization check is complete
+  // Show loader until loading is finished
   if (isUserLoading || isAdminLoading) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
+      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background text-center p-6">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse font-medium">Authorizing Admin Session...</p>
+        <div className="space-y-1">
+            <p className="text-lg font-black uppercase italic tracking-tighter">Authorizing Admin Session</p>
+            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">Syncing worldwide database...</p>
+        </div>
       </div>
     );
   }
   
-  // Only render children if user is authenticated and admin role is verified
+  // Only render children if verified
   if (!user || !adminRoleDoc) return null;
 
   return <>{children}</>;
