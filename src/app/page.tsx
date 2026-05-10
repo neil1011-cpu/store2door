@@ -45,17 +45,17 @@ const testimonials = [
 export default function HomePage() {
   return (
     <div className="flex flex-col bg-background font-body">
-      {/* Hero Section with Global Cargo Imagery */}
+      {/* Hero Section with Professional Cargo Logistics Imagery */}
       <section className="relative w-full py-24 md:py-40 lg:py-56 overflow-hidden">
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <div className="absolute inset-0">
           <Image 
-            src="https://picsum.photos/seed/cargo-jet-global/1920/1080"
-            alt="Global Shipping Cargo Jet"
+            src="https://picsum.photos/seed/worldwide-logistics-port/1920/1080"
+            alt="Global Shipping Cargo Terminal"
             fill
-            className="object-cover grayscale-[10%]"
+            className="object-cover grayscale-[20%]"
             priority
-            data-ai-hint="cargo plane"
+            data-ai-hint="cargo ship"
           />
           <div className="absolute inset-0 bg-primary/20 mix-blend-multiply" />
         </div>

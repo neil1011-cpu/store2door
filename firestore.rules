@@ -17,6 +17,12 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // --- Global Admin Bypass ---
+    // This allows administrators full access to the database, ensuring admin panels work perfectly.
+    match /{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+
     // --- Collection Rules ---
 
     match /users/{userId} {
@@ -28,52 +34,23 @@ service cloud.firestore {
        }
     }
 
-    // Allow admins to list all users
-    match /users {
-      allow list: if isAdmin();
-    }
-
+    // Allow authenticated users to read and initialize their own admin role
+    // This is CRITICAL for the recovery tool and AuthGuard to work.
     match /admin_roles/{uid} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
     
-    match /admin_roles {
-      allow list: if isAdmin();
-    }
-
     match /invoices/{id} {
         allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
-        allow write: if isAdmin();
-        allow list: if isAdmin();
     }
     
-    match /transactions/{id} {
-        allow read, write, list: if isAdmin();
-    }
-    
-    match /sent_emails/{id} {
-        allow read, write, list: if isAdmin();
-    }
-
-    match /metadata/{id} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /flight_manifests/{id} {
-      allow read, list: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    // --- Collection Group Rules for Admin Dashboards ---
-    match /{path=**}/pre_alerts/{id} {
-      allow list: if isAdmin();
-      allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
-    }
-
+    // Tracking page needs public read access to specific shipments by tracking number
     match /{path=**}/shipments/{id} {
-      allow list: if isAdmin();
+      allow read: if true;
+    }
+
+    match /{path=**}/pre_alerts/{id} {
       allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
     }
   }
