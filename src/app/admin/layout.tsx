@@ -60,7 +60,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   } = useDoc(adminRoleRef);
 
   useEffect(() => {
-    // Wait for everything to load
+    // Wait for BOTH the auth user and the database record to finish loading
     if (isUserLoading || isAdminLoading) return;
 
     // Not logged in at all
@@ -69,11 +69,12 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Definitive check: loading finished, but no admin record exists
+    // Definitive check: loading finished, but no admin record exists in the database
+    // We check if adminRoleDoc is null, which is what useDoc returns if the snapshot does not exist
     if (adminRoleRef && !adminRoleDoc && !adminError) {
         toast({
           title: 'Access Denied',
-          description: "Administrator privileges required for this area. Use the recovery tool at /setup-admin if needed.",
+          description: "Administrator privileges required. Use the recovery tool at /setup-admin if needed.",
           variant: 'destructive',
         });
         router.replace('/admin-login');
@@ -81,30 +82,30 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     
     // Handle error state (e.g., permission denied to read own role)
     if (adminError) {
-        console.error("AdminAuthGuard Error:", adminError);
+        console.error("AdminAuthGuard Authorization Error:", adminError);
         toast({
-            title: 'Security Error',
-            description: "Failed to verify admin privileges. Please try re-linking your session.",
+            title: 'Authorization Error',
+            description: "Failed to verify admin privileges. Please try re-linking your session at /setup-admin.",
             variant: 'destructive'
         });
-        router.replace('/setup-admin');
+        // Stay on page or redirect to recovery
     }
   }, [isUserLoading, isAdminLoading, adminRoleDoc, adminError, adminRoleRef, router, toast, user]);
 
-  // Show loader until loading is finished
+  // Show loader while loading or if not authorized yet
   if (isUserLoading || isAdminLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background text-center p-6">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <div className="space-y-1">
             <p className="text-lg font-black uppercase italic tracking-tighter">Authorizing Admin Session</p>
-            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">Syncing worldwide database...</p>
+            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">Checking worldwide credentials...</p>
         </div>
       </div>
     );
   }
   
-  // Only render children if verified
+  // Only render children if verified as an admin
   if (!user || !adminRoleDoc) return null;
 
   return <>{children}</>;

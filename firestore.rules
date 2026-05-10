@@ -9,6 +9,7 @@ service cloud.firestore {
     }
 
     // Admins are defined by existence of a document in the admin_roles collection
+    // We use a robust path that works across all query types
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
@@ -46,12 +47,24 @@ service cloud.firestore {
     }
     
     // Tracking page needs public read access to specific shipments by tracking number
+    // Added explicit 'list' permission for collection group queries for admins
     match /{path=**}/shipments/{id} {
       allow read: if true;
+      allow list: if isAdmin();
     }
 
     match /{path=**}/pre_alerts/{id} {
       allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
+      allow list: if isAdmin();
+    }
+    
+    // Collection group matches for administrative listing
+    match /{path=**}/pre_alerts {
+       allow list: if isAdmin();
+    }
+    
+    match /{path=**}/shipments {
+       allow list: if isAdmin();
     }
   }
 }
