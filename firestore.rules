@@ -18,9 +18,9 @@ service cloud.firestore {
     }
 
     // --- Global Admin Bypass ---
-    // Administrators have full access to all paths.
+    // Administrators have full access to all paths, including collection groups.
     match /{allPaths=**} {
-      allow read, write: if isAdmin();
+      allow read, write, list: if isAdmin();
     }
 
     // --- Collection Rules ---
@@ -31,12 +31,13 @@ service cloud.firestore {
       allow list: if isAdmin();
     }
 
+    // Users and their subcollections
     match /users/{userId} {
        allow read: if isOwner(userId) || isAdmin();
        allow write: if isOwner(userId) || isAdmin();
        
        match /{allSubcollections=**} {
-         allow read, write: if isOwner(userId) || isAdmin();
+         allow read, write, list: if isOwner(userId) || isAdmin();
        }
     }
 
@@ -44,18 +45,21 @@ service cloud.firestore {
     // This is required for the recovery tool to function.
     match /admin_roles/{uid} {
       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-    }
-    
-    match /invoices/{id} {
-        allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
-    }
-    
-    match /{path=**}/pre_alerts/{id} {
-      allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
       allow list: if isAdmin();
     }
     
-    // Explicit list permissions for collection group queries
+    // Invoices access
+    match /invoices/{id} {
+        allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
+        allow list: if isAdmin();
+    }
+    
+    // Collection Group Matches for Global Queries
+    match /{path=**}/pre_alerts/{id} {
+      allow read: if isSignedIn() && (isAdmin() || (resource != null && resource.data.customerId == request.auth.uid));
+      allow list: if isAdmin();
+    }
+    
     match /{path=**}/pre_alerts {
        allow list: if isAdmin();
     }
@@ -64,9 +68,19 @@ service cloud.firestore {
        allow list: if isAdmin();
     }
 
+    // Transactions and Financials
+    match /transactions/{id} {
+       allow read, list, write: if isAdmin();
+    }
+
     // Metadata access for mailbox sequence
     match /metadata/{id} {
       allow read, write: if isSignedIn();
+    }
+    
+    // Sent emails history
+    match /sent_emails/{id} {
+       allow read, list: if isAdmin();
     }
   }
 }

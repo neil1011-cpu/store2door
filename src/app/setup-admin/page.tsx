@@ -47,11 +47,12 @@ export default function SetupAdminPage() {
   });
 
   const setupAdminPrivileges = async (user: User) => {
-    // 1. Admin Role Document
+    // 1. Admin Role Document (existence is key for isAdmin() check)
     const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
     await setDoc(adminRoleRef, { 
         isAdmin: true, 
         email: user.email,
+        uid: user.uid,
         updatedAt: serverTimestamp() 
     }, { merge: true });
 
@@ -80,16 +81,22 @@ export default function SetupAdminPage() {
   }
 
   const handleElevateCurrentSession = async () => {
-      if (!currentUser) return;
+      if (!currentUser) {
+          toast({ title: 'No Session Found', description: 'Please sign in first.', variant: 'destructive' });
+          return;
+      }
       setIsElevatingSession(true);
       try {
           await setupAdminPrivileges(currentUser);
-          toast({ title: 'Privileges Restored!', description: 'Your current session has been granted administrator access.' });
+          toast({ title: 'Privileges Granted!', description: 'You now have administrator access to FromStore2Door.' });
+          
+          // Clear any caches and redirect
           setTimeout(() => {
-            router.push('/admin');
-          }, 1500);
+            window.location.href = '/admin';
+          }, 1000);
       } catch (error: any) {
-          toast({ title: 'Elevation Failed', description: error.message, variant: 'destructive' });
+          console.error("Elevation error:", error);
+          toast({ title: 'Setup Failed', description: error.message, variant: 'destructive' });
       } finally {
           setIsElevatingSession(false);
       }
@@ -115,8 +122,8 @@ export default function SetupAdminPage() {
         await setupAdminPrivileges(user);
 
         toast({
-            title: 'Privileges Restored!',
-            description: 'Your account has been granted administrator access.',
+            title: 'Account Configured',
+            description: 'Database privileges have been successfully linked.',
         });
         
         setTimeout(() => {
@@ -125,7 +132,7 @@ export default function SetupAdminPage() {
 
     } catch (error: any) {
         toast({
-            title: 'Setup Failed',
+            title: 'Setup Error',
             description: error.message,
             variant: 'destructive',
         });
@@ -139,17 +146,17 @@ export default function SetupAdminPage() {
       <Card className="shadow-xl overflow-hidden">
         <CardHeader className="text-center bg-primary/5 pb-8">
           <ShieldCheck className="mx-auto h-12 w-12 text-primary" />
-          <CardTitle className="text-3xl mt-4">Admin Recovery Tool</CardTitle>
+          <CardTitle className="text-3xl mt-4">Database Privilege Manager</CardTitle>
           <CardDescription>
-            Re-assign administrator privileges to your primary account.
+            Authorize administrative access for your account.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
            <Alert className="mb-6 bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-900">
                 <AlertCircle className="h-4 w-4 text-blue-600" />
-                <AlertTitle>Privilege Linker</AlertTitle>
+                <AlertTitle>Action Required</AlertTitle>
                 <AlertDescription className="text-xs">
-                    This tool will verify your credentials and link your account to the <strong>admin_roles</strong> database collection.
+                    Use this tool to manually link your identity to the <strong>admin_roles</strong> database records.
                 </AlertDescription>
             </Alert>
 
@@ -157,18 +164,18 @@ export default function SetupAdminPage() {
               <div className="space-y-4 mb-8">
                   <div className="p-4 border rounded-lg bg-muted/30 flex items-center gap-4">
                       <Fingerprint className="h-8 w-8 text-primary" />
-                      <div>
-                          <p className="text-xs font-bold uppercase text-muted-foreground">Active Session Detected</p>
-                          <p className="font-bold">{currentUser.email}</p>
+                      <div className="overflow-hidden">
+                          <p className="text-xs font-bold uppercase text-muted-foreground">Authenticated As</p>
+                          <p className="font-bold truncate">{currentUser.email}</p>
                       </div>
                   </div>
                   <Button onClick={handleElevateCurrentSession} disabled={isElevatingSession} className="w-full h-12 font-bold" variant="secondary">
                       {isElevatingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                      Link Current Session to Admin Roles
+                      Authorize Current Session
                   </Button>
                   <div className="relative py-4">
                     <Separator />
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-[10px] uppercase font-bold text-muted-foreground">Or setup different account</span>
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-[10px] uppercase font-bold text-muted-foreground">Or setup different credentials</span>
                   </div>
               </div>
           ) : null}
@@ -193,7 +200,7 @@ export default function SetupAdminPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>Secure Key</FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="••••••••" {...field} />
                     </FormControl>
@@ -201,8 +208,8 @@ export default function SetupAdminPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Authorizing...</> : 'Apply Admin Privileges'}
+              <Button type="submit" size="lg" className="w-full h-12 font-bold shadow-lg" disabled={loading}>
+                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Link Admin Credentials'}
               </Button>
             </form>
           </Form>

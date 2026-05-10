@@ -70,21 +70,19 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     }
 
     // Definitive check: loading finished, but no admin record exists in the database
+    // We check for the existence of the document itself.
     if (adminRoleRef && !adminRoleDoc && !adminError) {
         toast({
           title: 'Access Denied',
-          description: "Administrator privileges required. If you are an admin, please use the recovery tool at /setup-admin.",
+          description: "Administrator privileges required. Use the recovery tool at /setup-admin if needed.",
           variant: 'destructive',
         });
         router.replace('/admin-login');
     }
     
     if (adminError) {
-        toast({
-            title: 'Authorization Error',
-            description: "Failed to verify admin privileges. Please try again or use the recovery tool.",
-            variant: 'destructive'
-        });
+        // Only show error if it's not a temporary loading error
+        console.error("Admin verification error:", adminError);
     }
   }, [isUserLoading, isAdminLoading, adminRoleDoc, adminError, adminRoleRef, router, toast, user]);
 
@@ -95,7 +93,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <div className="space-y-1">
             <p className="text-lg font-black uppercase italic tracking-tighter">Authorizing Admin Session</p>
-            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">Checking worldwide credentials...</p>
+            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">Checking credentials...</p>
         </div>
       </div>
     );
