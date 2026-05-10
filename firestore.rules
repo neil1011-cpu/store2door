@@ -8,6 +8,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Admins are defined by existence of a document in the admin_roles collection
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
@@ -27,13 +28,12 @@ service cloud.firestore {
        }
     }
 
-    // Admin List Users for Dashboard
+    // Allow admins to list all users
     match /users {
       allow list: if isAdmin();
     }
 
     match /admin_roles/{uid} {
-      // Authenticated users can check for privileges, and users can initialize their own record
       allow read: if isSignedIn();
       allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
@@ -67,12 +67,12 @@ service cloud.firestore {
     }
 
     // --- Collection Group Rules for Admin Dashboards ---
-    match /{path=**}/pre_alerts/{preAlertId} {
+    match /{path=**}/pre_alerts/{id} {
       allow list: if isAdmin();
       allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
     }
 
-    match /{path=**}/shipments/{shipmentId} {
+    match /{path=**}/shipments/{id} {
       allow list: if isAdmin();
       allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
     }
