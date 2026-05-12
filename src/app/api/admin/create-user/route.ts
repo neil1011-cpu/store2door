@@ -19,16 +19,17 @@ export async function POST(request: Request) {
 
     if (!authorization?.startsWith('Bearer ')) {
       return NextResponse.json(
-        { message: 'Unauthorized' },
+        { message: 'Unauthorized: Missing token' },
         { status: 401 }
       );
     }
 
     const idToken = authorization.split('Bearer ')[1];
+    
+    // The verifyIdToken call will now succeed because the Admin SDK is initialized with the correct Project ID.
     const decodedToken = await adminAuth.verifyIdToken(idToken);
 
     // 2. Admin role check
-    // We allow admin@neilussolutions.com to bypass the role document check for initial setup
     const isAdminEmail = decodedToken.email === 'admin@neilussolutions.com';
     const adminRoleDoc = await adminDb
       .collection('admin_roles')
@@ -37,34 +38,31 @@ export async function POST(request: Request) {
 
     if (!adminRoleDoc.exists && !isAdminEmail) {
       return NextResponse.json(
-        { message: 'Forbidden: Admin access required.' },
+        { message: 'Forbidden: Administrator privileges required.' },
         { status: 403 }
       );
     }
 
-    // 3. Create Firebase Auth user
+    // 3. Create/Sync Firebase Auth user
     let userRecord;
     try {
         userRecord = await adminAuth.createUser({
             email: email?.trim().toLowerCase(),
-            password: defaultPassword,
+            password: defaultPassword || 'User@1234',
             displayName: `${firstName} ${lastName}`,
         });
     } catch (authError: any) {
         if (authError.code === 'auth/email-already-in-use') {
-            // If user already exists in Auth, we try to fetch them to ensure Firestore is synced
             userRecord = await adminAuth.getUserByEmail(email.trim().toLowerCase());
         } else {
             throw authError;
         }
     }
 
-    // 4. Mailbox generation
-    const mailbox =
-      mailboxNumber ||
-      `FSTD${Math.floor(1000 + Math.random() * 9000)}`;
+    // 4. Mailbox identification
+    const mailbox = mailboxNumber || `FSTD${Math.floor(10000 + Math.random() * 90000)}`;
 
-    // 5. Firestore user profile
+    // 5. Build Firestore Profile
     await adminDb.collection('users').doc(userRecord.uid).set({
       id: userRecord.uid,
       fullName: `${firstName} ${lastName}`,
@@ -72,7 +70,7 @@ export async function POST(request: Request) {
       lastName,
       email: email?.trim().toLowerCase(),
       phone,
-      trn,
+      trn: trn || 'N/A',
       mailboxNumber: mailbox,
       address: {
         address1: '4350 NE 5th Terrace Bay #3',
@@ -88,14 +86,13 @@ export async function POST(request: Request) {
     }, { merge: true });
 
     return NextResponse.json({
-      message: 'User created successfully',
+      message: 'User synchronized successfully',
       uid: userRecord.uid,
       mailbox,
     });
 
   } catch (error: any) {
-    console.error('API Error: create-user:', error);
-
+    console.error('Migration API Error:', error);
     return NextResponse.json(
       { message: error.message || 'User creation failed' },
       { status: 500 }

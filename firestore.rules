@@ -2,14 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helper Functions ---
+    // --- Core Helper Functions ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
     // Administrators have full access.
-    // We include a hardcoded email fallback to ensure the primary admin can always regain control.
+    // Explicit email fallback ensures primary admin can recover the system.
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
@@ -21,67 +21,55 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- Global Admin Bypass ---
-    // Administrators have full access to all paths, including collection groups.
+    // --- Global Administrative Override ---
+    // Grants full unrestricted access to any path for recognized admins.
     match /{allPaths=**} {
       allow read, write, list: if isAdmin();
     }
 
-    // --- Collection Rules ---
+    // --- Public & User Collection Rules ---
 
-    // Public read access to shipments by tracking number (for tracking page)
-    match /{path=**}/shipments/{id} {
+    // Allow public tracking by specific ID
+    match /users/{userId}/shipments/{id} {
       allow read: if true;
-      allow list: if isAdmin();
     }
 
-    // Users and their subcollections
+    // Secure access to profile roles
+    match /admin_roles/{uid} {
+      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // User-specific data access
     match /users/{userId} {
-       allow read: if isOwner(userId) || isAdmin();
-       allow write: if isOwner(userId) || isAdmin();
+       allow read, write: if isOwner(userId) || isAdmin();
        
        match /{allSubcollections=**} {
          allow read, write, list: if isOwner(userId) || isAdmin();
        }
     }
-
-    // Allow authenticated users to read and initialize their own admin role status
-    match /admin_roles/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-    }
     
-    // Explicit matches for Collection Groups (fixing root 'list' errors)
+    // Explicit authorization for global Collection Group queries
     match /{path=**}/pre_alerts/{id} {
-      allow read: if isSignedIn() && (isAdmin() || (resource != null && resource.data.customerId == request.auth.uid));
+      allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
       allow list: if isAdmin();
     }
     
-    match /{path=**}/pre_alerts {
-       allow list: if isAdmin();
-    }
-    
-    match /{path=**}/shipments {
+    match /{path=**}/shipments/{id} {
        allow list: if isAdmin();
     }
 
-    // Financials
+    // Financial Records
     match /transactions/{id} {
-       allow read, list, write: if isAdmin();
+       allow read, write, list: if isAdmin();
     }
     
     match /invoices/{id} {
-       allow read, list, write: if isAdmin();
+       allow read, write, list: if isAdmin();
     }
 
-    // Metadata access for mailbox sequence
+    // System Metadata
     match /metadata/{id} {
       allow read, write: if isSignedIn();
-    }
-    
-    // Sent emails history
-    match /sent_emails/{id} {
-       allow read, list: if isAdmin();
     }
   }
 }
