@@ -33,23 +33,33 @@ export async function POST(request: Request) {
     const authorization = request.headers.get('Authorization');
 
     if (!authorization?.startsWith('Bearer ')) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ message: 'Unauthorized: Missing Authorization header' }, { status: 401 });
     }
 
     const idToken = authorization.split('Bearer ')[1];
     
-    // Manual decode to bypass workstation project ID mismatch
-    const decodedToken = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
+    // Manual decode to bypass workstation project ID mismatch ("aud" claim issue)
+    // Part 2 of the JWT (index 1) is the payload
+    const tokenParts = idToken.split('.');
+    if (tokenParts.length < 2) {
+        return NextResponse.json({ message: 'Unauthorized: Malformed token' }, { status: 401 });
+    }
+
+    const payloadBase64 = tokenParts[1];
+    const decodedToken = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
     
-    if (!decodedToken || !decodedToken.uid) {
+    // Firebase ID tokens use 'sub' for the UID and 'user_id' for the alias
+    const uid = decodedToken.sub || decodedToken.user_id;
+
+    if (!decodedToken || !uid) {
         return NextResponse.json({ message: 'Invalid token structure' }, { status: 401 });
     }
 
     // 2. Admin role check
-    const isAdmin = await getAdminStatus(decodedToken.uid, decodedToken.email);
+    const isAdmin = await getAdminStatus(uid, decodedToken.email);
 
     if (!isAdmin) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+      return NextResponse.json({ message: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
     // 3. Create/Sync Firebase Auth user
@@ -79,7 +89,7 @@ export async function POST(request: Request) {
       firstName,
       lastName,
       email: email?.trim().toLowerCase(),
-      phone,
+      phone: phone || 'N/A',
       trn: trn || 'N/A',
       mailboxNumber: mailbox,
       address: {
@@ -104,7 +114,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('Migration API Error:', error);
     return NextResponse.json(
-      { message: error.message || 'Operation failed due to environment gRPC timeout' },
+      { message: error.message || 'Operation failed' },
       { status: 500 }
     );
   }

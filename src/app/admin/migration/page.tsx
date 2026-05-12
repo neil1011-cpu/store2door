@@ -224,6 +224,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10296", first: "Serie", last: "Mitchell", email: "serenamitchelkm@gmail.com", phone: "8765396409" },
   { code: "FSTD10231", first: "Andrian", last: "Shawsmith", email: "andrian.shawsmith@gmail.com", phone: "18768373856" },
   { code: "FSTD10213", first: "Ricardo", last: "Whitely", email: "Whitely.ricardo@yahoo.com", phone: "8768665883" },
+  { code: "FSTD10213", first: "Ricardo", last: "Whitely", email: "Whitely.ricardo@yahoo.com", phone: "8768665883" },
   { code: "FSTD10094", first: "Ravia", last: "Wallen", email: "raviawallen85@gmail.com", phone: "8768697420" },
   { code: "FSTD10064", first: "Jevaughn", last: "East", email: "jevaughneast2@gmail.com", phone: "8765978726" },
   { code: "FSTD10283", first: "Keino", last: "Brown", email: "Keino_brown@hotmail.com", phone: "8764720300" },
@@ -256,7 +257,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10260", first: "Sean", last: "Lewis", email: "seanlewis82@gmail.com", phone: "8764579028" },
   { code: "FSTD10289", first: "Kyle", last: "Anderson", email: "kylearmani@gmail.com", phone: "8765052625" },
   { code: "FSTD10086", first: "Kemar", last: "Fenderson", email: "kemarfenderson@gmail.com", phone: "8765082491" },
-  { code: "FSTD10265", first: "Chemoy", last: "Morgan", email: "chemoy8morgan@gmail.com", phone: "8768705227" },
+  { code: "FSTD10265", first: "Chemoy", last: "Morgan", email: "chemoy8morgan@gmail.com", phone: "876-870-5227" },
   { code: "FSTD10220", first: "Paulette", last: "Wynter-Crossfield", email: "pwyntercrossfield@yahoo.com", phone: "8768338098" },
   { code: "FSTD10259", first: "Sheldon", last: "Badwah", email: "greenknight260@hotmail.com", phone: "8763845734" },
   { code: "FSTD10016", first: "Shadae", last: "Young", email: "shadaelewis876@gmail.com", phone: "8764355126" },
@@ -277,7 +278,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10286", first: "Renae", last: "Palmer-Gayle", email: "palstacy@yahoo.com", phone: "8764501112" },
   { code: "FSTD10245", first: "Saran", last: "Reeves", email: "saranreeves@gmail.com", phone: "18763880889" },
   { code: "FSTD10302", first: "From Store 2", last: "Door Shipping Services", email: "fromstoretoodoor@gmail.com", phone: "18767713071" },
-  { code: "FSTD10303", first: "Alouda", last: "Black", email: "fromstoretoodoorja@gmail.com", phone: "8764316130" },
+  { code: "FSTD10303", first: "Alouda", last: "Black", email: "fromstoretoodoorja@gmail.com", phone: "876-4316130" },
   { code: "FSTD10304", first: "Kerrene", last: "Downer", email: "simmspea@gmail.com", phone: "18762855035" },
   { code: "FSTD10305", first: "Rohan", last: "Brown", email: "rohanbrown614@gmail.com", phone: "18763636364" },
   { code: "FSTD10306", first: "Keiara", last: "Thomas", email: "keiarathomas360@gmail.com", phone: "8764418071" },
@@ -421,7 +422,7 @@ export default function MigrationPage() {
               <AlertCircle className="h-4 w-4 text-primary" />
               <AlertTitle className="font-bold">Migration Logic</AlertTitle>
               <AlertDescription className="text-xs">
-                  This tool creates Firebase Auth records and Firestore profiles. If the server cannot communicate with Google Cloud (Error 2 UNKNOWN), please manually add users via Firebase Console and their profiles will sync on their first login.
+                  This tool creates Firebase Auth records and Firestore profiles. Emails have been disabled for this bulk import to ensure high-speed processing.
               </AlertDescription>
           </Alert>
 
