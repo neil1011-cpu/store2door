@@ -21,6 +21,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
 
 const MIGRATION_DATA = [
   { code: "FSTD10147", first: "Celedia", last: "Mundy", email: "celediamundytamera@gmail.com", phone: "8762787949" },
@@ -54,7 +56,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10170", first: "Romona", last: "Simms", email: "kimonesimms82@gmail.com", phone: "8765872391" },
   { code: "FSTD10182", first: "Coco", last: "Pryor", email: "genetimar@gmail.com", phone: "8764663938" },
   { code: "FSTD10164", first: "TAMEKA", last: "Spence", email: "tameka.spence@gmail.com", phone: "8768265232" },
-  { code: "FSTD10189", first: "Natalee", last: "McDonald", email: "nataleemcdonald55@gmail.com", phone: "8762645501" },
+  { code: "FSTD10189", first: "Natalee", last: "McDonald", email: "nataleemcdonald55@gmail.com", phone: "876-264-5501" },
   { code: "FSTD10168", first: "Titan", last: "Hodges", email: "titanhodges5@outlook.com", phone: "16582012177" },
   { code: "FSTD10195", first: "Keron", last: "Smith", email: "spiceybmw@outlook.com", phone: "8668546639" },
   { code: "FSTD10201", first: "Dion", last: "Downer", email: "phatdian25@yahoo.com", phone: "8768323556" },
@@ -306,7 +308,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10333", first: "Kimberly", last: "Bruce", email: "tazimktho@gmail.com", phone: "8765070572" },
   { code: "FSTD10334", first: "Sophana", last: "Burton", email: "sophanaburton68@gmail.com", phone: "8135855429" },
   { code: "FSTD10335", first: "Shanique", last: "Brady", email: "shaniquebrady9@gmail.com", phone: "8765731737" },
-  { code: "FSTD10336", first: "Shaunalee", last: "Smith", email: "shamaradixon641@gmail.com", phone: "8768574273" },
+  { code: "FSTD10336", first: "Shaunalee", last: "Smith", email: "shamaradixon641@gmail.com", phone: "876-857-4273" },
   { code: "FSTD10337", first: "Samara", last: "Vissay", email: "samaravissay@gmail.com", phone: "8768385667" },
   { code: "FSTD10338", first: "Amelia", last: "Miller", email: "ameliamill42@gmail.com", phone: "8767005572" },
   { code: "FSTD10339", first: "Christopher", last: "Miller", email: "globalwallet8@gmail.com", phone: "8763192444" },
