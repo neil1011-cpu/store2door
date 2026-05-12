@@ -28,6 +28,7 @@ import {
   Tag,
   Calculator,
   Bell,
+  DatabaseZap,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
@@ -60,7 +61,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   } = useDoc(adminRoleRef);
 
   useEffect(() => {
-    // Wait for BOTH the auth user and the database record to finish loading
+    // CRITICAL: Wait for BOTH the auth user and the database record to finish loading
     if (isUserLoading || isAdminLoading) return;
 
     // Not logged in at all
@@ -70,7 +71,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     }
 
     // Definitive check: loading finished, but no admin record exists in the database
-    // We check for the existence of the document itself.
     if (adminRoleRef && !adminRoleDoc && !adminError) {
         toast({
           title: 'Access Denied',
@@ -78,11 +78,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
           variant: 'destructive',
         });
         router.replace('/admin-login');
-    }
-    
-    if (adminError) {
-        // Only show error if it's not a temporary loading error
-        console.error("Admin verification error:", adminError);
     }
   }, [isUserLoading, isAdminLoading, adminRoleDoc, adminError, adminRoleRef, router, toast, user]);
 
@@ -131,6 +126,7 @@ export default function AdminLayout({
     { href: "/admin/rates", icon: <Tag />, label: "Rates" },
     { href: "/admin/customs-calculator", icon: <Calculator />, label: "Calculator" },
     { href: "/admin/notifications", icon: <Bell />, label: "Notifications" },
+    { href: "/admin/migration", icon: <DatabaseZap />, label: "Migration" },
     { href: "/admin/settings", icon: <Settings />, label: "Settings" },
   ];
 

@@ -42,7 +42,7 @@ service cloud.firestore {
     }
 
     // Allow authenticated users to initialize their own admin role
-    // This is required for the recovery tool to function.
+    // This is required for the recovery tool and first-time setup to function.
     match /admin_roles/{uid} {
       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow list: if isAdmin();
@@ -50,11 +50,11 @@ service cloud.firestore {
     
     // Invoices access
     match /invoices/{id} {
-        allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
+        allow read: if isSignedIn() && (isAdmin() || (resource != null && resource.data.customerId == request.auth.uid));
         allow list: if isAdmin();
     }
     
-    // Collection Group Matches for Global Queries
+    // Explicit matches for Collection Groups (fixing the 'list' error at root)
     match /{path=**}/pre_alerts/{id} {
       allow read: if isSignedIn() && (isAdmin() || (resource != null && resource.data.customerId == request.auth.uid));
       allow list: if isAdmin();
