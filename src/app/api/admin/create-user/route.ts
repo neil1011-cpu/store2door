@@ -38,6 +38,7 @@ export async function POST(request: Request) {
         const idToken = authorization.split('Bearer ')[1];
         const decodedToken = await auth.verifyIdToken(idToken);
         
+        // Use standardized collection 'admin_roles' for existence check
         const adminRoleDoc = await firestore.collection('admin_roles').doc(decodedToken.uid).get();
         if (!adminRoleDoc.exists) {
             return NextResponse.json({ message: 'Forbidden: Admin access required.' }, { status: 403 });
@@ -75,6 +76,9 @@ export async function POST(request: Request) {
         };
 
         await firestore.collection('users').doc(userRecord.uid).set(userProfile);
+
+        // EMAIL DISABLED PER USER REQUEST
+        // We do not send automated emails here. Admin will handle manually.
 
         return NextResponse.json({ message: 'User created successfully', uid: userRecord.uid, mailbox });
 

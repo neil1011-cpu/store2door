@@ -75,6 +75,7 @@ export function useCollection<T = any>(
   type ResultItemType = WithId<T>;
 
   const [data, setData] = useState<ResultItemType[] | null>(null);
+  // CRITICAL: Initialize in loading state if a query is provided
   const [isLoading, setIsLoading] = useState<boolean>(
     !!memoizedTargetRefOrQuery
   );
@@ -103,17 +104,10 @@ export function useCollection<T = any>(
       memoizedTargetRefOrQuery
     );
 
-    console.log(
-      '[Firestore] Collection path:',
-      path
-    );
-
     if (isInvalidFirestorePath(path)) {
       const pathError = new Error(
         `Invalid Firestore query path: "${path}". Likely undefined or empty collection path upstream.`
       );
-
-      console.error(pathError);
 
       setData(null);
       setError(pathError);
