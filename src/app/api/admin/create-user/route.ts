@@ -39,7 +39,6 @@ export async function POST(request: Request) {
     const idToken = authorization.split('Bearer ')[1];
     
     // Manual decode to bypass workstation project ID mismatch ("aud" claim issue)
-    // Part 2 of the JWT (index 1) is the payload
     const tokenParts = idToken.split('.');
     if (tokenParts.length < 2) {
         return NextResponse.json({ message: 'Unauthorized: Malformed token' }, { status: 401 });
@@ -48,7 +47,7 @@ export async function POST(request: Request) {
     const payloadBase64 = tokenParts[1];
     const decodedToken = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
     
-    // Firebase ID tokens use 'sub' for the UID and 'user_id' for the alias
+    // Firebase ID tokens use 'sub' for the UID
     const uid = decodedToken.sub || decodedToken.user_id;
 
     if (!decodedToken || !uid) {

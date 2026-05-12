@@ -2,12 +2,14 @@ import admin from 'firebase-admin';
 
 /**
  * @fileOverview Centralized Firebase Admin SDK initialization.
- * In Firebase Studio (Workstation), we initialize without parameters 
- * to allow the SDK to pick up the workstation's default credentials.
+ * Force-initialized with the project ID to resolve token fetch failures 
+ * in the workstation environment.
  */
 
 if (!admin.apps.length) {
-  admin.initializeApp();
+  admin.initializeApp({
+    projectId: 'swiftroute-3230b'
+  });
 }
 
 export const adminAuth = admin.auth();

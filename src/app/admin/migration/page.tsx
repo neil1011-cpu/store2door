@@ -314,7 +314,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10338", first: "Amelia", last: "Miller", email: "ameliamill42@gmail.com", phone: "8767005572" },
   { code: "FSTD10339", first: "Christopher", last: "Miller", email: "globalwallet8@gmail.com", phone: "876319-2444" },
   { code: "FSTD10340", first: "Dwayne", last: "WIlliams", email: "Williamsdwayne441@gmail.com", phone: "8763513135" },
-  { code: "FSTD10341", first: "Oshine", last: "Shields", email: "Oshineshields1@gmail.com", phone: "8769092649" },
+  { code: "FSTD10341", first: "Oshine", last: "Shields", email: "Oshineshields1@gmail.com", phone: "876 9092649" },
   { code: "FSTD10342", first: "SASHAGAY", last: "TAYLOR", email: "tsashagay@yahoo.com", phone: "8764843936" },
   { code: "FSTD10343", first: "Nickeisha", last: "Lindsay", email: "nickeishalindsay5@gmail.com", phone: "18762976237" }
 ];
