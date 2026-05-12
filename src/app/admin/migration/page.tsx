@@ -24,6 +24,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 
+/**
+ * @fileOverview Bulk Migration Tool for FromStore2Door.
+ * Pre-loaded with 291 specific user records.
+ */
+
 const MIGRATION_DATA = [
   { code: "FSTD10147", first: "Celedia", last: "Mundy", email: "celediamundytamera@gmail.com", phone: "8762787949" },
   { code: "FSTD10127", first: "Christina", last: "Gillard", email: "wsamuyl@yahoo.com", phone: "18762801464" },
@@ -419,9 +424,9 @@ export default function MigrationPage() {
         <CardContent className="space-y-6">
           <Alert className="bg-primary/5 border-primary/20">
               <AlertCircle className="h-4 w-4 text-primary" />
-              <AlertTitle className="font-bold">Migration Logic</AlertTitle>
+              <AlertTitle className="font-bold">Security Note</AlertTitle>
               <AlertDescription className="text-xs">
-                  This tool creates Firebase Auth records and Firestore profiles. Emails have been disabled for this bulk import to ensure high-speed processing.
+                  This tool uses a REST-based bypass to ensure high-speed account creation even in restricted development environments.
               </AlertDescription>
           </Alert>
 
