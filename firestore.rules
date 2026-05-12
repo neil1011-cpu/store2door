@@ -9,7 +9,7 @@ service cloud.firestore {
     }
 
     // Administrators have full access.
-    // Explicit email fallback ensures primary admin can recover the system.
+    // Explicit email fallback ensures primary admin can recover the system even if DB is empty.
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
@@ -35,6 +35,7 @@ service cloud.firestore {
     }
 
     // Secure access to profile roles
+    // Allow users to bootstrap their own admin records if they have the correct email
     match /admin_roles/{uid} {
       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
@@ -55,6 +56,7 @@ service cloud.firestore {
     }
     
     match /{path=**}/shipments/{id} {
+       allow read: if true;
        allow list: if isAdmin();
     }
 

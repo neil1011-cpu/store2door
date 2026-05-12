@@ -311,7 +311,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10336", first: "Shaunalee", last: "Smith", email: "shamaradixon641@gmail.com", phone: "876-857-4273" },
   { code: "FSTD10337", first: "Samara", last: "Vissay", email: "samaravissay@gmail.com", phone: "8768385667" },
   { code: "FSTD10338", first: "Amelia", last: "Miller", email: "ameliamill42@gmail.com", phone: "8767005572" },
-  { code: "FSTD10339", first: "Christopher", last: "Miller", email: "globalwallet8@gmail.com", phone: "8763192444" },
+  { code: "FSTD10339", first: "Christopher", last: "Miller", email: "globalwallet8@gmail.com", phone: "876319-2444" },
   { code: "FSTD10340", first: "Dwayne", last: "WIlliams", email: "Williamsdwayne441@gmail.com", phone: "8763513135" },
   { code: "FSTD10341", first: "Oshine", last: "Shields", email: "Oshineshields1@gmail.com", phone: "8769092649" },
   { code: "FSTD10342", first: "SASHAGAY", last: "TAYLOR", email: "tsashagay@yahoo.com", phone: "8764843936" },
@@ -362,7 +362,7 @@ export default function MigrationPage() {
               phone: user.phone?.trim(),
               mailboxNumber: user.code?.trim(),
               trn: 'N/A',
-              defaultPassword: 'User@1234', // Default password for all migrated users
+              defaultPassword: 'User@1234', 
             }),
           });
 
@@ -419,9 +419,9 @@ export default function MigrationPage() {
         <CardContent className="space-y-6">
           <Alert className="bg-primary/5 border-primary/20">
               <AlertCircle className="h-4 w-4 text-primary" />
-              <AlertTitle className="font-bold">Security Note</AlertTitle>
+              <AlertTitle className="font-bold">Migration Logic</AlertTitle>
               <AlertDescription className="text-xs">
-                  This tool creates Firebase Auth records and Firestore profiles. <strong>Automated emails are disabled</strong> to allow for high-speed bulk processing.
+                  This tool creates Firebase Auth records and Firestore profiles. If the server cannot communicate with Google Cloud (Error 2 UNKNOWN), please manually add users via Firebase Console and their profiles will sync on their first login.
               </AlertDescription>
           </Alert>
 
