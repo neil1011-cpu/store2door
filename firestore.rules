@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -29,18 +30,7 @@ service cloud.firestore {
 
     // --- Public & User Collection Rules ---
 
-    // Allow public tracking by specific ID
-    match /users/{userId}/shipments/{id} {
-      allow read: if true;
-    }
-
-    // Secure access to profile roles
-    // Allow users to bootstrap their own admin records if they have the correct email
-    match /admin_roles/{uid} {
-      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-    }
-
-    // User-specific data access
+    // Allow users to see their own data
     match /users/{userId} {
        allow read, write: if isOwner(userId) || isAdmin();
        
@@ -48,11 +38,15 @@ service cloud.firestore {
          allow read, write, list: if isOwner(userId) || isAdmin();
        }
     }
-    
-    // Explicit authorization for global Collection Group queries
-    match /{path=**}/pre_alerts/{id} {
-      allow read: if isSignedIn() && (isAdmin() || resource.data.customerId == request.auth.uid);
+
+    // Admin-specific global collection access
+    match /users {
       allow list: if isAdmin();
+    }
+    
+    // Explicit authorization for global Collection Group queries (Dashboard stats)
+    match /{path=**}/pre_alerts/{id} {
+      allow read, list: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
     }
     
     match /{path=**}/shipments/{id} {
@@ -69,9 +63,14 @@ service cloud.firestore {
        allow read, write, list: if isAdmin();
     }
 
+    match /admin_roles/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == "admin@neilussolutions.com");
+    }
+
     // System Metadata
     match /metadata/{id} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isAdmin() || isSignedIn();
     }
   }
 }

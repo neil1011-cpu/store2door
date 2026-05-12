@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -28,21 +29,24 @@
           "description": "The user's contact phone number."
         },
         "address": {
-          "type": "string",
-          "description": "The primary mailing or physical address of the user."
+          "type": "object",
+          "properties": {
+            "address1": { "type": "string" },
+            "address2": { "type": "string" },
+            "city": { "type": "string" },
+            "state": { "type": "string" },
+            "zip": { "type": "string" }
+          }
         },
         "role": {
           "type": "string",
           "description": "The role of the user within the system (e.g., 'customer', 'admin', 'staff')."
         },
+        "mailboxNumber": { "type": "string" },
+        "trn": { "type": "string" },
         "createdAt": {
           "type": "string",
           "description": "Timestamp when the user profile was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the user profile was last updated.",
           "format": "date-time"
         }
       },
@@ -51,573 +55,74 @@
         "email",
         "firstName",
         "lastName",
-        "role",
-        "createdAt",
-        "updatedAt"
+        "mailboxNumber",
+        "createdAt"
       ]
     },
     "PreAlert": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "PreAlert",
       "type": "object",
-      "description": "Represents a pre-alert request submitted by a user, typically with an image of a receipt, to inform about an incoming package.",
+      "description": "Represents a pre-alert request submitted by a user.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the PreAlert entity."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the UserProfile who submitted this pre-alert. (Relationship: UserProfile 1:N PreAlert)"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the pre-alert (e.g., 'pending', 'approved', 'rejected', 'action_required')."
-        },
-        "receiptImageUri": {
-          "type": "string",
-          "description": "URI to the uploaded image of the receipt or delivery slip.",
-          "format": "uri"
-        },
-        "suggestedDeliveryAddress": {
-          "type": "string",
-          "description": "The delivery address suggested by the AI or provided by the user based on the receipt."
-        },
-        "itemDescription": {
-          "type": "string",
-          "description": "A brief description of the item(s) in the pre-alert."
-        },
-        "trackingNumber": {
-          "type": "string",
-          "description": "The tracking number provided by the seller/sender, if available."
-        },
-        "estimatedValue": {
-          "type": "number",
-          "description": "The estimated monetary value of the items."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the pre-alert was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the pre-alert was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "userId",
-        "status",
-        "receiptImageUri",
-        "suggestedDeliveryAddress",
-        "itemDescription",
-        "createdAt",
-        "updatedAt"
-      ]
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "trackingNumber": { "type": "string" },
+        "contents": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Processed"] },
+        "submissionDate": { "type": "string", "format": "date-time" },
+        "uploadedInvoiceUrl": { "type": "string" }
+      }
     },
     "Shipment": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Shipment",
       "type": "object",
-      "description": "Represents a single shipping consignment, tracking its journey from origin to destination.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Shipment entity."
-        },
-        "trackingNumber": {
-          "type": "string",
-          "description": "The unique tracking number assigned to this shipment."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the UserProfile who owns or requested this shipment. (Relationship: UserProfile 1:N Shipment)"
-        },
-        "preAlertId": {
-          "type": "string",
-          "description": "Optional reference to the PreAlert that initiated this shipment. (Relationship: PreAlert 1:1 Shipment)"
-        },
-        "currentStatus": {
-          "type": "string",
-          "description": "The current status of the shipment (e.g., 'received', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled')."
-        },
-        "originAddress": {
-          "type": "string",
-          "description": "The address where the shipment originated."
-        },
-        "destinationAddress": {
-          "type": "string",
-          "description": "The final delivery address for the shipment."
-        },
-        "recipientName": {
-          "type": "string",
-          "description": "The name of the person receiving the shipment."
-        },
-        "recipientContact": {
-          "type": "string",
-          "description": "The contact information (e.g., phone number) of the recipient."
-        },
-        "packageWeight": {
-          "type": "number",
-          "description": "The weight of the package in a standard unit (e.g., kg or lbs)."
-        },
-        "packageDimensions": {
-          "type": "string",
-          "description": "The dimensions of the package (e.g., 'LxWxH')."
-        },
-        "estimatedDeliveryDate": {
-          "type": "string",
-          "description": "The estimated date and time of delivery.",
-          "format": "date-time"
-        },
-        "actualDeliveryDate": {
-          "type": "string",
-          "description": "The actual date and time of delivery.",
-          "format": "date-time"
-        },
-        "carrier": {
-          "type": "string",
-          "description": "The name of the external carrier handling the shipment (if any)."
-        },
-        "flightManifestId": {
-          "type": "string",
-          "description": "Optional reference to the FlightManifest this shipment is part of. (Relationship: FlightManifest 1:N Shipment)"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the shipment record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the shipment record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "trackingNumber",
-        "userId",
-        "currentStatus",
-        "originAddress",
-        "destinationAddress",
-        "recipientName",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "ShipmentStatusLog": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ShipmentStatusLog",
-      "type": "object",
-      "description": "Records individual status updates and events for a particular shipment, providing a historical trail.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the ShipmentStatusLog entity."
-        },
-        "shipmentId": {
-          "type": "string",
-          "description": "Reference to the Shipment this status update belongs to. (Relationship: Shipment 1:N ShipmentStatusLog)"
-        },
-        "status": {
-          "type": "string",
-          "description": "The specific status or event being logged (e.g., 'package_received', 'departed_warehouse', 'arrived_destination_country', 'out_for_delivery', 'delivered')."
-        },
-        "location": {
-          "type": "string",
-          "description": "The geographical location where the status update occurred."
-        },
-        "timestamp": {
-          "type": "string",
-          "description": "The date and time when this status update occurred.",
-          "format": "date-time"
-        },
-        "description": {
-          "type": "string",
-          "description": "An optional detailed description of the status update."
-        }
-      },
-      "required": [
-        "id",
-        "shipmentId",
-        "status",
-        "location",
-        "timestamp"
-      ]
-    },
-    "FlightManifest": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "FlightManifest",
-      "type": "object",
-      "description": "Represents a document or record detailing the cargo loaded onto a specific flight for transport.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the FlightManifest entity."
-        },
-        "manifestNumber": {
-          "type": "string",
-          "description": "A unique number for this flight manifest."
-        },
-        "flightNumber": {
-          "type": "string",
-          "description": "The flight identification number."
-        },
-        "departureAirportCode": {
-          "type": "string",
-          "description": "The IATA code of the departure airport."
-        },
-        "arrivalAirportCode": {
-          "type": "string",
-          "description": "The IATA code of the arrival airport."
-        },
-        "scheduledDepartureTime": {
-          "type": "string",
-          "description": "The scheduled date and time of departure.",
-          "format": "date-time"
-        },
-        "actualDepartureTime": {
-          "type": "string",
-          "description": "The actual date and time of departure.",
-          "format": "date-time"
-        },
-        "scheduledArrivalTime": {
-          "type": "string",
-          "description": "The scheduled date and time of arrival.",
-          "format": "date-time"
-        },
-        "actualArrivalTime": {
-          "type": "string",
-          "description": "The actual date and time of arrival.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the manifest or flight (e.g., 'planned', 'departed', 'arrived', 'cancelled')."
-        },
-        "documentUri": {
-          "type": "string",
-          "description": "URI to the digital copy of the flight manifest document.",
-          "format": "uri"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the flight manifest record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the flight manifest record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "manifestNumber",
-        "flightNumber",
-        "departureAirportCode",
-        "arrivalAirportCode",
-        "scheduledDepartureTime",
-        "status",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "Revenue": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Revenue",
-      "type": "object",
-      "description": "Records all income generated by the shipping service.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Revenue entity."
-        },
-        "shipmentId": {
-          "type": "string",
-          "description": "Optional reference to the Shipment associated with this revenue. (Relationship: Shipment 1:N Revenue)"
-        },
-        "amount": {
-          "type": "number",
-          "description": "The monetary amount of the revenue."
-        },
-        "currency": {
-          "type": "string",
-          "description": "The currency of the revenue amount (e.g., 'USD', 'EUR')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A description of the revenue source (e.g., 'Shipping Fee', 'Customs Duty', 'Storage Fee')."
-        },
-        "transactionDate": {
-          "type": "string",
-          "description": "The date and time when the revenue was recorded or generated.",
-          "format": "date-time"
-        },
-        "type": {
-          "type": "string",
-          "description": "The category or type of revenue (e.g., 'Shipping', 'Service', 'Other')."
-        },
-        "collectedByUserId": {
-          "type": "string",
-          "description": "Reference to the UserProfile (staff/admin) who recorded or processed this revenue. (Relationship: UserProfile 1:N Revenue)"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the revenue record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the revenue record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "amount",
-        "currency",
-        "description",
-        "transactionDate",
-        "type",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "Expense": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Expense",
-      "type": "object",
-      "description": "Records all expenditures incurred by the shipping service.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Expense entity."
-        },
-        "associatedShipmentId": {
-          "type": "string",
-          "description": "Optional reference to a Shipment if the expense is directly tied to it. (Relationship: Shipment 1:N Expense)"
-        },
-        "amount": {
-          "type": "number",
-          "description": "The monetary amount of the expense."
-        },
-        "currency": {
-          "type": "string",
-          "description": "The currency of the expense amount (e.g., 'USD', 'EUR')."
-        },
-        "description": {
-          "type": "string",
-          "description": "A description of the expense (e.g., 'Fuel Cost', 'Warehouse Rent', 'Staff Salary', 'Customs Clearance Fee')."
-        },
-        "transactionDate": {
-          "type": "string",
-          "description": "The date and time when the expense was incurred or recorded.",
-          "format": "date-time"
-        },
-        "type": {
-          "type": "string",
-          "description": "The category or type of expense (e.g., 'Operating', 'Logistics', 'Administrative', 'Customs')."
-        },
-        "recordedByUserId": {
-          "type": "string",
-          "description": "Reference to the UserProfile (staff/admin) who recorded this expense. (Relationship: UserProfile 1:N Expense)"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the expense record was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the expense record was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "amount",
-        "currency",
-        "description",
-        "transactionDate",
-        "type",
-        "createdAt",
-        "updatedAt"
-      ]
+        "id": { "type": "string" },
+        "trackingNumber": { "type": "string" },
+        "customerId": { "type": "string" },
+        "contents": { "type": "string" },
+        "status": { "type": "string" },
+        "shippingDate": { "type": "string", "format": "date-time" },
+        "cost": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["Paid", "Unpaid"] }
+      }
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password"]
   },
   "firestore": {
     "structure": [
       {
-        "path": "/user_profiles/{userId}",
+        "path": "/users/{userId}",
         "definition": {
           "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores additional profile information for users, linked directly to their Firebase Auth UID. Each document's 'id' field matches the `{userId}` path parameter. Accessible by the user themselves or by administrative roles.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user, corresponding to their Firebase Authentication UID."
-            }
-          ]
+          "description": "Primary user profile storage."
         }
       },
       {
         "path": "/users/{userId}/pre_alerts/{preAlertId}",
         "definition": {
           "entityName": "PreAlert",
-          "schema": {
-            "$ref": "#/backend/entities/PreAlert"
-          },
-          "description": "User-specific pre-alert requests. Each document includes a denormalized 'ownerId' field (matching `{userId}`) for authorization independence. This hierarchical structure enables secure and efficient 'list' operations for users to retrieve only their own pre-alerts.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who owns this pre-alert."
-            },
-            {
-              "name": "preAlertId",
-              "description": "The unique identifier for the pre-alert."
-            }
-          ]
+          "description": "User-specific pre-alert records."
         }
       },
       {
         "path": "/users/{userId}/shipments/{shipmentId}",
         "definition": {
           "entityName": "Shipment",
-          "schema": {
-            "$ref": "#/backend/entities/Shipment"
-          },
-          "description": "User-specific shipment records. Each document includes a denormalized 'ownerId' field (matching `{userId}`) for authorization independence. This enables secure 'list' operations for users to retrieve only their own shipments.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who owns this shipment."
-            },
-            {
-              "name": "shipmentId",
-              "description": "The unique identifier for the shipment."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/shipments/{shipmentId}/status_logs/{logId}",
-        "definition": {
-          "entityName": "ShipmentStatusLog",
-          "schema": {
-            "$ref": "#/backend/entities/ShipmentStatusLog"
-          },
-          "description": "Detailed status logs for a specific user's shipment. Each document includes a denormalized 'ownerId' field (matching `{userId}`) for authorization independence, allowing direct 'list' and 'read' access for the user without requiring a 'get()' on the parent shipment.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who owns the parent shipment."
-            },
-            {
-              "name": "shipmentId",
-              "description": "The unique identifier of the parent shipment."
-            },
-            {
-              "name": "logId",
-              "description": "The unique identifier for the status log entry."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/flight_manifests/{flightManifestId}",
-        "definition": {
-          "entityName": "FlightManifest",
-          "schema": {
-            "$ref": "#/backend/entities/FlightManifest"
-          },
-          "description": "Global collection for managing flight manifests, primarily by staff/admin. Access for regular users is typically indirect (details denormalized into shipments) or through specific read permissions for relevant manifest IDs, preventing broad 'list' access for non-privileged users.",
-          "params": [
-            {
-              "name": "flightManifestId",
-              "description": "The unique identifier for the flight manifest."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/revenue/{revenueId}",
-        "definition": {
-          "entityName": "Revenue",
-          "schema": {
-            "$ref": "#/backend/entities/Revenue"
-          },
-          "description": "Financial revenue records, exclusively accessible by staff/admin roles. Includes 'collectedByUserId' for auditing which privileged user recorded the revenue.",
-          "params": [
-            {
-              "name": "revenueId",
-              "description": "The unique identifier for the revenue record."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/expenses/{expenseId}",
-        "definition": {
-          "entityName": "Expense",
-          "schema": {
-            "$ref": "#/backend/entities/Expense"
-          },
-          "description": "Financial expense records, exclusively accessible by staff/admin roles. Includes 'recordedByUserId' for auditing which privileged user recorded the expense.",
-          "params": [
-            {
-              "name": "expenseId",
-              "description": "The unique identifier for the expense record."
-            }
-          ]
+          "description": "User-specific shipment records."
         }
       },
       {
         "path": "/admin_roles/{adminUid}",
         "definition": {
-          "entityName": "AdminRole",
-          "schema": {
-            "$ref": "#/backend/entities/AdminRole"
-          },
-          "description": "A collection used for Database Access Control. The mere existence of a document at `/admin_roles/$(request.auth.uid)` grants administrative privileges in security rules, embodying 'existence over content' for authorization independence. This 'AdminRole' entity is conceptual and its schema is typically minimal, often just the 'id' field.",
-          "params": [
-            {
-              "name": "adminUid",
-              "description": "The unique identifier (UID) of a user designated as an administrator."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/staff_roles/{staffUid}",
-        "definition": {
-          "entityName": "StaffRole",
-          "schema": {
-            "$ref": "#/backend/entities/StaffRole"
-          },
-          "description": "A collection used for Database Access Control. The mere existence of a document at `/staff_roles/$(request.auth.uid)` grants staff privileges in security rules, embodying 'existence over content' for authorization independence. This 'StaffRole' entity is conceptual and its schema is typically minimal, often just the 'id' field.",
-          "params": [
-            {
-              "name": "staffUid",
-              "description": "The unique identifier (UID) of a user designated as a staff member."
-            }
-          ]
+          "description": "Grants administrative access if document exists."
         }
       }
-    ],
-    "reasoning": "The recommended Firestore structure is designed to adhere strictly to the core principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs, ensuring a secure, scalable, and debuggable backend for SwiftRoute. The primary strategy involves a hierarchical, user-centric data model for user-owned information and segregated top-level collections for global, administrative data.\n\n**Authorization Independence via Denormalization:**\nTo eliminate hierarchical authorization dependencies and avoid `get()` calls in security rules, crucial authorization context is denormalized. For user-specific data entities such as `PreAlert`, `Shipment`, and `ShipmentStatusLog`, each document will explicitly contain an `ownerId` field. This `ownerId` will consistently match the `userId` segment in the document's path (`/users/{userId}/...`) and `request.auth.uid`. This allows security rules to directly compare `request.auth.uid` with the document's own fields and its path, ensuring atomic authorization checks without needing to fetch parent documents.\n\n**Secure `list` Operations (QAPs) through Structural Segregation:**\n\nThe structure addresses the \"list\" operation security error (`FirebaseError: Missing or insufficient permissions: ... /pre_alerts`) by enforcing Queriable Authorization Policies (QAPs). Instead of a flat collection where users might attempt to `list` all pre-alerts and rely on rules to 'filter' (`.where('userId', '==', request.auth.uid)`), user-specific data is placed under a user's direct path:\n*   `PreAlerts` are stored in `/users/{userId}/pre_alerts/{preAlertId}`.\n*   `Shipments` are stored in `/users/{userId}/shipments/{shipmentId}`.\n*   `ShipmentStatusLogs` are stored in `/users/{userId}/shipments/{shipmentId}/status_logs/{logId}`.\n\nThis structure ensures that any `list` request for these collections by an authenticated user **must** include their `uid` in the path (e.g., `/users/$(request.auth.uid)/pre_alerts`). Security rules can then simply verify that the `userId` in the path matches `request.auth.uid`, effectively scoping the `list` operation to only the requesting user's data. This prevents broad, insecure `list` queries and eliminates the need for rules to act as filters.\n\n**DBAC (Database Access Control) and Role Management:**\nUser roles (`admin`, `staff`, `customer`) are managed using dedicated, top-level collections for 'existence over content' checks, completely avoiding custom claims or `get()` calls on `UserProfile` documents for role-based access to other entities.\n*   `/admin_roles/{adminUid}`: An empty document at this path signifies an administrator.\n*   `/staff_roles/{staffUid}`: An empty document at this path signifies a staff member.\nSecurity rules can then use `exists(/admin_roles/$(request.auth.uid))` or `exists(/staff_roles/$(request.auth.uid))` for efficient, independent role checks. The `UserProfile.role` field is maintained for application-level logic and reporting, not for Firestore security rules.\n\n**Structural Segregation for Homogeneous Security:**\n\n*   **User-Specific Data:** Collections like `pre_alerts`, `shipments`, and `status_logs` within a user's path (`/users/{userId}/...`) have a homogeneous security posture: primarily owned and accessed by that specific user, with potential read access for authenticated staff/admins.\n*   **Administrative/Global Data:** Collections such as `flight_manifests`, `revenue`, and `expenses` are at the root level (`/flight_manifests`, `/revenue`, `/expenses`). These collections have a homogeneous security posture, restricted primarily to staff and administrators for management, with minimal or no direct `list` access for regular users. This prevents unauthorized users from broadly querying sensitive operational data.\n\n**Data Clarity and Predictability:**\nAll paths use descriptive wildcards (e.g., `{userId}`, `{shipmentId}`). Entities consistently use a single `status` field for state management and include `createdAt` and `updatedAt` for auditing. Authorization fields like `ownerId` are standardized.\n\nThis design ensures that security rules are simple, explicit, and easy to audit, directly addressing the principles for a robust Firebase backend."
+    ]
   }
 }
