@@ -56,7 +56,7 @@ export default function SetupAdminPage() {
         updatedAt: serverTimestamp() 
     }, { merge: true });
 
-    // 2. User Profile Document
+    // 2. User Profile Document (Fixes "Critical profile data missing" error)
     const userDocRef = doc(firestore, 'users', user.uid);
     await setDoc(userDocRef, {
         id: user.uid,
@@ -73,6 +73,8 @@ export default function SetupAdminPage() {
             zip: '33334',
         },
         createdAt: serverTimestamp(),
+        pickupPersonnel: [],
+        dropoffAddresses: [],
     }, { merge: true });
     
     // 3. Initialize Metadata if missing
@@ -88,12 +90,12 @@ export default function SetupAdminPage() {
       setIsElevatingSession(true);
       try {
           await setupAdminPrivileges(currentUser);
-          toast({ title: 'Privileges Granted!', description: 'You now have administrator access to FromStore2Door.' });
+          toast({ title: 'Privileges Granted!', description: 'Your administrator identity and profile have been synchronized.' });
           
           // Clear any caches and redirect
           setTimeout(() => {
             window.location.href = '/admin';
-          }, 1000);
+          }, 1500);
       } catch (error: any) {
           console.error("Elevation error:", error);
           toast({ title: 'Setup Failed', description: error.message, variant: 'destructive' });
@@ -123,11 +125,11 @@ export default function SetupAdminPage() {
 
         toast({
             title: 'Account Configured',
-            description: 'Database privileges have been successfully linked.',
+            description: 'Database privileges and user profile have been successfully linked.',
         });
         
         setTimeout(() => {
-            router.push('/admin-login');
+            window.location.href = '/admin-login';
         }, 1500);
 
     } catch (error: any) {
@@ -146,9 +148,9 @@ export default function SetupAdminPage() {
       <Card className="shadow-xl overflow-hidden">
         <CardHeader className="text-center bg-primary/5 pb-8">
           <ShieldCheck className="mx-auto h-12 w-12 text-primary" />
-          <CardTitle className="text-3xl mt-4">Database Privilege Manager</CardTitle>
+          <CardTitle className="text-3xl mt-4">System Access Recovery</CardTitle>
           <CardDescription>
-            Authorize administrative access for your account.
+            Authorize administrative access and fix profile errors.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
@@ -156,7 +158,7 @@ export default function SetupAdminPage() {
                 <AlertCircle className="h-4 w-4 text-blue-600" />
                 <AlertTitle>Action Required</AlertTitle>
                 <AlertDescription className="text-xs">
-                    Use this tool to manually link your identity to the <strong>admin_roles</strong> database records.
+                    This tool will force-create your <strong>admin_roles</strong> entry and your <strong>users</strong> profile to fix login loops.
                 </AlertDescription>
             </Alert>
 

@@ -70,8 +70,11 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Definitive check: loading finished, but no admin record exists in the database
-    if (adminRoleRef && !adminRoleDoc && !adminError) {
+    // Definitive check: allow if admin record exists OR if the hardcoded admin email is used
+    const isHardcodedAdmin = user.email === 'admin@neilussolutions.com';
+    const hasAdminDoc = !!adminRoleDoc;
+
+    if (!isHardcodedAdmin && !hasAdminDoc && !adminError) {
         toast({
           title: 'Access Denied',
           description: "Administrator privileges required. Use the recovery tool at /setup-admin if needed.",
@@ -81,7 +84,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     }
   }, [isUserLoading, isAdminLoading, adminRoleDoc, adminError, adminRoleRef, router, toast, user]);
 
-  // Show loader while loading or if not authorized yet
+  // Show loader while loading
   if (isUserLoading || isAdminLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background text-center p-6">
@@ -94,8 +97,9 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     );
   }
   
-  // Only render children if verified as an admin
-  if (!user || !adminRoleDoc) return null;
+  // Only render children if verified as an admin (fallback to email if doc is missing during first run)
+  const isAuthorized = adminRoleDoc || user?.email === 'admin@neilussolutions.com';
+  if (!user || !isAuthorized) return null;
 
   return <>{children}</>;
 }

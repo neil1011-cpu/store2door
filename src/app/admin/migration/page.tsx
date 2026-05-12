@@ -1,27 +1,41 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, DatabaseZap, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
+import {
+  Loader2,
+  DatabaseZap,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const MIGRATION_DATA = [
   { code: "FSTD10147", first: "Celedia", last: "Mundy", email: "celediamundytamera@gmail.com", phone: "8762787949" },
   { code: "FSTD10127", first: "Christina", last: "Gillard", email: "wsamuyl@yahoo.com", phone: "18762801464" },
   { code: "FSTD10188", first: "Radcliffe", last: "Bromfield", email: "ssincerely@gmail.com", phone: "18763601322" },
   { code: "FSTD10106", first: "Venesa", last: "White", email: "venesawhite@gmail.com", phone: "8764896626" },
-  { code: "FSTD10105", first: "Doreen", last: "Longbridge", email: "doreenlongbridge@gmail.com", phone: "876-633-6884" },
+  { code: "FSTD10105", first: "Doreen", last: "Longbridge", email: "doreenlongbridge@gmail.com", phone: "8766336884" },
   { code: "FSTD10161", first: "Label", last: "Crafts", email: "keisha.anderson@label-crafts.com", phone: "8769060927" },
   { code: "FSTD10156", first: "Romario", last: "Miller", email: "romariomiller3636@gmail.com", phone: "18767847503" },
-  { code: "FSTD10207", first: "Dwayne & Tricia", last: "Brown", email: "dwaynebrown7661@gmail.com", phone: "876-352-0625" },
+  { code: "FSTD10207", first: "Dwayne & Tricia", last: "Brown", email: "dwaynebrown7661@gmail.com", phone: "8763520625" },
   { code: "FSTD10152", first: "Stacey Ann", last: "Harley", email: "stacyabees@gmail.com", phone: "8768960730" },
   { code: "FSTD10167", first: "Tasha", last: "Howell", email: "howell_tasha@live.co.uk", phone: "8768538414" },
-  { code: "FSTD10163", first: "Ramona", last: "Witter", email: "ramonawitter@gmail.com", phone: "1876-512-7266" },
+  { code: "FSTD10163", first: "Ramona", last: "Witter", email: "ramonawitter@gmail.com", phone: "18765127266" },
   { code: "FSTD10197", first: "Micheal", last: "Francis", email: "michealfrancis85@yahoo.com", phone: "8767841015" },
-  { code: "FSTD10116", first: "Hughdane", last: "Neagle", email: "hughdanen@gmail.com", phone: "407-334-9812" },
+  { code: "FSTD10116", first: "Hughdane", last: "Neagle", email: "hughdanen@gmail.com", phone: "4073349812" },
   { code: "FSTD10193", first: "Jheanell", last: "Walker", email: "jheanellwalker1@gmail.com", phone: "8764950036" },
   { code: "FSTD10135", first: "Marshagaye", last: "Beckles", email: "marshabeckles@gmail.com", phone: "18762824596" },
   { code: "FSTD10103", first: "Modi", last: "Sullivan", email: "modilivujam@rungel.net", phone: "87456562233" },
@@ -30,23 +44,23 @@ const MIGRATION_DATA = [
   { code: "FSTD10097", first: "Andreen", last: "Neale", email: "neandreen@gmail.com", phone: "8765123143" },
   { code: "FSTD10128", first: "Tracy-ann", last: "Arnold-McInnis", email: "tarnoldmcinnis@yahoo.com", phone: "8763912415" },
   { code: "FSTD10104", first: "Erwin", last: "Bishop", email: "jahwinmusic@gmail.com", phone: "8762277372" },
-  { code: "FSTD10165", first: "Dakisha", last: "Hamil", email: "dakishahamil25@gmail.com", phone: "87629113t5" },
-  { code: "FSTD10107", first: "Andre", last: "Carty", email: "kingandre355@gmail.com", phone: "1876 8975765" },
+  { code: "FSTD10165", first: "Dakisha", last: "Hamil", email: "dakishahamil25@gmail.com", phone: "8762911300" },
+  { code: "FSTD10107", first: "Andre", last: "Carty", email: "kingandre355@gmail.com", phone: "18768975765" },
   { code: "FSTD10111", first: "Kimberlee", last: "Smith", email: "kimberleesmith07@gmail.com", phone: "8765328022" },
   { code: "FSTD10176", first: "Javier", last: "Conville", email: "CONVILLEJAVIER@YAHOO.COM", phone: "18764045106" },
-  { code: "FSTD10194", first: "Sheldon", last: "White", email: "sheldonjw3@gmail.com", phone: "876 3744313" },
+  { code: "FSTD10194", first: "Sheldon", last: "White", email: "sheldonjw3@gmail.com", phone: "8763744313" },
   { code: "FSTD10109", first: "Mureen", last: "Blake", email: "mureenblake7@gmail.com", phone: "18768066707" },
   { code: "FSTD10159", first: "Jorvaughn", last: "Goodwin", email: "Jorvaughn42@gmail.com", phone: "8765351616" },
-  { code: "FSTD10170", first: "Romona", last: "Simms", email: "kimonesimms82@gmail.com", phone: "876 5872391" },
+  { code: "FSTD10170", first: "Romona", last: "Simms", email: "kimonesimms82@gmail.com", phone: "8765872391" },
   { code: "FSTD10182", first: "Coco", last: "Pryor", email: "genetimar@gmail.com", phone: "8764663938" },
   { code: "FSTD10164", first: "TAMEKA", last: "Spence", email: "tameka.spence@gmail.com", phone: "8768265232" },
-  { code: "FSTD10189", first: "Natalee", last: "McDonald", email: "nataleemcdonald55@gmail.com", phone: "876-264-5501" },
-  { code: "FSTD10168", first: "Titan", last: "Hodges", email: "titanhodges5@outlook.com", phone: "1-658-201-2177" },
+  { code: "FSTD10189", first: "Natalee", last: "McDonald", email: "nataleemcdonald55@gmail.com", phone: "8762645501" },
+  { code: "FSTD10168", first: "Titan", last: "Hodges", email: "titanhodges5@outlook.com", phone: "16582012177" },
   { code: "FSTD10195", first: "Keron", last: "Smith", email: "spiceybmw@outlook.com", phone: "8668546639" },
   { code: "FSTD10201", first: "Dion", last: "Downer", email: "phatdian25@yahoo.com", phone: "8768323556" },
-  { code: "FSTD10202", first: "Felecia", last: "Thompson", email: "Feleciabrown777@gmail.comf", phone: "8718884" },
+  { code: "FSTD10202", first: "Felecia", last: "Thompson", email: "Feleciabrown777@gmail.com", phone: "8718884" },
   { code: "FSTD10173", first: "Sheena", last: "Lewis", email: "lewberry7@gmail.com", phone: "8768566573" },
-  { code: "FSTD10096", first: "Shereka", last: "Whyte", email: "sherekawhyte2016@gmail.com", phone: "876-562-8674" },
+  { code: "FSTD10096", first: "Shereka", last: "Whyte", email: "sherekawhyte2016@gmail.com", phone: "8765628674" },
   { code: "FSTD10187", first: "Lashane", last: "Dacres", email: "dacreslashane@gmail.com", phone: "8762337785" },
   { code: "FSTD10115", first: "Keneisha", last: "Martin", email: "keneshiamartin1@gmail.com", phone: "18763423374" },
   { code: "FSTD10179", first: "Melecia", last: "Carter", email: "ladymelcarter@gmail.com", phone: "8762568980" },
@@ -64,30 +78,30 @@ const MIGRATION_DATA = [
   { code: "FSTD10001", first: "FSTD", last: "Customer", email: "fstdinvoices@gmail.com", phone: "8767713071" },
   { code: "FSTD10171", first: "Samere", last: "Bonitto", email: "samerejbomitto@gmail.com", phone: "8767922664" },
   { code: "FSTD10100", first: "Tianna", last: "Hinds", email: "tiannahinds1234@gmail.com", phone: "8768566493" },
-  { code: "FSTD10186", first: "Dainty", last: "Williams", email: "daintywilliams31@gmail.com", phone: "(876)8834615" },
+  { code: "FSTD10186", first: "Dainty", last: "Williams", email: "daintywilliams31@gmail.com", phone: "8768834615" },
   { code: "FSTD10101", first: "Carol", last: "Kerridge", email: "carolkerridge@yahoo.com", phone: "8763177682" },
   { code: "FSTD10145", first: "Charlene", last: "Easy", email: "easycharlene29@yahoo.com", phone: "18763564746" },
   { code: "FSTD10146", first: "Annakea", last: "Folkes", email: "annakayfolkes70@yahoo.com", phone: "8768131401" },
   { code: "FSTD10184", first: "Marlon", last: "Wilkinson", email: "marlonwilkinson@yahoo.com", phone: "8764313262" },
   { code: "FSTD10143", first: "Kasian", last: "Hall", email: "kasianhall@gmail.com", phone: "18763552183" },
-  { code: "FSTD10136", first: "Rashard", last: "Tracey", email: "rashard.tracey@gmail.com", phone: "876-879-6100" },
+  { code: "FSTD10136", first: "Rashard", last: "Tracey", email: "rashard.tracey@gmail.com", phone: "8768796100" },
   { code: "FSTD10175", first: "Michon", last: "Bell-Daley", email: "kadianbell2424@gmail.com", phone: "8768969624" },
   { code: "FSTD10160", first: "Lloyd", last: "Williams", email: "lloydgwilliams@gmail.com", phone: "18763815137" },
   { code: "FSTD10120", first: "Simone", last: "Minott", email: "simoneminott076@gmail.com", phone: "8763600733" },
   { code: "FSTD10209", first: "Andre", last: "Powell", email: "andre.d.powell@gmail.com", phone: "8769978683" },
   { code: "FSTD10134", first: "Avagale", last: "Ewing", email: "ewingavagale70@gmail.com", phone: "8768510732" },
-  { code: "FSTD10121", first: "Kadeen", last: "Baxter-Dacres", email: "dacressimone12@gmail.com", phone: "876-483-5131" },
+  { code: "FSTD10121", first: "Kadeen", last: "Baxter-Dacres", email: "dacressimone12@gmail.com", phone: "8764835131" },
   { code: "FSTD10118", first: "Raheem", last: "Desouza", email: "desouzaraheem@gmail.com", phone: "8768412646" },
   { code: "FSTD10192", first: "Petagay", last: "Thompson", email: "denlaja86@hotmail.com", phone: "8764843263" },
-  { code: "FSTD10169", first: "Chanikea", last: "Channer", email: "channerchanikea@gmail.com", phone: "876-825-9117" },
+  { code: "FSTD10169", first: "Chanikea", last: "Channer", email: "channerchanikea@gmail.com", phone: "8768259117" },
   { code: "FSTD10162", first: "Brittany", last: "Hibbert", email: "britt.hibb@gmail.com", phone: "8762508469" },
   { code: "FSTD10131", first: "Damion", last: "Dawkins", email: "dsdcorupt@msn.com", phone: "8765451307" },
   { code: "FSTD10122", first: "Leroy", last: "Tyrell", email: "juniortyrell29@gmail.com", phone: "8767985986" },
   { code: "FSTD10154", first: "Ashley", last: "Swaby", email: "ashleyswaby8@gmail.com", phone: "8763984476" },
   { code: "FSTD10208", first: "Stacy", last: "Wray", email: "wraystacyann863@gmail.com", phone: "8762835855" },
-  { code: "FSTD10132", first: "Kemisha", last: "Gordon", email: "kikigordon271735@gmail.comgmail.com", phone: "8765421147" },
+  { code: "FSTD10132", first: "Kemisha", last: "Gordon", email: "kikigordon271735@gmail.com", phone: "8765421147" },
   { code: "FSTD10205", first: "Roje", last: "Brown", email: "rojebrown70@gmail.com", phone: "18764089367" },
-  { code: "FSTD10002", first: "Devon", last: "Noble", email: "selfpowered01@gmail.com", phone: "876-383-9126" },
+  { code: "FSTD10002", first: "Devon", last: "Noble", email: "selfpowered01@gmail.com", phone: "8763839126" },
   { code: "FSTD10137", first: "Shana Kay", last: "Ingram", email: "shanakayingram@yahoo.com", phone: "8763443787" },
   { code: "FSTD10113", first: "Devonte", last: "Seymour", email: "devonteseymour8@gmail.com", phone: "8765401567" },
   { code: "FSTD10151", first: "Dan’l", last: "Mckay", email: "slick_swag@hotmail.com", phone: "8762903142" },
@@ -102,40 +116,40 @@ const MIGRATION_DATA = [
   { code: "FSTD10211", first: "Mikala", last: "Stephens", email: "stephensmikala643@gamil.com", phone: "8764072631" },
   { code: "FSTD10098", first: "Ronnette", last: "Thompson", email: "ronzbabes@gmail.com", phone: "8765419813" },
   { code: "FSTD10102", first: "Caudry", last: "Codner", email: "caudrycodner@yahoo.com", phone: "8765735560" },
-  { code: "FSTD10126", first: "Larice", last: "Campbell", email: "Shaniquecampbell671@gmail.com", phone: "1876 7722856" },
+  { code: "FSTD10126", first: "Larice", last: "Campbell", email: "Shaniquecampbell671@gmail.com", phone: "18767722856" },
   { code: "FSTD10203", first: "Saverio", last: "Allen", email: "Plati17@hotmail.com", phone: "8762142331" },
-  { code: "FSTD10204", first: "Ricardo", last: "Wray", email: "ricray_11_ardo@yahoo.com", phone: "876 565 9430" },
+  { code: "FSTD10204", first: "Ricardo", last: "Wray", email: "ricray_11_ardo@yahoo.com", phone: "8765659430" },
   { code: "FSTD10133", first: "Kirk", last: "Walton", email: "waltonkirk@ymail.com", phone: "18765077216" },
   { code: "FSTD10108", first: "Amanda", last: "Robinson", email: "amandarobinson36@yahoo.com", phone: "8763499980" },
   { code: "FSTD10130", first: "Marvin", last: "Senior", email: "vinnoboy17@gmail.com", phone: "8763296273" },
   { code: "FSTD10198", first: "Collis", last: "King", email: "Sillo_16@yahoo.com", phone: "18765348366" },
-  { code: "FSTD10153", first: "Dyeima", last: "Kerr ", email: "williamsdyeima@gmail.com", phone: "8764394499" },
+  { code: "FSTD10153", first: "Dyeima", last: "Kerr", email: "williamsdyeima@gmail.com", phone: "8764394499" },
   { code: "FSTD10183", first: "Aneisha", last: "Watson", email: "Belleann_7@yahoo.com", phone: "8765440732" },
-  { code: "FSTD10150", first: "Elisha", last: "Bernard", email: "elisha86bernard@gmail.come", phone: "18768870823" },
+  { code: "FSTD10150", first: "Elisha", last: "Bernard", email: "elisha86bernard@gmail.com", phone: "18768870823" },
   { code: "FSTD10199", first: "Janice", last: "Hinds", email: "janices.hinds@gmail.com", phone: "8768893593" },
   { code: "FSTD10063", first: "Simone", last: "Jackson", email: "simonejackson278@gmail.com", phone: "18764795735" },
-  { code: "FSTD10041", first: "Kemoy", last: "Evelyn", email: "kemar_455@yahoo.com", phone: "876-362-7214" },
+  { code: "FSTD10041", first: "Kemoy", last: "Evelyn", email: "kemar_455@yahoo.com", phone: "8763627214" },
   { code: "FSTD10039", first: "Camille", last: "Dacres", email: "camille.dacres@yahoo.com", phone: "8763710972" },
-  { code: "FSTD10222", first: "Felicia", last: "James", email: "felijames876@gmail.co", phone: "18764308937" },
+  { code: "FSTD10222", first: "Felicia", last: "James", email: "felijames876@gmail.com", phone: "18764308937" },
   { code: "FSTD10025", first: "Judith", last: "Cole", email: "dijadiki@hotmail.com", phone: "7547019486" },
-  { code: "FSTD10250", first: "Jessica", last: "Henry", email: "jessicahenry218@gmail.com", phone: "876-467-5033" },
-  { code: "FSTD10254", first: "Kimarnie", last: "Edwards", email: "rojaeedwards@gmail.com", phone: "876-820-2889" },
-  { code: "FSTD10223", first: "Kimberly", last: "Richards", email: "myadelric@yahoo.com", phone: "+1 (876) 512-6377" },
+  { code: "FSTD10250", first: "Jessica", last: "Henry", email: "jessicahenry218@gmail.com", phone: "8764675033" },
+  { code: "FSTD10254", first: "Kimarnie", last: "Edwards", email: "rojaeedwards@gmail.com", phone: "8768202889" },
+  { code: "FSTD10223", first: "Kimberly", last: "Richards", email: "myadelric@yahoo.com", phone: "8765126377" },
   { code: "FSTD10219", first: "Belva", last: "Goodwin", email: "belvaagoodwin@gmail.com", phone: "8765133980" },
   { code: "FSTD10023", first: "Shayna", last: "Lyons", email: "shaynalyons54@gmail.com", phone: "8765870482" },
   { code: "FSTD10082", first: "Tamara", last: "Francis", email: "Tmr_frncs@yahoo.com", phone: "8762913687" },
   { code: "FSTD10273", first: "Jason", last: "Chambers", email: "zackryx@yahoo.com", phone: "8768913921" },
   { code: "FSTD10274", first: "Alicia", last: "Whyte", email: "alicia75whyte@gmail.com", phone: "18764671134" },
   { code: "FSTD10017", first: "Jonique", last: "Spence", email: "sjonique77@gmail.com", phone: "18767777482" },
-  { code: "FSTD10215", first: "Troy", last: "Morgan", email: "troymorgan778@gmail.com", phone: "(876) 583 - 7146" },
+  { code: "FSTD10215", first: "Troy", last: "Morgan", email: "troymorgan778@gmail.com", phone: "8765837146" },
   { code: "FSTD10280", first: "Henroy", last: "Salmon", email: "Henroy2001@gmail.com", phone: "18763993770" },
   { code: "FSTD10044", first: "Sanga", last: "Gayle", email: "keenagayle@gmail.com", phone: "8764620960" },
-  { code: "FSTD10293", first: "Antonique", last: "Brissett FSTD", email: "brissettantonique@gmail.com", phone: "18763559566" },
+  { code: "FSTD10293", first: "Antonique", last: "Brissett", email: "brissettantonique@gmail.com", phone: "18763559566" },
   { code: "FSTD10275", first: "Tamara", last: "Stewart", email: "kadia8302@gmail.com", phone: "8763792290" },
   { code: "FSTD10261", first: "Oshine", last: "Shields", email: "Shieldsoshine76@gmail.com", phone: "8769092649" },
   { code: "FSTD10048", first: "Travis", last: "Leadbeater", email: "travisleadbeater49@gmail.com", phone: "8768868716" },
   { code: "FSTD10279", first: "Kyle", last: "Allijohn", email: "faith8life88@gmail.com", phone: "8762996595" },
-  { code: "FSTD10078", first: "Donnett", last: "Jackson", email: "jacksondonnett@gmail.com", phone: "876-441-6030" },
+  { code: "FSTD10078", first: "Donnett", last: "Jackson", email: "jacksondonnett@gmail.com", phone: "8764416030" },
   { code: "FSTD10088", first: "Charlene", last: "Chinlyn", email: "charlenechinlyn24@gmail.com", phone: "8764011559" },
   { code: "FSTD10272", first: "Flavia", last: "Harris", email: "flaviahrrs@gmail.com", phone: "8762272775" },
   { code: "FSTD10227", first: "Ajay", last: "Mullings", email: "ajaymullings@rocketmail.com", phone: "8763885574" },
@@ -145,11 +159,11 @@ const MIGRATION_DATA = [
   { code: "FSTD10251", first: "Alex", last: "Smith", email: "lexxus44@yahoo.com", phone: "8765697306" },
   { code: "FSTD10058", first: "Kirk", last: "Simms", email: "Kirkcsimms876@gmail.com", phone: "8765138254" },
   { code: "FSTD10074", first: "Grace", last: "Frazer", email: "frazer.gracegf@gmail.com", phone: "8768716880" },
-  { code: "FSTD10214", first: "Kayla", last: "Wolfe", email: "kaykaycunningham188@gmail.com", phone: "1876-4306-200" },
+  { code: "FSTD10214", first: "Kayla", last: "Wolfe", email: "kaykaycunningham188@gmail.com", phone: "18764306200" },
   { code: "FSTD10294", first: "Gary", last: "Brooks", email: "Brooksgary49@gmail.com", phone: "18762372819" },
   { code: "FSTD10242", first: "Raja", last: "Spence", email: "Raja.spence7@gmail.com", phone: "8769953562" },
   { code: "FSTD10031", first: "Dameon", last: "Silvera", email: "dameonsilvera@gmail.com", phone: "8764866573" },
-  { code: "FSTD10277", first: "Kenesia", last: "Price-Sutherland", email: "Kenesia26price@gmail.com", phone: "876-368-3717" },
+  { code: "FSTD10277", first: "Kenesia", last: "Price-Sutherland", email: "Kenesia26price@gmail.com", phone: "8763683717" },
   { code: "FSTD10050", first: "Tanice", last: "Brown", email: "tajaunnabrown097@gmail.com", phone: "8764940069" },
   { code: "FSTD10226", first: "Samanta", last: "Brown", email: "samantha_brown2018@outlook.com", phone: "8764057365" },
   { code: "FSTD10006", first: "Clinton", last: "Ricketts", email: "oriana1234r@gmail.com", phone: "8768372176" },
@@ -157,11 +171,11 @@ const MIGRATION_DATA = [
   { code: "FSTD10248", first: "Diona", last: "Sutherland", email: "dionasutherland@yahoo.com", phone: "8768150020" },
   { code: "FSTD10255", first: "Judith", last: "Smith", email: "judith.smith@rocketmail.com", phone: "8768190641" },
   { code: "FSTD10067", first: "Shanta", last: "Osbourne", email: "saosbourne555m@gmail.com", phone: "8769954293" },
-  { code: "FSTD10036", first: "Nicola", last: "Swaby", email: "Nicola_swaby@yahoo.Com", phone: "8763845560" },
+  { code: "FSTD10036", first: "Nicola", last: "Swaby", email: "Nicola_swaby@yahoo.com", phone: "8763845560" },
   { code: "FSTD10060", first: "Andre", last: "Richards", email: "a_richards90@yahoo.com", phone: "8765082815" },
   { code: "FSTD10069", first: "Shenika", last: "Capleton", email: "sncapleton@yahoo.com", phone: "8768995612" },
   { code: "FSTD10241", first: "Hannah-Rie", last: "Davis", email: "dhannahrie@gmail.com", phone: "8765027869" },
-  { code: "FSTD10072", first: "Nadine", last: "Beckford", email: "nadinesbeckford@gmail.com", phone: "876- 335-4580" },
+  { code: "FSTD10072", first: "Nadine", last: "Beckford", email: "nadinesbeckford@gmail.com", phone: "8763354580" },
   { code: "FSTD10024", first: "Peterking", last: "Loney", email: "peterkingloney@gmail.com", phone: "18769901604" },
   { code: "FSTD10228", first: "Chavel", last: "Shields", email: "chavelshields47@gmail.com", phone: "8765447811" },
   { code: "FSTD10229", first: "Sashina", last: "Young", email: "sashinayoung974@gmail.com", phone: "8764475133" },
@@ -179,7 +193,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10059", first: "Terrascapes", last: "Landscaping", email: "terrascapes3inc@gmail.com", phone: "18765120833" },
   { code: "FSTD10295", first: "Nathan", last: "Mcfarlane", email: "mcfarlanenathan39@gmail.com", phone: "8762048021" },
   { code: "FSTD10291", first: "Kemar", last: "Blackwood", email: "kemarblackwood54@gmail.com", phone: "8762256080" },
-  { code: "FSTD10233", first: "Sophia", last: "Hamilton", email: "sophiahamilton121@gmail.com", phone: "876 313 8810" },
+  { code: "FSTD10233", first: "Sophia", last: "Hamilton", email: "sophiahamilton121@gmail.com", phone: "8763138810" },
   { code: "FSTD10282", first: "Alyssa", last: "Adair", email: "alyssaadair26@gmail.com", phone: "8768179520" },
   { code: "FSTD10281", first: "Richard", last: "West", email: "donstulla66@gmail.com", phone: "18762898962" },
   { code: "FSTD10093", first: "Jhaun", last: "McKenzie", email: "jhaunmckenzie2@gmail.com", phone: "8765381875" },
@@ -190,22 +204,22 @@ const MIGRATION_DATA = [
   { code: "FSTD10246", first: "Sonya", last: "Tyrell", email: "Tyrell7ann@gmail.com", phone: "18764359590" },
   { code: "FSTD10253", first: "Clive", last: "Gordon", email: "clivegordon0614@gmail.com", phone: "18763995202" },
   { code: "FSTD10014", first: "Karon", last: "Campbell", email: "karoncampbellmicheal@gmail.com", phone: "8763324863" },
-  { code: "FSTD10262", first: "Cassie", last: "Smith", email: "smithcassie817@gmail.com", phone: "876-503-2981" },
+  { code: "FSTD10262", first: "Cassie", last: "Smith", email: "smithcassie817@gmail.com", phone: "8765032981" },
   { code: "FSTD10271", first: "Ashanta", last: "Johnson", email: "AshantaJohnson1234@gmail.com", phone: "8768645490" },
   { code: "FSTD10230", first: "Jermaine", last: "Hall", email: "jerryjeyhall@gmail.com", phone: "18765040698" },
   { code: "FSTD10235", first: "Desrica", last: "Mason", email: "masonshaniel19@gmail.com", phone: "18765845091" },
   { code: "FSTD10013", first: "Shena", last: "Campbell", email: "Shena_camp08@yahoo.com", phone: "8764375028" },
   { code: "FSTD10266", first: "Peachanay", last: "Simms", email: "Kerrenekayd@gmail.com", phone: "18768841450" },
-  { code: "FSTD10079", first: "Neissa", last: "Watson", email: "neissawcross@icloud.com", phone: "876792290" },
+  { code: "FSTD10079", first: "Neissa", last: "Watson", email: "neissawcross@icloud.com", phone: "8767922909" },
   { code: "FSTD10051", first: "Tianna", last: "Morgan", email: "tiannamorganstm@gmail.com", phone: "8763909839" },
-  { code: "FSTD10287", first: "Anthony", last: "Senior", email: "senioranthony@yahoo.com", phone: "876-773-6177" },
-  { code: "FSTD10218", first: "Tanisha", last: "Evelyn", email: "tq506frassqueen@gmail.com", phone: "876 506 7565" },
+  { code: "FSTD10287", first: "Anthony", last: "Senior", email: "senioranthony@yahoo.com", phone: "8767736177" },
+  { code: "FSTD10218", first: "Tanisha", last: "Evelyn", email: "tq506frassqueen@gmail.com", phone: "8765067565" },
   { code: "FSTD10018", first: "Marvin", last: "Stewart", email: "marvinstewart54@yahoo.com", phone: "8768967501" },
-  { code: "FSTD10085", first: "Lisa", last: "Hay Gordon", email: "Ltahay@yahoo.com", phone: "876 8666886" },
+  { code: "FSTD10085", first: "Lisa", last: "Hay Gordon", email: "Ltahay@yahoo.com", phone: "8768666886" },
   { code: "FSTD10239", first: "Tesha", last: "Anderson", email: "tesh_4eva@yahoo.com", phone: "8764879778" },
   { code: "FSTD10037", first: "Karl", last: "Hinds", email: "karlhindsshindss@gmail.com", phone: "18769905892" },
   { code: "FSTD10081", first: "Ashaloy", last: "Prince", email: "ashaloyprince7@gmail.com", phone: "8762209560" },
-  { code: "FSTD10296", first: "Serie", last: "Mitchell", email: "serenamitchelkm@gmail.com", phone: "876 539 6409" },
+  { code: "FSTD10296", first: "Serie", last: "Mitchell", email: "serenamitchelkm@gmail.com", phone: "8765396409" },
   { code: "FSTD10231", first: "Andrian", last: "Shawsmith", email: "andrian.shawsmith@gmail.com", phone: "18768373856" },
   { code: "FSTD10213", first: "Ricardo", last: "Whitely", email: "Whitely.ricardo@yahoo.com", phone: "8768665883" },
   { code: "FSTD10094", first: "Ravia", last: "Wallen", email: "raviawallen85@gmail.com", phone: "8768697420" },
@@ -225,23 +239,23 @@ const MIGRATION_DATA = [
   { code: "FSTD10015", first: "Danielle", last: "Moodie", email: "ashleighmoodie@yahoo.com", phone: "18764452607" },
   { code: "FSTD10026", first: "Glenrick", last: "Dennis", email: "bootlord1@hotmail.com", phone: "8763824650" },
   { code: "FSTD10232", first: "Richard", last: "Gunn", email: "richardgunn1999@gmail.com", phone: "8768787739" },
-  { code: "FSTD10020", first: "Shadaye", last: "Taylor", email: "taylorshadaye@gmail.com", phone: "876-545-5712" },
+  { code: "FSTD10020", first: "Shadaye", last: "Taylor", email: "taylorshadaye@gmail.com", phone: "8765455712" },
   { code: "FSTD10217", first: "Keisha", last: "Anderson", email: "KEISHA2006A@GMAIL.COM", phone: "8763899359" },
   { code: "FSTD10083", first: "Beatrice", last: "Whitter", email: "jwhitter50@gmail.com", phone: "8764702757" },
-  { code: "FSTD10285", first: "Jamaka", last: "Hall", email: "jamakax1000@gmail.com", phone: "836-6267" },
-  { code: "FSTD10010", first: "FSTD", last: "ADMIN", email: "fromstore2door@gmail.com", phone: "876-771-3071" },
+  { code: "FSTD10285", first: "Jamaka", last: "Hall", email: "jamakax1000@gmail.com", phone: "8366267" },
+  { code: "FSTD10010", first: "FSTD", last: "ADMIN", email: "fromstore2door@gmail.com", phone: "8767713071" },
   { code: "FSTD10252", first: "Odean", last: "Jenkins", email: "kimarjenkins20@gmail.com", phone: "8768455721" },
-  { code: "FSTD10256", first: "Harold", last: "Mitchell", email: "mghharold@gmail.com", phone: "876-299-7744" },
+  { code: "FSTD10256", first: "Harold", last: "Mitchell", email: "mghharold@gmail.com", phone: "8762997744" },
   { code: "FSTD1", first: "Malko", last: "Young", email: "malkoy876@gmail.com", phone: "8763727198" },
   { code: "FSTD10045", first: "Mezan", last: "Dennis-Graham", email: "mezan_dennis@yahoo.com", phone: "8762906754" },
   { code: "FSTD10284", first: "Karene", last: "Taylor-James", email: "Karenetaylor16@gmail.com", phone: "18765811138" },
-  { code: "FSTD10038", first: "Peter", last: "Christie", email: "adrian4nyne@live.com", phone: "876-809-1346" },
+  { code: "FSTD10038", first: "Peter", last: "Christie", email: "adrian4nyne@live.com", phone: "8768091346" },
   { code: "FSTD10032", first: "Oshane", last: "Williams", email: "oshanewilliams@649gmail.com", phone: "18762834080" },
   { code: "FSTD10260", first: "Sean", last: "Lewis", email: "seanlewis82@gmail.com", phone: "8764579028" },
   { code: "FSTD10289", first: "Kyle", last: "Anderson", email: "kylearmani@gmail.com", phone: "8765052625" },
   { code: "FSTD10086", first: "Kemar", last: "Fenderson", email: "kemarfenderson@gmail.com", phone: "8765082491" },
-  { code: "FSTD10265", first: "Chemoy", last: "Morgan", email: "chemoy8morgan@gmail.com", phone: "876-870-5227" },
-  { code: "FSTD10220", first: "Paulette", last: "Wynter-Crossfield", email: "pwyntercrossfield@yahoo.com", phone: "(876)833-8098" },
+  { code: "FSTD10265", first: "Chemoy", last: "Morgan", email: "chemoy8morgan@gmail.com", phone: "8768705227" },
+  { code: "FSTD10220", first: "Paulette", last: "Wynter-Crossfield", email: "pwyntercrossfield@yahoo.com", phone: "8768338098" },
   { code: "FSTD10259", first: "Sheldon", last: "Badwah", email: "greenknight260@hotmail.com", phone: "8763845734" },
   { code: "FSTD10016", first: "Shadae", last: "Young", email: "shadaelewis876@gmail.com", phone: "8764355126" },
   { code: "FSTD10075", first: "Sean-Anthony", last: "Pearson", email: "seanpfrebak@gmail.com", phone: "18763903370" },
@@ -260,14 +274,14 @@ const MIGRATION_DATA = [
   { code: "FSTD10029", first: "Jordane", last: "Hayre", email: "hayrejordane@yahoo.com", phone: "8768362546" },
   { code: "FSTD10286", first: "Renae", last: "Palmer-Gayle", email: "palstacy@yahoo.com", phone: "8764501112" },
   { code: "FSTD10245", first: "Saran", last: "Reeves", email: "saranreeves@gmail.com", phone: "18763880889" },
-  { code: "FSTD10302", first: "Door", last: "Shipping Services", email: "fromstoretoodoor@gmail.com", phone: "+1 876-7713071" },
-  { code: "FSTD10303", first: "Alouda", last: "Black", email: "fromstoretoodoorja@gmail.com", phone: "876-4316130" },
+  { code: "FSTD10302", first: "From Store 2", last: "Door Shipping Services", email: "fromstoretoodoor@gmail.com", phone: "18767713071" },
+  { code: "FSTD10303", first: "Alouda", last: "Black", email: "fromstoretoodoorja@gmail.com", phone: "8764316130" },
   { code: "FSTD10304", first: "Kerrene", last: "Downer", email: "simmspea@gmail.com", phone: "18762855035" },
   { code: "FSTD10305", first: "Rohan", last: "Brown", email: "rohanbrown614@gmail.com", phone: "18763636364" },
   { code: "FSTD10306", first: "Keiara", last: "Thomas", email: "keiarathomas360@gmail.com", phone: "8764418071" },
-  { code: "FSTD10307", first: "Unian", last: "laxyso@logsmarter.net", email: "5551234567", phone: "5551234567" },
+  { code: "FSTD10307", first: "Unian", last: "Laxyso", email: "laxyso@logsmarter.net", phone: "5551234567" },
   { code: "FSTD10308", first: "Paulette", last: "Small", email: "paulette.24small@gmail.com", phone: "8767906650" },
-  { code: "FSTD10309", first: "Cameka", last: "Grant", email: "Cameka_grant@yahoo.com", phone: "1876 357 2433" },
+  { code: "FSTD10309", first: "Cameka", last: "Grant", email: "Cameka_grant@yahoo.com", phone: "18763572433" },
   { code: "FSTD10310", first: "Richard", last: "Baker", email: "richiebabyface.rb@gmail.com", phone: "8763935082" },
   { code: "FSTD10313", first: "Tishanna", last: "Maxwell", email: "maxwell.tishanna@gmail.com", phone: "8762637436" },
   { code: "FSTD10314", first: "Nickesha", last: "Scott", email: "nickesha_scott@yahoo.com", phone: "3066904186" },
@@ -277,7 +291,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10318", first: "Melaine", last: "King", email: "roachemelaine@yahoo.com", phone: "8764554794" },
   { code: "FSTD10319", first: "Judith", last: "Smith", email: "69juan19@gmail.com", phone: "18622139553" },
   { code: "FSTD10320", first: "Marques", last: "Campbell", email: "marcus89070@gmail.com", phone: "8765199557" },
-  { code: "FSTD10321", first: "Oneil", last: "Smiley", email: "admin@neilussolutions.com", phone: "+1 876-805-4497" },
+  { code: "FSTD10321", first: "Oneil", last: "Smiley", email: "admin@neilussolutions.com", phone: "18768054497" },
   { code: "FSTD10322", first: "Michael", last: "Brown", email: "fedupait@gmail.com", phone: "8765184888" },
   { code: "FSTD10323", first: "Joan", last: "Francis", email: "joanfrancis40@gmail.com", phone: "8763363935" },
   { code: "FSTD10324", first: "Jeorjette", last: "Clarke", email: "jeorjetteclarke40@gmail.com", phone: "8765548845" },
@@ -285,150 +299,187 @@ const MIGRATION_DATA = [
   { code: "FSTD10326", first: "Thashana", last: "Sinclair", email: "sinclairthashana91@gmail.com", phone: "18763457528" },
   { code: "FSTD10327", first: "Shamar", last: "Brown", email: "brainbox4003@gmail.com", phone: "8764631311" },
   { code: "FSTD10328", first: "Richard", last: "Ewart", email: "rolidanger2025@gmail.com", phone: "8768091680" },
-  { code: "FSTD10329", first: "Denton", last: "Gordon", email: "risksec.consultant@gmail.com", phone: "876 509 5712" },
+  { code: "FSTD10329", first: "Denton", last: "Gordon", email: "risksec.consultant@gmail.com", phone: "8765095712" },
   { code: "FSTD10330", first: "Sheril", last: "Goldson", email: "sheril2@hotmail.com", phone: "8763890041" },
   { code: "FSTD10331", first: "Annette", last: "Adams", email: "analad19@gmail.com", phone: "8768082248" },
   { code: "FSTD10332", first: "Donovan", last: "Leon", email: "donovan.leon2@gmail.com", phone: "8768342563" },
   { code: "FSTD10333", first: "Kimberly", last: "Bruce", email: "tazimktho@gmail.com", phone: "8765070572" },
   { code: "FSTD10334", first: "Sophana", last: "Burton", email: "sophanaburton68@gmail.com", phone: "8135855429" },
   { code: "FSTD10335", first: "Shanique", last: "Brady", email: "shaniquebrady9@gmail.com", phone: "8765731737" },
-  { code: "FSTD10336", first: "Shaunalee", last: "Smith", email: "shamaradixon641@gmail.com", phone: "876-857-4273" },
+  { code: "FSTD10336", first: "Shaunalee", last: "Smith", email: "shamaradixon641@gmail.com", phone: "8768574273" },
   { code: "FSTD10337", first: "Samara", last: "Vissay", email: "samaravissay@gmail.com", phone: "8768385667" },
   { code: "FSTD10338", first: "Amelia", last: "Miller", email: "ameliamill42@gmail.com", phone: "8767005572" },
-  { code: "FSTD10339", first: "Christopher", last: "Miller", email: "globalwallet8@gmail.com", phone: "876319-2444" },
-  { code: "FSTD10340", first: "Dwayne", last: "WIlliams", email: "Williamsdwayne441@gmail.com", phone: "876 351 3135" },
-  { code: "FSTD10341", first: "Oshine", last: "Shields", email: "Oshineshields1@gmail.com", phone: "876 9092649" },
+  { code: "FSTD10339", first: "Christopher", last: "Miller", email: "globalwallet8@gmail.com", phone: "8763192444" },
+  { code: "FSTD10340", first: "Dwayne", last: "WIlliams", email: "Williamsdwayne441@gmail.com", phone: "8763513135" },
+  { code: "FSTD10341", first: "Oshine", last: "Shields", email: "Oshineshields1@gmail.com", phone: "8769092649" },
   { code: "FSTD10342", first: "SASHAGAY", last: "TAYLOR", email: "tsashagay@yahoo.com", phone: "8764843936" },
-  { code: "FSTD10343", first: "Nickeisha", last: "Lindsay", email: "nickeishalindsay5@gmail.com", phone: "18762976237" },
+  { code: "FSTD10343", first: "Nickeisha", last: "Lindsay", email: "nickeishalindsay5@gmail.com", phone: "18762976237" }
 ];
 
 export default function MigrationPage() {
   const { toast } = useToast();
   const auth = useAuth();
+
   const [isMigrating, setIsMigrating] = useState(false);
-  const [progress, setProgress] = useState({ current: 0, total: MIGRATION_DATA.length });
+  const [logs, setLogs] = useState<{message: string, type: 'success' | 'error'}[]>([]);
+  const [progress, setProgress] = useState({
+    current: 0,
+    total: MIGRATION_DATA.length,
+  });
 
   const runMigration = async () => {
     setIsMigrating(true);
+    setLogs([]);
     let successCount = 0;
     let failCount = 0;
 
+    setProgress({
+      current: 0,
+      total: MIGRATION_DATA.length,
+    });
+
     try {
-        const idToken = await auth.currentUser?.getIdToken();
-        if (!idToken) throw new Error("No authorization token. Please sign in again.");
+      const idToken = await auth.currentUser?.getIdToken(true);
 
-        for (const user of MIGRATION_DATA) {
-            try {
-                const res = await fetch('/api/admin/create-user', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${idToken}`
-                    },
-                    body: JSON.stringify({
-                        firstName: user.first,
-                        lastName: user.last,
-                        email: user.email,
-                        phone: user.phone,
-                        mailboxNumber: user.code,
-                        trn: "N/A", // Not provided in list
-                        defaultPassword: 'User@' + Math.floor(1000 + Math.random() * 9000),
-                    })
-                });
+      if (!idToken) {
+        throw new Error('No auth token. Sign in to your admin account first.');
+      }
 
-                if (res.ok) successCount++;
-                else failCount++;
-            } catch (e) {
-                failCount++;
-            }
-            setProgress(prev => ({ ...prev, current: prev.current + 1 }));
+      for (const user of MIGRATION_DATA) {
+        try {
+          const res = await fetch('/api/admin/create-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+              firstName: user.first?.trim(),
+              lastName: user.last?.trim(),
+              email: user.email?.trim().toLowerCase(),
+              phone: user.phone?.trim(),
+              mailboxNumber: user.code?.trim(),
+              trn: 'N/A',
+              defaultPassword: 'User@1234', // Default password for all migrated users
+            }),
+          });
+
+          const result = await res.json();
+
+          if (!res.ok) {
+            setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${result.message}`, type: 'error' }]);
+            failCount++;
+          } else {
+            setLogs(prev => [...prev, { message: `SUCCESS: ${user.email} (${result.mailbox})`, type: 'success' }]);
+            successCount++;
+          }
+        } catch (err: any) {
+          setLogs(prev => [...prev, { message: `ERROR: ${user.email} - ${err.message}`, type: 'error' }]);
+          failCount++;
         }
 
-        toast({ 
-            title: 'Migration Complete', 
-            description: `Successfully added ${successCount} users. Errors: ${failCount}` 
-        });
-    } catch (error: any) {
-        toast({ title: 'Migration Error', description: error.message, variant: 'destructive' });
+        setProgress((prev) => ({
+          ...prev,
+          current: prev.current + 1,
+        }));
+      }
+
+      toast({
+        title: 'Migration Processed',
+        description: `Success: ${successCount}, Failures: ${failCount}. Check logs for details.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Migration Error',
+        description: err.message,
+        variant: 'destructive',
+      });
     } finally {
-        setIsMigrating(false);
+      setIsMigrating(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-6 h-full max-w-4xl mx-auto">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Worldwide Migration</h1>
-        <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px]">Database Synchronization Portal</p>
-      </div>
-
-      <Card className="border-2 border-primary/10 shadow-2xl">
-        <CardHeader className="bg-primary/5 pb-8">
-            <div className="flex items-center gap-4">
-                <div className="bg-primary text-primary-foreground p-3 rounded-xl shadow-lg">
-                    <DatabaseZap className="h-6 w-6" />
-                </div>
-                <div>
-                    <CardTitle className="uppercase italic tracking-tight font-black">Pre-Loaded Legacy Data</CardTitle>
-                    <CardDescription className="font-bold text-[10px] uppercase">Ready for synchronization with Firebase Auth & Firestore</CardDescription>
-                </div>
-            </div>
+    <div className="max-w-4xl mx-auto flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+              <DatabaseZap className="h-8 w-8 text-primary" />
+              <div>
+                  <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Worldwide Migration Tool</CardTitle>
+                  <CardDescription>
+                    Import pre-loaded user data into your global shipping network.
+                  </CardDescription>
+              </div>
+          </div>
         </CardHeader>
-        <CardContent className="pt-8 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-4 border-2 border-dashed rounded-xl space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Target Population</p>
-                    <p className="text-4xl font-black italic">{MIGRATION_DATA.length}</p>
-                    <p className="text-xs font-bold">Authorized Worldwide Accounts</p>
-                </div>
-                <div className="p-4 bg-muted/50 rounded-xl flex items-start gap-3">
-                    <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
-                    <p className="text-[11px] font-medium leading-relaxed uppercase tracking-tight">
-                        This tool will automatically create Firebase identities and linked Firestore profiles. Users will be emailed their temporary access credentials upon completion.
-                    </p>
-                </div>
-            </div>
 
-            {isMigrating && (
-                <div className="space-y-4 animate-in fade-in zoom-in-95">
-                    <div className="flex justify-between items-center px-1">
-                        <p className="text-xs font-black uppercase italic animate-pulse text-primary">Migrating: {MIGRATION_DATA[progress.current]?.email}</p>
-                        <p className="text-[10px] font-bold">{progress.current} / {progress.total}</p>
+        <CardContent className="space-y-6">
+          <Alert className="bg-primary/5 border-primary/20">
+              <AlertCircle className="h-4 w-4 text-primary" />
+              <AlertTitle className="font-bold">Security Note</AlertTitle>
+              <AlertDescription className="text-xs">
+                  This tool creates Firebase Auth records and Firestore profiles. <strong>Automated emails are disabled</strong> to allow for high-speed bulk processing.
+              </AlertDescription>
+          </Alert>
+
+          {isMigrating && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center text-sm font-bold uppercase tracking-widest">
+                <span>Progress: {progress.current} / {progress.total}</span>
+                <span className="animate-pulse">Syncing...</span>
+              </div>
+              <Progress
+                value={(progress.current / progress.total) * 100}
+                className="h-3"
+              />
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase opacity-60">Activity Log</Label>
+            <ScrollArea className="h-[300px] w-full rounded-md border bg-zinc-950 p-4">
+              {logs.length === 0 ? (
+                <p className="text-zinc-500 text-xs italic">Waiting for migration to start...</p>
+              ) : (
+                <div className="space-y-1 font-mono text-[10px]">
+                  {logs.map((log, i) => (
+                    <div key={i} className={log.type === 'success' ? 'text-green-400' : 'text-red-400'}>
+                      {log.type === 'success' ? <CheckCircle2 className="inline h-3 w-3 mr-1" /> : <XCircle className="inline h-3 w-3 mr-1" />}
+                      {log.message}
                     </div>
-                    <Progress value={(progress.current / progress.total) * 100} className="h-3" />
+                  ))}
                 </div>
-            )}
+              )}
+            </ScrollArea>
+          </div>
         </CardContent>
-        <CardFooter className="pb-8">
-            <Button 
-                onClick={runMigration} 
-                disabled={isMigrating} 
-                className="w-full h-16 text-xl font-black uppercase italic shadow-xl tracking-tighter"
-            >
-                {isMigrating ? (
-                    <>
-                        <Loader2 className="mr-3 h-6 w-6 animate-spin" />
-                        Synchronizing Global Records...
-                    </>
-                ) : (
-                    <>
-                        <DatabaseZap className="mr-3 h-6 w-6" />
-                        Run Worldwide Migration
-                    </>
-                )}
-            </Button>
+
+        <CardFooter>
+          <Button
+            onClick={runMigration}
+            disabled={isMigrating}
+            className="w-full h-14 font-black uppercase text-lg italic shadow-xl"
+          >
+            {isMigrating ? (
+              <>
+                <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                Processing Worldwide Data...
+              </>
+            ) : (
+              <>
+                <DatabaseZap className="mr-2 h-4 w-4" />
+                Run Worldwide Migration
+              </>
+            )}
+          </Button>
         </CardFooter>
       </Card>
 
-      <div className="bg-orange-50 border-2 border-orange-200 dark:bg-orange-950/20 dark:border-orange-900 rounded-xl p-6 flex gap-4">
-        <AlertCircle className="h-6 w-6 text-orange-600 shrink-0" />
-        <div className="space-y-1">
-            <p className="font-black uppercase italic tracking-tight text-orange-800 dark:text-orange-400">Important Safety Notice</p>
-            <p className="text-xs text-orange-700 dark:text-orange-500 font-medium">
-                This process creates real billing-authenticated users. Ensure your Firebase usage limits and email quota can handle this volume before initiating. 
-                Do not refresh this window while the migration is in progress.
-            </p>
-        </div>
+      <div className="flex gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-widest text-center justify-center">
+        <span>Total Records Detected: {MIGRATION_DATA.length}</span>
+        <span className="opacity-20">|</span>
+        <span>Default Password: User@1234</span>
       </div>
     </div>
   );

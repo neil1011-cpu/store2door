@@ -9,8 +9,12 @@ service cloud.firestore {
     }
 
     // Admins are defined by existence of a document in the admin_roles collection
+    // We also add a hardcoded safety fallback for the primary admin email to prevent lockouts.
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
+        request.auth.token.email == "admin@neilussolutions.com"
+      );
     }
 
     function isOwner(userId) {
@@ -41,17 +45,10 @@ service cloud.firestore {
        }
     }
 
-    // Allow authenticated users to initialize their own admin role
-    // This is required for the recovery tool and first-time setup to function.
+    // Allow authenticated users to initialize or read their own admin role status
     match /admin_roles/{uid} {
-      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow list: if isAdmin();
-    }
-    
-    // Invoices access
-    match /invoices/{id} {
-        allow read: if isSignedIn() && (isAdmin() || (resource != null && resource.data.customerId == request.auth.uid));
-        allow list: if isAdmin();
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
     
     // Explicit matches for Collection Groups (fixing the 'list' error at root)
