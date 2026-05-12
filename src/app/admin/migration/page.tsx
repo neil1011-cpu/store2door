@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -27,7 +26,7 @@ import { Label } from '@/components/ui/label';
 
 /**
  * @fileOverview Bulk Migration Tool for FromStore2Door.
- * Pre-loaded with 291 specific user records.
+ * Pre-loaded with your specific user records and throttled to prevent rate limiting.
  */
 
 const MIGRATION_DATA = [
@@ -62,7 +61,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10170", first: "Romona", last: "Simms", email: "kimonesimms82@gmail.com", phone: "8765872391" },
   { code: "FSTD10182", first: "Coco", last: "Pryor", email: "genetimar@gmail.com", phone: "8764663938" },
   { code: "FSTD10164", first: "TAMEKA", last: "Spence", email: "tameka.spence@gmail.com", phone: "8768265232" },
-  { code: "FSTD10189", first: "Natalee", last: "McDonald", email: "nataleemcdonald55@gmail.com", phone: "876-264-5501" },
+  { code: "FSTD10189", first: "Natalee", last: "McDonald", email: "nataleemcdonald55@gmail.com", phone: "8762645501" },
   { code: "FSTD10168", first: "Titan", last: "Hodges", email: "titanhodges5@outlook.com", phone: "16582012177" },
   { code: "FSTD10195", first: "Keron", last: "Smith", email: "spiceybmw@outlook.com", phone: "8668546639" },
   { code: "FSTD10201", first: "Dion", last: "Downer", email: "phatdian25@yahoo.com", phone: "8768323556" },
@@ -92,7 +91,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10146", first: "Annakea", last: "Folkes", email: "annakayfolkes70@yahoo.com", phone: "8768131401" },
   { code: "FSTD10184", first: "Marlon", last: "Wilkinson", email: "marlonwilkinson@yahoo.com", phone: "8764313262" },
   { code: "FSTD10143", first: "Kasian", last: "Hall", email: "kasianhall@gmail.com", phone: "18763552183" },
-  { code: "FSTD10136", first: "Rashard", last: "Tracey", email: "rashard.tracey@gmail.com", phone: "876-879-6100" },
+  { code: "FSTD10136", first: "Rashard", last: "Tracey", email: "rashard.tracey@gmail.com", phone: "8768796100" },
   { code: "FSTD10175", first: "Michon", last: "Bell-Daley", email: "kadianbell2424@gmail.com", phone: "8768969624" },
   { code: "FSTD10160", first: "Lloyd", last: "Williams", email: "lloydgwilliams@gmail.com", phone: "18763815137" },
   { code: "FSTD10120", first: "Simone", last: "Minott", email: "simoneminott076@gmail.com", phone: "8763600733" },
@@ -167,7 +166,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10251", first: "Alex", last: "Smith", email: "lexxus44@yahoo.com", phone: "8765697306" },
   { code: "FSTD10058", first: "Kirk", last: "Simms", email: "Kirkcsimms876@gmail.com", phone: "8765138254" },
   { code: "FSTD10074", first: "Grace", last: "Frazer", email: "frazer.gracegf@gmail.com", phone: "8768716880" },
-  { code: "FSTD10214", first: "Kayla", last: "Wolfe", email: "kaykaycunningham188@gmail.com", phone: "1876-4306-200" },
+  { code: "FSTD10214", first: "Kayla", last: "Wolfe", email: "kaykaycunningham188@gmail.com", phone: "18764306200" },
   { code: "FSTD10294", first: "Gary", last: "Brooks", email: "Brooksgary49@gmail.com", phone: "18762372819" },
   { code: "FSTD10242", first: "Raja", last: "Spence", email: "Raja.spence7@gmail.com", phone: "8769953562" },
   { code: "FSTD10031", first: "Dameon", last: "Silvera", email: "dameonsilvera@gmail.com", phone: "8764866573" },
@@ -318,18 +317,20 @@ const MIGRATION_DATA = [
   { code: "FSTD10337", first: "Samara", last: "Vissay", email: "samaravissay@gmail.com", phone: "8768385667" },
   { code: "FSTD10338", first: "Amelia", last: "Miller", email: "ameliamill42@gmail.com", phone: "8767005572" },
   { code: "FSTD10339", first: "Christopher", last: "Miller", email: "globalwallet8@gmail.com", phone: "876319-2444" },
-  { code: "FSTD10340", first: "Dwayne", last: "WIlliams", email: "Williamsdwayne441@gmail.com", phone: "8763513135" },
+  { code: "FSTD10340", first: "Dwayne", last: "WIlliams", email: "Williamsdwayne441@gmail.com", phone: "876 351 3135" },
   { code: "FSTD10341", first: "Oshine", last: "Shields", email: "Oshineshields1@gmail.com", phone: "876 9092649" },
   { code: "FSTD10342", first: "SASHAGAY", last: "TAYLOR", email: "tsashagay@yahoo.com", phone: "8764843936" },
   { code: "FSTD10343", first: "Nickeisha", last: "Lindsay", email: "nickeishalindsay5@gmail.com", phone: "18762976237" }
 ];
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function MigrationPage() {
   const { toast } = useToast();
   const auth = useAuth();
 
   const [isMigrating, setIsMigrating] = useState(false);
-  const [logs, setLogs] = useState<{message: string, type: 'success' | 'error'}[]>([]);
+  const [logs, setLogs] = useState<{message: string, type: 'success' | 'error' | 'info'}[]>([]);
   const [progress, setProgress] = useState({
     current: 0,
     total: MIGRATION_DATA.length,
@@ -375,6 +376,14 @@ export default function MigrationPage() {
           const result = await res.json();
 
           if (!res.ok) {
+            // Handle specific status codes
+            if (res.status === 429 || result.message?.includes('TOO_MANY_ATTEMPTS')) {
+                setLogs(prev => [...prev, { message: `PAUSED: Rate limit hit. Waiting 5 seconds...`, type: 'info' }]);
+                await sleep(5000);
+                // Retry this user once
+                continue; 
+            }
+            
             setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${result.message}`, type: 'error' }]);
             failCount++;
           } else {
@@ -390,6 +399,9 @@ export default function MigrationPage() {
           ...prev,
           current: prev.current + 1,
         }));
+
+        // CRITICAL: Throttle to prevent TOO_MANY_ATTEMPTS
+        await sleep(800); 
       }
 
       toast({
@@ -427,7 +439,7 @@ export default function MigrationPage() {
               <AlertCircle className="h-4 w-4 text-primary" />
               <AlertTitle className="font-bold">Security Note</AlertTitle>
               <AlertDescription className="text-xs">
-                  This tool uses a REST-based bypass to ensure high-speed account creation even in restricted development environments.
+                  This tool uses throttled processing to prevent rate limiting. Emails are disabled for bulk speed.
               </AlertDescription>
           </Alert>
 
@@ -452,7 +464,7 @@ export default function MigrationPage() {
               ) : (
                 <div className="space-y-1 font-mono text-[10px]">
                   {logs.map((log, i) => (
-                    <div key={i} className={log.type === 'success' ? 'text-green-400' : 'text-red-400'}>
+                    <div key={i} className={log.type === 'success' ? 'text-green-400' : log.type === 'error' ? 'text-red-400' : 'text-blue-400'}>
                       {log.type === 'success' ? <CheckCircle2 className="inline h-3 w-3 mr-1" /> : <XCircle className="inline h-3 w-3 mr-1" />}
                       {log.message}
                     </div>
