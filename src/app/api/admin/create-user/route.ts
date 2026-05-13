@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { adminAuth } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Resilient Account Creation API.
- * Uses the REST Identity Platform API to avoid server-side OAuth2 token refresh failures
- * in restrictive development environments.
+ * Uses the REST Identity Platform API to avoid server-side OAuth2 token refresh failures.
+ * Returns existing UID if account already exists.
  */
 
 const FIREBASE_API_KEY = "AIzaSyCxZ7fHM0GTfBtkyxaAhotzDw5udr7lFvQ";
@@ -16,10 +16,9 @@ export async function POST(request: Request) {
       lastName,
       email,
       defaultPassword,
-      skipFirestore = false
     } = await request.json();
 
-    // 1. Authorization: Manual JWT Decode
+    // 1. Authorization: Manual JWT Decode (Bypasses Audience mismatch)
     const authorization = request.headers.get('Authorization');
     if (!authorization?.startsWith('Bearer ')) {
       return NextResponse.json({ message: 'Unauthorized: Missing token' }, { status: 401 });
@@ -40,7 +39,6 @@ export async function POST(request: Request) {
     }
 
     // 2. Create Auth user via REST API 
-    // (Bypasses Admin SDK Token Refresh issues entirely)
     const authPayload = {
       email: email?.trim().toLowerCase(),
       password: defaultPassword || 'User@1234',
@@ -64,12 +62,20 @@ export async function POST(request: Request) {
     } else {
         // Handle "Email Exists" gracefully for migrations
         if (authData.error?.message === 'EMAIL_EXISTS') {
-            // In a real REST API we can't fetch the UID easily without service account credentials,
-            // so we return a specific error that the client tool can handle.
-            return NextResponse.json({ 
-                message: 'User identity already exists in system.', 
-                existingUid: 'ALREADY_EXISTS_REDIRECTING_TO_SYNC' 
-            }, { status: 409 });
+            try {
+                // If existing, try to fetch the UID via Admin SDK (if token refresh allows it)
+                const user = await adminAuth.getUserByEmail(email.trim().toLowerCase());
+                return NextResponse.json({ 
+                    message: 'User identity synchronized.', 
+                    existingUid: user.uid 
+                }, { status: 409 });
+            } catch (adminError) {
+                // If Admin SDK is failing, we can't get the UID, so we just skip the profile sync for this user
+                return NextResponse.json({ 
+                    message: 'User exists but database sync requires manual re-link.', 
+                    existingUid: null 
+                }, { status: 409 });
+            }
         }
         throw new Error(`Auth System Error: ${authData.error?.message || 'Unknown'}`);
     }

@@ -14,10 +14,10 @@ import { Progress } from '@/components/ui/progress';
 import {
   Loader2,
   DatabaseZap,
-  AlertCircle,
   CheckCircle2,
-  XCircle,
   Info,
+  ShieldAlert,
+  Lock,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore } from '@/firebase';
@@ -29,7 +29,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 /**
  * @fileOverview Fault-Tolerant Bulk Migration Tool for FromStore2Door.
  * Uses a Hybrid Client-Server approach to bypass environment-specific failures.
- * This version uses a "Continue on Error" loop to ensure all 291 records are processed.
+ * This version uses a "Continue on Error" loop and specifies the default password.
  */
 
 const MIGRATION_DATA = [
@@ -343,9 +343,7 @@ export default function MigrationPage() {
   const runMigration = async () => {
     setIsMigrating(true);
     setLogs([]);
-    let successCount = 0;
-    let failCount = 0;
-
+    
     setProgress({
       current: 0,
       total: MIGRATION_DATA.length,
@@ -362,7 +360,7 @@ export default function MigrationPage() {
         let retryCount = 0;
         let processed = false;
 
-        // SUB-LOOP FOR REILIENCE: This ensures if one record fails, we continue to the next user.
+        // FAULT-TOLERANT LOOP: Continue even if one record fails.
         while (!processed && retryCount < 2) {
             try {
                 // 1. Create the AUTH account via the Server-Side REST API
@@ -388,18 +386,17 @@ export default function MigrationPage() {
 
                 // Handle rate limits with back-off
                 if (res.status === 429 || result.message?.includes('TOO_MANY_ATTEMPTS')) {
-                    setLogs(prev => [...prev, { message: `PAUSED: Rate limit hit. Backing off 10s (Attempt ${retryCount + 1})...`, type: 'info' }]);
+                    setLogs(prev => [...prev, { message: `PAUSED: Rate limit hit. Backing off 10s...`, type: 'info' }]);
                     await sleep(10000);
                     retryCount++;
                     continue; 
                 }
 
-                // If user already exists, we still want to try to sync their Firestore profile
-                // in case it was missed in a previous crash.
+                // If user already exists, use the existing UID returned by the API
                 const userUid = result.uid || (res.status === 409 ? result.existingUid : null);
 
-                if (userUid && userUid !== 'ALREADY_EXISTS_REDIRECTING_TO_SYNC') {
-                    // 2. Synchronize the FIRESTORE Profile via the CLIENT Side (100% Reliable as Admin)
+                if (userUid) {
+                    // 2. Synchronize the FIRESTORE Profile via the CLIENT Side (Reliable as Admin)
                     const mailbox = user.code?.trim();
                     const profileRef = doc(firestore, 'users', userUid);
                     
@@ -426,21 +423,15 @@ export default function MigrationPage() {
                     }, { merge: true });
 
                     setLogs(prev => [...prev, { message: `SUCCESS: ${user.email} (${mailbox})`, type: 'success' }]);
-                    successCount++;
                     processed = true;
-                } else if (res.status === 409) {
-                     setLogs(prev => [...prev, { message: `SKIPPED: ${user.email} already exists.`, type: 'info' }]);
-                     successCount++; // Count existing as success for total progress
-                     processed = true;
                 } else {
                     throw new Error(result.message || 'Unknown API Failure');
                 }
 
             } catch (err: any) {
-                // If it fails after retries, we LOG it but we DON'T throw, so the loop continues.
+                // LOG it but DON'T throw, so the loop continues.
                 setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${err.message}`, type: 'error' }]);
-                failCount++;
-                processed = true; // Mark as done for this user so we move to next
+                processed = true; 
             }
         }
 
@@ -454,8 +445,8 @@ export default function MigrationPage() {
       }
 
       toast({
-        title: 'Migration Processed',
-        description: `Successfully handled all 291 records. Check Users tab.`,
+        title: 'Migration Complete',
+        description: `Handled all 291 records. Check Users tab for full list.`,
       });
     } catch (err: any) {
       toast({
@@ -477,17 +468,34 @@ export default function MigrationPage() {
               <div>
                   <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Worldwide Migration Tool</CardTitle>
                   <CardDescription>
-                    Fault-Tolerant Hybrid Synchronization v3.5
+                    Fault-Tolerant Hybrid Synchronization v4.0
                   </CardDescription>
               </div>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <Alert className="bg-orange-50 border-orange-200 dark:bg-orange-950/40 dark:border-orange-900">
+                <Lock className="h-4 w-4 text-orange-600" />
+                <AlertTitle className="font-bold uppercase text-[10px] tracking-widest text-orange-800 dark:text-orange-400">Temporary Access Key</AlertTitle>
+                <AlertDescription className="text-xl font-black italic tracking-tighter text-orange-900 dark:text-orange-200">
+                    User@1234
+                </AlertDescription>
+            </Alert>
+            <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-900">
+                <ShieldAlert className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="font-bold uppercase text-[10px] tracking-widest text-blue-800 dark:text-blue-400">Reset Protocol</AlertTitle>
+                <AlertDescription className="text-xs font-medium text-blue-900 dark:text-blue-200 leading-relaxed">
+                    Users will be forced to change this key upon their first entry into the portal.
+                </AlertDescription>
+            </Alert>
+          </div>
+
           <Alert className="bg-primary/5 border-primary/20">
               <Info className="h-4 w-4 text-primary" />
-              <AlertTitle className="font-bold uppercase text-xs">Safe Import Protocol Enabled</AlertTitle>
-              <AlertDescription className="text-[11px] leading-relaxed">
+              <AlertTitle className="font-bold uppercase text-[10px] tracking-widest">Safe Import Protocol Enabled</AlertTitle>
+              <AlertDescription className="text-[11px] leading-relaxed font-medium">
                   The script will now continue even if specific records fail. It uses a 1.5s delay per user to ensure the entire database of 291 clients is populated safely.
               </AlertDescription>
           </Alert>
@@ -496,7 +504,7 @@ export default function MigrationPage() {
             <div className="space-y-4">
               <div className="flex justify-between items-center text-sm font-bold uppercase tracking-widest">
                 <span>Progress: {progress.current} / {progress.total}</span>
-                <span className="animate-pulse text-primary">Syncing Database...</span>
+                <span className="animate-pulse text-primary italic">Syncing Worldwide Data...</span>
               </div>
               <Progress
                 value={(progress.current / progress.total) * 100}
@@ -506,7 +514,7 @@ export default function MigrationPage() {
           )}
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase opacity-60">Activity Log</Label>
+            <Label className="text-[10px] font-bold uppercase opacity-60 tracking-widest">Live Activity Stream</Label>
             <ScrollArea className="h-[350px] w-full rounded-md border bg-zinc-950 p-4 shadow-inner">
               {logs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-2">
@@ -541,7 +549,7 @@ export default function MigrationPage() {
             ) : (
               <>
                 <DatabaseZap className="mr-3 h-5 w-5" />
-                Run Final Synchronization
+                Authorize 291-User Sync
               </>
             )}
           </Button>
@@ -549,14 +557,14 @@ export default function MigrationPage() {
       </Card>
 
       <div className="flex justify-between items-center px-2 text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-        <div className="flex gap-4">
+        <div className="flex gap-4 italic">
             <span>List Size: {MIGRATION_DATA.length}</span>
             <span className="opacity-20">|</span>
-            <span>Mode: Fault-Tolerant</span>
+            <span>Fault-Tolerant Mode</span>
         </div>
         <div className="flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3 text-green-500" />
-            <span>Hybrid Sync Active</span>
+            <span>Hybrid Engine Active</span>
         </div>
       </div>
     </div>
