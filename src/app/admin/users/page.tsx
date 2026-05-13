@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -17,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle, Users as UsersIcon } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -33,8 +33,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, useAuth } from '@/firebase';
-import { collection, query, serverTimestamp, doc, setDoc, getCountFromServer } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, getCountFromServer } from 'firebase/firestore';
 
 export default function UsersPage() {
   const { toast } = useToast();
@@ -56,8 +56,21 @@ export default function UsersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [totalDbCount, setTotalDbCount] = useState<number | null>(null);
   
   const adminIds = useMemo(() => new Set(adminRoles?.map(role => role.id)), [adminRoles]);
+
+  // Live Server-Side Count Verification
+  useEffect(() => {
+    const fetchTotalCount = async () => {
+      try {
+        const coll = collection(firestore, 'users');
+        const snapshot = await getCountFromServer(coll);
+        setTotalDbCount(snapshot.data().count);
+      } catch (e) {}
+    };
+    fetchTotalCount();
+  }, [firestore, users]);
 
   const filteredUsers = useMemo(() => {
     if (!users) return [];
@@ -116,7 +129,7 @@ export default function UsersPage() {
             <ImportCSVDialog />
             <Dialog open={openAddUser} onOpenChange={setOpenAddUser}>
                 <DialogTrigger asChild>
-                    <Button className="font-bold"><PlusCircle className="mr-2 h-4 w-4" /> Add User</Button>
+                    <Button className="font-bold shadow-md"><PlusCircle className="mr-2 h-4 w-4" /> Add User</Button>
                 </DialogTrigger>
                 <DialogContent>
                     <DialogHeader>
@@ -137,13 +150,27 @@ export default function UsersPage() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button onClick={handleAddUser} disabled={isSubmitting} className="w-full h-12 text-lg font-black uppercase italic">
+                        <Button onClick={handleAddUser} disabled={isSubmitting} className="w-full h-12 text-lg font-black uppercase italic shadow-xl">
                             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize New Account"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="bg-primary/5 border-primary/20">
+            <CardHeader className="p-4 pb-2">
+                <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Total Database Records</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 flex items-center gap-3">
+                <UsersIcon className="h-8 w-8 text-primary opacity-40" />
+                <div className="text-3xl font-black tracking-tighter italic">
+                    {totalDbCount === null ? <Loader2 className="h-6 w-6 animate-spin opacity-20" /> : totalDbCount}
+                </div>
+            </CardContent>
+        </Card>
       </div>
 
       <Card className="shadow-lg border-primary/10">
@@ -181,7 +208,7 @@ export default function UsersPage() {
                   <TableCell className="font-mono font-black text-lg tracking-tighter text-primary">{u.mailboxNumber}</TableCell>
                   <TableCell className="text-sm font-medium">{u.phone}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="outline" size="sm" asChild className="h-8 font-bold border-2">
+                    <Button variant="outline" size="sm" asChild className="h-8 font-bold border-2 hover:bg-primary hover:text-primary-foreground">
                         <Link href={`/admin/users/${u.id}`}><Eye className="h-4 w-4 mr-2" />View profile</Link>
                     </Button>
                   </TableCell>
