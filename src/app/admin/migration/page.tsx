@@ -29,6 +29,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 /**
  * @fileOverview Bulk Migration Tool for FromStore2Door.
  * Uses a Hybrid Client-Server approach to bypass environment-specific Admin SDK failures.
+ * Throttled to 1.5s per record to avoid Identity Platform rate limits.
  */
 
 const MIGRATION_DATA = [
@@ -358,77 +359,83 @@ export default function MigrationPage() {
       }
 
       for (const user of MIGRATION_DATA) {
-        try {
-          // 1. Create the AUTH account via the Server-Side REST API
-          // (This part must be server-side for security and to handle the POST request)
-          const res = await fetch('/api/admin/create-user', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({
-              firstName: user.first?.trim(),
-              lastName: user.last?.trim(),
-              email: user.email?.trim().toLowerCase(),
-              phone: user.phone?.trim(),
-              mailboxNumber: user.code?.trim(),
-              trn: 'N/A',
-              defaultPassword: 'User@1234', 
-              skipFirestore: true // IMPORTANT: API only handles Auth creation
-            }),
-          });
+        let retryCount = 0;
+        let processed = false;
 
-          const result = await res.json();
+        while (!processed && retryCount < 3) {
+            try {
+                // 1. Create the AUTH account via the Server-Side REST API
+                const res = await fetch('/api/admin/create-user', {
+                    method: 'POST',
+                    headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${idToken}`,
+                    },
+                    body: JSON.stringify({
+                    firstName: user.first?.trim(),
+                    lastName: user.last?.trim(),
+                    email: user.email?.trim().toLowerCase(),
+                    phone: user.phone?.trim(),
+                    mailboxNumber: user.code?.trim(),
+                    trn: 'N/A',
+                    defaultPassword: 'User@1234', 
+                    skipFirestore: true 
+                    }),
+                });
 
-          if (!res.ok && res.status !== 409) {
-             // Handle rate limits
-             if (res.status === 429 || result.message?.includes('TOO_MANY_ATTEMPTS')) {
-                setLogs(prev => [...prev, { message: `PAUSED: Rate limit hit. Waiting 5 seconds...`, type: 'info' }]);
-                await sleep(5000);
-                continue; 
+                const result = await res.json();
+
+                if (!res.ok && res.status !== 409) {
+                    // Handle rate limits
+                    if (res.status === 429 || result.message?.includes('TOO_MANY_ATTEMPTS')) {
+                        setLogs(prev => [...prev, { message: `PAUSED: Rate limit hit. Backing off 10s (Attempt ${retryCount + 1})...`, type: 'info' }]);
+                        await sleep(10000);
+                        retryCount++;
+                        continue; 
+                    }
+                    throw new Error(result.message || 'API Error');
+                }
+
+                // 2. Synchronize the FIRESTORE Profile via the CLIENT Side
+                const mailbox = user.code?.trim();
+                const userUid = result.uid || result.existingUid;
+
+                if (userUid) {
+                    const profileRef = doc(firestore, 'users', userUid);
+                    await setDoc(profileRef, {
+                        id: userUid,
+                        fullName: `${user.first} ${user.last}`,
+                        firstName: user.first,
+                        lastName: user.last,
+                        email: user.email?.trim().toLowerCase(),
+                        phone: user.phone?.trim(),
+                        trn: 'N/A',
+                        mailboxNumber: mailbox,
+                        address: {
+                            address1: '4350 NE 5th Terrace Bay #3',
+                            address2: `${mailbox}-FSTD`,
+                            city: 'Oakland Park',
+                            state: 'Florida',
+                            zip: '33334',
+                        },
+                        createdAt: serverTimestamp(),
+                        needsPasswordReset: true,
+                        pickupPersonnel: [],
+                        dropoffAddresses: [],
+                    }, { merge: true });
+
+                    setLogs(prev => [...prev, { message: `SUCCESS: ${user.email} (${mailbox})`, type: 'success' }]);
+                    successCount++;
+                    processed = true;
+                } else {
+                    throw new Error("Could not retrieve user identity from system.");
+                }
+
+            } catch (err: any) {
+                setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${err.message}`, type: 'error' }]);
+                failCount++;
+                processed = true;
             }
-            throw new Error(result.message || 'API Error');
-          }
-
-          // 2. Synchronize the FIRESTORE Profile via the CLIENT Side
-          // (Since the browser is logged in, it can bypass server-side token issues)
-          const mailbox = user.code?.trim();
-          const userUid = result.uid || result.existingUid;
-
-          if (userUid) {
-              const profileRef = doc(firestore, 'users', userUid);
-              await setDoc(profileRef, {
-                id: userUid,
-                fullName: `${user.first} ${user.last}`,
-                firstName: user.first,
-                lastName: user.last,
-                email: user.email?.trim().toLowerCase(),
-                phone: user.phone?.trim(),
-                trn: 'N/A',
-                mailboxNumber: mailbox,
-                address: {
-                    address1: '4350 NE 5th Terrace Bay #3',
-                    address2: `${mailbox}-FSTD`,
-                    city: 'Oakland Park',
-                    state: 'Florida',
-                    zip: '33334',
-                },
-                createdAt: serverTimestamp(),
-                needsPasswordReset: true,
-                pickupPersonnel: [],
-                dropoffAddresses: [],
-              }, { merge: true });
-
-              setLogs(prev => [...prev, { message: `SUCCESS: ${user.email} (Auth + Profile Sync)`, type: 'success' }]);
-              successCount++;
-          } else {
-              throw new Error("Could not retrieve user identity from system.");
-          }
-
-        } catch (err: any) {
-          setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${err.message}`, type: 'error' }]);
-          failCount++;
         }
 
         setProgress((prev) => ({
@@ -436,13 +443,13 @@ export default function MigrationPage() {
           current: prev.current + 1,
         }));
 
-        // Throttle to keep the browser responsive and avoid rate limits
-        await sleep(800); 
+        // Safer delay to respect Google's Identity Platform limits
+        await sleep(1500); 
       }
 
       toast({
-        title: 'Migration Processed',
-        description: `Success: ${successCount}, Failures: ${failCount}. Check logs for details.`,
+        title: 'Migration Complete',
+        description: `Success: ${successCount}, Failures: ${failCount}. Check Users tab.`,
       });
     } catch (err: any) {
       toast({
@@ -473,9 +480,9 @@ export default function MigrationPage() {
         <CardContent className="space-y-6">
           <Alert className="bg-primary/5 border-primary/20">
               <Info className="h-4 w-4 text-primary" />
-              <AlertTitle className="font-bold">Protocol v2.0 (High Reliability)</AlertTitle>
+              <AlertTitle className="font-bold">Safe Import Protocol v3.0</AlertTitle>
               <AlertDescription className="text-xs">
-                  This tool now uses your browser session to synchronize profiles, bypassing server-side token issues. Do not close this tab while the sync is running.
+                  Throttled processing enabled (1.5s/record) to bypass security filters. Estimated time for 291 records: 8-10 minutes.
               </AlertDescription>
           </Alert>
 
@@ -483,7 +490,7 @@ export default function MigrationPage() {
             <div className="space-y-4">
               <div className="flex justify-between items-center text-sm font-bold uppercase tracking-widest">
                 <span>Progress: {progress.current} / {progress.total}</span>
-                <span className="animate-pulse">Syncing...</span>
+                <span className="animate-pulse">Synchronizing Worldwide...</span>
               </div>
               <Progress
                 value={(progress.current / progress.total) * 100}
@@ -501,7 +508,7 @@ export default function MigrationPage() {
                 <div className="space-y-1 font-mono text-[10px]">
                   {logs.map((log, i) => (
                     <div key={i} className={log.type === 'success' ? 'text-green-400' : log.type === 'error' ? 'text-red-400' : 'text-blue-400'}>
-                      {log.type === 'success' ? <CheckCircle2 className="inline h-3 w-3 mr-1" /> : <XCircle className="inline h-3 w-3 mr-1" />}
+                      {log.type === 'success' ? <CheckCircle2 className="inline h-3 w-3 mr-1" /> : log.type === 'error' ? <XCircle className="inline h-3 w-3 mr-1" /> : <AlertCircle className="inline h-3 w-3 mr-1" />}
                       {log.message}
                     </div>
                   ))}
@@ -520,7 +527,7 @@ export default function MigrationPage() {
             {isMigrating ? (
               <>
                 <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                Synchronizing Worldwide Data...
+                Synchronizing Database...
               </>
             ) : (
               <>
