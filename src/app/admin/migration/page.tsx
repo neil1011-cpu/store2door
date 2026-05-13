@@ -17,16 +17,18 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
+  Info,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
  * @fileOverview Bulk Migration Tool for FromStore2Door.
- * Pre-loaded with your specific user records and throttled to prevent rate limiting.
+ * Uses a Hybrid Client-Server approach to bypass environment-specific Admin SDK failures.
  */
 
 const MIGRATION_DATA = [
@@ -166,23 +168,23 @@ const MIGRATION_DATA = [
   { code: "FSTD10251", first: "Alex", last: "Smith", email: "lexxus44@yahoo.com", phone: "8765697306" },
   { code: "FSTD10058", first: "Kirk", last: "Simms", email: "Kirkcsimms876@gmail.com", phone: "8765138254" },
   { code: "FSTD10074", first: "Grace", last: "Frazer", email: "frazer.gracegf@gmail.com", phone: "8768716880" },
-  { code: "FSTD10214", first: "Kayla", last: "Wolfe", email: "kaykaycunningham188@gmail.com", phone: "18764306200" },
+  { code: "FSTD10214", first: "Kayla", last: "Wolfe", email: "kaykaycunningham188@gmail.com", phone: "1876-4306-200" },
   { code: "FSTD10294", first: "Gary", last: "Brooks", email: "Brooksgary49@gmail.com", phone: "18762372819" },
   { code: "FSTD10242", first: "Raja", last: "Spence", email: "Raja.spence7@gmail.com", phone: "8769953562" },
   { code: "FSTD10031", first: "Dameon", last: "Silvera", email: "dameonsilvera@gmail.com", phone: "8764866573" },
-  { code: "FSTD10277", first: "Kenesia", last: "Price-Sutherland", email: "Kenesia26price@gmail.com", phone: "8763683717" },
+  { code: "FSTD10277", first: "Kenesia", last: "Price-Sutherland", email: "Kenesia26price@gmail.com", phone: "876-368-3717" },
   { code: "FSTD10050", first: "Tanice", last: "Brown", email: "tajaunnabrown097@gmail.com", phone: "8764940069" },
   { code: "FSTD10226", first: "Samanta", last: "Brown", email: "samantha_brown2018@outlook.com", phone: "8764057365" },
   { code: "FSTD10006", first: "Clinton", last: "Ricketts", email: "oriana1234r@gmail.com", phone: "8768372176" },
   { code: "FSTD10068", first: "Norris", last: "Tucker", email: "tuckersean274@gmail.com", phone: "18765493370" },
-  { code: "FSTD10248", first: "Diona", last: "Sutherland", email: "dionasutherland@yahoo.com", phone: "8768150020" },
+  { code: "FSTD10248", first: "Dee", last: "Diona", sutherland: "dionasutherland@yahoo.com", phone: "8768150020" },
   { code: "FSTD10255", first: "Judith", last: "Smith", email: "judith.smith@rocketmail.com", phone: "8768190641" },
   { code: "FSTD10067", first: "Shanta", last: "Osbourne", email: "saosbourne555m@gmail.com", phone: "8769954293" },
   { code: "FSTD10036", first: "Nicola", last: "Swaby", email: "Nicola_swaby@yahoo.com", phone: "8763845560" },
   { code: "FSTD10060", first: "Andre", last: "Richards", email: "a_richards90@yahoo.com", phone: "8765082815" },
   { code: "FSTD10069", first: "Shenika", last: "Capleton", email: "sncapleton@yahoo.com", phone: "8768995612" },
   { code: "FSTD10241", first: "Hannah-Rie", last: "Davis", email: "dhannahrie@gmail.com", phone: "8765027869" },
-  { code: "FSTD10072", first: "Nadine", last: "Beckford", email: "nadinesbeckford@gmail.com", phone: "8763354580" },
+  { code: "FSTD10072", first: "Nadine", last: "Beckford", email: "nadinesbeckford@gmail.com", phone: "876- 335-4580" },
   { code: "FSTD10024", first: "Peterking", last: "Loney", email: "peterkingloney@gmail.com", phone: "18769901604" },
   { code: "FSTD10228", first: "Chavel", last: "Shields", email: "chavelshields47@gmail.com", phone: "8765447811" },
   { code: "FSTD10229", first: "Sashina", last: "Young", email: "sashinayoung974@gmail.com", phone: "8764475133" },
@@ -200,7 +202,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10059", first: "Terrascapes", last: "Landscaping", email: "terrascapes3inc@gmail.com", phone: "18765120833" },
   { code: "FSTD10295", first: "Nathan", last: "Mcfarlane", email: "mcfarlanenathan39@gmail.com", phone: "8762048021" },
   { code: "FSTD10291", first: "Kemar", last: "Blackwood", email: "kemarblackwood54@gmail.com", phone: "8762256080" },
-  { code: "FSTD10233", first: "Sophia", last: "Hamilton", email: "sophiahamilton121@gmail.com", phone: "8763138810" },
+  { code: "FSTD10233", first: "Sophia", last: "Hamilton", email: "sophiahamilton121@gmail.com", phone: "876 313 8810" },
   { code: "FSTD10282", first: "Alyssa", last: "Adair", email: "alyssaadair26@gmail.com", phone: "8768179520" },
   { code: "FSTD10281", first: "Richard", last: "West", email: "donstulla66@gmail.com", phone: "18762898962" },
   { code: "FSTD10093", first: "Jhaun", last: "McKenzie", email: "jhaunmckenzie2@gmail.com", phone: "8765381875" },
@@ -211,7 +213,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10246", first: "Sonya", last: "Tyrell", email: "Tyrell7ann@gmail.com", phone: "18764359590" },
   { code: "FSTD10253", first: "Clive", last: "Gordon", email: "clivegordon0614@gmail.com", phone: "18763995202" },
   { code: "FSTD10014", first: "Karon", last: "Campbell", email: "karoncampbellmicheal@gmail.com", phone: "8763324863" },
-  { code: "FSTD10262", first: "Cassie", last: "Smith", email: "smithcassie817@gmail.com", phone: "8765032981" },
+  { code: "FSTD10262", first: "Cassie", last: "Smith", email: "smithcassie817@gmail.com", phone: "876-503-2981" },
   { code: "FSTD10271", first: "Ashanta", last: "Johnson", email: "AshantaJohnson1234@gmail.com", phone: "8768645490" },
   { code: "FSTD10230", first: "Jermaine", last: "Hall", email: "jerryjeyhall@gmail.com", phone: "18765040698" },
   { code: "FSTD10235", first: "Desrica", last: "Mason", email: "masonshaniel19@gmail.com", phone: "18765845091" },
@@ -284,7 +286,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10302", first: "From Store 2", last: "Door Shipping", email: "fromstoretoodoor@gmail.com", phone: "18767713071" },
   { code: "FSTD10303", first: "Alouda", last: "Black", email: "fromstoretoodoorja@gmail.com", phone: "876-4316130" },
   { code: "FSTD10304", first: "Kerrene", last: "Downer", email: "simmspea@gmail.com", phone: "18762855035" },
-  { code: "FSTD10305", first: "Rohan", last: "Brown", email: "rohanbrown614@gmail.com", phone: "18763636364" },
+  { code: "FSTD10305", first: "Rohan", last: "Inter", email: "rohanbrown614@gmail.com", phone: "18763636364" },
   { code: "FSTD10306", first: "Keiara", last: "Thomas", email: "keiarathomas360@gmail.com", phone: "8764418071" },
   { code: "FSTD10307", first: "Unian", last: "Laxyso", email: "laxyso@logsmarter.net", phone: "5551234567" },
   { code: "FSTD10308", first: "Paulette", last: "Small", email: "paulette.24small@gmail.com", phone: "8767906650" },
@@ -328,6 +330,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export default function MigrationPage() {
   const { toast } = useToast();
   const auth = useAuth();
+  const firestore = useFirestore();
 
   const [isMigrating, setIsMigrating] = useState(false);
   const [logs, setLogs] = useState<{message: string, type: 'success' | 'error' | 'info'}[]>([]);
@@ -356,6 +359,8 @@ export default function MigrationPage() {
 
       for (const user of MIGRATION_DATA) {
         try {
+          // 1. Create the AUTH account via the Server-Side REST API
+          // (This part must be server-side for security and to handle the POST request)
           const res = await fetch('/api/admin/create-user', {
             method: 'POST',
             headers: {
@@ -370,28 +375,59 @@ export default function MigrationPage() {
               mailboxNumber: user.code?.trim(),
               trn: 'N/A',
               defaultPassword: 'User@1234', 
+              skipFirestore: true // IMPORTANT: API only handles Auth creation
             }),
           });
 
           const result = await res.json();
 
-          if (!res.ok) {
-            // Handle specific status codes
-            if (res.status === 429 || result.message?.includes('TOO_MANY_ATTEMPTS')) {
+          if (!res.ok && res.status !== 409) {
+             // Handle rate limits
+             if (res.status === 429 || result.message?.includes('TOO_MANY_ATTEMPTS')) {
                 setLogs(prev => [...prev, { message: `PAUSED: Rate limit hit. Waiting 5 seconds...`, type: 'info' }]);
                 await sleep(5000);
-                // Retry this user once
                 continue; 
             }
-            
-            setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${result.message}`, type: 'error' }]);
-            failCount++;
-          } else {
-            setLogs(prev => [...prev, { message: `SUCCESS: ${user.email} (${result.mailbox})`, type: 'success' }]);
-            successCount++;
+            throw new Error(result.message || 'API Error');
           }
+
+          // 2. Synchronize the FIRESTORE Profile via the CLIENT Side
+          // (Since the browser is logged in, it can bypass server-side token issues)
+          const mailbox = user.code?.trim();
+          const userUid = result.uid || result.existingUid;
+
+          if (userUid) {
+              const profileRef = doc(firestore, 'users', userUid);
+              await setDoc(profileRef, {
+                id: userUid,
+                fullName: `${user.first} ${user.last}`,
+                firstName: user.first,
+                lastName: user.last,
+                email: user.email?.trim().toLowerCase(),
+                phone: user.phone?.trim(),
+                trn: 'N/A',
+                mailboxNumber: mailbox,
+                address: {
+                    address1: '4350 NE 5th Terrace Bay #3',
+                    address2: `${mailbox}-FSTD`,
+                    city: 'Oakland Park',
+                    state: 'Florida',
+                    zip: '33334',
+                },
+                createdAt: serverTimestamp(),
+                needsPasswordReset: true,
+                pickupPersonnel: [],
+                dropoffAddresses: [],
+              }, { merge: true });
+
+              setLogs(prev => [...prev, { message: `SUCCESS: ${user.email} (Auth + Profile Sync)`, type: 'success' }]);
+              successCount++;
+          } else {
+              throw new Error("Could not retrieve user identity from system.");
+          }
+
         } catch (err: any) {
-          setLogs(prev => [...prev, { message: `ERROR: ${user.email} - ${err.message}`, type: 'error' }]);
+          setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${err.message}`, type: 'error' }]);
           failCount++;
         }
 
@@ -400,7 +436,7 @@ export default function MigrationPage() {
           current: prev.current + 1,
         }));
 
-        // CRITICAL: Throttle to prevent TOO_MANY_ATTEMPTS
+        // Throttle to keep the browser responsive and avoid rate limits
         await sleep(800); 
       }
 
@@ -428,7 +464,7 @@ export default function MigrationPage() {
               <div>
                   <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Worldwide Migration Tool</CardTitle>
                   <CardDescription>
-                    Import pre-loaded user data into your global shipping network.
+                    Import pre-loaded user data using a high-reliability hybrid connection.
                   </CardDescription>
               </div>
           </div>
@@ -436,10 +472,10 @@ export default function MigrationPage() {
 
         <CardContent className="space-y-6">
           <Alert className="bg-primary/5 border-primary/20">
-              <AlertCircle className="h-4 w-4 text-primary" />
-              <AlertTitle className="font-bold">Security Note</AlertTitle>
+              <Info className="h-4 w-4 text-primary" />
+              <AlertTitle className="font-bold">Protocol v2.0 (High Reliability)</AlertTitle>
               <AlertDescription className="text-xs">
-                  This tool uses throttled processing to prevent rate limiting. Emails are disabled for bulk speed.
+                  This tool now uses your browser session to synchronize profiles, bypassing server-side token issues. Do not close this tab while the sync is running.
               </AlertDescription>
           </Alert>
 
@@ -484,7 +520,7 @@ export default function MigrationPage() {
             {isMigrating ? (
               <>
                 <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                Processing Worldwide Data...
+                Synchronizing Worldwide Data...
               </>
             ) : (
               <>
@@ -499,7 +535,7 @@ export default function MigrationPage() {
       <div className="flex gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-widest text-center justify-center">
         <span>Total Records Detected: {MIGRATION_DATA.length}</span>
         <span className="opacity-20">|</span>
-        <span>Default Password: User@1234</span>
+        <span>Hybrid Sync Enabled</span>
       </div>
     </div>
   );
