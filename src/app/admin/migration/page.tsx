@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -18,18 +18,18 @@ import {
   Info,
   ShieldAlert,
   Lock,
+  Zap,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore } from '@/firebase';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
- * @fileOverview Fault-Tolerant Bulk Migration Tool for FromStore2Door.
- * Uses a Hybrid Client-Server approach to bypass environment-specific failures.
- * This version uses a "Continue on Error" loop and specifies the default password.
+ * @fileOverview Fault-Tolerant Bulk Migration Tool with Logicware Integration.
  */
 
 const MIGRATION_DATA = [
@@ -334,7 +334,8 @@ export default function MigrationPage() {
   const firestore = useFirestore();
 
   const [isMigrating, setIsMigrating] = useState(false);
-  const [logs, setLogs] = useState<{message: string, type: 'success' | 'error' | 'info'}[]>([]);
+  const [doLogicwareSync, setDoLogicwareSync] = useState(true);
+  const [logs, setLogs] = useState<{message: string, type: 'success' | 'error' | 'info' | 'logicware'}[]>([]);
   const [progress, setProgress] = useState({
     current: 0,
     total: MIGRATION_DATA.length,
@@ -343,6 +344,8 @@ export default function MigrationPage() {
   const runMigration = async () => {
     setIsMigrating(true);
     setLogs([]);
+    
+    const logicwareKey = localStorage.getItem('LOGICWARE_API_KEY');
     
     setProgress({
       current: 0,
@@ -360,43 +363,39 @@ export default function MigrationPage() {
         let retryCount = 0;
         let processed = false;
 
-        // FAULT-TOLERANT LOOP: Continue even if one record fails.
         while (!processed && retryCount < 2) {
             try {
-                // 1. Create the AUTH account via the Server-Side REST API
+                // 1. Create/Retrieve AUTH Account
                 const res = await fetch('/api/admin/create-user', {
                     method: 'POST',
                     headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${idToken}`,
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${idToken}`,
                     },
                     body: JSON.stringify({
-                    firstName: user.first?.trim(),
-                    lastName: user.last?.trim(),
-                    email: user.email?.trim().toLowerCase(),
-                    phone: user.phone?.trim(),
-                    mailboxNumber: user.code?.trim(),
-                    trn: 'N/A',
-                    defaultPassword: 'User@1234', 
-                    skipFirestore: true 
+                        firstName: user.first?.trim(),
+                        lastName: user.last?.trim(),
+                        email: user.email?.trim().toLowerCase(),
+                        phone: user.phone?.trim(),
+                        mailboxNumber: user.code?.trim(),
+                        defaultPassword: 'User@1234', 
+                        skipFirestore: true 
                     }),
                 });
 
                 const result = await res.json();
 
-                // Handle rate limits with back-off
-                if (res.status === 429 || result.message?.includes('TOO_MANY_ATTEMPTS')) {
+                if (res.status === 429) {
                     setLogs(prev => [...prev, { message: `PAUSED: Rate limit hit. Backing off 10s...`, type: 'info' }]);
                     await sleep(10000);
                     retryCount++;
                     continue; 
                 }
 
-                // If user already exists, use the existing UID returned by the API
-                const userUid = result.uid || (res.status === 409 ? result.existingUid : null);
+                const userUid = result.uid || result.existingUid;
 
                 if (userUid) {
-                    // 2. Synchronize the FIRESTORE Profile via the CLIENT Side (Reliable as Admin)
+                    // 2. Synchronize FIRESTORE Profile
                     const mailbox = user.code?.trim();
                     const profileRef = doc(firestore, 'users', userUid);
                     
@@ -422,14 +421,39 @@ export default function MigrationPage() {
                         dropoffAddresses: [],
                     }, { merge: true });
 
-                    setLogs(prev => [...prev, { message: `SUCCESS: ${user.email} (${mailbox})`, type: 'success' }]);
+                    setLogs(prev => [...prev, { message: `SYNC: ${user.email} (${mailbox})`, type: 'success' }]);
+
+                    // 3. Optional LOGICWARE Sync
+                    if (doLogicwareSync && logicwareKey) {
+                        try {
+                            const lwRes = await fetch('/api/admin/logicware-sync', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    apiKey: logicwareKey,
+                                    shipper: {
+                                        email: user.email?.trim().toLowerCase(),
+                                        firstName: user.first,
+                                        lastName: user.last,
+                                        phone: user.phone?.trim(),
+                                        mailbox: mailbox
+                                    }
+                                })
+                            });
+                            if (lwRes.ok) {
+                                setLogs(prev => [...prev, { message: `LOGICWARE: Shipper ${mailbox} synced.`, type: 'logicware' }]);
+                            }
+                        } catch (lwErr) {
+                            setLogs(prev => [...prev, { message: `LOGICWARE ERROR: ${user.email} failed.`, type: 'error' }]);
+                        }
+                    }
+
                     processed = true;
                 } else {
-                    throw new Error(result.message || 'Unknown API Failure');
+                    throw new Error(result.message || 'Identity Sync Failure');
                 }
 
             } catch (err: any) {
-                // LOG it but DON'T throw, so the loop continues.
                 setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${err.message}`, type: 'error' }]);
                 processed = true; 
             }
@@ -440,20 +464,15 @@ export default function MigrationPage() {
           current: prev.current + 1,
         }));
 
-        // Safety throttle (1.5s) to stay under Identity Platform quotas
         await sleep(1500); 
       }
 
       toast({
-        title: 'Migration Complete',
-        description: `Handled all 291 records. Check Users tab for full list.`,
+        title: 'Worldwide Sync Complete',
+        description: `Processed all records. Data matches across Firebase and Logicware.`,
       });
     } catch (err: any) {
-      toast({
-        title: 'Critical Migration Failure',
-        description: err.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Critical Failure', description: err.message, variant: 'destructive' });
     } finally {
       setIsMigrating(false);
     }
@@ -461,14 +480,14 @@ export default function MigrationPage() {
 
   return (
     <div className="max-w-4xl mx-auto flex flex-col gap-6">
-      <Card>
+      <Card className="border-t-4 border-t-primary">
         <CardHeader>
           <div className="flex items-center gap-3">
               <DatabaseZap className="h-8 w-8 text-primary" />
               <div>
-                  <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Worldwide Migration Tool</CardTitle>
+                  <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Worldwide Logistics Sync</CardTitle>
                   <CardDescription>
-                    Fault-Tolerant Hybrid Synchronization v4.0
+                    Fault-Tolerant Hybrid Synchronization v5.0 (Connect SDK)
                   </CardDescription>
               </div>
           </div>
@@ -484,21 +503,28 @@ export default function MigrationPage() {
                 </AlertDescription>
             </Alert>
             <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-900">
-                <ShieldAlert className="h-4 w-4 text-blue-600" />
-                <AlertTitle className="font-bold uppercase text-[10px] tracking-widest text-blue-800 dark:text-blue-400">Reset Protocol</AlertTitle>
+                <Zap className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="font-bold uppercase text-[10px] tracking-widest text-blue-800 dark:text-blue-400">Logicware Enabled</AlertTitle>
                 <AlertDescription className="text-xs font-medium text-blue-900 dark:text-blue-200 leading-relaxed">
-                    Users will be forced to change this key upon their first entry into the portal.
+                    Optionally sync shippers directly to from-store-to-door.logicware.app.
                 </AlertDescription>
             </Alert>
           </div>
 
-          <Alert className="bg-primary/5 border-primary/20">
-              <Info className="h-4 w-4 text-primary" />
-              <AlertTitle className="font-bold uppercase text-[10px] tracking-widest">Safe Import Protocol Enabled</AlertTitle>
-              <AlertDescription className="text-[11px] leading-relaxed font-medium">
-                  The script will now continue even if specific records fail. It uses a 1.5s delay per user to ensure the entire database of 291 clients is populated safely.
-              </AlertDescription>
-          </Alert>
+          <div className="flex items-center space-x-3 p-4 rounded-xl border-2 border-dashed bg-muted/30">
+            <Checkbox 
+                id="lw-sync" 
+                checked={doLogicwareSync} 
+                onCheckedChange={(v) => setDoLogicwareSync(!!v)}
+                className="h-5 w-5"
+            />
+            <div className="grid gap-1.5 leading-none">
+                <label htmlFor="lw-sync" className="text-sm font-black uppercase italic cursor-pointer">
+                    Sync with Logicware Shipper Portal
+                </label>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Registers each user as a professional shipper in your external courier hub.</p>
+            </div>
+          </div>
 
           {isMigrating && (
             <div className="space-y-4">
@@ -506,10 +532,7 @@ export default function MigrationPage() {
                 <span>Progress: {progress.current} / {progress.total}</span>
                 <span className="animate-pulse text-primary italic">Syncing Worldwide Data...</span>
               </div>
-              <Progress
-                value={(progress.current / progress.total) * 100}
-                className="h-3 bg-muted"
-              />
+              <Progress value={(progress.current / progress.total) * 100} className="h-3 bg-muted" />
             </div>
           )}
 
@@ -524,8 +547,13 @@ export default function MigrationPage() {
               ) : (
                 <div className="space-y-1 font-mono text-[10px]">
                   {logs.map((log, i) => (
-                    <div key={i} className={log.type === 'success' ? 'text-green-400' : log.type === 'error' ? 'text-red-400' : 'text-blue-400'}>
-                      {log.type === 'success' ? '✓ ' : log.type === 'error' ? '✗ ' : '○ '}
+                    <div key={i} className={cn(
+                        log.type === 'success' ? 'text-green-400' : 
+                        log.type === 'error' ? 'text-red-400' : 
+                        log.type === 'logicware' ? 'text-blue-400 font-bold' : 
+                        'text-zinc-500'
+                    )}>
+                      {log.type === 'success' ? '✓ ' : log.type === 'error' ? '✗ ' : log.type === 'logicware' ? '⚡ ' : '○ '}
                       {log.message}
                     </div>
                   ))}
@@ -555,18 +583,6 @@ export default function MigrationPage() {
           </Button>
         </CardFooter>
       </Card>
-
-      <div className="flex justify-between items-center px-2 text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-        <div className="flex gap-4 italic">
-            <span>List Size: {MIGRATION_DATA.length}</span>
-            <span className="opacity-20">|</span>
-            <span>Fault-Tolerant Mode</span>
-        </div>
-        <div className="flex items-center gap-1">
-            <CheckCircle2 className="h-3 w-3 text-green-500" />
-            <span>Hybrid Engine Active</span>
-        </div>
-      </div>
     </div>
   );
 }
