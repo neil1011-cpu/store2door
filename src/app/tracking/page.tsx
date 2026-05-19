@@ -4,16 +4,17 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Truck, Search, Loader2, PackageSearch } from 'lucide-react';
+import { Truck, Search, Loader2, PackageSearch, ExternalLink, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useFirestore } from '@/firebase';
 import { collectionGroup, query, where, getDocs, orderBy } from 'firebase/firestore';
 import type { Shipment } from '@/lib/types';
+import Link from 'next/link';
 
 export default function TrackingPage() {
   const [trackingNumber, setTrackingNumber] = useState('');
-  const [shipment, setShipment] = useState<Shipment | null>(null);
+  const [shipment, setShipment] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +22,8 @@ export default function TrackingPage() {
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!trackingNumber.trim()) return;
+    const tid = trackingNumber.trim().toUpperCase();
+    if (!tid) return;
 
     setLoading(true);
     setError(null);
@@ -29,26 +31,37 @@ export default function TrackingPage() {
     setHasSearched(true);
     
     try {
-        // Query across all users to find this tracking number
+        // 1. Search local Firebase database
         const q = query(
             collectionGroup(firestore, 'shipments'), 
-            where('trackingNumber', '==', trackingNumber.trim().toUpperCase())
+            where('trackingNumber', '==', tid)
         );
         const snapshot = await getDocs(q);
         
         if (!snapshot.empty) {
             const data = snapshot.docs[0].data() as Shipment;
-            setShipment({ ...data, id: snapshot.docs[0].id });
+            setShipment({ ...data, id: snapshot.docs[0].id, source: 'Internal' });
         } else {
-            setShipment(null);
+            // 2. Search Logicware network as fallback
+            const key = localStorage.getItem('LOGICWARE_API_KEY');
+            if (key) {
+                const lwRes = await fetch('/api/admin/logicware-shipments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey: key })
+                });
+                const lwData = await lwRes.json();
+                if (lwData.success) {
+                    const match = lwData.shipments.find((s: any) => s.trackingNumber === tid);
+                    if (match) {
+                        setShipment({ ...match, source: 'External' });
+                    }
+                }
+            }
         }
     } catch (err: any) {
         console.error("Tracking Error:", err);
-        if (err.message?.includes('index')) {
-            setError("The tracking index is being prepared by the system. Please try again in a few minutes.");
-        } else {
-            setError("An error occurred while fetching tracking details.");
-        }
+        setError("An error occurred while fetching tracking details.");
     } finally {
         setLoading(false);
     }
@@ -62,6 +75,7 @@ export default function TrackingPage() {
 
   const formatTimestamp = (ts: any) => {
     if (!ts) return 'N/A';
+    if (typeof ts === 'string') return new Date(ts).toLocaleDateString();
     if (typeof ts.toDate === 'function') return ts.toDate().toLocaleDateString();
     return new Date(ts).toLocaleDateString();
   };
@@ -76,7 +90,7 @@ export default function TrackingPage() {
                   <PackageSearch className="h-8 w-8 text-primary" />
               </div>
               <CardTitle className="text-3xl font-extrabold tracking-tight">Track Your Shipment</CardTitle>
-              <CardDescription className="text-base">Enter your tracking number to get instant updates.</CardDescription>
+              <CardDescription className="text-base">Unified search across Firebase and Logicware networks.</CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
               <form onSubmit={handleTrack} className="flex flex-col sm:flex-row gap-3">
@@ -113,7 +127,12 @@ export default function TrackingPage() {
               <CardHeader className="bg-muted/30">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Current Status</p>
+                        <div className="flex items-center gap-2 mb-1">
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Current Status</p>
+                            {shipment.source === 'External' && (
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-[10px] h-4">External Network</Badge>
+                            )}
+                        </div>
                         <CardTitle className="text-2xl font-black">{shipment.status}</CardTitle>
                     </div>
                     <Badge variant={getStatusVariant(shipment.status)} className="text-base px-6 py-1.5 rounded-full">
@@ -128,7 +147,7 @@ export default function TrackingPage() {
                         <p className="font-mono text-lg font-bold">{shipment.trackingNumber}</p>
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Processed Date</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Date Logged</p>
                         <p className="text-lg font-semibold">{formatTimestamp(shipment.shippingDate)}</p>
                     </div>
                 </div>
@@ -138,15 +157,32 @@ export default function TrackingPage() {
                     <p className="text-lg italic text-foreground">"{shipment.contents}"</p>
                 </div>
 
-                <div className="bg-primary/5 p-6 rounded-xl border border-primary/10 flex items-start gap-4">
-                    <Truck className="h-6 w-6 text-primary shrink-0 mt-1" />
-                    <div>
-                        <p className="font-bold">Estimated Delivery</p>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                            Your package is moving through our logistics network. You will receive an update once it arrives in Jamaica and clears customs.
-                        </p>
+                {shipment.source === 'External' ? (
+                     <div className="bg-blue-500/10 p-6 rounded-xl border border-blue-500/20 flex items-start gap-4">
+                        <Globe className="h-6 w-6 text-blue-500 shrink-0 mt-1" />
+                        <div>
+                            <p className="font-bold text-blue-700 dark:text-blue-400">Hub Package Detected</p>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                This package was found in our global logistics hub. You can view the full manifest directly.
+                            </p>
+                            <Button asChild variant="link" className="p-0 h-auto mt-2 text-blue-600">
+                                <Link href={shipment.externalUrl || '#'} target="_blank">
+                                    View Full Manifest <ExternalLink className="ml-1 h-3 w-3" />
+                                </Link>
+                            </Button>
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="bg-primary/5 p-6 rounded-xl border border-primary/10 flex items-start gap-4">
+                        <Truck className="h-6 w-6 text-primary shrink-0 mt-1" />
+                        <div>
+                            <p className="font-bold">Estimated Delivery</p>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                Your package is moving through our local network. You will receive an update once it arrives in Jamaica and clears customs.
+                            </p>
+                        </div>
+                    </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -156,7 +192,7 @@ export default function TrackingPage() {
               <Truck className="h-4 w-4 text-amber-600" />
               <AlertTitle className="text-amber-800">No Shipment Found</AlertTitle>
               <AlertDescription className="text-amber-700">
-                We couldn't find a record for <strong>{trackingNumber}</strong>. It may still be in transit to our Florida warehouse or being processed.
+                We couldn't find a record for <strong>{trackingNumber}</strong> in any of our networks. It may still be in transit to our Florida warehouse or being processed.
               </AlertDescription>
             </Alert>
           )}

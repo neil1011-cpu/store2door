@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, ArrowLeft, Edit, Loader2, Search, PlusCircle, ScanLine, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mail, ArrowLeft, Edit, Loader2, Search, PlusCircle, ScanLine, CheckCircle2, AlertCircle, Zap, RefreshCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -18,8 +18,9 @@ import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebas
 import { collection, collectionGroup, query, doc, updateDoc, serverTimestamp, where, getDocs, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { cn } from '@/lib/utils';
 
-const getStatusVariant = (status: ShipmentStatus) => {
+const getStatusVariant = (status: ShipmentStatus | string) => {
   switch (status) {
     case 'In Transit':
     case 'Being Shipped':
@@ -53,6 +54,8 @@ export default function ShippingPage() {
   const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [logicwareShipments, setLogicwareShipments] = useState<any[]>([]);
+  const [isFetchingLogicware, setIsFetchingLogicware] = useState(false);
 
   const firestore = useFirestore();
 
@@ -60,7 +63,7 @@ export default function ShippingPage() {
     if (!firestore) return null;
     return query(collectionGroup(firestore, 'shipments'));
   }, [firestore]);
-  const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
+  const { data: firebaseShipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -70,21 +73,51 @@ export default function ShippingPage() {
   
   const loading = isLoadingShipments || isLoadingUsers;
 
-  const shipmentsWithUsers = useMemo(() => {
-    if (!shipments || !users) return [];
-    const usersMap = new Map(users.map(u => [u.id, u]));
-    const mapped = shipments.map(shipment => ({
+  const fetchLogicwareData = async () => {
+      const key = localStorage.getItem('LOGICWARE_API_KEY');
+      if (!key) {
+          toast({ title: "Logicware Key Missing", description: "Save your API key in Settings to sync external data.", variant: "destructive" });
+          return;
+      }
+      setIsFetchingLogicware(true);
+      try {
+          const res = await fetch('/api/admin/logicware-shipments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ apiKey: key })
+          });
+          const data = await res.json();
+          if (data.success) {
+              setLogicwareShipments(data.shipments);
+              toast({ title: "Logicware Synced", description: `Found ${data.shipments.length} external packages.` });
+          }
+      } catch (e) {
+          toast({ title: "Sync Failed", variant: "destructive" });
+      } finally {
+          setIsFetchingLogicware(false);
+      }
+  };
+
+  const combinedShipments = useMemo(() => {
+    const firebaseData = firebaseShipments || [];
+    const usersMap = new Map(users?.map(u => [u.id, u]) || []);
+    
+    const mappedFirebase = firebaseData.map(shipment => ({
         ...shipment,
-        user: usersMap.get(shipment.customerId)
+        user: usersMap.get(shipment.customerId),
+        isLogicware: false
     }));
-    if (!searchTerm) return mapped;
+
+    const all = [...mappedFirebase, ...logicwareShipments];
+    
+    if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
-    return mapped.filter(s => 
+    return all.filter(s => 
         s.trackingNumber.toLowerCase().includes(lowerTerm) || 
-        s.user?.fullName?.toLowerCase().includes(lowerTerm) ||
+        (s as any).user?.fullName?.toLowerCase().includes(lowerTerm) ||
         s.contents.toLowerCase().includes(lowerTerm)
     );
-  }, [shipments, users, searchTerm]);
+  }, [firebaseShipments, logicwareShipments, users, searchTerm]);
 
   const handleOpenEmailDialog = (shipment: Shipment & { user?: Partial<UserProfile> }) => {
     setSelectedShipment(shipment);
@@ -161,6 +194,10 @@ export default function ShippingPage() {
           <p className="text-muted-foreground">Monitor and update status for packages from anywhere in the world.</p>
         </div>
         <div className="flex gap-2">
+            <Button onClick={fetchLogicwareData} variant="outline" disabled={isFetchingLogicware} className="border-primary/20 hover:bg-primary/5">
+                {isFetchingLogicware ? <RefreshCcw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
+                Sync External Hub
+            </Button>
             <Button onClick={() => setIsReceiveDialogOpen(true)} className="bg-primary hover:bg-primary/90 shadow-lg">
                 <ScanLine className="mr-2 h-4 w-4" />
                 Intake Shipment
@@ -171,12 +208,12 @@ export default function ShippingPage() {
         </div>
       </div>
 
-      <Card className="shadow-md">
-        <CardHeader>
+      <Card className="shadow-md overflow-hidden">
+        <CardHeader className="bg-muted/10">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                 <CardTitle>Master Shipment List</CardTitle>
-                <CardDescription>Track the journey of every package in the network.</CardDescription>
+                <CardDescription>Consolidated view of Firebase and Logicware packages.</CardDescription>
             </div>
             <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -184,39 +221,47 @@ export default function ShippingPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="pl-6">Source</TableHead>
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Contents</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shipmentsWithUsers.map((shipment) => (
-                <TableRow key={shipment.id} className="hover:bg-muted/30 transition-colors">
+              {combinedShipments.map((shipment) => (
+                <TableRow key={shipment.id} className={cn("hover:bg-muted/30 transition-colors", (shipment as any).isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
+                  <TableCell className="pl-6">
+                      {(shipment as any).isLogicware ? (
+                          <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200">Logicware</Badge>
+                      ) : (
+                          <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200">Firebase</Badge>
+                      )}
+                  </TableCell>
                   <TableCell className="font-mono font-black text-primary uppercase">{shipment.trackingNumber}</TableCell>
                   <TableCell>
-                    <div className="font-bold">{shipment.user?.fullName || 'N/A'}</div>
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{shipment.user?.mailboxNumber}</div>
+                    <div className="font-bold">{(shipment as any).user?.fullName || (shipment as any).customerName || 'N/A'}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{(shipment as any).user?.mailboxNumber || shipment.customerId}</div>
                   </TableCell>
                   <TableCell><Badge variant={getStatusVariant(shipment.status)} className="px-3">{shipment.status}</Badge></TableCell>
                   <TableCell className="max-w-[200px] truncate text-sm">{shipment.contents}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="sm" className="h-8 font-bold" onClick={() => { setEditableShipment({ ...shipment }); setIsEditDialogOpen(true); }}>
+                  <TableCell className="text-right space-x-2 pr-6">
+                    <Button variant="outline" size="sm" className="h-8 font-bold" onClick={() => { setEditableShipment({ ...shipment }); setIsEditDialogOpen(true); }} disabled={(shipment as any).isLogicware}>
                       <Edit className="mr-2 h-3.5 w-3.5" />Update
                     </Button>
-                    <Button variant="secondary" size="sm" className="h-8 font-bold" onClick={() => handleOpenEmailDialog(shipment)} disabled={!shipment.user}>
+                    <Button variant="secondary" size="sm" className="h-8 font-bold" onClick={() => handleOpenEmailDialog(shipment)} disabled={!(shipment as any).user}>
                       <Mail className="mr-2 h-3.5 w-3.5" />Notify
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {shipmentsWithUsers.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center h-32 text-muted-foreground italic">No worldwide shipments matching your search.</TableCell></TableRow>
+              {combinedShipments.length === 0 && (
+                <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground italic">No worldwide shipments matching your search.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -315,7 +360,7 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
     const firestore = useFirestore();
     const { toast } = useToast();
     const inputRef = useRef<HTMLInputElement>(null);
-    const [trackingNumber, setTrackingNumber] = useState('');
+    const [trackingNumber, setTrackingNumber] = setTrackingNumber => useState('');
     const [customerId, setCustomerId] = useState('');
     const [contents, setContents] = useState('');
     const [status, setStatus] = useState<ShipmentStatus>('Received at Warehouse (FL)');
