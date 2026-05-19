@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -79,25 +80,45 @@ export default function ShippingPage() {
           const res = await fetch('/api/admin/logicware-shipments', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({}) // API key pulled from firestore server-side
+              body: JSON.stringify({}) 
           });
+
+          // Handle non-JSON or error responses gracefully
+          if (!res.ok) {
+              const errorText = await res.text();
+              let errorMessage = 'Failed to sync with external hub.';
+              try {
+                  const errorJson = JSON.parse(errorText);
+                  errorMessage = errorJson.message || errorMessage;
+              } catch (e) {
+                  // If not JSON, it might be an HTML error page from Next.js
+                  errorMessage = `Server Error (${res.status})`;
+              }
+              throw new Error(errorMessage);
+          }
+
           const data = await res.json();
           if (data.success) {
               setLogicwareShipments(data.shipments);
               toast({ title: "Logicware Synced", description: `Found ${data.shipments.length} external packages.` });
           } else {
-              toast({ title: "Sync Notice", description: data.message, variant: 'default' });
+              toast({ title: "Sync Notice", description: data.message });
           }
-      } catch (e) {
-          toast({ title: "Sync Failed", variant: "destructive" });
+      } catch (error: any) {
+          console.error('Logicware Sync Error:', error);
+          toast({ 
+              title: "Sync Failed", 
+              description: error.message || "Please check your API key in Settings.",
+              variant: "destructive" 
+          });
       } finally {
           setIsFetchingLogicware(false);
       }
   };
 
-  // Auto-sync logicware on mount
   useEffect(() => {
       fetchLogicwareData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const combinedShipments = useMemo(() => {
@@ -110,7 +131,6 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    // Merge logicware with firebase, ensuring no duplicates by tracking number
     const firebaseTrackingNumbers = new Set(mappedFirebase.map(s => s.trackingNumber.toUpperCase()));
     const uniqueLogicware = logicwareShipments.filter(s => !firebaseTrackingNumbers.has(s.trackingNumber.toUpperCase()));
 
@@ -151,8 +171,8 @@ export default function ShippingPage() {
       });
       if (!response.ok) throw new Error('Failed to send email.');
       toast({ title: 'Email Sent', description: `Update for ${selectedShipment.trackingNumber} sent.` });
-    } catch (error) {
-      toast({ title: 'Error Sending Email', description: (error as Error).message, variant: 'destructive' });
+    } catch (error: any) {
+      toast({ title: 'Error Sending Email', description: error.message, variant: 'destructive' });
     } finally {
       setIsSendingEmail(false);
       setIsEmailDialogOpen(false);
@@ -187,8 +207,11 @@ export default function ShippingPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="font-bold uppercase tracking-widest text-xs animate-pulse">Loading Worldwide Manifests...</p>
+        </div>
       </div>
     );
   }
@@ -374,7 +397,6 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [foundPreAlert, setFoundPreAlert] = useState<PreAlert | null>(null);
 
-    // Auto-focus logic for Barcode Scanners
     useEffect(() => {
         if (open) {
             const timer = setTimeout(() => {
@@ -389,7 +411,6 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
         }
     }, [open]);
 
-    // Auto-match for Pre-Alerts during entry
     useEffect(() => {
         const searchPreAlert = async () => {
             if (trackingNumber.length < 5) return;

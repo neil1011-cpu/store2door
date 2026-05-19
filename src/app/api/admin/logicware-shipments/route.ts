@@ -10,32 +10,53 @@ import { adminDb } from '@/lib/firebaseAdmin';
 
 export async function POST(request: Request) {
     try {
-        const payload = await request.json();
-        let apiKey = payload.apiKey;
+        let payload = {};
+        try {
+            payload = await request.json();
+        } catch (e) {
+            // Allow empty body
+        }
+        
+        let apiKey = (payload as any).apiKey;
 
         // 1. Fallback to System Settings if key not in request
         if (!apiKey) {
-            const configSnap = await adminDb.doc('metadata/logicware').get();
-            apiKey = configSnap.data()?.apiKey;
+            try {
+                const configSnap = await adminDb.collection('metadata').doc('logicware').get();
+                if (configSnap.exists) {
+                    apiKey = configSnap.data()?.apiKey;
+                }
+            } catch (dbError) {
+                console.error('Firestore Metadata Fetch Error:', dbError);
+                // Continue to see if we can still proceed with local key if provided
+            }
         }
 
         if (!apiKey) {
-            return NextResponse.json({ message: 'Logicware Integration not configured.' }, { status: 400 });
+            return NextResponse.json({ 
+                success: false, 
+                message: 'Logicware Integration not configured. Please save your API key in Settings first.' 
+            }, { status: 400 });
         }
 
         const client = getLogicwareClient(apiKey);
         
-        // 2. Fetch ALL recent shipments from Logicware to ensure mapping works
+        // 2. Fetch recent shipments from Logicware
+        // The SDK handles the heavy lifting of the REST call
         const shipments = await client.shipments.list({
             limit: 100,
             sort: 'desc'
         });
 
+        if (!Array.isArray(shipments)) {
+            throw new Error('Unexpected response format from Logicware API.');
+        }
+
         return NextResponse.json({ 
             success: true, 
             shipments: shipments.map((s: any) => ({
                 id: `lw-${s.id}`,
-                trackingNumber: s.trackingNumber || s.referenceCode,
+                trackingNumber: s.trackingNumber || s.referenceCode || 'NO-REF',
                 contents: s.description || 'Logicware Package',
                 status: s.status?.name || 'In Transit',
                 shippingDate: s.createdAt,
@@ -47,10 +68,10 @@ export async function POST(request: Request) {
         });
 
     } catch (error: any) {
-        console.error('Logicware Fetch Error:', error);
+        console.error('Logicware Fetch API Route Error:', error);
         return NextResponse.json({ 
             success: false, 
-            message: error.message || 'Failed to fetch from Logicware.' 
+            message: error.message || 'A critical error occurred while fetching from Logicware.' 
         }, { status: 500 });
     }
 }
