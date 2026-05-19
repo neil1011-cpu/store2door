@@ -31,7 +31,7 @@ export default function PackagesPage() {
                 </div>
             </div>
             
-            <PackagesTab customerId={userProfile.id} />
+            <PackagesTab customerId={userProfile.id} mailboxNumber={userProfile.mailboxNumber} />
         </div>
     );
 }

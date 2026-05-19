@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -74,22 +75,19 @@ export default function ShippingPage() {
   const loading = isLoadingShipments || isLoadingUsers;
 
   const fetchLogicwareData = async () => {
-      const key = localStorage.getItem('LOGICWARE_API_KEY');
-      if (!key) {
-          toast({ title: "Logicware Key Missing", description: "Save your API key in Settings to sync external data.", variant: "destructive" });
-          return;
-      }
       setIsFetchingLogicware(true);
       try {
           const res = await fetch('/api/admin/logicware-shipments', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ apiKey: key })
+              body: JSON.stringify({}) // API key pulled from firestore server-side
           });
           const data = await res.json();
           if (data.success) {
               setLogicwareShipments(data.shipments);
               toast({ title: "Logicware Synced", description: `Found ${data.shipments.length} external packages.` });
+          } else {
+              toast({ title: "Sync Notice", description: data.message, variant: 'default' });
           }
       } catch (e) {
           toast({ title: "Sync Failed", variant: "destructive" });
@@ -97,6 +95,11 @@ export default function ShippingPage() {
           setIsFetchingLogicware(false);
       }
   };
+
+  // Auto-sync logicware on mount
+  useEffect(() => {
+      fetchLogicwareData();
+  }, []);
 
   const combinedShipments = useMemo(() => {
     const firebaseData = firebaseShipments || [];
@@ -108,13 +111,18 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    const all = [...mappedFirebase, ...logicwareShipments];
+    // Merge logicware with firebase, ensuring no duplicates by tracking number
+    const firebaseTrackingNumbers = new Set(mappedFirebase.map(s => s.trackingNumber.toUpperCase()));
+    const uniqueLogicware = logicwareShipments.filter(s => !firebaseTrackingNumbers.has(s.trackingNumber.toUpperCase()));
+
+    const all = [...mappedFirebase, ...uniqueLogicware];
     
     if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
     return all.filter(s => 
         s.trackingNumber.toLowerCase().includes(lowerTerm) || 
         (s as any).user?.fullName?.toLowerCase().includes(lowerTerm) ||
+        (s as any).customerName?.toLowerCase().includes(lowerTerm) ||
         s.contents.toLowerCase().includes(lowerTerm)
     );
   }, [firebaseShipments, logicwareShipments, users, searchTerm]);

@@ -1,23 +1,33 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
+import { adminDb } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Fetches live shipments from the Logicware portal.
+ * Centralized: Automatically pulls API key from Firestore if not provided.
  */
 
 export async function POST(request: Request) {
     try {
-        const { apiKey } = await request.json();
+        const payload = await request.json();
+        let apiKey = payload.apiKey;
+
+        // 1. Fallback to System Settings if key not in request
+        if (!apiKey) {
+            const configSnap = await adminDb.doc('metadata/logicware').get();
+            apiKey = configSnap.data()?.apiKey;
+        }
 
         if (!apiKey) {
-            return NextResponse.json({ message: 'Logicware API Key required' }, { status: 400 });
+            return NextResponse.json({ message: 'Logicware Integration not configured.' }, { status: 400 });
         }
 
         const client = getLogicwareClient(apiKey);
         
-        // Fetch recent shipments from Logicware
+        // 2. Fetch ALL recent shipments from Logicware to ensure mapping works
         const shipments = await client.shipments.list({
-            limit: 50,
+            limit: 100,
             sort: 'desc'
         });
 
@@ -30,8 +40,9 @@ export async function POST(request: Request) {
                 status: s.status?.name || 'In Transit',
                 shippingDate: s.createdAt,
                 customerId: s.shipperId,
+                customerName: s.shipper?.name || 'Logicware Customer',
                 isLogicware: true,
-                externalUrl: s.trackingUrl
+                externalUrl: s.trackingUrl || `https://from-store-to-door.logicware.app/tracking/${s.trackingNumber}`
             }))
         });
 

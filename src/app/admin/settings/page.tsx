@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -8,13 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check, Eye, EyeOff, Zap, ExternalLink, RefreshCcw, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check, Eye, EyeOff, Zap, ExternalLink, RefreshCcw, ShieldCheck, Save, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { logicwareMeta } from '@/lib/logicware';
+import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 type ApiKeyState = {
     key: string;
@@ -24,25 +27,38 @@ type ApiKeyState = {
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const firestore = useFirestore();
   const [avatar, setAvatar] = useState('https://placehold.co/128x128.png');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [partyApi, setPartyApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
   const [logicwareApi, setLogicwareApi] = useState<ApiKeyState>({ 
-    key: typeof window !== 'undefined' ? localStorage.getItem('LOGICWARE_API_KEY') || '' : '', 
-    isSaved: typeof window !== 'undefined' ? !!localStorage.getItem('LOGICWARE_API_KEY') : false, 
+    key: '', 
+    isSaved: false, 
     isVisible: false 
   });
   
+  const [isSavingKey, setIsSavingKey] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
 
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+
+  // Load existing key from Firestore
+  const logicwareRef = useMemoFirebase(() => doc(firestore, 'metadata', 'logicware'), [firestore]);
+  const { data: logicwareConfig, isLoading: isLoadingConfig } = useDoc(logicwareRef);
   
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+      if (logicwareConfig?.apiKey) {
+          setLogicwareApi(prev => ({ ...prev, key: logicwareConfig.apiKey, isSaved: true }));
+          localStorage.setItem('LOGICWARE_API_KEY', logicwareConfig.apiKey);
+      }
+  }, [logicwareConfig]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -59,30 +75,32 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveApiKey = (
-    state: ApiKeyState, 
-    setter: React.Dispatch<React.SetStateAction<ApiKeyState>>, 
-    keyName: string,
-    storageKey?: string
-  ) => {
-    if (!state.key) {
-      toast({
-        title: `${keyName} is empty`,
-        description: `Please enter an API key to save.`,
-        variant: 'destructive',
-      });
+  const handleSaveLogicwareKey = async () => {
+    if (!logicwareApi.key) {
+      toast({ title: "Key Required", variant: 'destructive' });
       return;
     }
     
-    if (storageKey) {
-        localStorage.setItem(storageKey, state.key);
+    setIsSavingKey(true);
+    try {
+        await setDoc(doc(firestore, 'metadata', 'logicware'), {
+            apiKey: logicwareApi.key,
+            updatedAt: serverTimestamp(),
+            updatedBy: 'admin'
+        }, { merge: true });
+
+        localStorage.setItem('LOGICWARE_API_KEY', logicwareApi.key);
+        setLogicwareApi(prev => ({ ...prev, isSaved: true, isVisible: false }));
+        
+        toast({
+          title: 'Integration Secured',
+          description: `Logicware API key saved to global system settings.`,
+        });
+    } catch (e: any) {
+        toast({ title: 'Save Failed', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsSavingKey(false);
     }
-    
-    setter({ ...state, isSaved: true, isVisible: false });
-    toast({
-      title: 'API Key Saved',
-      description: `Your ${keyName} has been securely saved in this browser.`,
-    });
   };
 
   const handleTestConnection = async () => {
@@ -109,17 +127,9 @@ export default function SettingsPage() {
       }
   };
 
-  const handleEditApiKey = (
-    setter: React.Dispatch<React.SetStateAction<ApiKeyState>>
-  ) => {
-    setter(prev => ({ ...prev, isSaved: false }));
+  const handleEditApiKey = () => {
+    setLogicwareApi(prev => ({ ...prev, isSaved: false }));
     setIsVerified(false);
-  }
-
-  const handleToggleVisibility = (
-    setter: React.Dispatch<React.SetStateAction<ApiKeyState>>
-  ) => {
-    setter(prev => ({ ...prev, isVisible: !prev.isVisible }));
   }
 
   return (
@@ -190,7 +200,9 @@ export default function SettingsPage() {
                     <div className="flex-1">
                         <div className="flex items-center justify-between">
                             <CardTitle>Logicware Integration</CardTitle>
-                            {isVerified && <Badge className="bg-green-500 text-white"><ShieldCheck className="mr-1 h-3 w-3" /> Verified</Badge>}
+                            {(isVerified || (logicwareApi.isSaved && !isLoadingConfig)) && (
+                                <Badge className="bg-green-500 text-white"><ShieldCheck className="mr-1 h-3 w-3" /> System Linked</Badge>
+                            )}
                         </div>
                         <CardDescription>Connect to your Logicware portals for shipper sync and tracking.</CardDescription>
                     </div>
@@ -223,21 +235,22 @@ export default function SettingsPage() {
                                 placeholder="Enter your Logicware API key"
                                 value={logicwareApi.key}
                                 onChange={(e) => setLogicwareApi(prev => ({...prev, key: e.target.value}))}
-                                disabled={logicwareApi.isSaved}
+                                disabled={logicwareApi.isSaved || isLoadingConfig}
                                 className="h-11 border-2"
                                 />
                                 {logicwareApi.isSaved ? (
                                 <>
-                                    <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(setLogicwareApi)}>
+                                    <Button variant="ghost" size="icon" onClick={() => setLogicwareApi(prev => ({ ...prev, isVisible: !prev.isVisible }))}>
                                         {logicwareApi.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </Button>
-                                    <Button variant="secondary" onClick={() => handleEditApiKey(setLogicwareApi)}>
+                                    <Button variant="secondary" onClick={handleEditApiKey}>
                                         Edit
                                     </Button>
                                 </>
                                 ) : (
-                                <Button onClick={() => handleSaveApiKey(logicwareApi, setLogicwareApi, 'Logicware API Key', 'LOGICWARE_API_KEY')} className="h-11 px-6 font-bold">
-                                    <Check className="mr-2 h-4 w-4" /> Save Key
+                                <Button onClick={handleSaveLogicwareKey} disabled={isSavingKey} className="h-11 px-6 font-bold">
+                                    {isSavingKey ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Secure Key
                                 </Button>
                                 )}
                             </div>
@@ -283,28 +296,6 @@ export default function SettingsPage() {
                         <p className="text-[10px] text-muted-foreground mt-2 uppercase font-bold tracking-widest">
                             JPG or PNG. 1MB max.
                         </p>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Other Integrations</CardTitle>
-                    <CardDescription>Third-party tokens.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase opacity-60">3Party Warehouse</Label>
-                        <div className="flex gap-2">
-                             <Input 
-                                type={partyApi.isSaved && !partyApi.isVisible ? 'password' : 'text'}
-                                value={partyApi.key}
-                                onChange={(e) => setPartyApi(prev => ({...prev, key: e.target.value}))}
-                                disabled={partyApi.isSaved}
-                                className="h-9"
-                                />
-                             {partyApi.isSaved ? <Button size="sm" onClick={() => handleEditApiKey(setPartyApi)}>Edit</Button> : <Button size="sm" onClick={() => handleSaveApiKey(partyApi, setPartyApi, '3Party Key')}>Save</Button>}
-                        </div>
                     </div>
                 </CardContent>
             </Card>

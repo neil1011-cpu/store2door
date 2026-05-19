@@ -1,11 +1,12 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy } from 'lucide-react';
+import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -26,7 +27,7 @@ import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const getStatusVariant = (status: ShipmentStatus) => {
+const getStatusVariant = (status: ShipmentStatus | string) => {
   switch (status) {
     case 'In Transit': 
     case 'Being Shipped':
@@ -48,17 +49,12 @@ const getStatusVariant = (status: ShipmentStatus) => {
   }
 };
 
-const getStatusIcon = (status: ShipmentStatus) => {
-    switch (status) {
-        case 'Received at Warehouse (FL)': return <WarehouseIcon className="h-4 w-4" />;
-        case 'Arrived in Jamaica': return <MapPin className="h-4 w-4" />;
-        case 'Delivered': return <CheckCircle2 className="h-4 w-4" />;
-        case 'In Transit':
-        case 'Being Shipped':
-        case 'On Route':
-            return <Truck className="h-4 w-4" />;
-        default: return <Package className="h-4 w-4" />;
-    }
+const getStatusIcon = (status: ShipmentStatus | string) => {
+    if (status.includes('Warehouse')) return <WarehouseIcon className="h-4 w-4" />;
+    if (status.includes('Jamaica')) return <MapPin className="h-4 w-4" />;
+    if (status.includes('Delivered')) return <CheckCircle2 className="h-4 w-4" />;
+    if (status.includes('Transit') || status.includes('Shipped')) return <Truck className="h-4 w-4" />;
+    return <Package className="h-4 w-4" />;
 }
 
 const WarehouseIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -70,13 +66,36 @@ const WarehouseIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export function DashboardTab({ details }: { details: UserProfile }) {
   const firestore = useFirestore();
+  const [logicwarePackage, setLogicwarePackage] = useState<any | null>(null);
+
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !details) return null;
     return query(collection(firestore, 'users', details.id, 'shipments'), orderBy('shippingDate', 'desc'), limit(1));
   }, [firestore, details]);
   const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
 
-  const recentShipment = shipments?.[0];
+  // Check Logicware network for missing local shipments
+  useEffect(() => {
+    const checkLogicware = async () => {
+        if (!details.mailboxNumber) return;
+        try {
+            const res = await fetch('/api/admin/logicware-shipments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mailbox: details.mailboxNumber })
+            });
+            const data = await res.json();
+            if (data.success && data.shipments?.length > 0) {
+                // Find most recent for this mailbox
+                const match = data.shipments[0];
+                setLogicwarePackage(match);
+            }
+        } catch (e) {}
+    };
+    checkLogicware();
+  }, [details.mailboxNumber]);
+
+  const recentShipment = shipments?.[0] || logicwarePackage;
 
   return (
     <Card>
@@ -109,9 +128,16 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                             <p className="font-mono font-bold text-lg">{recentShipment.trackingNumber}</p>
                         </div>
                     </div>
-                    <Badge variant={getStatusVariant(recentShipment.status)} className="px-4 py-1">
-                        {recentShipment.status}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                        <Badge variant={getStatusVariant(recentShipment.status)} className="px-4 py-1">
+                            {recentShipment.status}
+                        </Badge>
+                        {recentShipment.isLogicware && (
+                            <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-600 border-blue-200">
+                                <Zap className="h-2 w-2 mr-1" /> External Hub
+                            </Badge>
+                        )}
+                    </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -122,7 +148,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                     <div className="space-y-1">
                         <span className="text-muted-foreground block text-xs uppercase font-semibold">Last Update</span>
                         <span className="font-medium text-foreground">
-                            {recentShipment.shippingDate?.toDate ? recentShipment.shippingDate.toDate().toLocaleString() : 'N/A'}
+                            {recentShipment.shippingDate?.toDate ? recentShipment.shippingDate.toDate().toLocaleString() : new Date(recentShipment.shippingDate).toLocaleString()}
                         </span>
                     </div>
                 </div>
@@ -278,11 +304,13 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber 
   );
 }
 
-export function PackagesTab({ customerId, customerName }: { customerId: string, customerName: string }) {
+export function PackagesTab({ customerId, mailboxNumber }: { customerId: string, mailboxNumber?: string }) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const [isPreAlertDialogOpen, setIsPreAlertDialogOpen] = useState(false);
   const [selectedTrackingNumber, setSelectedTrackingNumber] = useState('');
+  const [logicwareShipments, setLogicwareShipments] = useState<any[]>([]);
+  const [isFetchingLw, setIsFetchingLw] = useState(false);
   
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !customerId) return null;
@@ -296,12 +324,46 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
   }, [firestore, customerId]);
   const { data: userPreAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
 
-  const handlePayNow = (shipment: Shipment) => {
+  useEffect(() => {
+    const fetchLw = async () => {
+        if (!mailboxNumber) return;
+        setIsFetchingLw(true);
+        try {
+            const res = await fetch('/api/admin/logicware-shipments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mailbox: mailboxNumber })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setLogicwareShipments(data.shipments);
+            }
+        } catch (e) {} finally { setIsFetchingLw(false); }
+    };
+    fetchLw();
+  }, [mailboxNumber]);
+
+  const handlePayNow = (shipment: any) => {
     toast({ title: "Redirecting...", description: `Redirecting to payment for JMD $${shipment.cost?.toFixed(2)}` });
   };
 
   const preAlertMap = new Map(userPreAlerts?.map(pa => [pa.trackingNumber.toUpperCase(), pa]));
-  const isLoading = isLoadingShipments || isLoadingPreAlerts;
+  
+  const combinedPackages = useMemo(() => {
+      const local = userShipments || [];
+      const localTracking = new Set(local.map(s => s.trackingNumber.toUpperCase()));
+      
+      // Merge logicware only if not already in local firebase
+      const external = logicwareShipments.filter(s => !localTracking.has(s.trackingNumber.toUpperCase()));
+      
+      return [...local, ...external].sort((a, b) => {
+          const dateA = a.shippingDate?.toMillis?.() || new Date(a.shippingDate).getTime() || 0;
+          const dateB = b.shippingDate?.toMillis?.() || new Date(b.shippingDate).getTime() || 0;
+          return dateB - dateA;
+      });
+  }, [userShipments, logicwareShipments]);
+
+  const isLoading = isLoadingShipments || isLoadingPreAlerts || isFetchingLw;
 
   return (
     <Card>
@@ -320,17 +382,22 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isLoading && combinedPackages.length === 0 ? (
                 <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-            ) : userShipments && userShipments.length > 0 ? (
-                userShipments.map((shipment) => {
+            ) : combinedPackages.length > 0 ? (
+                combinedPackages.map((shipment) => {
                   const hasPreAlert = preAlertMap.has(shipment.trackingNumber.toUpperCase());
                   const needsInvoice = !hasPreAlert && shipment.status !== 'Delivered';
                   return (
-                    <TableRow key={shipment.id}>
+                    <TableRow key={shipment.id} className={cn(shipment.isLogicware && "bg-blue-50/20")}>
                         <TableCell className="font-mono font-bold">
-                            {shipment.trackingNumber}
-                            {needsInvoice && <span className="block text-[10px] text-orange-600 font-bold uppercase animate-pulse">Invoice Required</span>}
+                            <div className="flex flex-col gap-1">
+                                <span>{shipment.trackingNumber}</span>
+                                {shipment.isLogicware && (
+                                    <Badge variant="outline" className="w-fit text-[9px] h-4 py-0 uppercase">External Hub</Badge>
+                                )}
+                                {needsInvoice && <span className="block text-[10px] text-orange-600 font-bold uppercase animate-pulse">Invoice Required</span>}
+                            </div>
                         </TableCell>
                         <TableCell><Badge variant={getStatusVariant(shipment.status)}>{shipment.status}</Badge></TableCell>
                         <TableCell className="font-medium">{shipment.cost ? `JMD $${shipment.cost.toFixed(2)}` : 'TBD'}</TableCell>
@@ -360,7 +427,7 @@ export function PackagesTab({ customerId, customerName }: { customerId: string, 
         <Dialog open={isPreAlertDialogOpen} onOpenChange={setIsPreAlertDialogOpen}>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader><DialogTitle>Upload Invoice for {selectedTrackingNumber}</DialogTitle></DialogHeader>
-                <PreAlertTab customerId={customerId} customerName={customerName} prefilledTrackingNumber={selectedTrackingNumber} />
+                <PreAlertTab customerId={customerId} customerName={mailboxNumber || 'Customer'} prefilledTrackingNumber={selectedTrackingNumber} />
                 <DialogFooter><Button variant="outline" onClick={() => setIsPreAlertDialogOpen(false)}>Close</Button></DialogFooter>
             </DialogContent>
         </Dialog>
