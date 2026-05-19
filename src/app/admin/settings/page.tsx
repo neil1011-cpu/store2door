@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check, Eye, EyeOff, Zap, ExternalLink } from 'lucide-react';
+import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check, Eye, EyeOff, Zap, ExternalLink, RefreshCcw, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -28,12 +28,14 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [partyApi, setPartyApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
-  const [coloaderApi, setColoaderApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
   const [logicwareApi, setLogicwareApi] = useState<ApiKeyState>({ 
     key: typeof window !== 'undefined' ? localStorage.getItem('LOGICWARE_API_KEY') || '' : '', 
     isSaved: typeof window !== 'undefined' ? !!localStorage.getItem('LOGICWARE_API_KEY') : false, 
     isVisible: false 
   });
+  
+  const [isTesting, setIsTesting] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
 
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -79,14 +81,39 @@ export default function SettingsPage() {
     setter({ ...state, isSaved: true, isVisible: false });
     toast({
       title: 'API Key Saved',
-      description: `Your ${keyName} has been securely saved.`,
+      description: `Your ${keyName} has been securely saved in this browser.`,
     });
+  };
+
+  const handleTestConnection = async () => {
+      if (!logicwareApi.key) return;
+      setIsTesting(true);
+      setIsVerified(false);
+      try {
+          const res = await fetch('/api/admin/logicware-test-connection', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ apiKey: logicwareApi.key })
+          });
+          const data = await res.json();
+          if (data.success) {
+              setIsVerified(true);
+              toast({ title: "Connection Verified", description: "Your Logicware API key is valid and working." });
+          } else {
+              throw new Error(data.message);
+          }
+      } catch (e: any) {
+          toast({ title: "Verification Failed", description: e.message, variant: "destructive" });
+      } finally {
+          setIsTesting(false);
+      }
   };
 
   const handleEditApiKey = (
     setter: React.Dispatch<React.SetStateAction<ApiKeyState>>
   ) => {
     setter(prev => ({ ...prev, isSaved: false }));
+    setIsVerified(false);
   }
 
   const handleToggleVisibility = (
@@ -155,13 +182,16 @@ export default function SettingsPage() {
                 </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-primary/20">
                 <CardHeader className="flex flex-row items-center gap-4">
                     <div className="bg-primary/10 p-3 rounded-xl">
                         <Zap className="h-6 w-6 text-primary" />
                     </div>
-                    <div>
-                        <CardTitle>Logicware Integration</CardTitle>
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                            <CardTitle>Logicware Integration</CardTitle>
+                            {isVerified && <Badge className="bg-green-500 text-white"><ShieldCheck className="mr-1 h-3 w-3" /> Verified</Badge>}
+                        </div>
                         <CardDescription>Connect to your Logicware portals for shipper sync and tracking.</CardDescription>
                     </div>
                 </CardHeader>
@@ -183,33 +213,47 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="logicware-api-key" className="text-xs font-bold uppercase opacity-60">Logicware Connect API Key</Label>
-                        <div className="flex items-center gap-2">
-                            <Input 
-                            id="logicware-api-key" 
-                            type={logicwareApi.isSaved && !logicwareApi.isVisible ? 'password' : 'text'}
-                            placeholder="Enter your Logicware API key"
-                            value={logicwareApi.key}
-                            onChange={(e) => setLogicwareApi(prev => ({...prev, key: e.target.value}))}
-                            disabled={logicwareApi.isSaved}
-                            className="h-11 border-2"
-                            />
-                            {logicwareApi.isSaved ? (
-                            <>
-                                <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(setLogicwareApi)}>
-                                    {logicwareApi.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="logicware-api-key" className="text-xs font-bold uppercase opacity-60">Logicware Connect API Key</Label>
+                            <div className="flex items-center gap-2">
+                                <Input 
+                                id="logicware-api-key" 
+                                type={logicwareApi.isSaved && !logicwareApi.isVisible ? 'password' : 'text'}
+                                placeholder="Enter your Logicware API key"
+                                value={logicwareApi.key}
+                                onChange={(e) => setLogicwareApi(prev => ({...prev, key: e.target.value}))}
+                                disabled={logicwareApi.isSaved}
+                                className="h-11 border-2"
+                                />
+                                {logicwareApi.isSaved ? (
+                                <>
+                                    <Button variant="ghost" size="icon" onClick={() => handleToggleVisibility(setLogicwareApi)}>
+                                        {logicwareApi.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </Button>
+                                    <Button variant="secondary" onClick={() => handleEditApiKey(setLogicwareApi)}>
+                                        Edit
+                                    </Button>
+                                </>
+                                ) : (
+                                <Button onClick={() => handleSaveApiKey(logicwareApi, setLogicwareApi, 'Logicware API Key', 'LOGICWARE_API_KEY')} className="h-11 px-6 font-bold">
+                                    <Check className="mr-2 h-4 w-4" /> Save Key
                                 </Button>
-                                <Button variant="secondary" onClick={() => handleEditApiKey(setLogicwareApi)}>
-                                    Edit
-                                </Button>
-                            </>
-                            ) : (
-                            <Button onClick={() => handleSaveApiKey(logicwareApi, setLogicwareApi, 'Logicware API Key', 'LOGICWARE_API_KEY')} className="h-11 px-6 font-bold">
-                                <Check className="mr-2 h-4 w-4" /> Save Key
-                            </Button>
-                            )}
+                                )}
+                            </div>
                         </div>
+                        
+                        {logicwareApi.isSaved && (
+                            <Button 
+                                variant="outline" 
+                                className="w-full h-11 font-bold border-2" 
+                                onClick={handleTestConnection}
+                                disabled={isTesting}
+                            >
+                                {isTesting ? <RefreshCcw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
+                                Test Logicware Connection
+                            </Button>
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -245,7 +289,7 @@ export default function SettingsPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>API Access</CardTitle>
+                    <CardTitle>Other Integrations</CardTitle>
                     <CardDescription>Third-party tokens.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
