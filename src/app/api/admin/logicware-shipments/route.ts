@@ -4,19 +4,21 @@ import { adminDb } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Fetches live shipments from the Logicware portal.
- * Centralized: Automatically pulls API key from Firestore if not provided.
+ * Hardened to handle body parsing and key retrieval safely.
  */
+
+async function getSafeBody(request: Request) {
+  try {
+    const text = await request.text();
+    return text ? JSON.parse(text) : {};
+  } catch (e) {
+    return {};
+  }
+}
 
 export async function POST(request: Request) {
     try {
-        let payload: any = {};
-        try {
-            const body = await request.json();
-            payload = body || {};
-        } catch (e) {
-            // Allow empty or malformed body
-        }
-        
+        const payload = await getSafeBody(request);
         let apiKey = payload.apiKey;
 
         // 1. Fallback to System Settings if key not in request
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
         if (!apiKey) {
             return NextResponse.json({ 
                 success: false, 
-                message: 'Logicware Integration not configured. Please save your API key in Settings first.' 
+                message: 'Logicware configuration missing. Save your key in Settings.' 
             }, { status: 400 });
         }
 
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
         });
 
         if (!Array.isArray(shipments)) {
-            throw new Error('Unexpected response format from Logicware API.');
+            throw new Error('Invalid response from Logistics Hub.');
         }
 
         return NextResponse.json({ 
@@ -55,21 +57,21 @@ export async function POST(request: Request) {
             shipments: shipments.map((s: any) => ({
                 id: `lw-${s.id}`,
                 trackingNumber: s.trackingNumber || s.referenceCode || 'NO-REF',
-                contents: s.description || 'Logicware Package',
+                contents: s.description || 'Global Package',
                 status: s.status?.name || 'In Transit',
                 shippingDate: s.createdAt,
                 customerId: s.shipperId,
-                customerName: s.shipper?.name || 'Logicware Customer',
+                customerName: s.shipper?.name || 'Customer',
                 isLogicware: true,
                 externalUrl: s.trackingUrl || `https://from-store-to-door.logicware.app/tracking/${s.trackingNumber}`
             }))
         });
 
     } catch (error: any) {
-        console.error('Logicware Fetch API Route Error:', error);
+        console.error('Logicware Fetch Error:', error);
         return NextResponse.json({ 
             success: false, 
-            message: error.message || 'A critical error occurred while fetching from Logicware.' 
+            message: error.message || 'Logistics Hub communication failure.' 
         }, { status: 500 });
     }
 }

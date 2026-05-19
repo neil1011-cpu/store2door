@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -15,8 +15,6 @@ import {
   Loader2,
   DatabaseZap,
   CheckCircle2,
-  Info,
-  ShieldAlert,
   Lock,
   Zap,
 } from 'lucide-react';
@@ -27,6 +25,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Fault-Tolerant Bulk Migration Tool with Logicware Integration.
@@ -353,11 +352,12 @@ export default function MigrationPage() {
     });
 
     try {
-      const idToken = await auth.currentUser?.getIdToken(true);
-
-      if (!idToken) {
-        throw new Error('No auth token. Sign in to your admin account first.');
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+          throw new Error('Authorization required. Please sign out and sign back in to refresh your admin session.');
       }
+
+      const idToken = await currentUser.getIdToken(true);
 
       for (const user of MIGRATION_DATA) {
         let retryCount = 0;
@@ -378,15 +378,14 @@ export default function MigrationPage() {
                         email: user.email?.trim().toLowerCase(),
                         phone: user.phone?.trim(),
                         mailboxNumber: user.code?.trim(),
-                        defaultPassword: 'User@1234', 
-                        skipFirestore: true 
+                        defaultPassword: 'User@1234'
                     }),
                 });
 
                 const result = await res.json();
 
                 if (res.status === 429) {
-                    setLogs(prev => [...prev, { message: `PAUSED: Rate limit hit. Backing off 10s...`, type: 'info' }]);
+                    setLogs(prev => [...prev, { message: `RATE LIMIT: Backing off 10s...`, type: 'info' }]);
                     await sleep(10000);
                     retryCount++;
                     continue; 
@@ -444,13 +443,13 @@ export default function MigrationPage() {
                                 setLogs(prev => [...prev, { message: `LOGICWARE: Shipper ${mailbox} synced.`, type: 'logicware' }]);
                             }
                         } catch (lwErr) {
-                            setLogs(prev => [...prev, { message: `LOGICWARE ERROR: ${user.email} failed.`, type: 'error' }]);
+                            setLogs(prev => [...prev, { message: `LOGICWARE ERROR: Sync skipped for ${mailbox}.`, type: 'error' }]);
                         }
                     }
 
                     processed = true;
                 } else {
-                    throw new Error(result.message || 'Identity Sync Failure');
+                    throw new Error(result.message || 'Identity failure');
                 }
 
             } catch (err: any) {

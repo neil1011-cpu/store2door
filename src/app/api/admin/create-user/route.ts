@@ -3,17 +3,24 @@ import { adminAuth } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Resilient Account Creation API.
- * Uses the REST Identity Platform API to avoid server-side OAuth2 token refresh failures.
- * Returns existing UID if account already exists.
+ * Hardened to prevent "payload must be object" errors.
  */
 
 const FIREBASE_API_KEY = "AIzaSyCxZ7fHM0GTfBtkyxaAhotzDw5udr7lFvQ";
 
+async function getSafeBody(request: Request) {
+  try {
+    const text = await request.text();
+    return text ? JSON.parse(text) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    if (!body) throw new Error('Request body is null');
-
+    const body = await getSafeBody(request);
+    
     const {
       firstName,
       lastName,
@@ -21,28 +28,33 @@ export async function POST(request: Request) {
       defaultPassword,
     } = body;
 
-    // 1. Authorization: Manual JWT Decode (Bypasses Audience mismatch)
-    const authorization = request.headers.get('Authorization');
-    if (!authorization?.startsWith('Bearer ')) {
+    if (!email) {
+        return NextResponse.json({ message: 'Missing email address' }, { status: 400 });
+    }
+
+    // 1. Authorization: Manual JWT Decode with strict object checks
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ message: 'Unauthorized: Missing token' }, { status: 401 });
     }
 
-    const idToken = authorization.split('Bearer ')[1];
+    const idToken = authHeader.substring(7);
     const tokenParts = idToken.split('.');
-    if (tokenParts.length < 2) {
-        return NextResponse.json({ message: 'Unauthorized: Malformed token' }, { status: 401 });
+    
+    if (tokenParts.length !== 3) {
+        return NextResponse.json({ message: 'Unauthorized: Malformed token structure' }, { status: 401 });
     }
 
     let tokenClaims;
     try {
         const decoded = Buffer.from(tokenParts[1], 'base64').toString();
-        tokenClaims = JSON.parse(decoded);
+        tokenClaims = decoded ? JSON.parse(decoded) : null;
     } catch (e) {
-        return NextResponse.json({ message: 'Unauthorized: Invalid token payload' }, { status: 401 });
+        return NextResponse.json({ message: 'Unauthorized: Invalid token encoding' }, { status: 401 });
     }
 
     if (!tokenClaims || typeof tokenClaims !== 'object') {
-        return NextResponse.json({ message: 'Unauthorized: Token payload is not an object' }, { status: 401 });
+        return NextResponse.json({ message: 'Unauthorized: Payload is not an object' }, { status: 401 });
     }
 
     const adminEmail = tokenClaims.email;
@@ -54,9 +66,9 @@ export async function POST(request: Request) {
 
     // 2. Create Auth user via REST API 
     const authPayload = {
-      email: email?.trim().toLowerCase(),
+      email: email.trim().toLowerCase(),
       password: defaultPassword || 'User@1234',
-      displayName: `${firstName} ${lastName}`,
+      displayName: `${firstName || ''} ${lastName || ''}`.trim(),
       returnSecureToken: false
     };
 
@@ -74,7 +86,7 @@ export async function POST(request: Request) {
             uid: authData.localId,
         });
     } else {
-        // Handle "Email Exists" gracefully for migrations
+        // Handle "Email Exists" gracefully
         if (authData.error?.message === 'EMAIL_EXISTS') {
             try {
                 const user = await adminAuth.getUserByEmail(email.trim().toLowerCase());
@@ -84,7 +96,7 @@ export async function POST(request: Request) {
                 }, { status: 409 });
             } catch (adminError) {
                 return NextResponse.json({ 
-                    message: 'User exists but database sync requires manual re-link.', 
+                    message: 'User exists but identity check failed.', 
                     existingUid: null 
                 }, { status: 409 });
             }
