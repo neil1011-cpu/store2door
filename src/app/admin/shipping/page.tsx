@@ -360,7 +360,7 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
     const firestore = useFirestore();
     const { toast } = useToast();
     const inputRef = useRef<HTMLInputElement>(null);
-    const [trackingNumber, setTrackingNumber] = setTrackingNumber => useState('');
+    const [trackingNumber, setTrackingNumber] = useState('');
     const [customerId, setCustomerId] = useState('');
     const [contents, setContents] = useState('');
     const [status, setStatus] = useState<ShipmentStatus>('Received at Warehouse (FL)');
