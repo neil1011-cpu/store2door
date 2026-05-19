@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -8,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check, Eye, EyeOff, Zap, ExternalLink, RefreshCcw, ShieldCheck, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check, Eye, EyeOff, Zap, ExternalLink, RefreshCw, ShieldCheck, Save, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -30,7 +31,6 @@ export default function SettingsPage() {
   const [avatar, setAvatar] = useState('https://placehold.co/128x128.png');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [partyApi, setPartyApi] = useState<ApiKeyState>({ key: '', isSaved: false, isVisible: false });
   const [logicwareApi, setLogicwareApi] = useState<ApiKeyState>({ 
     key: '', 
     isSaved: false, 
@@ -107,12 +107,15 @@ export default function SettingsPage() {
       setIsTesting(true);
       setIsVerified(false);
       try {
-          const res = await fetch('/api/admin/logicware-test-connection', {
+          const response = await fetch('/api/admin/logicware-test-connection', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ apiKey: logicwareApi.key })
           });
-          const data = await res.json();
+          const data = await response.json();
+          if (!data) {
+            throw new Error('Logicware returned empty data');
+          }
           if (data.success) {
               setIsVerified(true);
               toast({ title: "Connection Verified", description: "Your Logicware API key is valid and working." });
@@ -262,7 +265,7 @@ export default function SettingsPage() {
                                 onClick={handleTestConnection}
                                 disabled={isTesting}
                             >
-                                {isTesting ? <RefreshCcw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
+                                {isTesting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
                                 Test Logicware Connection
                             </Button>
                         )}

@@ -77,27 +77,30 @@ export default function ShippingPage() {
   const fetchLogicwareData = async () => {
       setIsFetchingLogicware(true);
       try {
-          const res = await fetch('/api/admin/logicware-shipments', {
+          const response = await fetch('/api/admin/logicware-shipments', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({}) 
           });
 
           // Handle non-JSON or error responses gracefully
-          if (!res.ok) {
-              const errorText = await res.text();
+          if (!response.ok) {
+              const errorText = await response.text();
               let errorMessage = 'Failed to sync with external hub.';
               try {
                   const errorJson = JSON.parse(errorText);
                   errorMessage = errorJson.message || errorMessage;
               } catch (e) {
                   // If not JSON, it might be an HTML error page from Next.js
-                  errorMessage = `Server Error (${res.status})`;
+                  errorMessage = `Server Error (${response.status})`;
               }
               throw new Error(errorMessage);
           }
 
-          const data = await res.json();
+          const data = await response.json();
+          if (!data) {
+            throw new Error('Logicware returned empty data');
+          }
           if (data.success) {
               setLogicwareShipments(data.shipments);
               toast({ title: "Logicware Synced", description: `Found ${data.shipments.length} external packages.` });
@@ -170,6 +173,7 @@ export default function ShippingPage() {
         }),
       });
       if (!response.ok) throw new Error('Failed to send email.');
+      const data = await response.json();
       toast({ title: 'Email Sent', description: `Update for ${selectedShipment.trackingNumber} sent.` });
     } catch (error: any) {
       toast({ title: 'Error Sending Email', description: error.message, variant: 'destructive' });
@@ -225,7 +229,7 @@ export default function ShippingPage() {
         </div>
         <div className="flex gap-2">
             <Button onClick={fetchLogicwareData} variant="outline" disabled={isFetchingLogicware} className="border-primary/20 hover:bg-primary/5">
-                {isFetchingLogicware ? <RefreshCcw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
+                {isFetchingLogicware ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
                 Sync External Hub
             </Button>
             <Button onClick={() => setIsReceiveDialogOpen(true)} className="bg-primary hover:bg-primary/90 shadow-lg">
