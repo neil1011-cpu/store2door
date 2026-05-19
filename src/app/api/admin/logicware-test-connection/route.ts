@@ -7,7 +7,8 @@ import { getLogicwareClient } from '@/lib/logicware';
 
 export async function POST(request: Request) {
     try {
-        const { apiKey } = await request.json();
+        const body = await request.json().catch(() => ({}));
+        const apiKey = body?.apiKey;
 
         if (!apiKey) {
             return NextResponse.json({ success: false, message: 'API Key is missing.' }, { status: 400 });
@@ -16,7 +17,6 @@ export async function POST(request: Request) {
         const client = getLogicwareClient(apiKey);
         
         // Attempt a minimal operation to verify the key
-        // Most Logicware-style APIs will return a 401/403 if the key is invalid
         await client.shippers.list({
             limit: 1
         });

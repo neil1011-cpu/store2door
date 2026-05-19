@@ -7,7 +7,10 @@ import { getLogicwareClient } from '@/lib/logicware';
 
 export async function POST(request: Request) {
     try {
-        const { apiKey, shipper } = await request.json();
+        const body = await request.json().catch(() => ({}));
+        if (!body) throw new Error('Request payload is null');
+
+        const { apiKey, shipper } = body;
 
         if (!apiKey || !shipper) {
             return NextResponse.json({ message: 'Missing integration payload' }, { status: 400 });
@@ -16,7 +19,6 @@ export async function POST(request: Request) {
         const client = getLogicwareClient(apiKey);
         
         // Register the user as a shipper in Logicware
-        // Using standard SDK pattern for shipper creation
         const result = await client.shippers.create({
             email: shipper.email,
             firstName: shipper.firstName,
@@ -33,8 +35,6 @@ export async function POST(request: Request) {
 
     } catch (error: any) {
         console.error('Logicware Sync Error:', error);
-        // We return 200 even on Logicware error to avoid breaking the primary migration loop,
-        // but include the error message for logging.
         return NextResponse.json({ 
             success: false, 
             message: error.message || 'Logicware registration skipped.' 

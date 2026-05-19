@@ -11,12 +11,15 @@ const FIREBASE_API_KEY = "AIzaSyCxZ7fHM0GTfBtkyxaAhotzDw5udr7lFvQ";
 
 export async function POST(request: Request) {
   try {
+    const body = await request.json().catch(() => ({}));
+    if (!body) throw new Error('Request body is null');
+
     const {
       firstName,
       lastName,
       email,
       defaultPassword,
-    } = await request.json();
+    } = body;
 
     // 1. Authorization: Manual JWT Decode (Bypasses Audience mismatch)
     const authorization = request.headers.get('Authorization');
@@ -30,8 +33,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Unauthorized: Malformed token' }, { status: 401 });
     }
 
-    const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
-    const adminEmail = payload.email;
+    let tokenClaims;
+    try {
+        const decoded = Buffer.from(tokenParts[1], 'base64').toString();
+        tokenClaims = JSON.parse(decoded);
+    } catch (e) {
+        return NextResponse.json({ message: 'Unauthorized: Invalid token payload' }, { status: 401 });
+    }
+
+    if (!tokenClaims || typeof tokenClaims !== 'object') {
+        return NextResponse.json({ message: 'Unauthorized: Token payload is not an object' }, { status: 401 });
+    }
+
+    const adminEmail = tokenClaims.email;
 
     // Hardcoded bypass for the primary administrator to prevent lockout
     if (adminEmail !== 'admin@neilussolutions.com') {
@@ -63,14 +77,12 @@ export async function POST(request: Request) {
         // Handle "Email Exists" gracefully for migrations
         if (authData.error?.message === 'EMAIL_EXISTS') {
             try {
-                // If existing, try to fetch the UID via Admin SDK (if token refresh allows it)
                 const user = await adminAuth.getUserByEmail(email.trim().toLowerCase());
                 return NextResponse.json({ 
                     message: 'User identity synchronized.', 
                     existingUid: user.uid 
                 }, { status: 409 });
             } catch (adminError) {
-                // If Admin SDK is failing, we can't get the UID, so we just skip the profile sync for this user
                 return NextResponse.json({ 
                     message: 'User exists but database sync requires manual re-link.', 
                     existingUid: null 

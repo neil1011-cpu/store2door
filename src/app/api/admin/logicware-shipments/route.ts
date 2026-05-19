@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { adminDb } from '@/lib/firebaseAdmin';
@@ -10,14 +9,15 @@ import { adminDb } from '@/lib/firebaseAdmin';
 
 export async function POST(request: Request) {
     try {
-        let payload = {};
+        let payload: any = {};
         try {
-            payload = await request.json();
+            const body = await request.json();
+            payload = body || {};
         } catch (e) {
-            // Allow empty body
+            // Allow empty or malformed body
         }
         
-        let apiKey = (payload as any).apiKey;
+        let apiKey = payload.apiKey;
 
         // 1. Fallback to System Settings if key not in request
         if (!apiKey) {
@@ -28,7 +28,6 @@ export async function POST(request: Request) {
                 }
             } catch (dbError) {
                 console.error('Firestore Metadata Fetch Error:', dbError);
-                // Continue to see if we can still proceed with local key if provided
             }
         }
 
@@ -42,7 +41,6 @@ export async function POST(request: Request) {
         const client = getLogicwareClient(apiKey);
         
         // 2. Fetch recent shipments from Logicware
-        // The SDK handles the heavy lifting of the REST call
         const shipments = await client.shipments.list({
             limit: 100,
             sort: 'desc'
