@@ -29,3 +29,46 @@ export const logicwareMeta = {
     shipperUrl: 'https://from-store-to-door.logicware.app',
     slug: COURIER_SLUG
 };
+
+export async function fetchLogicwareShipments() {
+  try {
+    const response = await fetch(
+      `${process.env.LOGICWARE_BASE_URL}/shipments`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.LOGICWARE_API_KEY}`,
+        },
+        cache: 'no-store',
+      }
+    );
+
+    let data = null;
+
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message ||
+          `Logicware API Error (${response.status})`
+      );
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error(
+      '[LOGICWARE ERROR]',
+      error
+    );
+
+    throw new Error(
+      error?.message ||
+        'Failed to fetch Logicware data'
+    );
+  }
+}

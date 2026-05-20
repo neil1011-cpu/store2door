@@ -77,33 +77,49 @@ export default function ShippingPage() {
     try {
       setIsFetchingLogicware(true);
 
-      const response = await fetch('/api/logicware');
+      const response = await fetch(
+        '/api/logicware',
+        {
+          method: 'GET',
+        }
+      );
 
-      let result: any = {};
+      let data = null;
 
       try {
-        result = await response.json();
+        data = await response.json();
       } catch {
-        result = {};
+        data = null;
       }
 
       if (!response.ok) {
         throw new Error(
-          result?.error || `Server Error (${response.status})`
+          data?.message ||
+            `Server Error (${response.status})`
         );
       }
 
-      console.log('[LOGICWARE DATA]', result);
+      console.log(
+        '[LOGICWARE DATA]',
+        data
+      );
 
       setLogicwareShipments(
-        Array.isArray(result?.data) ? result.data : []
+        data?.shipments || []
       );
     } catch (error: any) {
-      console.error('[FETCH ERROR]', error);
-
-      alert(
-        error?.message || 'Failed to fetch Logicware data'
+      console.error(
+        '[FETCH LOGICWARE ERROR]',
+        error
       );
+
+      toast({
+        title: 'Error',
+        description:
+          error?.message ||
+          'Failed to fetch Logicware shipments',
+        variant: 'destructive',
+      });
     } finally {
       setIsFetchingLogicware(false);
     }
