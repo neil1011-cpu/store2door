@@ -92,12 +92,20 @@ export default function ShippingPage() {
       }
 
       // Robust array extraction
-      const records = data.shipments || data.shippers || data.data || (Array.isArray(data) ? data : []);
-      setLogicwareShipments(records);
+      const logicwareArray = data.shipments || data.shippers || data.data || (Array.isArray(data) ? data : []);
+      setLogicwareShipments(logicwareArray);
       
+      console.log(
+        '[FINAL DATA]',
+        {
+          logicwareArray,
+          total: (firebaseShipments?.length || 0) + logicwareArray.length,
+        }
+      );
+
       toast({ 
         title: 'Hub Synchronized', 
-        description: `Loaded ${records.length} worldwide records.` 
+        description: `Loaded ${logicwareArray.length} worldwide records.` 
       });
     } catch (error: any) {
       toast({
