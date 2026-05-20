@@ -141,7 +141,12 @@ export default function ShippingPage() {
     }));
 
     const firebaseTrackingNumbers = new Set(mappedFirebase.map(s => s.trackingNumber.toUpperCase()));
-    const uniqueLogicware = logicwareShipments.filter(s => !firebaseTrackingNumbers.has(s.trackingNumber?.toUpperCase() || ''));
+    
+    // Logicware data often has 'trackingNumber' or 'referenceCode'
+    const uniqueLogicware = logicwareShipments.filter(s => {
+        const tid = (s.trackingNumber || s.referenceCode || '').toUpperCase();
+        return tid && !firebaseTrackingNumbers.has(tid);
+    });
 
     const all = [...mappedFirebase, ...uniqueLogicware.map(s => ({
         id: `lw-${s.id}`,
@@ -149,7 +154,7 @@ export default function ShippingPage() {
         contents: s.description || 'Global Package',
         status: s.status?.name || 'In Transit',
         shippingDate: s.createdAt,
-        customerId: s.shipperId,
+        customerId: s.shipperId || 'UNKNOWN',
         customerName: s.shipper?.name || 'Customer',
         isLogicware: true,
         user: undefined
