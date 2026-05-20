@@ -86,7 +86,6 @@ export default function ShippingPage() {
       );
 
       let data = null;
-
       try {
         data = await response.json();
       } catch {
@@ -94,35 +93,19 @@ export default function ShippingPage() {
       }
 
       if (!response.ok) {
-        throw new Error(
-          data?.message ||
-            `Server Error (${response.status})`
-        );
+        throw new Error(data?.message || `Server Error (${response.status})`);
       }
 
-      if (!data) {
-        throw new Error('Logicware returned empty data');
-      }
+      console.log('[LOGICWARE DATA]', data);
 
-      console.log(
-        '[LOGICWARE DATA]',
-        data
-      );
-
-      setLogicwareShipments(
-        data?.shipments || []
-      );
+      // Mapping Logicware Shippers to the logicwareShipments state for display
+      setLogicwareShipments(data?.shippers || []);
+      
     } catch (error: any) {
-      console.error(
-        '[FETCH LOGICWARE ERROR]',
-        error
-      );
-
+      console.error('[FETCH LOGICWARE ERROR]', error);
       toast({
         title: 'Error',
-        description:
-          error?.message ||
-          'Failed to fetch Logicware shipments',
+        description: error?.message || 'Failed to fetch Logicware data',
         variant: 'destructive',
       });
     } finally {
@@ -147,19 +130,17 @@ export default function ShippingPage() {
 
     const firebaseTrackingNumbers = new Set(mappedFirebase.map(s => s.trackingNumber.toUpperCase()));
     
-    const uniqueLogicware = (logicwareShipments || []).filter(s => {
-        const tid = (s.trackingNumber || s.referenceCode || '').toUpperCase();
-        return tid && !firebaseTrackingNumbers.has(tid);
-    });
-
-    const all = [...mappedFirebase, ...uniqueLogicware.map(s => ({
+    // Note: We are currently fetching SHIPPERS from Logicware as per SDK requirements.
+    // If these were shipments, we would map them here. 
+    // Adapting the logic to handle the shippers payload as placeholders for now.
+    const all = [...mappedFirebase, ...(logicwareShipments || []).map(s => ({
         id: `lw-${s.id}`,
-        trackingNumber: s.trackingNumber || s.referenceCode || 'NO-REF',
-        contents: s.description || 'Global Package',
-        status: s.status?.name || 'In Transit',
+        trackingNumber: s.referenceCode || 'NO-REF',
+        contents: 'Global Account',
+        status: 'Active',
         shippingDate: s.createdAt,
-        customerId: s.shipperId || 'UNKNOWN',
-        customerName: s.shipper?.name || 'Customer',
+        customerId: s.id,
+        customerName: `${s.firstName} ${s.lastName}`,
         isLogicware: true,
         user: undefined
     }))];
@@ -273,7 +254,7 @@ export default function ShippingPage() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                 <CardTitle>Master Shipment List</CardTitle>
-                <CardDescription>Consolidated view of Firebase and Logicware packages.</CardDescription>
+                <CardDescription>Consolidated view of Firebase and Logicware data.</CardDescription>
             </div>
             <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -298,15 +279,15 @@ export default function ShippingPage() {
                 <TableRow key={shipment.id} className={cn("hover:bg-muted/30 transition-colors", (shipment as any).isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
                   <TableCell className="pl-6">
                       {(shipment as any).isLogicware ? (
-                          <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200">Logicware</Badge>
+                          <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200">Logicware Hub</Badge>
                       ) : (
-                          <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200">Firebase</Badge>
+                          <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200">Local OS</Badge>
                       )}
                   </TableCell>
                   <TableCell className="font-mono font-black text-primary uppercase">{shipment.trackingNumber}</TableCell>
                   <TableCell>
                     <div className="font-bold">{(shipment as any).user?.fullName || (shipment as any).customerName || 'N/A'}</div>
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{(shipment as any).user?.mailboxNumber || shipment.customerId}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{(shipment as any).user?.mailboxNumber || (shipment as any).customerId}</div>
                   </TableCell>
                   <TableCell><Badge variant={getStatusVariant(shipment.status)} className="px-3">{shipment.status}</Badge></TableCell>
                   <TableCell className="max-w-[200px] truncate text-sm">{shipment.contents}</TableCell>
@@ -321,7 +302,7 @@ export default function ShippingPage() {
                 </TableRow>
               ))}
               {combinedShipments.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground italic">No worldwide shipments matching your search.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground italic">No worldwide records matching your search.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

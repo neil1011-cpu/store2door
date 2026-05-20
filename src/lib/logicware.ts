@@ -3,32 +3,29 @@ import { LogicwareConnect } from '@logicware.app/connect-sdk';
 
 /**
  * @fileOverview Logicware Connect SDK utility.
- * Configured with the official FromStore2Door API endpoints and slug.
+ * Configured via environment variables for secure server-side access.
  */
 
-const LOGICWARE_API_BASE_URL = 'https://from-store-to-door-api.logicware.app';
-const COURIER_SLUG = 'from-store-door';
+const client = new LogicwareConnect({
+  apiKey: process.env.LOGICWARE_API_KEY!,
+  baseUrl: process.env.LOGICWARE_BASE_URL,
+});
 
-/**
- * Initializes a Logicware client using the provided API Key.
- * @param apiKey The secret API key from the Logicware Courier Portal.
- */
-export function getLogicwareClient(apiKey: string) {
-  if (!apiKey) {
-    throw new Error('Logicware API Key is required for integration.');
+export async function fetchLogicwareShippers() {
+  try {
+    const shippers = await client.shippers.list();
+    return shippers;
+  } catch (error: any) {
+    console.error('[LOGICWARE SDK ERROR]', error);
+    throw new Error(error?.message || 'Failed to fetch Logicware shippers');
   }
-
-  return new LogicwareConnect({
-    apiKey,
-    baseUrl: LOGICWARE_API_BASE_URL,
-  });
 }
 
 export const logicwareMeta = {
-    baseUrl: LOGICWARE_API_BASE_URL,
+    baseUrl: process.env.LOGICWARE_BASE_URL || 'https://from-store-to-door-api.logicware.app',
     portalUrl: 'https://from-store-to-door-portal.logicware.app',
     shipperUrl: 'https://from-store-to-door.logicware.app',
-    slug: COURIER_SLUG
+    slug: 'from-store-door'
 };
 
 export async function fetchLogicwareShipments() {
@@ -46,7 +43,6 @@ export async function fetchLogicwareShipments() {
     );
 
     let data = null;
-
     try {
       data = await response.json();
     } catch {
@@ -54,22 +50,12 @@ export async function fetchLogicwareShipments() {
     }
 
     if (!response.ok) {
-      throw new Error(
-        data?.message ||
-          `Logicware API Error (${response.status})`
-      );
+      throw new Error(data?.message || `Logicware API Error (${response.status})`);
     }
 
     return data;
   } catch (error: any) {
-    console.error(
-      '[LOGICWARE ERROR]',
-      error
-    );
-
-    throw new Error(
-      error?.message ||
-        'Failed to fetch Logicware data'
-    );
+    console.error('[LOGICWARE ERROR]', error);
+    throw new Error(error?.message || 'Failed to fetch Logicware data');
   }
 }
