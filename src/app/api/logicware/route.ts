@@ -1,10 +1,14 @@
+
 import { NextResponse } from 'next/server';
 import { fetchLogicwareShipments } from '@/lib/logicware';
 
 export async function GET() {
   try {
-    const data =
-      await fetchLogicwareShipments();
+    const data = await fetchLogicwareShipments();
+
+    if (!data) {
+      throw new Error('Logicware returned empty data');
+    }
 
     return NextResponse.json(data);
   } catch (error: any) {

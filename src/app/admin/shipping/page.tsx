@@ -147,7 +147,7 @@ export default function ShippingPage() {
 
     const firebaseTrackingNumbers = new Set(mappedFirebase.map(s => s.trackingNumber.toUpperCase()));
     
-    const uniqueLogicware = logicwareShipments.filter(s => {
+    const uniqueLogicware = (logicwareShipments || []).filter(s => {
         const tid = (s.trackingNumber || s.referenceCode || '').toUpperCase();
         return tid && !firebaseTrackingNumbers.has(tid);
     });
