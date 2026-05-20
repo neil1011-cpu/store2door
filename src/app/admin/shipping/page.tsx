@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -98,8 +97,9 @@ export default function ShippingPage() {
 
       console.log('[LOGICWARE DATA]', data);
 
-      // Mapping Logicware Shippers to the logicwareShipments state for display
-      setLogicwareShipments(data?.shippers || []);
+      setLogicwareShipments(
+        data?.shippers || []
+      );
       
     } catch (error: any) {
       console.error('[FETCH LOGICWARE ERROR]', error);
@@ -128,11 +128,6 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    const firebaseTrackingNumbers = new Set(mappedFirebase.map(s => s.trackingNumber.toUpperCase()));
-    
-    // Note: We are currently fetching SHIPPERS from Logicware as per SDK requirements.
-    // If these were shipments, we would map them here. 
-    // Adapting the logic to handle the shippers payload as placeholders for now.
     const all = [...mappedFirebase, ...(logicwareShipments || []).map(s => ({
         id: `lw-${s.id}`,
         trackingNumber: s.referenceCode || 'NO-REF',
@@ -179,8 +174,6 @@ export default function ShippingPage() {
         }),
       });
       if (!response.ok) throw new Error('Failed to send email.');
-      const data = await response.json();
-      if (!data) throw new Error('Mail system returned empty response');
       toast({ title: 'Email Sent', description: `Update for ${selectedShipment.trackingNumber} sent.` });
     } catch (error: any) {
       toast({ title: 'Error Sending Email', description: error.message, variant: 'destructive' });
