@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -99,6 +100,10 @@ export default function ShippingPage() {
         );
       }
 
+      if (!data) {
+        throw new Error('Logicware returned empty data');
+      }
+
       console.log(
         '[LOGICWARE DATA]',
         data
@@ -142,7 +147,6 @@ export default function ShippingPage() {
 
     const firebaseTrackingNumbers = new Set(mappedFirebase.map(s => s.trackingNumber.toUpperCase()));
     
-    // Logicware data often has 'trackingNumber' or 'referenceCode'
     const uniqueLogicware = logicwareShipments.filter(s => {
         const tid = (s.trackingNumber || s.referenceCode || '').toUpperCase();
         return tid && !firebaseTrackingNumbers.has(tid);
