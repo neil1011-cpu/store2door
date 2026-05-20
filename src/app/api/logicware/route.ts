@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchLogicwareShipments } from '@/lib/logicware';
+import { fetchLogicwareShippers } from '@/lib/logicware';
 
 /**
  * @fileOverview Logicware API bridge using the Connect SDK.
@@ -7,11 +7,11 @@ import { fetchLogicwareShipments } from '@/lib/logicware';
 
 export async function GET() {
   try {
-    const data = await fetchLogicwareShipments();
+    const shippers = await fetchLogicwareShippers();
 
     return NextResponse.json({
       success: true,
-      data,
+      shippers,
     });
   } catch (error: any) {
     console.error('[LOGICWARE API ERROR]', error);

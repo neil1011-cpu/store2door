@@ -77,21 +77,26 @@ export default function ShippingPage() {
     try {
       setIsFetchingLogicware(true);
       const response = await fetch('/api/logicware');
-      const result = await response.json();
+      const data = await response.json();
 
-      if (!result) throw new Error('No data received from hub');
-
-      if (!response.ok) {
-        throw new Error(result?.message || `Server Error (${response.status})`);
+      if (!data) {
+        throw new Error('Logicware returned empty data');
       }
 
-      console.log('[LOGICWARE DATA]', result);
+      if (!response.ok) {
+        throw new Error(data.message || `Server Error (${response.status})`);
+      }
 
-      // Support various Logicware response structures (Connect SDK returns data under 'shippers' or 'data')
-      const records = result.data?.shippers || result.data?.shipments || result.data || result.shippers || (Array.isArray(result) ? result : []);
+      console.log('[LOGICWARE DATA]', data);
+
+      // Extract the records array from various possible property names
+      const records = data.shippers || data.shipments || data.data || (Array.isArray(data) ? data : []);
       setLogicwareShipments(records);
       
-      toast({ title: 'Hub Synchronized', description: `Loaded ${records.length} external records.` });
+      toast({ 
+        title: 'Hub Synchronized', 
+        description: `Loaded ${Array.isArray(records) ? records.length : 0} external records.` 
+      });
     } catch (error: any) {
       console.error('[FETCH LOGICWARE ERROR]', error);
       toast({
@@ -119,11 +124,17 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    const logicwareArray = Array.isArray(logicwareShipments) ? logicwareShipments : [];
+    console.log('[LOGICWARE RAW]', logicwareShipments);
+
+    const logicwareArray = Array.isArray(logicwareShipments)
+      ? logicwareShipments
+      : logicwareShipments?.data ||
+        logicwareShipments?.shippers ||
+        logicwareShipments?.shipments ||
+        [];
 
     const mappedLogicware = logicwareArray.map((s: any) => ({
         id: `lw-${s.id}`,
-        // Handle field differences between Shippers and Shipments
         trackingNumber: 
           s.trackingNumber || 
           s.tracking_number || 

@@ -22,7 +22,6 @@ export async function fetchLogicwareShippers() {
 
 export async function fetchLogicwareShipments() {
   try {
-    // The SDK often provides a shipments module as well
     const shipments = await client.shipments.list({ limit: 100 });
     return shipments;
   } catch (error: any) {
