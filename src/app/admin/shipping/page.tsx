@@ -77,18 +77,14 @@ export default function ShippingPage() {
     try {
       setIsFetchingLogicware(true);
 
-      const response = await fetch(
-        '/api/logicware',
-        {
+      const response = await fetch('/api/logicware', {
           method: 'GET',
-        }
-      );
+      });
 
-      let data = null;
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
+      const data = await response.json();
+
+      if (!data) {
+        throw new Error('Logicware returned empty data');
       }
 
       if (!response.ok) {
@@ -98,7 +94,7 @@ export default function ShippingPage() {
       console.log('[LOGICWARE DATA]', data);
 
       setLogicwareShipments(
-        data?.shippers || []
+        data?.shippers || data?.shipments || data || []
       );
       
     } catch (error: any) {
@@ -128,17 +124,45 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    const all = [...mappedFirebase, ...(logicwareShipments || []).map(s => ({
+    console.log(
+      '[LOGICWARE RAW]',
+      logicwareShipments
+    );
+
+    const logicwareArray = Array.isArray(logicwareShipments)
+      ? logicwareShipments
+      : logicwareShipments?.data ||
+        logicwareShipments?.shippers ||
+        [];
+
+    const all = [
+      ...mappedFirebase,
+      ...logicwareArray.map((s: any) => ({
         id: `lw-${s.id}`,
-        trackingNumber: s.referenceCode || 'NO-REF',
-        contents: 'Global Account',
-        status: 'Active',
-        shippingDate: s.createdAt,
-        customerId: s.id,
-        customerName: `${s.firstName} ${s.lastName}`,
+        trackingNumber:
+          s.referenceCode ||
+          s.trackingNumber ||
+          'NO-REF',
+
+        contents:
+          s.contents ||
+          'Global Account',
+
+        status:
+          s.status ||
+          'Processing',
+
+        customerName:
+          s.name ||
+          s.customerName ||
+          'Unknown Customer',
+
+        courier:
+          'Logicware',
         isLogicware: true,
         user: undefined
-    }))];
+      })),
+    ];
     
     if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
