@@ -53,9 +53,9 @@ export default function ShippingPage() {
   const [editableShipment, setEditableShipment] = useState<Shipment | null>(null);
   const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
   const [isSaving, setIsSaving] = useState(false);
+  const [isFetchingLogicware, setIsFetchingLogicware] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [logicwareShipments, setLogicwareShipments] = useState<any[]>([]);
-  const [isFetchingLogicware, setIsFetchingLogicware] = useState(false);
 
   const firestore = useFirestore();
 
@@ -76,32 +76,27 @@ export default function ShippingPage() {
   const fetchLogicwareData = async () => {
     try {
       setIsFetchingLogicware(true);
+      const response = await fetch('/api/logicware');
+      const result = await response.json();
 
-      const response = await fetch('/api/logicware', {
-          method: 'GET',
-      });
-
-      const data = await response.json();
-
-      if (!data) {
-        throw new Error('Logicware returned empty data');
-      }
+      if (!result) throw new Error('No data received from hub');
 
       if (!response.ok) {
-        throw new Error(data?.message || `Server Error (${response.status})`);
+        throw new Error(result?.message || `Server Error (${response.status})`);
       }
 
-      console.log('[LOGICWARE DATA]', data);
+      console.log('[LOGICWARE DATA]', result);
 
-      // Handle common Logicware payload structures
-      const records = data?.shippers || data?.shipments || data?.data || (Array.isArray(data) ? data : []);
+      // Support various Logicware response structures (Connect SDK returns data under 'shippers' or 'data')
+      const records = result.data?.shippers || result.data?.shipments || result.data || result.shippers || (Array.isArray(result) ? result : []);
       setLogicwareShipments(records);
       
+      toast({ title: 'Hub Synchronized', description: `Loaded ${records.length} external records.` });
     } catch (error: any) {
       console.error('[FETCH LOGICWARE ERROR]', error);
       toast({
-        title: 'Error',
-        description: error?.message || 'Failed to fetch Logicware data',
+        title: 'Sync Failed',
+        description: error?.message || 'Check your Logicware API key in settings.',
         variant: 'destructive',
       });
     } finally {
@@ -124,13 +119,11 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    console.log('[LOGICWARE RAW FOR MAPPING]', logicwareShipments);
-
     const logicwareArray = Array.isArray(logicwareShipments) ? logicwareShipments : [];
 
     const mappedLogicware = logicwareArray.map((s: any) => ({
         id: `lw-${s.id}`,
-        // Robust field mapping for Logicware naming conventions
+        // Handle field differences between Shippers and Shipments
         trackingNumber: 
           s.trackingNumber || 
           s.tracking_number || 
@@ -219,8 +212,8 @@ export default function ShippingPage() {
         contents: editableShipment.contents,
         status: editableShipment.status,
         paymentStatus: editableShipment.paymentStatus,
-        cost: editableShipment.cost,
-        weight: editableShipment.weight,
+        cost: Number(editableShipment.cost) || 0,
+        weight: Number(editableShipment.weight) || 0,
         sourceMarketplace: editableShipment.sourceMarketplace
     };
     updateDoc(shipmentDocRef, updateData)

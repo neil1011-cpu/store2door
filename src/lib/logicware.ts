@@ -20,41 +20,21 @@ export async function fetchLogicwareShippers() {
   }
 }
 
+export async function fetchLogicwareShipments() {
+  try {
+    // The SDK often provides a shipments module as well
+    const shipments = await client.shipments.list({ limit: 100 });
+    return shipments;
+  } catch (error: any) {
+    console.error('[LOGICWARE SHIPMENTS SDK ERROR]', error);
+    // Fallback to shippers if shipments module isn't active
+    return fetchLogicwareShippers();
+  }
+}
+
 export const logicwareMeta = {
     baseUrl: process.env.LOGICWARE_BASE_URL || 'https://from-store-to-door-api.logicware.app',
     portalUrl: 'https://from-store-to-door-portal.logicware.app',
     shipperUrl: 'https://from-store-to-door.logicware.app',
     slug: 'from-store-door'
 };
-
-export async function fetchLogicwareShipments() {
-  try {
-    const response = await fetch(
-      `${process.env.LOGICWARE_BASE_URL}/shipments`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.LOGICWARE_API_KEY}`,
-        },
-        cache: 'no-store',
-      }
-    );
-
-    let data = null;
-    try {
-      data = await response.json();
-    } catch {
-      data = null;
-    }
-
-    if (!response.ok) {
-      throw new Error(data?.message || `Logicware API Error (${response.status})`);
-    }
-
-    return data;
-  } catch (error: any) {
-    console.error('[LOGICWARE ERROR]', error);
-    throw new Error(error?.message || 'Failed to fetch Logicware data');
-  }
-}
