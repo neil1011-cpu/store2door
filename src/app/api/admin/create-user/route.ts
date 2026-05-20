@@ -11,7 +11,9 @@ const FIREBASE_API_KEY = "AIzaSyCxZ7fHM0GTfBtkyxaAhotzDw5udr7lFvQ";
 async function getSafeBody(request: Request) {
   try {
     const text = await request.text();
-    return text ? JSON.parse(text) : {};
+    if (!text) return {};
+    const parsed = JSON.parse(text);
+    return (parsed && typeof parsed === 'object') ? parsed : {};
   } catch (e) {
     return {};
   }
@@ -39,8 +41,11 @@ export async function POST(request: Request) {
     }
 
     const idToken = authHeader.substring(7);
+    if (!idToken || idToken === 'null' || idToken === 'undefined') {
+        return NextResponse.json({ message: 'Unauthorized: Invalid token value' }, { status: 401 });
+    }
+
     const tokenParts = idToken.split('.');
-    
     if (tokenParts.length !== 3) {
         return NextResponse.json({ message: 'Unauthorized: Malformed token structure' }, { status: 401 });
     }
@@ -93,7 +98,7 @@ export async function POST(request: Request) {
                 return NextResponse.json({ 
                     message: 'User identity synchronized.', 
                     existingUid: user.uid 
-                }, { status: 409 });
+                }, { status: 200 });
             } catch (adminError) {
                 return NextResponse.json({ 
                     message: 'User exists but identity check failed.', 

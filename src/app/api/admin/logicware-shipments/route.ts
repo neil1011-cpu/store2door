@@ -10,7 +10,9 @@ import { adminDb } from '@/lib/firebaseAdmin';
 async function getSafeBody(request: Request) {
   try {
     const text = await request.text();
-    return text ? JSON.parse(text) : {};
+    if (!text) return {};
+    const parsed = JSON.parse(text);
+    return (parsed && typeof parsed === 'object') ? parsed : {};
   } catch (e) {
     return {};
   }

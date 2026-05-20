@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -112,6 +111,7 @@ export default function SettingsPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ apiKey: logicwareApi.key })
           });
+          
           const data = await response.json();
           if (!data) {
             throw new Error('Logicware returned empty data');

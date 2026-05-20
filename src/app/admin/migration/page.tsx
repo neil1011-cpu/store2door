@@ -166,7 +166,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10043", first: "Ann-Marie", last: "Gordon", email: "annmariegordon123@hotmail.com", phone: "8763895496" },
   { code: "FSTD10244", first: "Shanique", last: "Johnson", email: "shanpaye1511@yahoo.com", phone: "8767986128" },
   { code: "FSTD10251", first: "Alex", last: "Smith", email: "lexxus44@yahoo.com", phone: "8765697306" },
-  { code: "FSTD10058", first: "Kirk", last: "Simms", email: "Kirkcsimms876@gmail.com", phone: "8765138254" },
+  { code: "FSTD10058", first: "Kirk", last: "Simms", email: "Kirkcsimms876@gmail.com", phone: "87651338254" },
   { code: "FSTD10074", first: "Grace", last: "Frazer", email: "frazer.gracegf@gmail.com", phone: "8768716880" },
   { code: "FSTD10214", first: "Kayla", last: "Wolfe", email: "kaykaycunningham188@gmail.com", phone: "1876-4306-200" },
   { code: "FSTD10294", first: "Gary", last: "Brooks", email: "Brooksgary49@gmail.com", phone: "18762372819" },
@@ -383,6 +383,9 @@ export default function MigrationPage() {
                 });
 
                 const result = await res.json();
+                if (!result) {
+                    throw new Error('Server returned empty response during identity sync.');
+                }
 
                 if (res.status === 429) {
                     setLogs(prev => [...prev, { message: `RATE LIMIT: Backing off 10s...`, type: 'info' }]);
@@ -439,6 +442,9 @@ export default function MigrationPage() {
                                     }
                                 })
                             });
+                            const lwData = await lwRes.json();
+                            if (!lwData) throw new Error('Logicware returned empty data');
+                            
                             if (lwRes.ok) {
                                 setLogs(prev => [...prev, { message: `LOGICWARE: Shipper ${mailbox} synced.`, type: 'logicware' }]);
                             }

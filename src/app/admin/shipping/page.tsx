@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -83,7 +82,6 @@ export default function ShippingPage() {
               body: JSON.stringify({}) 
           });
 
-          // Handle non-JSON or error responses gracefully
           if (!response.ok) {
               const errorText = await response.text();
               let errorMessage = 'Failed to sync with external hub.';
@@ -91,7 +89,6 @@ export default function ShippingPage() {
                   const errorJson = JSON.parse(errorText);
                   errorMessage = errorJson.message || errorMessage;
               } catch (e) {
-                  // If not JSON, it might be an HTML error page from Next.js
                   errorMessage = `Server Error (${response.status})`;
               }
               throw new Error(errorMessage);
@@ -174,6 +171,7 @@ export default function ShippingPage() {
       });
       if (!response.ok) throw new Error('Failed to send email.');
       const data = await response.json();
+      if (!data) throw new Error('Mail system returned empty response');
       toast({ title: 'Email Sent', description: `Update for ${selectedShipment.trackingNumber} sent.` });
     } catch (error: any) {
       toast({ title: 'Error Sending Email', description: error.message, variant: 'destructive' });
