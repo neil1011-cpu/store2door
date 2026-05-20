@@ -56,6 +56,8 @@ export type Shipment = {
   status: ShipmentStatus;
   shippingDate: Timestamp | any; 
   cost?: number;
+  weight?: number;
+  sourceMarketplace?: string;
   paymentStatus?: 'Paid' | 'Unpaid';
   invoiceUrl: string;
   invoiceId?: string;

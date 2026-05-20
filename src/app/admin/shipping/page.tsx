@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, ArrowLeft, Edit, Loader2, Search, PlusCircle, ScanLine, CheckCircle2, AlertCircle, Zap, RefreshCw } from 'lucide-react';
+import { Mail, ArrowLeft, Edit, Loader2, Search, PlusCircle, ScanLine, CheckCircle2, AlertCircle, Zap, RefreshCw, ShoppingCart, Weight, DollarSign, Store } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -146,19 +146,26 @@ export default function ShippingPage() {
 
         contents:
           s.contents ||
+          s.description ||
           'Global Account',
 
         status:
+          s.status?.name ||
           s.status ||
           'Processing',
 
         customerName:
           s.name ||
           s.customerName ||
+          s.shipper?.name ||
           'Unknown Customer',
 
         courier:
           'Logicware',
+        
+        weight: s.weight || 0,
+        cost: s.totalAmount || s.cost || 0,
+        sourceMarketplace: s.marketplace || s.source || 'N/A',
         isLogicware: true,
         user: undefined
       })),
@@ -215,7 +222,9 @@ export default function ShippingPage() {
         contents: editableShipment.contents,
         status: editableShipment.status,
         paymentStatus: editableShipment.paymentStatus,
-        cost: editableShipment.cost
+        cost: editableShipment.cost,
+        weight: editableShipment.weight,
+        sourceMarketplace: editableShipment.sourceMarketplace
     };
     updateDoc(shipmentDocRef, updateData)
         .then(() => {
@@ -266,7 +275,7 @@ export default function ShippingPage() {
         </div>
       </div>
 
-      <Card className="shadow-md overflow-hidden">
+      <Card className="shadow-md overflow-hidden border-none">
         <CardHeader className="bg-muted/10">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
@@ -286,8 +295,10 @@ export default function ShippingPage() {
                 <TableHead className="pl-6">Source</TableHead>
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Customer</TableHead>
+                <TableHead>Marketplace</TableHead>
+                <TableHead>Weight</TableHead>
+                <TableHead>Price (JMD)</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Contents</TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -306,8 +317,22 @@ export default function ShippingPage() {
                     <div className="font-bold">{(shipment as any).user?.fullName || (shipment as any).customerName || 'N/A'}</div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{(shipment as any).user?.mailboxNumber || (shipment as any).customerId}</div>
                   </TableCell>
+                  <TableCell>
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold flex items-center gap-1 w-fit">
+                          <Store className="h-2 w-2" />
+                          {(shipment as any).sourceMarketplace || 'N/A'}
+                      </Badge>
+                  </TableCell>
+                  <TableCell className="font-medium">
+                      <div className="flex items-center gap-1">
+                          <Weight className="h-3 w-3 text-muted-foreground" />
+                          {(shipment as any).weight || 0} lbs
+                      </div>
+                  </TableCell>
+                  <TableCell className="font-bold text-green-600">
+                      {shipment.cost ? `JMD $${shipment.cost.toLocaleString()}` : 'TBD'}
+                  </TableCell>
                   <TableCell><Badge variant={getStatusVariant(shipment.status)} className="px-3">{shipment.status}</Badge></TableCell>
-                  <TableCell className="max-w-[200px] truncate text-sm">{shipment.contents}</TableCell>
                   <TableCell className="text-right space-x-2 pr-6">
                     <Button variant="outline" size="sm" className="h-8 font-bold" onClick={() => { setEditableShipment({ ...shipment }); setIsEditDialogOpen(true); }} disabled={(shipment as any).isLogicware}>
                       <Edit className="mr-2 h-3.5 w-3.5" />Update
@@ -319,7 +344,7 @@ export default function ShippingPage() {
                 </TableRow>
               ))}
               {combinedShipments.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground italic">No worldwide records matching your search.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center h-32 text-muted-foreground italic">No worldwide records matching your search.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -385,19 +410,32 @@ export default function ShippingPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-payment-status" className="text-[10px] font-bold uppercase text-muted-foreground">Finance Status</Label>
-                  <Select value={editableShipment.paymentStatus} onValueChange={(value) => setEditableShipment({ ...editableShipment, paymentStatus: value as 'Paid' | 'Unpaid' })}>
-                    <SelectTrigger id="edit-payment-status" className="h-11"><SelectValue placeholder="Select status" /></SelectTrigger>
-                    <SelectContent><SelectItem value="Unpaid">Unpaid</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent>
-                  </Select>
+                    <Label htmlFor="edit-marketplace" className="text-[10px] font-bold uppercase text-muted-foreground">Marketplace Source</Label>
+                    <Input id="edit-marketplace" value={editableShipment.sourceMarketplace || ''} onChange={(e) => setEditableShipment({ ...editableShipment, sourceMarketplace: e.target.value })} className="h-11" placeholder="e.g., Amazon, eBay" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-weight" className="text-[10px] font-bold uppercase text-muted-foreground">Weight (lbs)</Label>
+                    <div className="relative">
+                        <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input id="edit-weight" type="number" value={editableShipment.weight || ''} onChange={(e) => setEditableShipment({ ...editableShipment, weight: Number(e.target.value) })} className="pl-10 h-11" />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-cost" className="text-[10px] font-bold uppercase text-muted-foreground">Total Cost (JMD $)</Label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-xs">JMD $</span>
+                        <Input id="edit-cost" type="number" value={editableShipment.cost || ''} onChange={(e) => setEditableShipment({ ...editableShipment, cost: Number(e.target.value) })} className="pl-16 h-11 font-black" />
+                    </div>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-cost" className="text-[10px] font-bold uppercase text-muted-foreground">Total Cost (JMD $)</Label>
-                <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">JMD $</span>
-                    <Input id="edit-cost" type="number" value={editableShipment.cost} onChange={(e) => setEditableShipment({ ...editableShipment, cost: Number(e.target.value) })} className="pl-16 h-11 font-black text-lg" />
-                </div>
+                <Label htmlFor="edit-payment-status" className="text-[10px] font-bold uppercase text-muted-foreground">Finance Status</Label>
+                <Select value={editableShipment.paymentStatus} onValueChange={(value) => setEditableShipment({ ...editableShipment, paymentStatus: value as 'Paid' | 'Unpaid' })}>
+                <SelectTrigger id="edit-payment-status" className="h-11"><SelectValue placeholder="Select status" /></SelectTrigger>
+                <SelectContent><SelectItem value="Unpaid">Unpaid</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent>
+                </Select>
               </div>
             </div>
           )}
@@ -421,6 +459,8 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
     const [trackingNumber, setTrackingNumber] = useState('');
     const [customerId, setCustomerId] = useState('');
     const [contents, setContents] = useState('');
+    const [weight, setWeight] = useState('');
+    const [marketplace, setMarketplace] = useState('');
     const [status, setStatus] = useState<ShipmentStatus>('Received at Warehouse (FL)');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [foundPreAlert, setFoundPreAlert] = useState<PreAlert | null>(null);
@@ -435,6 +475,8 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
             setTrackingNumber('');
             setCustomerId('');
             setContents('');
+            setWeight('');
+            setMarketplace('');
             setFoundPreAlert(null);
         }
     }, [open]);
@@ -470,6 +512,8 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
             trackingNumber: trackingNumber.toUpperCase(),
             customerId,
             contents,
+            weight: parseFloat(weight) || 0,
+            sourceMarketplace: marketplace,
             status,
             shippingDate: serverTimestamp(),
             paymentStatus: 'Unpaid' as const,
@@ -503,8 +547,8 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
                     </DialogTitle>
                     <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Worldwide Logistics Center</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-8 py-6">
-                    <div className="space-y-3">
+                <div className="space-y-6 py-6">
+                    <div className="space-y-2">
                         <Label className="flex justify-between items-center px-1">
                             <span className="text-xs font-bold uppercase tracking-widest">Tracking Number</span>
                             <span className="text-[9px] text-primary animate-pulse font-black uppercase tracking-tighter bg-primary/10 px-2 py-0.5 rounded border border-primary/20">● Ready for Scanner</span>
@@ -514,14 +558,14 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
                             placeholder="SCAN BARCODE OR TYPE..." 
                             value={trackingNumber} 
                             onChange={(e) => setTrackingNumber(e.target.value)}
-                            className="text-2xl h-16 font-mono font-black border-4 focus-visible:ring-0 focus:border-primary transition-all uppercase placeholder:opacity-20"
+                            className="text-xl h-14 font-mono font-black border-4 focus-visible:ring-0 focus:border-primary transition-all uppercase placeholder:opacity-20"
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label className="text-xs font-bold uppercase opacity-60">Customer Profile</Label>
                             <Select value={customerId} onValueChange={setCustomerId}>
-                                <SelectTrigger className="h-12 border-2"><SelectValue placeholder="Select Account" /></SelectTrigger>
+                                <SelectTrigger className="h-11 border-2"><SelectValue placeholder="Select Account" /></SelectTrigger>
                                 <SelectContent className="max-h-80">
                                     {users.map(u => (
                                         <SelectItem key={u.id} value={u.id} className="font-bold">
@@ -534,7 +578,7 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
                         <div className="space-y-2">
                             <Label className="text-xs font-bold uppercase opacity-60">Initial Status</Label>
                             <Select value={status} onValueChange={(v: any) => setStatus(v)}>
-                                <SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="h-11 border-2"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Received at Warehouse (FL)" className="font-bold">Received (Warehouse)</SelectItem>
                                     <SelectItem value="In Transit" className="font-bold">In Transit (Global)</SelectItem>
@@ -542,9 +586,19 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
                             </Select>
                         </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase opacity-60">Marketplace</Label>
+                            <Input placeholder="e.g., Amazon, Shein" value={marketplace} onChange={(e) => setMarketplace(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase opacity-60">Weight (lbs)</Label>
+                            <Input type="number" placeholder="0.0" value={weight} onChange={(e) => setWeight(e.target.value)} className="h-11 border-2" />
+                        </div>
+                    </div>
                     <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase opacity-60">Item Details</Label>
-                        <Input placeholder="e.g., Electronics, Fashion, Medical..." value={contents} onChange={(e) => setContents(e.target.value)} className="h-12 border-2" />
+                        <Label className="text-xs font-bold uppercase opacity-60">Item Description</Label>
+                        <Input placeholder="e.g., Electronics, Fashion, Medical..." value={contents} onChange={(e) => setContents(e.target.value)} className="h-11 border-2" />
                     </div>
                     {foundPreAlert && (
                         <div className="p-4 bg-primary text-primary-foreground rounded-xl flex gap-4 items-center animate-in slide-in-from-bottom-2">
