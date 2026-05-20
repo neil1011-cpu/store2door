@@ -93,9 +93,9 @@ export default function ShippingPage() {
 
       console.log('[LOGICWARE DATA]', data);
 
-      setLogicwareShipments(
-        data?.shippers || data?.shipments || data || []
-      );
+      // Handle common Logicware payload structures
+      const records = data?.shippers || data?.shipments || data?.data || (Array.isArray(data) ? data : []);
+      setLogicwareShipments(records);
       
     } catch (error: any) {
       console.error('[FETCH LOGICWARE ERROR]', error);
@@ -124,52 +124,49 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    console.log(
-      '[LOGICWARE RAW]',
-      logicwareShipments
-    );
+    console.log('[LOGICWARE RAW FOR MAPPING]', logicwareShipments);
 
-    const logicwareArray = Array.isArray(logicwareShipments)
-      ? logicwareShipments
-      : logicwareShipments?.data ||
-        logicwareShipments?.shippers ||
-        [];
+    const logicwareArray = Array.isArray(logicwareShipments) ? logicwareShipments : [];
 
-    const all = [
-      ...mappedFirebase,
-      ...logicwareArray.map((s: any) => ({
+    const mappedLogicware = logicwareArray.map((s: any) => ({
         id: `lw-${s.id}`,
-        trackingNumber:
-          s.referenceCode ||
-          s.trackingNumber ||
+        // Robust field mapping for Logicware naming conventions
+        trackingNumber: 
+          s.trackingNumber || 
+          s.tracking_number || 
+          s.referenceCode || 
+          s.reference_code || 
           'NO-REF',
 
-        contents:
-          s.contents ||
-          s.description ||
+        contents: 
+          s.contents || 
+          s.description || 
+          s.item_description || 
           'Global Account',
 
-        status:
-          s.status?.name ||
-          s.status ||
+        status: 
+          s.status?.name || 
+          s.status_name || 
+          s.status || 
           'Processing',
 
-        customerName:
-          s.name ||
-          s.customerName ||
-          s.shipper?.name ||
+        customerName: 
+          s.customerName || 
+          s.customer_name || 
+          s.name || 
+          s.shipper?.name || 
           'Unknown Customer',
 
-        courier:
-          'Logicware',
+        courier: 'Logicware',
         
-        weight: s.weight || 0,
-        cost: s.totalAmount || s.cost || 0,
-        sourceMarketplace: s.marketplace || s.source || 'N/A',
+        weight: Number(s.weight || s.weight_lbs || 0),
+        cost: Number(s.totalAmount || s.total_amount || s.cost || s.price || 0),
+        sourceMarketplace: s.marketplace || s.source_marketplace || s.source || 'N/A',
         isLogicware: true,
         user: undefined
-      })),
-    ];
+    }));
+
+    const all = [...mappedFirebase, ...mappedLogicware];
     
     if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
