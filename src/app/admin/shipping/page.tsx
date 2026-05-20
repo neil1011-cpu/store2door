@@ -74,46 +74,39 @@ export default function ShippingPage() {
   const loading = isLoadingShipments || isLoadingUsers;
 
   const fetchLogicwareData = async () => {
+    try {
       setIsFetchingLogicware(true);
+
+      const response = await fetch('/api/logicware');
+
+      let result: any = {};
+
       try {
-          const response = await fetch('/api/admin/logicware-shipments', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({}) 
-          });
-
-          if (!response.ok) {
-              const errorText = await response.text();
-              let errorMessage = 'Failed to sync with external hub.';
-              try {
-                  const errorJson = JSON.parse(errorText);
-                  errorMessage = errorJson.message || errorMessage;
-              } catch (e) {
-                  errorMessage = `Server Error (${response.status})`;
-              }
-              throw new Error(errorMessage);
-          }
-
-          const data = await response.json();
-          if (!data) {
-            throw new Error('Logicware returned empty data');
-          }
-          if (data.success) {
-              setLogicwareShipments(data.shipments);
-              toast({ title: "Logicware Synced", description: `Found ${data.shipments.length} external packages.` });
-          } else {
-              toast({ title: "Sync Notice", description: data.message });
-          }
-      } catch (error: any) {
-          console.error('Logicware Sync Error:', error);
-          toast({ 
-              title: "Sync Failed", 
-              description: error.message || "Please check your API key in Settings.",
-              variant: "destructive" 
-          });
-      } finally {
-          setIsFetchingLogicware(false);
+        result = await response.json();
+      } catch {
+        result = {};
       }
+
+      if (!response.ok) {
+        throw new Error(
+          result?.error || `Server Error (${response.status})`
+        );
+      }
+
+      console.log('[LOGICWARE DATA]', result);
+
+      setLogicwareShipments(
+        Array.isArray(result?.data) ? result.data : []
+      );
+    } catch (error: any) {
+      console.error('[FETCH ERROR]', error);
+
+      alert(
+        error?.message || 'Failed to fetch Logicware data'
+      );
+    } finally {
+      setIsFetchingLogicware(false);
+    }
   };
 
   useEffect(() => {
@@ -132,9 +125,19 @@ export default function ShippingPage() {
     }));
 
     const firebaseTrackingNumbers = new Set(mappedFirebase.map(s => s.trackingNumber.toUpperCase()));
-    const uniqueLogicware = logicwareShipments.filter(s => !firebaseTrackingNumbers.has(s.trackingNumber.toUpperCase()));
+    const uniqueLogicware = logicwareShipments.filter(s => !firebaseTrackingNumbers.has(s.trackingNumber?.toUpperCase() || ''));
 
-    const all = [...mappedFirebase, ...uniqueLogicware];
+    const all = [...mappedFirebase, ...uniqueLogicware.map(s => ({
+        id: `lw-${s.id}`,
+        trackingNumber: s.trackingNumber || s.referenceCode || 'NO-REF',
+        contents: s.description || 'Global Package',
+        status: s.status?.name || 'In Transit',
+        shippingDate: s.createdAt,
+        customerId: s.shipperId,
+        customerName: s.shipper?.name || 'Customer',
+        isLogicware: true,
+        user: undefined
+    }))];
     
     if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
