@@ -5,12 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, ArrowLeft, Edit, Loader2, Search, PlusCircle, ScanLine, CheckCircle2, AlertCircle, Zap, RefreshCw, ShoppingCart, Weight, DollarSign, Store } from 'lucide-react';
+import { Mail, ArrowLeft, Edit, Loader2, Search, PlusCircle, ScanLine, CheckCircle2, AlertCircle, Zap, RefreshCw, ShoppingCart, Weight, DollarSign, Store, Eye, Info, Package, Plane, MapPin, Ruler, ShieldAlert, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import type { Shipment, UserProfile, ShipmentStatus, PreAlert } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -51,6 +54,7 @@ export default function ShippingPage() {
   const [isReceiveDialogOpen, setIsReceiveDialogOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState<(Shipment & { user?: Partial<UserProfile> }) | null>(null);
   const [editableShipment, setEditableShipment] = useState<Shipment | null>(null);
+  const [viewingShipment, setViewingShipment] = useState<Shipment | null>(null);
   const [emailContent, setEmailContent] = useState({ subject: '', body: '' });
   const [isSaving, setIsSaving] = useState(false);
   const [isFetchingLogicware, setIsFetchingLogicware] = useState(false);
@@ -77,13 +81,7 @@ export default function ShippingPage() {
     try {
       setIsFetchingLogicware(true);
       const response = await fetch('/api/logicware');
-      
-      let data: any = null;
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
-      }
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data?.message || `Server Error (${response.status})`);
@@ -93,21 +91,18 @@ export default function ShippingPage() {
         throw new Error('Logicware returned empty data');
       }
 
-      console.log('[LOGICWARE DATA]', data);
-
-      // Extract the records array from various possible property names
-      const records = data.shippers || data.shipments || data.data || (Array.isArray(data) ? data : []);
+      // Robust array extraction
+      const records = data.shipments || data.shippers || data.data || (Array.isArray(data) ? data : []);
       setLogicwareShipments(records);
       
       toast({ 
         title: 'Hub Synchronized', 
-        description: `Loaded ${Array.isArray(records) ? records.length : 0} external records.` 
+        description: `Loaded ${records.length} worldwide records.` 
       });
     } catch (error: any) {
-      console.error('[FETCH LOGICWARE ERROR]', error);
       toast({
         title: 'Sync Failed',
-        description: error?.message || 'Check your Logicware API key in settings.',
+        description: error?.message || 'Connection to logistics hub failed.',
         variant: 'destructive',
       });
     } finally {
@@ -121,7 +116,7 @@ export default function ShippingPage() {
   }, []);
 
   const combinedShipments = useMemo(() => {
-    const firebaseData = firebaseShipments || [];
+    const firebaseData = (firebaseShipments || []).map(s => ({ ...s, source: 'firebase' as const }));
     const usersMap = new Map(users?.map(u => [u.id, u]) || []);
     
     const mappedFirebase = firebaseData.map(shipment => ({
@@ -137,71 +132,71 @@ export default function ShippingPage() {
         logicwareShipments?.shipments ||
         [];
 
-    console.log('[LOGICWARE RAW]', logicwareShipments);
-
-    if (logicwareArray.length > 0) {
-      console.log(
-        JSON.stringify(
-          logicwareArray[0],
-          null,
-          2
-        )
-      );
-    }
-
-    const all = [
-      ...mappedFirebase,
-      ...logicwareArray.map((s: any) => ({
+    const mappedLogicware = logicwareArray.map((s: any) => ({
         id: `lw-${s.id}`,
-        trackingNumber: 
-          s.trackingNumber || 
-          s.tracking_number || 
-          s.referenceCode || 
-          s.reference_code || 
-          'NO-REF',
-
-        contents: 
-          s.contents || 
-          s.description || 
-          s.item_description || 
-          'Global Account',
-
-        status: 
-          s.status?.name || 
-          s.status_name || 
-          s.status || 
-          'Processing',
-
-        customerName: 
-          s.customerName || 
-          s.customer_name || 
-          s.name || 
-          s.shipper?.name || 
-          'Unknown Customer',
-
-        courier: 'Logicware',
+        trackingNumber: s.trackingNumber || s.referenceCode || s.reference_code || 'NO-REF',
+        internalBarcode: s.internalBarcode || s.internal_barcode || s.barcode || '',
+        contents: s.contents || s.description || s.item_description || 'Global Package',
+        status: s.status?.name || s.status_name || s.status || 'In Transit',
         
+        merchant: s.merchant || s.seller || s.vendor || '',
+        sourceMarketplace: s.sourceMarketplace || s.marketplace || s.source_marketplace || 'N/A',
+        location: s.location || s.warehouse_location || '',
+
         weight: Number(s.weight || s.weight_lbs || 0),
-        cost: Number(s.totalAmount || s.total_amount || s.cost || s.price || 0),
-        sourceMarketplace: s.marketplace || s.source_marketplace || s.source || 'N/A',
+        length: Number(s.length || s.len || 0),
+        width: Number(s.width || s.wid || 0),
+        height: Number(s.height || s.hei || 0),
+
+        dimensionalWeight: Number(s.dimensionalWeight || s.dimWeight || s.volumetric_weight || 0),
+        billableWeight: Number(s.billableWeight || s.billable_weight || 0),
+
+        declaredValueUsd: Number(s.declaredValueUsd || s.declared_value || s.value_usd || 0),
+        shippingCostUsd: Number(s.shippingCostUsd || s.freight_usd || 0),
+        cost: Number(s.totalAmount || s.total_amount || s.cost || s.price || 0), // Total JMD
+
+        customsExempt: !!(s.customsExempt || s.is_exempt),
+        clearanceRate: Number(s.clearanceRate || s.duty_rate || 0),
+        estimatedClearanceJmd: Number(s.estimatedClearanceJmd || s.duty_jmd || 0),
+        exchangeRate: Number(s.exchangeRate || s.fx_rate || 156),
+
+        invoiceUploaded: !!(s.invoiceUploaded || s.has_invoice || s.is_prealerted),
+        invoiceUrl: s.invoiceUrl || s.invoice_url || '',
+        
+        fragile: !!(s.fragile || s.is_fragile),
+        shipperId: s.shipperId || s.customer_id || null,
+        shipperName: s.shipperName || s.customer_name || s.shipper?.name || 'Unknown Customer',
+        
+        manifestId: s.manifestId || s.flight_id || null,
+        pickupBranch: s.pickupBranch || s.branch || null,
+
+        timeline: s.timeline || [],
+        notes: s.notes || [],
+
+        createdAt: s.createdAt || s.created_at || new Date().toISOString(),
+        updatedAt: s.updatedAt || s.updated_at || new Date().toISOString(),
+
+        source: 'logicware' as const,
         isLogicware: true,
-        user: undefined
-      })),
-    ];
+        customerId: s.shipperId || '',
+        shippingDate: s.createdAt || s.created_at || new Date().toISOString(),
+    }));
+
+    const all = [...mappedFirebase, ...mappedLogicware];
     
     if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
     return all.filter(s => 
         s.trackingNumber.toLowerCase().includes(lowerTerm) || 
         (s as any).user?.fullName?.toLowerCase().includes(lowerTerm) ||
-        (s as any).customerName?.toLowerCase().includes(lowerTerm) ||
+        (s as any).shipperName?.toLowerCase().includes(lowerTerm) ||
         s.contents.toLowerCase().includes(lowerTerm)
     );
   }, [firebaseShipments, logicwareShipments, users, searchTerm]);
 
   const handleOpenEmailDialog = (shipment: Shipment & { user?: Partial<UserProfile> }) => {
     setSelectedShipment(shipment);
-    const customerName = shipment.user?.fullName || 'Valued Customer';
+    const customerName = shipment.user?.fullName || shipment.shipperName || 'Valued Customer';
     setEmailContent({
       subject: `Update for your shipment: ${shipment.trackingNumber}`,
       body: `Dear ${customerName},\n\nHere's an update on your shipment ${shipment.trackingNumber}:\n\nThe current status is now: ${shipment.status}.\n\nYou can track your worldwide shipments anytime on our portal.\n\nThank you for choosing FromStore2Door!`,
@@ -210,14 +205,17 @@ export default function ShippingPage() {
   };
 
   const handleSendEmail = async () => {
-    if (!selectedShipment || !selectedShipment.user) return;
+    if (!selectedShipment) return;
     setIsSendingEmail(true);
     try {
+      const emailTo = (selectedShipment as any).user?.email || (selectedShipment as any).email;
+      if (!emailTo) throw new Error("Customer email missing.");
+
       const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: selectedShipment.user.email,
+          to: emailTo,
           subject: emailContent.subject,
           body: emailContent.body,
         }),
@@ -233,17 +231,18 @@ export default function ShippingPage() {
   };
 
   const handleSaveChanges = async () => {
-    if (!editableShipment) return;
+    if (!editableShipment || editableShipment.source !== 'firebase') return;
     setIsSaving(true);
     const shipmentDocRef = doc(firestore, 'users', editableShipment.customerId, 'shipments', editableShipment.id);
     const updateData = {
-        contents: editableShipment.contents,
-        status: editableShipment.status,
-        paymentStatus: editableShipment.paymentStatus,
-        cost: Number(editableShipment.cost) || 0,
-        weight: Number(editableShipment.weight) || 0,
-        sourceMarketplace: editableShipment.sourceMarketplace
+        ...editableShipment,
+        updatedAt: serverTimestamp(),
     };
+    // Clean up non-serializable fields if any
+    delete (updateData as any).user;
+    delete (updateData as any).isLogicware;
+    delete (updateData as any).source;
+
     updateDoc(shipmentDocRef, updateData)
         .then(() => {
             toast({ title: 'Shipment Updated', description: `Shipment ${editableShipment.trackingNumber} updated.` });
@@ -276,7 +275,7 @@ export default function ShippingPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Worldwide Shipping Status</h1>
-          <p className="text-muted-foreground">Monitor and update status for packages from anywhere in the world.</p>
+          <p className="text-muted-foreground">Detailed logistical tracking for global operations.</p>
         </div>
         <div className="flex gap-2">
             <Button onClick={fetchLogicwareData} variant="outline" disabled={isFetchingLogicware} className="border-primary/20 hover:bg-primary/5">
@@ -298,7 +297,7 @@ export default function ShippingPage() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                 <CardTitle>Master Shipment List</CardTitle>
-                <CardDescription>Consolidated view of Firebase and Logicware data.</CardDescription>
+                <CardDescription>Deep data integration from Firebase and Logicware.</CardDescription>
             </div>
             <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -307,67 +306,82 @@ export default function ShippingPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Source</TableHead>
-                <TableHead>Tracking ID</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Marketplace</TableHead>
-                <TableHead>Weight</TableHead>
-                <TableHead>Price (JMD)</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right pr-6">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {combinedShipments.map((shipment) => (
-                <TableRow key={shipment.id} className={cn("hover:bg-muted/30 transition-colors", (shipment as any).isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
-                  <TableCell className="pl-6">
-                      {(shipment as any).isLogicware ? (
-                          <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200">Logicware Hub</Badge>
-                      ) : (
-                          <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200">Local OS</Badge>
-                      )}
-                  </TableCell>
-                  <TableCell className="font-mono font-black text-primary uppercase">{shipment.trackingNumber}</TableCell>
-                  <TableCell>
-                    <div className="font-bold">{(shipment as any).user?.fullName || (shipment as any).customerName || 'N/A'}</div>
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{(shipment as any).user?.mailboxNumber || (shipment as any).customerId}</div>
-                  </TableCell>
-                  <TableCell>
-                      <Badge variant="outline" className="text-[10px] uppercase font-bold flex items-center gap-1 w-fit">
-                          <Store className="h-2 w-2" />
-                          {(shipment as any).sourceMarketplace || 'N/A'}
-                      </Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">
-                      <div className="flex items-center gap-1">
-                          <Weight className="h-3 w-3 text-muted-foreground" />
-                          {(shipment as any).weight || 0} lbs
-                      </div>
-                  </TableCell>
-                  <TableCell className="font-bold text-green-600">
-                      {shipment.cost ? `JMD $${shipment.cost.toLocaleString()}` : 'TBD'}
-                  </TableCell>
-                  <TableCell><Badge variant={getStatusVariant(shipment.status)} className="px-3">{shipment.status}</Badge></TableCell>
-                  <TableCell className="text-right space-x-2 pr-6">
-                    <Button variant="outline" size="sm" className="h-8 font-bold" onClick={() => { setEditableShipment({ ...shipment }); setIsEditDialogOpen(true); }} disabled={(shipment as any).isLogicware}>
-                      <Edit className="mr-2 h-3.5 w-3.5" />Update
-                    </Button>
-                    <Button variant="secondary" size="sm" className="h-8 font-bold" onClick={() => handleOpenEmailDialog(shipment)} disabled={!(shipment as any).user}>
-                      <Mail className="mr-2 h-3.5 w-3.5" />Notify
-                    </Button>
-                  </TableCell>
+          <div className="relative w-full overflow-auto">
+            <Table>
+                <TableHeader>
+                <TableRow>
+                    <TableHead className="pl-6">Source</TableHead>
+                    <TableHead>Tracking ID</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Marketplace</TableHead>
+                    <TableHead>Weight</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right pr-6">Actions</TableHead>
                 </TableRow>
-              ))}
-              {combinedShipments.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center h-32 text-muted-foreground italic">No worldwide records matching your search.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                {combinedShipments.map((shipment) => (
+                    <TableRow key={shipment.id} className={cn("hover:bg-muted/30 transition-colors", shipment.isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
+                    <TableCell className="pl-6">
+                        {shipment.isLogicware ? (
+                            <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200">Logicware Hub</Badge>
+                        ) : (
+                            <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200">Local OS</Badge>
+                        )}
+                    </TableCell>
+                    <TableCell className="font-mono font-black text-primary uppercase">
+                        <div className="flex flex-col">
+                            <span>{shipment.trackingNumber}</span>
+                            {shipment.internalBarcode && <span className="text-[9px] text-muted-foreground font-mono">{shipment.internalBarcode}</span>}
+                        </div>
+                    </TableCell>
+                    <TableCell>
+                        <div className="font-bold">{(shipment as any).user?.fullName || shipment.shipperName || 'N/A'}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{shipment.shipperId || (shipment as any).user?.mailboxNumber}</div>
+                    </TableCell>
+                    <TableCell className="max-w-[150px] truncate text-xs">{shipment.contents}</TableCell>
+                    <TableCell>
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold flex items-center gap-1 w-fit">
+                            <Store className="h-2 w-2" />
+                            {shipment.sourceMarketplace || 'N/A'}
+                        </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium text-xs">
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-1">
+                                <Weight className="h-3 w-3 text-muted-foreground" />
+                                {shipment.weight || 0} lbs
+                            </div>
+                            {shipment.dimensionalWeight && shipment.dimensionalWeight > 0 && (
+                                <span className="text-[9px] text-orange-600 font-bold">DIM: {shipment.dimensionalWeight} lbs</span>
+                            )}
+                        </div>
+                    </TableCell>
+                    <TableCell><Badge variant={getStatusVariant(shipment.status)} className="px-3">{shipment.status}</Badge></TableCell>
+                    <TableCell className="text-right space-x-2 pr-6">
+                        <Button variant="ghost" size="icon" onClick={() => setViewingShipment(shipment)}>
+                            <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 font-bold" onClick={() => { setEditableShipment({ ...shipment }); setIsEditDialogOpen(true); }} disabled={shipment.isLogicware}>
+                            <Edit className="mr-2 h-3.5 w-3.5" />Update
+                        </Button>
+                        <Button variant="secondary" size="sm" className="h-8 font-bold" onClick={() => handleOpenEmailDialog(shipment as any)} disabled={!((shipment as any).user || (shipment as any).email)}>
+                        <Mail className="mr-2 h-3.5 w-3.5" />Notify
+                        </Button>
+                    </TableCell>
+                    </TableRow>
+                ))}
+                {combinedShipments.length === 0 && (
+                    <TableRow><TableCell colSpan={8} className="text-center h-32 text-muted-foreground italic">No worldwide records matching your search.</TableCell></TableRow>
+                )}
+                </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
+
+      <ShipmentDetailsDialog shipment={viewingShipment} onOpenChange={(open) => !open && setViewingShipment(null)} />
 
       <ReceivePackageDialog 
         open={isReceiveDialogOpen} 
@@ -402,60 +416,92 @@ export default function ShippingPage() {
       </Dialog>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="uppercase italic tracking-tighter">Update Shipment #{editableShipment?.trackingNumber}</DialogTitle>
           </DialogHeader>
           {editableShipment && (
-            <div className="grid gap-6 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-contents" className="text-[10px] font-bold uppercase text-muted-foreground">Item Description</Label>
-                <Input id="edit-contents" value={editableShipment.contents} onChange={(e) => setEditableShipment({ ...editableShipment, contents: e.target.value })} className="h-11" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-status" className="text-[10px] font-bold uppercase text-muted-foreground">Current Stage</Label>
-                  <Select value={editableShipment.status} onValueChange={(value) => setEditableShipment({ ...editableShipment, status: value as ShipmentStatus })}>
-                    <SelectTrigger id="edit-status" className="h-11"><SelectValue placeholder="Select status" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Received at Warehouse (FL)">Received at Warehouse (FL)</SelectItem>
-                      <SelectItem value="Processed">Processed</SelectItem>
-                      <SelectItem value="Being Shipped">Being Shipped</SelectItem>
-                      <SelectItem value="In Transit">In Transit</SelectItem>
-                      <SelectItem value="Arrived in Jamaica">Arrived in Jamaica</SelectItem>
-                      <SelectItem value="Delivered">Delivered</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-marketplace" className="text-[10px] font-bold uppercase text-muted-foreground">Marketplace Source</Label>
-                    <Input id="edit-marketplace" value={editableShipment.sourceMarketplace || ''} onChange={(e) => setEditableShipment({ ...editableShipment, sourceMarketplace: e.target.value })} className="h-11" placeholder="e.g., Amazon, eBay" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="edit-weight" className="text-[10px] font-bold uppercase text-muted-foreground">Weight (lbs)</Label>
-                    <div className="relative">
-                        <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input id="edit-weight" type="number" value={editableShipment.weight || ''} onChange={(e) => setEditableShipment({ ...editableShipment, weight: Number(e.target.value) })} className="pl-10 h-11" />
+            <ScrollArea className="max-h-[70vh] px-1">
+                <div className="grid gap-6 py-4 px-2">
+                    <div className="grid grid-cols-2 gap-4">
+                         <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Item Description</Label>
+                            <Input value={editableShipment.contents} onChange={(e) => setEditableShipment({ ...editableShipment, contents: e.target.value })} className="h-11" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Internal Barcode</Label>
+                            <Input value={editableShipment.internalBarcode || ''} onChange={(e) => setEditableShipment({ ...editableShipment, internalBarcode: e.target.value })} className="h-11 font-mono" />
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Current Stage</Label>
+                            <Select value={editableShipment.status} onValueChange={(value) => setEditableShipment({ ...editableShipment, status: value as ShipmentStatus })}>
+                                <SelectTrigger className="h-11"><SelectValue placeholder="Select status" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Received at Warehouse (FL)">Received (Warehouse)</SelectItem>
+                                    <SelectItem value="Processed">Processed</SelectItem>
+                                    <SelectItem value="Being Shipped">Being Shipped</SelectItem>
+                                    <SelectItem value="In Transit">In Transit</SelectItem>
+                                    <SelectItem value="Arrived in Jamaica">Arrived in Jamaica</SelectItem>
+                                    <SelectItem value="Delivered">Delivered</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Marketplace Source</Label>
+                            <Input value={editableShipment.sourceMarketplace || ''} onChange={(e) => setEditableShipment({ ...editableShipment, sourceMarketplace: e.target.value })} className="h-11" placeholder="e.g., Amazon, eBay" />
+                        </div>
+                    </div>
+
+                    <div className="p-4 border rounded-xl bg-muted/20 space-y-4">
+                        <p className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                            <Ruler className="h-4 w-4 text-primary" /> Dimensions & Weights
+                        </p>
+                        <div className="grid grid-cols-4 gap-3">
+                            <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold opacity-60">Weight (lbs)</Label>
+                                <Input type="number" value={editableShipment.weight || 0} onChange={(e) => setEditableShipment({...editableShipment, weight: Number(e.target.value)})} />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold opacity-60">L (in)</Label>
+                                <Input type="number" value={editableShipment.length || 0} onChange={(e) => setEditableShipment({...editableShipment, length: Number(e.target.value)})} />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold opacity-60">W (in)</Label>
+                                <Input type="number" value={editableShipment.width || 0} onChange={(e) => setEditableShipment({...editableShipment, width: Number(e.target.value)})} />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[9px] uppercase font-bold opacity-60">H (in)</Label>
+                                <Input type="number" value={editableShipment.height || 0} onChange={(e) => setEditableShipment({...editableShipment, height: Number(e.target.value)})} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Declared Value (USD)</Label>
+                            <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-40" />
+                                <Input type="number" value={editableShipment.declaredValueUsd || 0} onChange={(e) => setEditableShipment({...editableShipment, declaredValueUsd: Number(e.target.value)})} className="pl-9 h-11" />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Total Cost (JMD)</Label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-xs opacity-40">JMD $</span>
+                                <Input type="number" value={editableShipment.cost || 0} onChange={(e) => setEditableShipment({...editableShipment, cost: Number(e.target.value)})} className="pl-16 h-11 font-black" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                        <Checkbox id="fragile" checked={editableShipment.fragile} onCheckedChange={(v) => setEditableShipment({...editableShipment, fragile: !!v})} />
+                        <label htmlFor="fragile" className="text-sm font-bold uppercase cursor-pointer">Mark as Fragile</label>
                     </div>
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="edit-cost" className="text-[10px] font-bold uppercase text-muted-foreground">Total Cost (JMD $)</Label>
-                    <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-xs">JMD $</span>
-                        <Input id="edit-cost" type="number" value={editableShipment.cost || ''} onChange={(e) => setEditableShipment({ ...editableShipment, cost: Number(e.target.value) })} className="pl-16 h-11 font-black" />
-                    </div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-payment-status" className="text-[10px] font-bold uppercase text-muted-foreground">Finance Status</Label>
-                <Select value={editableShipment.paymentStatus} onValueChange={(value) => setEditableShipment({ ...editableShipment, paymentStatus: value as 'Paid' | 'Unpaid' })}>
-                <SelectTrigger id="edit-payment-status" className="h-11"><SelectValue placeholder="Select status" /></SelectTrigger>
-                <SelectContent><SelectItem value="Unpaid">Unpaid</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent>
-                </Select>
-              </div>
-            </div>
+            </ScrollArea>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
@@ -468,6 +514,140 @@ export default function ShippingPage() {
       </Dialog>
     </div>
   );
+}
+
+function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: Shipment | null, onOpenChange: (open: boolean) => void }) {
+    if (!shipment) return null;
+
+    const DetailItem = ({ label, value, icon }: { label: string, value: any, icon?: any }) => (
+        <div className="space-y-1">
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                {icon} {label}
+            </p>
+            <p className="font-bold text-sm">{value || 'N/A'}</p>
+        </div>
+    );
+
+    return (
+        <Dialog open={!!shipment} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                <DialogHeader className="p-6 bg-primary text-primary-foreground">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <Badge variant="outline" className="mb-2 text-white border-white/20 uppercase text-[9px] tracking-widest">
+                                {shipment.isLogicware ? 'Logicware Global Hub' : 'Local Firebase Network'}
+                            </Badge>
+                            <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter">
+                                {shipment.trackingNumber}
+                            </DialogTitle>
+                            <DialogDescription className="text-primary-foreground/70 font-bold text-[10px] uppercase tracking-widest mt-1">
+                                {shipment.internalBarcode ? `Internal Barcode: ${shipment.internalBarcode}` : 'No Internal Barcode Assigned'}
+                            </DialogDescription>
+                        </div>
+                        <div className="text-right">
+                            <Badge className="bg-white text-primary text-lg px-4 py-1 font-black italic">
+                                {shipment.status}
+                            </Badge>
+                        </div>
+                    </div>
+                </DialogHeader>
+
+                <ScrollArea className="flex-1">
+                    <div className="p-8 space-y-10">
+                        {/* Section 1: Core Info */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                             <DetailItem label="Description" value={shipment.contents} icon={<Package className="h-2 w-2" />} />
+                             <DetailItem label="Merchant" value={shipment.merchant} icon={<Store className="h-2 w-2" />} />
+                             <DetailItem label="Marketplace" value={shipment.sourceMarketplace} icon={<ShoppingCart className="h-2 w-2" />} />
+                             <DetailItem label="Warehouse Location" value={shipment.location} icon={<MapPin className="h-2 w-2" />} />
+                        </div>
+
+                        <Separator />
+
+                        {/* Section 2: Physical & Weight */}
+                        <div>
+                            <h4 className="text-xs font-black uppercase tracking-widest mb-6 flex items-center gap-2">
+                                <Ruler className="h-4 w-4 text-primary" /> Physical Specifications
+                            </h4>
+                            <div className="grid grid-cols-2 md:grid-cols-6 gap-8 bg-muted/20 p-6 rounded-2xl">
+                                <DetailItem label="Actual Weight" value={`${shipment.weight} lbs`} />
+                                <DetailItem label="Length" value={`${shipment.length} in`} />
+                                <DetailItem label="Width" value={`${shipment.width} in`} />
+                                <DetailItem label="Height" value={`${shipment.height} in`} />
+                                <DetailItem label="Dimensional" value={`${shipment.dimensionalWeight} lbs`} />
+                                <DetailItem label="Billable" value={`${shipment.billableWeight} lbs`} />
+                            </div>
+                        </div>
+
+                        {/* Section 3: Finance & Customs */}
+                        <div>
+                            <h4 className="text-xs font-black uppercase tracking-widest mb-6 flex items-center gap-2">
+                                <DollarSign className="h-4 w-4 text-primary" /> Financials & Customs
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                <div className="p-4 border rounded-xl space-y-3">
+                                    <DetailItem label="Declared Value" value={`$${shipment.declaredValueUsd} USD`} />
+                                    <DetailItem label="Shipping (Freight)" value={`$${shipment.shippingCostUsd} USD`} />
+                                </div>
+                                <div className="p-4 border rounded-xl space-y-3">
+                                    <DetailItem label="Clearance Rate" value={`${shipment.clearanceRate}%`} />
+                                    <DetailItem label="Estimated Clearance" value={`JMD $${shipment.estimatedClearanceJmd}`} />
+                                </div>
+                                <div className="p-4 border rounded-xl space-y-3 bg-primary/5 border-primary/20">
+                                    <DetailItem label="Grand Total (JMD)" value={`$${shipment.cost?.toLocaleString()}`} />
+                                    <DetailItem label="Exchange Rate" value={`1 USD = ${shipment.exchangeRate} JMD`} />
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold uppercase opacity-60">Customs Exempt</span>
+                                        <Badge variant={shipment.customsExempt ? 'default' : 'secondary'}>{shipment.customsExempt ? 'YES' : 'NO'}</Badge>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold uppercase opacity-60">Invoice Status</span>
+                                        <Badge variant={shipment.invoiceUploaded ? 'default' : 'destructive'}>{shipment.invoiceUploaded ? 'UPLOADED' : 'MISSING'}</Badge>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold uppercase opacity-60">Fragile Cargo</span>
+                                        <Badge variant={shipment.fragile ? 'destructive' : 'secondary'}>{shipment.fragile ? 'YES' : 'NO'}</Badge>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <Separator />
+
+                        {/* Section 4: External References */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                             <DetailItem label="Manifest/Flight ID" value={shipment.manifestId} icon={<Plane className="h-2 w-2" />} />
+                             <DetailItem label="Pickup Branch" value={shipment.pickupBranch} icon={<MapPin className="h-2 w-2" />} />
+                             <DetailItem label="External Tracking" value={shipment.trackingNumber} icon={<Search className="h-2 w-2" />} />
+                        </div>
+
+                        {/* Section 5: Timeline */}
+                        {shipment.timeline && shipment.timeline.length > 0 && (
+                             <div>
+                                <h4 className="text-xs font-black uppercase tracking-widest mb-6 flex items-center gap-2">
+                                    <History className="h-4 w-4 text-primary" /> Movement History
+                                </h4>
+                                <div className="space-y-4">
+                                    {shipment.timeline.map((event, i) => (
+                                        <div key={i} className="flex gap-4 items-center p-3 border-l-4 border-l-primary bg-muted/10 rounded-r-lg">
+                                            <div className="text-xs font-black italic uppercase min-w-[100px]">{event.type}</div>
+                                            <div className="text-[10px] text-muted-foreground uppercase font-bold">{new Date(event.date).toLocaleString()}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                             </div>
+                        )}
+                    </div>
+                </ScrollArea>
+                <div className="p-4 bg-muted/30 border-t flex justify-between items-center">
+                    <div className="text-[10px] font-bold uppercase opacity-40">System Record ID: {shipment.id}</div>
+                    <Button onClick={() => onOpenChange(false)}>Close Overview</Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, onOpenChange: (open: boolean) => void, users: UserProfile[] }) {
@@ -526,7 +706,7 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
         setIsSubmitting(true);
         const batch = writeBatch(firestore);
         
-        const shipmentData = {
+        const shipmentData: any = {
             trackingNumber: trackingNumber.toUpperCase(),
             customerId,
             contents,
@@ -536,6 +716,9 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
             shippingDate: serverTimestamp(),
             paymentStatus: 'Unpaid' as const,
             invoiceUrl: '', invoiceId: '', cost: 0,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            timeline: [{ type: 'In-Take', date: new Date().toISOString() }]
         };
         
         const shipmentRef = doc(collection(firestore, 'users', customerId, 'shipments'));

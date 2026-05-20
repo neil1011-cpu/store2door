@@ -49,19 +49,63 @@ export type ShipmentStatus =
   | 'On Route' 
   | 'Delivered';
 
+export type ShipmentTimelineEvent = {
+    type: string;
+    date: any;
+};
+
 export type Shipment = {
   id: string;
   trackingNumber: string;
-  contents: string;
-  status: ShipmentStatus;
+  internalBarcode?: string;
+  contents: string; // Map to description
+  description?: string;
+  status: ShipmentStatus | string;
   shippingDate: Timestamp | any; 
-  cost?: number;
-  weight?: number;
+  
+  merchant?: string;
   sourceMarketplace?: string;
-  paymentStatus?: 'Paid' | 'Unpaid';
+  location?: string;
+
+  weight: number;
+  length?: number;
+  width?: number;
+  height?: number;
+
+  dimensionalWeight?: number;
+  billableWeight?: number;
+
+  declaredValueUsd?: number;
+  shippingCostUsd?: number;
+  cost?: number; // Total JMD
+
+  customsExempt?: boolean;
+  clearanceRate?: number;
+  estimatedClearanceJmd?: number;
+  exchangeRate?: number;
+
+  invoiceUploaded?: boolean;
   invoiceUrl: string;
   invoiceId?: string;
+
+  fragile?: boolean;
+
+  shipperId: string | null;
+  shipperName?: string | null;
+
+  manifestId?: string | null;
+  pickupBranch?: string | null;
+
+  timeline?: ShipmentTimelineEvent[];
+  notes?: string[];
+
+  createdAt: any;
+  updatedAt: any;
+  
   customerId: string;
+  paymentStatus?: 'Paid' | 'Unpaid';
+  source?: 'firebase' | 'logicware';
+  isLogicware?: boolean;
 };
 
 export type PreAlert = {
