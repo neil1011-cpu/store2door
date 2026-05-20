@@ -77,14 +77,20 @@ export default function ShippingPage() {
     try {
       setIsFetchingLogicware(true);
       const response = await fetch('/api/logicware');
-      const data = await response.json();
-
-      if (!data) {
-        throw new Error('Logicware returned empty data');
+      
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
       }
 
       if (!response.ok) {
-        throw new Error(data.message || `Server Error (${response.status})`);
+        throw new Error(data?.message || `Server Error (${response.status})`);
+      }
+
+      if (!data) {
+        throw new Error('Logicware returned empty data');
       }
 
       console.log('[LOGICWARE DATA]', data);
@@ -124,8 +130,6 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    console.log('[LOGICWARE RAW]', logicwareShipments);
-
     const logicwareArray = Array.isArray(logicwareShipments)
       ? logicwareShipments
       : logicwareShipments?.data ||
@@ -133,7 +137,21 @@ export default function ShippingPage() {
         logicwareShipments?.shipments ||
         [];
 
-    const mappedLogicware = logicwareArray.map((s: any) => ({
+    console.log('[LOGICWARE RAW]', logicwareShipments);
+
+    if (logicwareArray.length > 0) {
+      console.log(
+        JSON.stringify(
+          logicwareArray[0],
+          null,
+          2
+        )
+      );
+    }
+
+    const all = [
+      ...mappedFirebase,
+      ...logicwareArray.map((s: any) => ({
         id: `lw-${s.id}`,
         trackingNumber: 
           s.trackingNumber || 
@@ -168,9 +186,8 @@ export default function ShippingPage() {
         sourceMarketplace: s.marketplace || s.source_marketplace || s.source || 'N/A',
         isLogicware: true,
         user: undefined
-    }));
-
-    const all = [...mappedFirebase, ...mappedLogicware];
+      })),
+    ];
     
     if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
