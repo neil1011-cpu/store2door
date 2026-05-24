@@ -2,16 +2,29 @@ import { LogicwareConnect } from '@logicware.app/connect-sdk';
 
 /**
  * @fileOverview Logicware Connect SDK utility.
- * Configured via environment variables for secure server-side access.
+ * Optimized to prevent top-level initialization errors in client components.
  */
 
-const client = new LogicwareConnect({
-  apiKey: process.env.LOGICWARE_API_KEY!,
-  baseUrl: process.env.LOGICWARE_BASE_URL,
-});
+/**
+ * Factory function to create a Logicware client instance.
+ * @param apiKey Optional API key. If not provided, it falls back to the server-side environment variable.
+ */
+export function getLogicwareClient(apiKey?: string) {
+  const finalKey = apiKey || process.env.LOGICWARE_API_KEY;
+  
+  if (!finalKey) {
+    throw new Error('Logicware API key is required. Ensure it is set in .env or passed dynamically.');
+  }
+
+  return new LogicwareConnect({
+    apiKey: finalKey,
+    baseUrl: process.env.LOGICWARE_BASE_URL || 'https://from-store-to-door-api.logicware.app',
+  });
+}
 
 export async function fetchLogicwareShippers() {
   try {
+    const client = getLogicwareClient();
     const shippers = await client.shippers.list();
     return shippers;
   } catch (error: any) {
@@ -22,11 +35,12 @@ export async function fetchLogicwareShippers() {
 
 export async function fetchLogicwareShipments() {
   try {
+    const client = getLogicwareClient();
     const shipments = await client.shipments.list({ limit: 100 });
     return shipments;
   } catch (error: any) {
     console.error('[LOGICWARE SHIPMENTS SDK ERROR]', error);
-    // Fallback to shippers if shipments module isn't active
+    // Fallback to shippers list if shipments module is restricted
     return fetchLogicwareShippers();
   }
 }
