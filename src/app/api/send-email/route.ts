@@ -53,8 +53,9 @@ export async function POST(request: Request) {
         try {
             console.log("--- SIMULATING EMAIL (SMTP not configured) ---");
             console.log("This is a mock email. In production, this would be sent to the user.");
+            console.log(`From: "FromStore2Door" <info@fromstore2door.com>`);
             if (Array.isArray(to)) {
-                 console.log(`To: "Undisclosed Recipients" <${process.env.SMTP_USER || 'no-reply@example.com'}>`);
+                 console.log(`To: "Undisclosed Recipients" <info@fromstore2door.com>`);
                  console.log(`Bcc: ${to.length} recipients`);
             } else {
                 console.log(`To: ${to}`);
@@ -105,7 +106,8 @@ The FromStore2Door Team`;
         });
 
         const mailOptions: nodemailer.SendMailOptions = {
-            from: `"FromStore2Door" <${SMTP_USER}>`,
+            from: `"FromStore2Door" <info@fromstore2door.com>`,
+            replyTo: 'info@fromstore2door.com',
             subject: subject,
             text: fullBodyText,
             html: fullBodyHtml,
@@ -113,7 +115,7 @@ The FromStore2Door Team`;
 
         if (Array.isArray(to)) {
             // When sending to multiple recipients, use BCC to protect privacy
-            mailOptions.to = `"Undisclosed Recipients" <${SMTP_USER}>`;
+            mailOptions.to = `"Undisclosed Recipients" <info@fromstore2door.com>`;
             mailOptions.bcc = to;
         } else {
             mailOptions.to = to;

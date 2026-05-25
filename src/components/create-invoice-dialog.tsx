@@ -87,7 +87,7 @@ const generateInvoiceHtml = (invoiceData: {
             <p style="font-weight: bold; font-size: 1.2em;">FromStore2Door</p>
             <p>4350 NE 5th Terrace Bay #3</p>
             <p>Oakland Park, Florida, 33334</p>
-            <p>fromstore2door@gmail.com</p>
+            <p>info@fromstore2door.com</p>
           </div>
         </div>
         <div class="invoice-details">
