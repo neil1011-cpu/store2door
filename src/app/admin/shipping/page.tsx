@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -125,8 +126,6 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    console.log('[LOGICWARE RAW]', logicwareShipments);
-
     const logicwareArray = Array.isArray(logicwareShipments)
       ? logicwareShipments
       : logicwareShipments?.data ||
@@ -134,21 +133,12 @@ export default function ShippingPage() {
         logicwareShipments?.shipments ||
         [];
 
-    if (logicwareArray.length > 0) {
-        console.log(
-            JSON.stringify(
-                logicwareArray[0],
-                null,
-                2
-            )
-        );
-    }
-
     const mappedLogicware = logicwareArray.map((s: any) => ({
         id: `lw-${s.id}`,
         trackingNumber: s.trackingNumber || s.referenceCode || s.reference_code || 'NO-REF',
         internalBarcode: s.internalBarcode || s.internal_barcode || s.barcode || '',
         contents: s.contents || s.description || s.item_description || 'Global Package',
+        description: s.contents || s.description || s.item_description || 'Global Package',
         status: s.status?.name || s.status_name || s.status || 'In Transit',
         
         merchant: s.merchant || s.seller || s.vendor || '',
@@ -193,6 +183,18 @@ export default function ShippingPage() {
         customerId: s.shipperId || '',
         shippingDate: s.createdAt || s.created_at || new Date().toISOString(),
     }));
+
+    console.log('[LOGICWARE RAW]', logicwareArray);
+
+    if (logicwareArray.length > 0) {
+        console.log(
+            JSON.stringify(
+                logicwareArray[0],
+                null,
+                2
+            )
+        );
+    }
 
     const all = [...mappedFirebase, ...mappedLogicware];
     

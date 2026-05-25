@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 
@@ -16,10 +17,18 @@ export async function POST(request: Request) {
 
         const client = getLogicwareClient(apiKey);
         
-        // Attempt a minimal operation to verify the key
-        await client.shippers.list({
-            limit: 1
-        });
+        // Attempt a minimal operation to verify the key.
+        // We try shippers list as a primary verification.
+        try {
+            await client.shippers.list({ limit: 1 });
+        } catch (err: any) {
+            // If shippers fails, try shipments. Some keys might have restricted scopes.
+            try {
+                await client.shipments.list({ limit: 1 });
+            } catch (innerErr: any) {
+                throw new Error(innerErr.message || err.message || 'Authentication failed.');
+            }
+        }
 
         return NextResponse.json({ 
             success: true, 
