@@ -133,6 +133,8 @@ export type PreAlert = {
   submissionDate: Timestamp | any;
   invoiceHtml: string; // The generated HTML invoice for viewing
   uploadedInvoiceUrl: string; // The original data URI of the user's uploaded image
+  source?: 'firebase' | 'logicware';
+  isLogicware?: boolean;
 };
 
 export type LineItem = {
