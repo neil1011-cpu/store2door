@@ -4,7 +4,7 @@ import { getLogicwareClient } from '@/lib/logicware';
 import { adminDb } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Secure server-side bridge for Logicware Shipment Sync.
+ * @fileOverview Secure server-side bridge for Logicware Shipper Sync.
  */
 
 async function getSafeBody(request: Request) {
@@ -39,25 +39,16 @@ export async function POST(request: Request) {
         }
 
         const client = getLogicwareClient(apiKey);
-        if (!client) throw new Error('SDK Initialization Failed');
+        if (!client?.shippers) throw new Error('Shippers module not available on this API key.');
         
-        let results: any[] = [];
-        if (client.shipments) {
-            results = await client.shipments.list({ limit: 100, sort: 'desc' });
-        } else if (client.shippers) {
-            // Fallback for key modules
-            results = await client.shippers.list();
-        }
+        const results = await client.shippers.list({ limit: 100 });
+        
+        let finalArray = Array.isArray(results) ? results : (results as any).data || [];
 
-        if (!Array.isArray(results)) {
-            const raw: any = results;
-            results = raw.data || raw.shipments || [];
-        }
-
-        return NextResponse.json({ success: true, shipments: results });
+        return NextResponse.json({ success: true, shippers: finalArray });
 
     } catch (error: any) {
-        console.error('Logicware Shipments Fetch Error:', error);
+        console.error('Logicware Shippers Fetch Error:', error);
         return NextResponse.json({ 
             success: false, 
             message: error.message || 'Logistics Hub communication failure.' 

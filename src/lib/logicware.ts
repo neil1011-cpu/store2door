@@ -1,8 +1,9 @@
+
 import { LogicwareConnect } from '@logicware.app/connect-sdk';
 
 /**
  * @fileOverview Logicware Connect SDK utility.
- * Optimized to prevent top-level initialization errors in client components.
+ * Refactored to prevent runtime crashes by using a factory function.
  */
 
 /**
@@ -13,12 +14,11 @@ export function getLogicwareClient(apiKey?: string) {
   const finalKey = apiKey || process.env.LOGICWARE_API_KEY;
   
   if (!finalKey) {
-    // We only throw if we are on the server or if a key was expected to be available.
-    // In the browser, this will be caught by individual function calls.
+    // Only throw if on server side.
     if (typeof window === 'undefined') {
       throw new Error('Logicware API key is required on server side.');
     }
-    throw new Error('Logicware API key is required. Ensure it is set in .env or passed dynamically.');
+    return null;
   }
 
   return new LogicwareConnect({
@@ -30,27 +30,23 @@ export function getLogicwareClient(apiKey?: string) {
 export async function fetchLogicwareShippers() {
   try {
     const client = getLogicwareClient();
-    if (!client.shippers) throw new Error('Shippers module not found in SDK instance.');
-    const shippers = await client.shippers.list();
-    return shippers;
+    if (!client?.shippers) return [];
+    const shippers = await client.shippers.list({ limit: 100 });
+    return Array.isArray(shippers) ? shippers : (shippers as any).data || (shippers as any).shippers || [];
   } catch (error: any) {
-    console.error('[LOGICWARE SDK ERROR]', error);
-    throw new Error(error?.message || 'Failed to fetch Logicware shippers');
+    console.error('[LOGICWARE SHIPPERS ERROR]', error);
+    return [];
   }
 }
 
 export async function fetchLogicwareShipments() {
   try {
     const client = getLogicwareClient();
-    // Defensive checks to prevent "reading list of undefined"
-    if (client.shipments) {
-        return await client.shipments.list({ limit: 100 });
-    } else if (client.shippers) {
-        return await client.shippers.list();
-    }
-    return [];
+    if (!client?.shipments) return [];
+    const shipments = await client.shipments.list({ limit: 100 });
+    return Array.isArray(shipments) ? shipments : (shipments as any).data || (shipments as any).shipments || [];
   } catch (error: any) {
-    console.error('[LOGICWARE SHIPMENTS SDK ERROR]', error);
+    console.error('[LOGICWARE SHIPMENTS ERROR]', error);
     return [];
   }
 }
@@ -58,12 +54,11 @@ export async function fetchLogicwareShipments() {
 export async function fetchLogicwareManifests() {
     try {
         const client = getLogicwareClient();
-        if (client.manifests) {
-            return await client.manifests.list({ limit: 50, sort: 'desc' });
-        }
-        return [];
+        if (!client?.manifests) return [];
+        const manifests = await client.manifests.list({ limit: 100, sort: 'desc' });
+        return Array.isArray(manifests) ? manifests : (manifests as any).data || (manifests as any).manifests || [];
     } catch (error) {
-        console.error('[LOGICWARE MANIFESTS SDK ERROR]', error);
+        console.error('[LOGICWARE MANIFESTS ERROR]', error);
         return [];
     }
 }

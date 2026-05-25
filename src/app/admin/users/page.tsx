@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -17,7 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle, Users as UsersIcon } from 'lucide-react';
+import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle, Users as UsersIcon, RefreshCw, Zap } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -54,13 +55,13 @@ export default function UsersPage() {
 
   const [openAddUser, setOpenAddUser] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncingLw, setIsSyncingLw] = useState(false);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [totalDbCount, setTotalDbCount] = useState<number | null>(null);
   
   const adminIds = useMemo(() => new Set(adminRoles?.map(role => role.id)), [adminRoles]);
 
-  // Live Server-Side Count Verification
   useEffect(() => {
     const fetchTotalCount = async () => {
       try {
@@ -82,6 +83,26 @@ export default function UsersPage() {
         u.mailboxNumber?.toLowerCase().includes(lower)
     );
   }, [users, searchTerm]);
+
+  const fetchLogicwareShippers = async () => {
+      setIsSyncingLw(true);
+      try {
+          const res = await fetch('/api/admin/logicware-shippers', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ apiKey: localStorage.getItem('LOGICWARE_API_KEY') })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message);
+          
+          const shippersCount = data.shippers?.length || 0;
+          toast({ title: 'Sync Successful', description: `Detected ${shippersCount} shippers in global hub.` });
+      } catch (e: any) {
+          toast({ title: 'Hub Sync Failed', description: e.message, variant: 'destructive' });
+      } finally {
+          setIsSyncingLw(false);
+      }
+  };
 
   const handleAddUser = async () => {
     if(!newUser.firstName || !newUser.lastName || !newUser.email) return;
@@ -126,6 +147,10 @@ export default function UsersPage() {
           <p className="text-muted-foreground">Manage accounts and high-speed data transfers.</p>
         </div>
         <div className="flex gap-2">
+            <Button onClick={fetchLogicwareShippers} variant="outline" disabled={isSyncingLw} className="border-primary/20">
+                {isSyncingLw ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
+                Sync Global Hub
+            </Button>
             <ImportCSVDialog />
             <Dialog open={openAddUser} onOpenChange={setOpenAddUser}>
                 <DialogTrigger asChild>
