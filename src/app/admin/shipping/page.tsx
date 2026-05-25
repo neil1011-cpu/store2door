@@ -15,9 +15,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
-import type { Shipment, UserProfile, ShipmentStatus, PreAlert } from '@/lib/types';
+import type { Shipment, UserProfile, ShipmentStatus } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, collectionGroup, query, doc, updateDoc, serverTimestamp, where, getDocs, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -134,13 +134,15 @@ export default function ShippingPage() {
         logicwareShipments?.shipments ||
         [];
 
-    console.log(
-      JSON.stringify(
-        logicwareArray[0],
-        null,
-        2
-      )
-    );
+    if (logicwareArray.length > 0) {
+        console.log(
+            JSON.stringify(
+                logicwareArray[0],
+                null,
+                2
+            )
+        );
+    }
 
     const mappedLogicware = logicwareArray.map((s: any) => ({
         id: `lw-${s.id}`,
@@ -680,7 +682,7 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
     const [marketplace, setMarketplace] = useState('');
     const [status, setStatus] = useState<ShipmentStatus>('Received at Warehouse (FL)');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [foundPreAlert, setFoundPreAlert] = useState<PreAlert | null>(null);
+    const [foundPreAlert, setFoundPreAlert] = useState<any | null>(null);
 
     useEffect(() => {
         if (open) {
@@ -705,7 +707,7 @@ function ReceivePackageDialog({ open, onOpenChange, users }: { open: boolean, on
               const q = query(collectionGroup(firestore, 'pre_alerts'), where('trackingNumber', '==', trackingNumber.toUpperCase()));
               const snap = await getDocs(q);
               if (!snap.empty) {
-                  const alert = snap.docs[0].data() as PreAlert;
+                  const alert = snap.docs[0].data();
                   setFoundPreAlert({ ...alert, id: snap.docs[0].id });
                   setCustomerId(alert.customerId);
                   setContents(alert.contents);
