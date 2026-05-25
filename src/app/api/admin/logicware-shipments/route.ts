@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { adminDb } from '@/lib/firebaseAdmin';
@@ -23,7 +24,6 @@ export async function POST(request: Request) {
         const payload = await getSafeBody(request);
         let apiKey = payload.apiKey;
 
-        // 1. Fallback to System Settings if key not in request
         if (!apiKey) {
             try {
                 const configSnap = await adminDb.collection('metadata').doc('logicware').get();
@@ -36,7 +36,6 @@ export async function POST(request: Request) {
         }
 
         if (!apiKey) {
-            // Check process.env directly on server
             apiKey = process.env.LOGICWARE_API_KEY;
         }
 
@@ -49,21 +48,22 @@ export async function POST(request: Request) {
 
         const client = getLogicwareClient(apiKey);
         
-        // 2. Fetch recent shipments from Logicware
-        // We attempt shipments first, fallback to shippers if that's what the key provides
         let results: any[] = [];
-        try {
-            results = await client.shipments.list({
-                limit: 100,
-                sort: 'desc'
-            });
-        } catch (shipmentErr) {
-            console.warn('Shipments fetch restricted, falling back to shippers.');
+        // Hardened access to modules
+        if (client.shipments) {
+            try {
+                results = await client.shipments.list({
+                    limit: 100,
+                    sort: 'desc'
+                });
+            } catch (err) {
+                if (client.shippers) results = await client.shippers.list();
+            }
+        } else if (client.shippers) {
             results = await client.shippers.list();
         }
 
         if (!Array.isArray(results)) {
-            // Handle if the SDK returns an object with a data property
             const raw: any = results;
             results = raw.data || raw.shipments || raw.shippers || [];
         }

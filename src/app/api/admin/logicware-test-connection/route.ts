@@ -17,17 +17,13 @@ export async function POST(request: Request) {
 
         const client = getLogicwareClient(apiKey);
         
-        // Attempt a minimal operation to verify the key.
-        // We try shippers list as a primary verification.
-        try {
+        // Defensive module verification
+        if (client.shippers) {
             await client.shippers.list({ limit: 1 });
-        } catch (err: any) {
-            // If shippers fails, try shipments. Some keys might have restricted scopes.
-            try {
-                await client.shipments.list({ limit: 1 });
-            } catch (innerErr: any) {
-                throw new Error(innerErr.message || err.message || 'Authentication failed.');
-            }
+        } else if (client.shipments) {
+            await client.shipments.list({ limit: 1 });
+        } else {
+            throw new Error('API Key valid but no accessible modules (shippers/shipments) found.');
         }
 
         return NextResponse.json({ 

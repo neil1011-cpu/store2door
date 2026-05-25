@@ -78,44 +78,6 @@ export default function ShippingPage() {
   
   const loading = isLoadingShipments || isLoadingUsers;
 
-  const fetchLogicwareData = async () => {
-    try {
-      setIsFetchingLogicware(true);
-      const response = await fetch('/api/admin/logicware-shipments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-              apiKey: localStorage.getItem('LOGICWARE_API_KEY')
-          })
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.message || `Server Error (${response.status})`);
-      }
-
-      const logicwareArray = Array.isArray(data) 
-        ? data 
-        : data.shipments || data.shippers || data.data || [];
-      
-      setLogicwareShipments(logicwareArray);
-      
-    } catch (error: any) {
-      toast({
-        title: 'Sync Failed',
-        description: error?.message || 'Connection to logistics hub failed.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsFetchingLogicware(false);
-    }
-  };
-
-  useEffect(() => {
-      fetchLogicwareData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const combinedShipments = useMemo(() => {
     const firebaseData = (firebaseShipments || []).map(s => ({ ...s, source: 'firebase' as const }));
     const usersMap = new Map(users?.map(u => [u.id, u]) || []);
@@ -126,14 +88,7 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
-    const logicwareArray = Array.isArray(logicwareShipments)
-      ? logicwareShipments
-      : logicwareShipments?.data ||
-        logicwareShipments?.shippers ||
-        logicwareShipments?.shipments ||
-        [];
-
-    const mappedLogicware = logicwareArray.map((s: any) => ({
+    const mappedLogicware = logicwareShipments.map((s: any) => ({
         id: `lw-${s.id}`,
         trackingNumber: s.trackingNumber || s.referenceCode || s.reference_code || 'NO-REF',
         internalBarcode: s.internalBarcode || s.internal_barcode || s.barcode || '',
@@ -184,34 +139,7 @@ export default function ShippingPage() {
         shippingDate: s.createdAt || s.created_at || new Date().toISOString(),
     }));
 
-    console.log('[LOGICWARE RAW]', logicwareArray);
-
-    if (logicwareArray.length > 0) {
-        console.log(
-            JSON.stringify(
-                logicwareArray[0],
-                null,
-                2
-            )
-        );
-    }
-
     const all = [...mappedFirebase, ...mappedLogicware];
-    
-    if (!isFetchingLogicware && logicwareShipments.length > 0) {
-        console.log(
-          '[FINAL DATA]',
-          {
-            logicwareArray,
-            total: all.length,
-          }
-        );
-        
-        toast({
-          title: 'Success',
-          description: `Loaded ${all.length} worldwide records`,
-        });
-    }
 
     if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
@@ -221,7 +149,66 @@ export default function ShippingPage() {
         (s as any).shipperName?.toLowerCase().includes(lowerTerm) ||
         s.contents.toLowerCase().includes(lowerTerm)
     );
-  }, [firebaseShipments, logicwareShipments, users, searchTerm, isFetchingLogicware, toast]);
+  }, [firebaseShipments, logicwareShipments, users, searchTerm]);
+
+  const fetchLogicwareData = async () => {
+    try {
+      setIsFetchingLogicware(true);
+      const response = await fetch('/api/admin/logicware-shipments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              apiKey: localStorage.getItem('LOGICWARE_API_KEY')
+          })
+      });
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data?.message || `Server Error (${response.status})`);
+
+      const logicwareArray = Array.isArray(data) 
+        ? data 
+        : data.shipments || data.shippers || data.data || [];
+      
+      console.log(
+        JSON.stringify(
+          logicwareArray[0],
+          null,
+          2
+        )
+      );
+
+      setLogicwareShipments(logicwareArray);
+
+      const all = [...(firebaseShipments || []), ...logicwareArray];
+      
+      console.log(
+        '[FINAL DATA]',
+        {
+          logicwareArray,
+          total: all.length,
+        }
+      );
+
+      toast({
+        title: 'Success',
+        description: `Loaded ${all.length} worldwide records`,
+      });
+      
+    } catch (error: any) {
+      toast({
+        title: 'Sync Failed',
+        description: error?.message || 'Connection to logistics hub failed.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsFetchingLogicware(false);
+    }
+  };
+
+  useEffect(() => {
+      fetchLogicwareData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleOpenEmailDialog = (shipment: Shipment & { user?: Partial<UserProfile> }) => {
     setSelectedShipment(shipment);

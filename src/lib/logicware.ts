@@ -31,6 +31,7 @@ export function getLogicwareClient(apiKey?: string) {
 export async function fetchLogicwareShippers() {
   try {
     const client = getLogicwareClient();
+    if (!client.shippers) throw new Error('Shippers module not found in SDK instance.');
     const shippers = await client.shippers.list();
     return shippers;
   } catch (error: any) {
@@ -42,16 +43,16 @@ export async function fetchLogicwareShippers() {
 export async function fetchLogicwareShipments() {
   try {
     const client = getLogicwareClient();
-    const shipments = await client.shipments.list({ limit: 100 });
-    return shipments;
+    // Defensive checks to prevent "reading list of undefined"
+    if (client.shipments) {
+        return await client.shipments.list({ limit: 100 });
+    } else if (client.shippers) {
+        return await client.shippers.list();
+    }
+    return [];
   } catch (error: any) {
     console.error('[LOGICWARE SHIPMENTS SDK ERROR]', error);
-    // Fallback to shippers list if shipments module is restricted
-    try {
-        return await fetchLogicwareShippers();
-    } catch (e) {
-        return [];
-    }
+    return [];
   }
 }
 
