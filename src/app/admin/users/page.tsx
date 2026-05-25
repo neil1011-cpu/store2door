@@ -36,6 +36,7 @@ import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, getCountFromServer } from 'firebase/firestore';
+import { cn } from '@/lib/utils';
 
 export default function UsersPage() {
   const { toast } = useToast();
@@ -56,6 +57,7 @@ export default function UsersPage() {
   const [openAddUser, setOpenAddUser] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncingLw, setIsSyncingLw] = useState(false);
+  const [logicwareUsers, setLogicwareUsers] = useState<any[]>([]);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [totalDbCount, setTotalDbCount] = useState<number | null>(null);
@@ -73,16 +75,29 @@ export default function UsersPage() {
     fetchTotalCount();
   }, [firestore, users]);
 
-  const filteredUsers = useMemo(() => {
-    if (!users) return [];
-    if (!searchTerm) return users;
-    const lower = searchTerm.toLowerCase();
-    return users.filter(u => 
-        u.fullName.toLowerCase().includes(lower) ||
-        u.email.toLowerCase().includes(lower) ||
-        u.mailboxNumber?.toLowerCase().includes(lower)
-    );
-  }, [users, searchTerm]);
+  const combinedUsers = useMemo(() => {
+      const local = (users || []).map(u => ({ ...u, source: 'firebase' as const, isLogicware: false }));
+      
+      const mappedLogicware = logicwareUsers.map((u: any) => ({
+          id: `lw-${u.id}`,
+          fullName: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || 'Logicware Shipper',
+          email: u.email || u.emailAddress || 'N/A',
+          phone: u.phone || u.phoneNumber || 'N/A',
+          mailboxNumber: u.referenceCode || u.mailbox || u.code || 'HUB',
+          source: 'logicware' as const,
+          isLogicware: true
+      }));
+
+      const all = [...local, ...mappedLogicware];
+
+      if (!searchTerm) return all;
+      const lower = searchTerm.toLowerCase();
+      return all.filter(u => 
+          u.fullName.toLowerCase().includes(lower) ||
+          u.email.toLowerCase().includes(lower) ||
+          u.mailboxNumber?.toLowerCase().includes(lower)
+      );
+  }, [users, logicwareUsers, searchTerm]);
 
   const fetchLogicwareShippers = async () => {
       setIsSyncingLw(true);
@@ -93,10 +108,19 @@ export default function UsersPage() {
               body: JSON.stringify({ apiKey: localStorage.getItem('LOGICWARE_API_KEY') })
           });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.message);
+          if (!res.ok) throw new Error(data.message || 'Sync failed');
           
-          const shippersCount = data.shippers?.length || 0;
-          toast({ title: 'Sync Successful', description: `Detected ${shippersCount} shippers in global hub.` });
+          const rawShippers = Array.isArray(data) ? data : data.shippers || data.data || [];
+          const all = [...(users || []), ...rawShippers];
+
+          console.log('[FINAL DATA]', { shippersArray: rawShippers, total: all.length });
+
+          toast({ 
+              title: 'Success', 
+              description: `Loaded ${all.length} worldwide records` 
+          });
+
+          setLogicwareUsers(rawShippers);
       } catch (e: any) {
           toast({ title: 'Hub Sync Failed', description: e.message, variant: 'destructive' });
       } finally {
@@ -212,6 +236,7 @@ export default function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Source</TableHead>
                 <TableHead>Customer Identity</TableHead>
                 <TableHead>Global Mailbox</TableHead>
                 <TableHead>Secure Contact</TableHead>
@@ -220,9 +245,16 @@ export default function UsersPage() {
             </TableHeader>
             <TableBody>
               {isLoadingUsers ? (
-                  <TableRow><TableCell colSpan={4} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin inline-block" /></TableCell></TableRow>
-              ) : filteredUsers.map((u) => (
-                <TableRow key={u.id} className="group hover:bg-muted/30 transition-colors">
+                  <TableRow><TableCell colSpan={5} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin inline-block" /></TableCell></TableRow>
+              ) : combinedUsers.map((u) => (
+                <TableRow key={u.id} className={cn("group hover:bg-muted/30 transition-colors", u.isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
+                  <TableCell>
+                      {u.isLogicware ? (
+                          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 uppercase text-[9px]">Hub</Badge>
+                      ) : (
+                          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 uppercase text-[9px]">Local</Badge>
+                      )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                         <span className="font-black text-primary uppercase">{u.fullName}</span>
@@ -233,14 +265,14 @@ export default function UsersPage() {
                   <TableCell className="font-mono font-black text-lg tracking-tighter text-primary">{u.mailboxNumber}</TableCell>
                   <TableCell className="text-sm font-medium">{u.phone}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="outline" size="sm" asChild className="h-8 font-bold border-2 hover:bg-primary hover:text-primary-foreground">
+                    <Button variant="outline" size="sm" asChild className="h-8 font-bold border-2 hover:bg-primary hover:text-primary-foreground" disabled={u.isLogicware}>
                         <Link href={`/admin/users/${u.id}`}><Eye className="h-4 w-4 mr-2" />View profile</Link>
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredUsers.length === 0 && !isLoadingUsers && (
-                  <TableRow><TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">No results found in current system.</TableCell></TableRow>
+              {combinedUsers.length === 0 && !isLoadingUsers && (
+                  <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No results found in current system.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

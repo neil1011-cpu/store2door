@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -40,37 +41,11 @@ import {
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-
-type ManifestStatus = 'Open' | 'Closed' | 'Scheduled' | 'Departed' | 'Arrived';
-
-type Manifest = {
-  id: string;
-  flightNumber: string;
-  date: string;
-  origin: string;
-  destination: string;
-  status: ManifestStatus | string;
-  type?: 'Air' | 'Sea';
-  carrier?: string;
-  isLogicware?: boolean;
-};
-
-const initialManifests: Manifest[] = [
-  {
-    id: 'local-1',
-    flightNumber: 'SR-235',
-    date: '2024-07-28',
-    origin: 'JFK - New York',
-    destination: 'LHR - London',
-    status: 'Closed',
-    type: 'Air',
-    isLogicware: false
-  }
-];
+import type { Manifest } from '@/lib/types';
 
 export default function ManifestsPage() {
   const { toast } = useToast();
-  const [manifests, setManifests] = useState<Manifest[]>(initialManifests);
+  const [manifests, setManifests] = useState<Manifest[]>([]);
   const [logicwareManifests, setLogicwareManifests] = useState<Manifest[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [open, setOpen] = useState(false);
@@ -109,8 +84,16 @@ export default function ManifestsPage() {
           isLogicware: true
       }));
 
+      const all = [...manifests, ...mapped];
+      
+      console.log('[FINAL DATA]', { manifestsArray: mapped, total: all.length });
+
+      toast({ 
+          title: 'Success', 
+          description: `Loaded ${all.length} worldwide records` 
+      });
+
       setLogicwareManifests(mapped);
-      toast({ title: 'Sync Complete', description: `Loaded ${mapped.length} external manifests.` });
     } catch (error: any) {
       toast({ title: 'Sync Error', description: error.message, variant: 'destructive' });
     } finally {

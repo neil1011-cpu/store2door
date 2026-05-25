@@ -112,7 +112,7 @@ export default function PreAlertsPage() {
 
       const rawShipments = Array.isArray(data) ? data : data.shipments || data.data || [];
       
-      // Filter for pre-alerts or pending warehouse intakes
+      // Filter for pre-alerts or pending warehouse intakes and exhaustively map fields
       const mappedPreAlerts: PreAlert[] = rawShipments
         .filter((s: any) => {
             const status = (s.status?.name || s.status || '').toLowerCase();
@@ -120,19 +120,17 @@ export default function PreAlertsPage() {
         })
         .map((s: any) => ({
             id: `lw-${s.id}`,
-            trackingNumber: s.trackingNumber || s.referenceCode || 'N/A',
-            customerName: s.shipperName || s.customer_name || 'Logicware Client',
-            customerId: s.shipperId || '',
-            contents: s.contents || s.description || 'Incoming Package',
-            status: 'Pending', // Treat all as pending for our local UI
+            trackingNumber: s.trackingNumber || s.referenceCode || s.reference_code || 'N/A',
+            customerName: s.shipperName || s.customer_name || s.shipper?.name || 'Logicware Client',
+            customerId: s.shipperId || s.customer_id || '',
+            contents: s.contents || s.description || s.item_description || 'Incoming Package',
+            status: 'Pending', 
             submissionDate: s.createdAt || s.created_at || new Date().toISOString(),
             invoiceHtml: '',
-            uploadedInvoiceUrl: s.invoiceUrl || '',
+            uploadedInvoiceUrl: s.invoiceUrl || s.invoice_url || '',
             source: 'logicware',
             isLogicware: true
         }));
-
-      setLogicwarePreAlerts(mappedPreAlerts);
 
       const all = [...(firebasePreAlerts || []), ...mappedPreAlerts];
 
@@ -148,6 +146,8 @@ export default function PreAlertsPage() {
         title: 'Success',
         description: `Loaded ${all.length} worldwide records`,
       });
+      
+      setLogicwarePreAlerts(mappedPreAlerts);
       
     } catch (error: any) {
       toast({

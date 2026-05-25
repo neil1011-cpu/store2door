@@ -169,16 +169,6 @@ export default function ShippingPage() {
         ? data 
         : data.shipments || data.shippers || data.data || [];
       
-      console.log(
-        JSON.stringify(
-          logicwareArray[0],
-          null,
-          2
-        )
-      );
-
-      setLogicwareShipments(logicwareArray);
-
       const all = [...(firebaseShipments || []), ...logicwareArray];
       
       console.log(
@@ -193,6 +183,8 @@ export default function ShippingPage() {
         title: 'Success',
         description: `Loaded ${all.length} worldwide records`,
       });
+      
+      setLogicwareShipments(logicwareArray);
       
     } catch (error: any) {
       toast({
