@@ -84,7 +84,7 @@ export default function ShippingPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-              apiKey: localStorage.getItem('LOGICWARE_API_KEY') // Try to pass if available in local storage
+              apiKey: localStorage.getItem('LOGICWARE_API_KEY')
           })
       });
       const data = await response.json();
@@ -93,23 +93,10 @@ export default function ShippingPage() {
         throw new Error(data?.message || `Server Error (${response.status})`);
       }
 
-      console.log('[LOGICWARE RAW]', data);
-
-      // Robust array extraction
       const logicwareArray = Array.isArray(data) 
         ? data 
         : data.shipments || data.shippers || data.data || [];
       
-      if (logicwareArray.length > 0) {
-          console.log(
-            JSON.stringify(
-              logicwareArray[0],
-              null,
-              2
-            )
-          );
-      }
-
       setLogicwareShipments(logicwareArray);
       
     } catch (error: any) {
@@ -138,12 +125,22 @@ export default function ShippingPage() {
         isLogicware: false
     }));
 
+    console.log('[LOGICWARE RAW]', logicwareShipments);
+
     const logicwareArray = Array.isArray(logicwareShipments)
       ? logicwareShipments
       : logicwareShipments?.data ||
         logicwareShipments?.shippers ||
         logicwareShipments?.shipments ||
         [];
+
+    console.log(
+      JSON.stringify(
+        logicwareArray[0],
+        null,
+        2
+      )
+    );
 
     const mappedLogicware = logicwareArray.map((s: any) => ({
         id: `lw-${s.id}`,
@@ -166,7 +163,7 @@ export default function ShippingPage() {
 
         declaredValueUsd: Number(s.declaredValueUsd || s.declared_value || s.value_usd || 0),
         shippingCostUsd: Number(s.shippingCostUsd || s.freight_usd || 0),
-        cost: Number(s.totalAmount || s.total_amount || s.cost || s.price || 0), // Total JMD
+        cost: Number(s.totalAmount || s.total_amount || s.cost || s.price || 0),
 
         customsExempt: !!(s.customsExempt || s.is_exempt),
         clearanceRate: Number(s.clearanceRate || s.duty_rate || 0),
@@ -197,7 +194,6 @@ export default function ShippingPage() {
 
     const all = [...mappedFirebase, ...mappedLogicware];
     
-    // Final Data Console Log
     if (!isFetchingLogicware && logicwareShipments.length > 0) {
         console.log(
           '[FINAL DATA]',
@@ -267,7 +263,6 @@ export default function ShippingPage() {
         ...editableShipment,
         updatedAt: serverTimestamp(),
     };
-    // Clean up non-serializable fields if any
     delete (updateData as any).user;
     delete (updateData as any).isLogicware;
     delete (updateData as any).source;
