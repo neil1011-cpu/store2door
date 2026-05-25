@@ -87,26 +87,32 @@ export default function ShippingPage() {
         throw new Error(data?.message || `Server Error (${response.status})`);
       }
 
-      if (!data) {
-        throw new Error('Logicware returned empty data');
-      }
+      console.log('[LOGICWARE RAW]', data);
 
       // Robust array extraction
-      const logicwareArray = data.shipments || data.shippers || data.data || (Array.isArray(data) ? data : []);
+      const logicwareArray = Array.isArray(data) 
+        ? data 
+        : data.shipments || data.shippers || data.data || [];
+      
       setLogicwareShipments(logicwareArray);
       
+      // Calculate total for feedback
+      const firebaseCount = firebaseShipments?.length || 0;
+      const totalCount = firebaseCount + logicwareArray.length;
+
       console.log(
         '[FINAL DATA]',
         {
           logicwareArray,
-          total: (firebaseShipments?.length || 0) + logicwareArray.length,
+          total: totalCount,
         }
       );
 
-      toast({ 
-        title: 'Hub Synchronized', 
-        description: `Loaded ${logicwareArray.length} worldwide records.` 
+      toast({
+        title: 'Success',
+        description: `Loaded ${totalCount} worldwide records`,
       });
+
     } catch (error: any) {
       toast({
         title: 'Sync Failed',
@@ -562,7 +568,6 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: Shipment 
 
                 <ScrollArea className="flex-1">
                     <div className="p-8 space-y-10">
-                        {/* Section 1: Core Info */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                              <DetailItem label="Description" value={shipment.contents} icon={<Package className="h-2 w-2" />} />
                              <DetailItem label="Merchant" value={shipment.merchant} icon={<Store className="h-2 w-2" />} />
@@ -572,7 +577,6 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: Shipment 
 
                         <Separator />
 
-                        {/* Section 2: Physical & Weight */}
                         <div>
                             <h4 className="text-xs font-black uppercase tracking-widest mb-6 flex items-center gap-2">
                                 <Ruler className="h-4 w-4 text-primary" /> Physical Specifications
@@ -587,7 +591,6 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: Shipment 
                             </div>
                         </div>
 
-                        {/* Section 3: Finance & Customs */}
                         <div>
                             <h4 className="text-xs font-black uppercase tracking-widest mb-6 flex items-center gap-2">
                                 <DollarSign className="h-4 w-4 text-primary" /> Financials & Customs
@@ -624,14 +627,12 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: Shipment 
 
                         <Separator />
 
-                        {/* Section 4: External References */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                              <DetailItem label="Manifest/Flight ID" value={shipment.manifestId} icon={<Plane className="h-2 w-2" />} />
                              <DetailItem label="Pickup Branch" value={shipment.pickupBranch} icon={<MapPin className="h-2 w-2" />} />
                              <DetailItem label="External Tracking" value={shipment.trackingNumber} icon={<Search className="h-2 w-2" />} />
                         </div>
 
-                        {/* Section 5: Timeline */}
                         {shipment.timeline && shipment.timeline.length > 0 && (
                              <div>
                                 <h4 className="text-xs font-black uppercase tracking-widest mb-6 flex items-center gap-2">
