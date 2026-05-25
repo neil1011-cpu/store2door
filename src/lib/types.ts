@@ -1,4 +1,3 @@
-
 import type { Timestamp } from "firebase/firestore";
 
 export type DropoffAddress = {
@@ -106,6 +105,20 @@ export type Shipment = {
   customerId: string;
   paymentStatus?: 'Paid' | 'Unpaid';
   source?: 'firebase' | 'logicware';
+  isLogicware?: boolean;
+};
+
+export type ManifestStatus = 'Open' | 'Closed' | 'Scheduled' | 'Departed' | 'Arrived';
+
+export type Manifest = {
+  id: string;
+  flightNumber: string;
+  date: string;
+  origin: string;
+  destination: string;
+  status: ManifestStatus | string;
+  type?: 'Air' | 'Sea';
+  carrier?: string;
   isLogicware?: boolean;
 };
 

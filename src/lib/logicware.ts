@@ -1,4 +1,3 @@
-
 import { LogicwareConnect } from '@logicware.app/connect-sdk';
 
 /**
@@ -54,6 +53,19 @@ export async function fetchLogicwareShipments() {
     console.error('[LOGICWARE SHIPMENTS SDK ERROR]', error);
     return [];
   }
+}
+
+export async function fetchLogicwareManifests() {
+    try {
+        const client = getLogicwareClient();
+        if (client.manifests) {
+            return await client.manifests.list({ limit: 50, sort: 'desc' });
+        }
+        return [];
+    } catch (error) {
+        console.error('[LOGICWARE MANIFESTS SDK ERROR]', error);
+        return [];
+    }
 }
 
 export const logicwareMeta = {
