@@ -13,6 +13,11 @@ export function getLogicwareClient(apiKey?: string) {
   const finalKey = apiKey || process.env.LOGICWARE_API_KEY;
   
   if (!finalKey) {
+    // We only throw if we are on the server or if a key was expected to be available.
+    // In the browser, this will be caught by individual function calls.
+    if (typeof window === 'undefined') {
+      throw new Error('Logicware API key is required on server side.');
+    }
     throw new Error('Logicware API key is required. Ensure it is set in .env or passed dynamically.');
   }
 
@@ -41,7 +46,11 @@ export async function fetchLogicwareShipments() {
   } catch (error: any) {
     console.error('[LOGICWARE SHIPMENTS SDK ERROR]', error);
     // Fallback to shippers list if shipments module is restricted
-    return fetchLogicwareShippers();
+    try {
+        return await fetchLogicwareShippers();
+    } catch (e) {
+        return [];
+    }
   }
 }
 

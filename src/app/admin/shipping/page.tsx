@@ -80,7 +80,13 @@ export default function ShippingPage() {
   const fetchLogicwareData = async () => {
     try {
       setIsFetchingLogicware(true);
-      const response = await fetch('/api/logicware');
+      const response = await fetch('/api/admin/logicware-shipments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              apiKey: localStorage.getItem('LOGICWARE_API_KEY') // Try to pass if available in local storage
+          })
+      });
       const data = await response.json();
 
       if (!response.ok) {
@@ -94,25 +100,18 @@ export default function ShippingPage() {
         ? data 
         : data.shipments || data.shippers || data.data || [];
       
+      if (logicwareArray.length > 0) {
+          console.log(
+            JSON.stringify(
+              logicwareArray[0],
+              null,
+              2
+            )
+          );
+      }
+
       setLogicwareShipments(logicwareArray);
       
-      // Calculate total for feedback
-      const firebaseCount = firebaseShipments?.length || 0;
-      const totalCount = firebaseCount + logicwareArray.length;
-
-      console.log(
-        '[FINAL DATA]',
-        {
-          logicwareArray,
-          total: totalCount,
-        }
-      );
-
-      toast({
-        title: 'Success',
-        description: `Loaded ${totalCount} worldwide records`,
-      });
-
     } catch (error: any) {
       toast({
         title: 'Sync Failed',
@@ -198,6 +197,22 @@ export default function ShippingPage() {
 
     const all = [...mappedFirebase, ...mappedLogicware];
     
+    // Final Data Console Log
+    if (!isFetchingLogicware && logicwareShipments.length > 0) {
+        console.log(
+          '[FINAL DATA]',
+          {
+            logicwareArray,
+            total: all.length,
+          }
+        );
+        
+        toast({
+          title: 'Success',
+          description: `Loaded ${all.length} worldwide records`,
+        });
+    }
+
     if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
     return all.filter(s => 
@@ -206,7 +221,7 @@ export default function ShippingPage() {
         (s as any).shipperName?.toLowerCase().includes(lowerTerm) ||
         s.contents.toLowerCase().includes(lowerTerm)
     );
-  }, [firebaseShipments, logicwareShipments, users, searchTerm]);
+  }, [firebaseShipments, logicwareShipments, users, searchTerm, isFetchingLogicware, toast]);
 
   const handleOpenEmailDialog = (shipment: Shipment & { user?: Partial<UserProfile> }) => {
     setSelectedShipment(shipment);

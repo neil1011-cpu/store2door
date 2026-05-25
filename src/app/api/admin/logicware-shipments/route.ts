@@ -36,6 +36,11 @@ export async function POST(request: Request) {
         }
 
         if (!apiKey) {
+            // Check process.env directly on server
+            apiKey = process.env.LOGICWARE_API_KEY;
+        }
+
+        if (!apiKey) {
             return NextResponse.json({ 
                 success: false, 
                 message: 'Logicware configuration missing. Save your key in Settings.' 
@@ -45,28 +50,27 @@ export async function POST(request: Request) {
         const client = getLogicwareClient(apiKey);
         
         // 2. Fetch recent shipments from Logicware
-        const shipments = await client.shipments.list({
-            limit: 100,
-            sort: 'desc'
-        });
+        // We attempt shipments first, fallback to shippers if that's what the key provides
+        let results: any[] = [];
+        try {
+            results = await client.shipments.list({
+                limit: 100,
+                sort: 'desc'
+            });
+        } catch (shipmentErr) {
+            console.warn('Shipments fetch restricted, falling back to shippers.');
+            results = await client.shippers.list();
+        }
 
-        if (!Array.isArray(shipments)) {
-            throw new Error('Invalid response from Logistics Hub.');
+        if (!Array.isArray(results)) {
+            // Handle if the SDK returns an object with a data property
+            const raw: any = results;
+            results = raw.data || raw.shipments || raw.shippers || [];
         }
 
         return NextResponse.json({ 
             success: true, 
-            shipments: shipments.map((s: any) => ({
-                id: `lw-${s.id}`,
-                trackingNumber: s.trackingNumber || s.referenceCode || 'NO-REF',
-                contents: s.description || 'Global Package',
-                status: s.status?.name || 'In Transit',
-                shippingDate: s.createdAt,
-                customerId: s.shipperId,
-                customerName: s.shipper?.name || 'Customer',
-                isLogicware: true,
-                externalUrl: s.trackingUrl || `https://from-store-to-door.logicware.app/tracking/${s.trackingNumber}`
-            }))
+            shipments: results
         });
 
     } catch (error: any) {
