@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -34,7 +34,8 @@ import {
   CreditCard,
   Banknote,
   Building2,
-  Trash2
+  Trash2,
+  FileText
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -53,6 +54,11 @@ import {
     DialogClose 
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { AppLogo } from '@/components/app-logo';
+
+/**
+ * @fileOverview POS System with integrated Receipt Printing.
+ */
 
 export default function POSPage() {
     const { toast } = useToast();
@@ -64,6 +70,15 @@ export default function POSPage() {
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Transfer'>('Cash');
     const [isProcessing, setIsProcessing] = useState(false);
     const [checkoutComplete, setCheckoutComplete] = useState(false);
+    
+    // Receipt Snapshot Data
+    const [receiptData, setReceiptData] = useState<{
+        customer: UserProfile;
+        items: Invoice[];
+        total: number;
+        method: string;
+        date: Date;
+    } | null>(null);
 
     // 1. Fetch All Users for Search
     const usersQuery = useMemoFirebase(() => {
@@ -121,6 +136,8 @@ export default function POSPage() {
         const batch = writeBatch(firestore);
         
         try {
+            const itemsToSnap: Invoice[] = userInvoices?.filter(inv => selectedInvoices.has(inv.id)) || [];
+
             // Update Invoices
             selectedInvoices.forEach(id => {
                 const invRef = doc(firestore, 'invoices', id);
@@ -144,6 +161,16 @@ export default function POSPage() {
             });
 
             await batch.commit();
+            
+            // Set Receipt Snapshot
+            setReceiptData({
+                customer: selectedUser,
+                items: itemsToSnap,
+                total: totalToPay,
+                method: paymentMethod,
+                date: new Date()
+            });
+
             setCheckoutComplete(true);
             toast({ title: "Payment Processed!", description: `JMD $${totalToPay.toLocaleString()} recorded via ${paymentMethod}.` });
         } catch (error) {
@@ -153,16 +180,77 @@ export default function POSPage() {
         }
     };
 
+    const handlePrintReceipt = () => {
+        window.print();
+    };
+
     const resetPOS = () => {
         setSelectedUser(null);
         setSelectedInvoices(new Set());
         setCheckoutComplete(false);
         setIsCheckoutOpen(false);
+        setReceiptData(null);
     };
 
     return (
         <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-            <div className="flex items-center justify-between">
+            {/* Print Only Receipt Container */}
+            {receiptData && (
+                <div className="hidden print:block fixed inset-0 bg-white p-8 font-mono text-black">
+                    <div className="max-w-[300px] mx-auto space-y-6">
+                        <div className="text-center border-b pb-4">
+                            <h1 className="text-xl font-bold uppercase tracking-tighter">FromStore2Door</h1>
+                            <p className="text-[10px] mt-1">4350 NE 5th Terrace Bay #3</p>
+                            <p className="text-[10px]">Oakland Park, Florida, 33334</p>
+                            <p className="text-[10px] font-bold mt-2">admin@neilussolutions.com</p>
+                        </div>
+
+                        <div className="space-y-1 text-[10px]">
+                            <div className="flex justify-between"><span>DATE:</span> <span>{receiptData.date.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span>CUSTOMER:</span> <span className="font-bold">{receiptData.customer.fullName}</span></div>
+                            <div className="flex justify-between"><span>MAILBOX:</span> <span className="font-bold">{receiptData.customer.mailboxNumber}</span></div>
+                        </div>
+
+                        <Separator className="border-black border-dashed" />
+
+                        <div className="space-y-3 text-[10px]">
+                            <div className="grid grid-cols-4 font-bold border-b pb-1">
+                                <span className="col-span-2">DESCRIPTION</span>
+                                <span className="text-right">QTY</span>
+                                <span className="text-right">TOTAL</span>
+                            </div>
+                            {receiptData.items.map(item => (
+                                <div key={item.id} className="grid grid-cols-4 py-1">
+                                    <span className="col-span-2">{item.invoiceId} - SHIPMENT</span>
+                                    <span className="text-right">1</span>
+                                    <span className="text-right">${item.amount.toFixed(2)}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <Separator className="border-black border-dashed" />
+
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-lg font-black">
+                                <span>TOTAL:</span>
+                                <span>JMD ${receiptData.total.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-[10px] font-bold">
+                                <span>PAID VIA:</span>
+                                <span>{receiptData.method.toUpperCase()}</span>
+                            </div>
+                        </div>
+
+                        <div className="text-center pt-8 border-t border-dashed">
+                            <p className="text-[10px] font-bold italic uppercase">*** THANK YOU FOR SHIPPING WITH US ***</p>
+                            <p className="text-[8px] mt-2 opacity-60">System Receipt Generated by FSTD OS</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Standard Dashboard Header */}
+            <div className="flex items-center justify-between print:hidden">
                 <div>
                     <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
                         <ShoppingCart className="h-8 w-8" /> POS Checkout System
@@ -174,7 +262,7 @@ export default function POSPage() {
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:hidden">
                 {/* Left Column: Customer & Item Selection */}
                 <div className="lg:col-span-8 space-y-6">
                     {/* Customer Lookup */}
@@ -389,7 +477,7 @@ export default function POSPage() {
                             <div className="bg-primary/5 p-4 rounded-xl space-y-1">
                                 <p className="text-[10px] font-black uppercase opacity-60">Impacted Account</p>
                                 <p className="font-bold text-lg">{selectedUser?.fullName}</p>
-                                <p className="text-xs font-mono opacity-60">IDs: {Array.from(selectedInvoices).join(', ')}</p>
+                                <p className="text-xs font-mono opacity-60">Items Selected: {selectedInvoices.size}</p>
                             </div>
                         </div>
                     ) : (
@@ -403,7 +491,7 @@ export default function POSPage() {
                             </div>
                             <Separator className="bg-muted" />
                             <div className="grid grid-cols-2 gap-4">
-                                <Button className="h-14 font-black uppercase tracking-tight" onClick={() => window.print()}>
+                                <Button className="h-14 font-black uppercase tracking-tight" onClick={handlePrintReceipt}>
                                     <Printer className="mr-2 h-5 w-5" /> Print Receipt
                                 </Button>
                                 <Button variant="outline" className="h-14 font-black border-2 uppercase tracking-tight" onClick={resetPOS}>
