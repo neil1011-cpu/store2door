@@ -14,7 +14,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
-        request.auth.token.email == "admin@neilussolutions.com"
+        request.auth.token.email == "info@fromstore2door.com"
       );
     }
 
@@ -65,12 +65,17 @@ service cloud.firestore {
 
     match /admin_roles/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == "admin@neilussolutions.com");
+      allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == "info@fromstore2door.com");
     }
 
     // System Metadata
     match /metadata/{id} {
       allow read, write: if isAdmin() || isSignedIn();
+    }
+
+    // System Logs (Webhook debugging)
+    match /system_logs/{id} {
+       allow read, write: if isAdmin();
     }
   }
 }

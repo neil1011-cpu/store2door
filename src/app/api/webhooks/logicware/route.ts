@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { serverTimestamp } from 'firebase-admin/firestore';
@@ -5,6 +6,8 @@ import { serverTimestamp } from 'firebase-admin/firestore';
 /**
  * @fileOverview Universal Webhook for Logicware Hub updates.
  * Handles incoming status changes for shipments and manifests.
+ * 
+ * Target URL: https://[domain]/api/webhooks/logicware
  */
 
 export async function POST(request: Request) {
@@ -32,7 +35,7 @@ export async function POST(request: Request) {
             const trackingId = (data.trackingNumber || data.referenceCode || '').toUpperCase();
             
             if (trackingId) {
-                // Find matching local shipment across all users
+                // Find matching local shipment across all users via Collection Group
                 const shipmentSnap = await adminDb.collectionGroup('shipments')
                     .where('trackingNumber', '==', trackingId)
                     .limit(1)

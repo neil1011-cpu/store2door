@@ -42,7 +42,7 @@ export default function SetupAdminPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: 'admin@neilussolutions.com',
+      email: 'info@fromstore2door.com',
       password: '',
     },
   });
@@ -192,7 +192,7 @@ export default function SetupAdminPage() {
                   <FormItem>
                     <FormLabel>Admin Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="admin@neilussolutions.com" {...field} />
+                      <Input type="email" placeholder="info@fromstore2door.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

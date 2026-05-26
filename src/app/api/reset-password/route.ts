@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
         const adminUid = decodedToken.uid;
 
         // 3. Authority Check
-        const isAdminEmail = decodedToken.email === 'admin@neilussolutions.com';
+        const isAdminEmail = decodedToken.email === 'info@fromstore2door.com';
         const adminRoleDoc = await adminDb.collection('admin_roles').doc(adminUid).get();
         
         if (!adminRoleDoc.exists && !isAdminEmail) {

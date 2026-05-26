@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -70,8 +71,8 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Definitive check: allow if admin record exists OR if the hardcoded admin email is used
-    const isHardcodedAdmin = user.email === 'admin@neilussolutions.com';
+    // Definitive check: allow if admin record exists OR if the professional domain is used
+    const isHardcodedAdmin = user.email === 'info@fromstore2door.com';
     const hasAdminDoc = !!adminRoleDoc;
 
     if (!isHardcodedAdmin && !hasAdminDoc && !adminError) {
@@ -97,8 +98,8 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     );
   }
   
-  // Only render children if verified as an admin (fallback to email if doc is missing during first run)
-  const isAuthorized = adminRoleDoc || user?.email === 'admin@neilussolutions.com';
+  // Only render children if verified as an admin (fallback to domain if doc is missing during first run)
+  const isAuthorized = adminRoleDoc || user?.email === 'info@fromstore2door.com';
   if (!user || !isAuthorized) return null;
 
   return <>{children}</>;

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -48,10 +49,11 @@ export default function AdminLoginPage() {
     try {
       const cred = await signInWithEmailAndPassword(auth, values.email, values.password);
       
-      // Critical check for the 'admin_roles' collection
+      // Critical check for the 'admin_roles' collection or domain-specific fallback
       const adminSnap = await getDoc(doc(firestore, 'admin_roles', cred.user.uid));
+      const isDomainAdmin = values.email === 'info@fromstore2door.com';
       
-      if (adminSnap.exists()) {
+      if (adminSnap.exists() || isDomainAdmin) {
         setShowWelcome(true);
       } else {
         await signOut(auth);
@@ -76,7 +78,6 @@ export default function AdminLoginPage() {
 
   return (
     <div className="w-full min-h-screen flex items-center justify-center bg-zinc-950 p-4 relative overflow-hidden">
-      {/* Background imagery to reinforce professional delivery theme */}
       <div className="absolute inset-0 opacity-20 grayscale pointer-events-none">
           <Image 
             src="https://picsum.photos/seed/delivery-van-dark/1920/1080" 
@@ -104,7 +105,7 @@ export default function AdminLoginPage() {
                 <FormItem>
                     <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Admin ID</FormLabel>
                     <FormControl>
-                        <Input placeholder="admin@neilussolutions.com" {...field} className="h-12 border-2 focus:border-primary" />
+                        <Input placeholder="info@fromstore2door.com" {...field} className="h-12 border-2 focus:border-primary" />
                     </FormControl>
                     <FormMessage />
                 </FormItem>

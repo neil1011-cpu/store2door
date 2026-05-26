@@ -1,9 +1,10 @@
+
 import { NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Resilient Account Creation API.
- * Hardened to prevent "payload must be object" errors.
+ * Hardened to prevent unauthorized creation and ensure domain-specific admin access.
  */
 
 const FIREBASE_API_KEY = "AIzaSyCxZ7fHM0GTfBtkyxaAhotzDw5udr7lFvQ";
@@ -34,17 +35,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Missing email address' }, { status: 400 });
     }
 
-    // 1. Authorization: Manual JWT Decode with strict object checks
+    // 1. Authorization: Manual JWT Decode
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ message: 'Unauthorized: Missing token' }, { status: 401 });
     }
 
     const idToken = authHeader.substring(7);
-    if (!idToken || idToken === 'null' || idToken === 'undefined') {
-        return NextResponse.json({ message: 'Unauthorized: Invalid token value' }, { status: 401 });
-    }
-
     const tokenParts = idToken.split('.');
     if (tokenParts.length !== 3) {
         return NextResponse.json({ message: 'Unauthorized: Malformed token structure' }, { status: 401 });
@@ -58,14 +55,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Unauthorized: Invalid token encoding' }, { status: 401 });
     }
 
-    if (!tokenClaims || typeof tokenClaims !== 'object') {
-        return NextResponse.json({ message: 'Unauthorized: Payload is not an object' }, { status: 401 });
-    }
+    const adminEmail = tokenClaims?.email;
 
-    const adminEmail = tokenClaims.email;
-
-    // Hardcoded bypass for the primary administrator to prevent lockout
-    if (adminEmail !== 'admin@neilussolutions.com') {
+    // Domain-specific bypass for the primary administrator
+    if (adminEmail !== 'info@fromstore2door.com') {
         return NextResponse.json({ message: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
@@ -91,7 +84,6 @@ export async function POST(request: Request) {
             uid: authData.localId,
         });
     } else {
-        // Handle "Email Exists" gracefully
         if (authData.error?.message === 'EMAIL_EXISTS') {
             try {
                 const user = await adminAuth.getUserByEmail(email.trim().toLowerCase());
