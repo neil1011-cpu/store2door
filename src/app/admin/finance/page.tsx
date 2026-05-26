@@ -41,7 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import type { Invoice, Shipment, UserProfile, Transaction } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, setDoc, updateDoc, addDoc, where } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, doc, setDoc, updateDoc, addDoc, where, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
@@ -133,32 +133,19 @@ export default function FinancePage() {
 
   const loading = isUserLoading || isLoadingUsers || isLoadingInvoices || isLoadingTransactions;
 
+  // LINKED FINANCE CALCULATIONS: Source of truth for revenue is the transactions collection.
   const financeSummary = useMemo(() => {
-    const paidInvoices = invoices?.filter(inv => inv.status === 'Paid') || [];
-    const invoiceRevenue = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-    
-    const manualRevenue = transactions?.filter(t => t.type === 'revenue').reduce((sum, t) => sum + t.amount, 0) || 0;
-    const manualExpenses = transactions?.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) || 0;
+    const revenueTransactions = transactions?.filter(t => t.type === 'revenue') || [];
+    const expenseTransactions = transactions?.filter(t => t.type === 'expense') || [];
 
-    const totalRevenue = invoiceRevenue + manualRevenue;
-    const totalExpenses = manualExpenses;
+    const totalRevenue = revenueTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
 
     const monthlyData: { [key: string]: { month: string, revenue: number, expenses: number, profit: number } } = {};
 
-    paidInvoices.forEach(inv => {
-      const date = inv.date?.toDate();
-      if (!date) return;
-      
-      const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
-      if (!monthlyData[month]) {
-        monthlyData[month] = { month, revenue: 0, expenses: 0, profit: 0 };
-      }
-      monthlyData[month].revenue += inv.amount;
-    });
-
     transactions?.forEach(t => {
-      const date = t.date?.toDate();
-      if (!date) return;
+      const date = t.date?.toDate ? t.date.toDate() : new Date(t.date);
+      if (!date || isNaN(date.getTime())) return;
 
       const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
        if (!monthlyData[month]) {
@@ -182,7 +169,7 @@ export default function FinancePage() {
       profit: totalRevenue - totalExpenses,
       chartData: Object.values(monthlyData).sort((a,b) => new Date(a.month).getTime() - new Date(b.month).getTime()),
     };
-  }, [invoices, transactions]);
+  }, [transactions]);
 
 
   const handleInvoiceCreated = (invoice: Invoice) => {
@@ -197,22 +184,40 @@ export default function FinancePage() {
     setIsViewOpen(true);
   }
 
-  const handleUpdateInvoiceStatus = (invoiceId: string, status: 'Paid' | 'Unpaid') => {
-    const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
-    updateDoc(invoiceDocRef, { status })
-        .then(() => {
-            toast({
-                title: "Invoice Status Updated",
-                description: `Invoice ${invoiceId} marked as ${status}.`
-            });
-        })
-        .catch(error => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: invoiceDocRef.path,
-                operation: 'update',
-                requestResourceData: { status },
-            }));
+  const handleUpdateInvoiceStatus = async (inv: Invoice, status: 'Paid' | 'Unpaid') => {
+    const batch = writeBatch(firestore);
+    const invoiceDocRef = doc(firestore, 'invoices', inv.invoiceId);
+    
+    batch.update(invoiceDocRef, { status });
+
+    // If marking as Paid, create a linked revenue transaction to update Finance automatically
+    if (status === 'Paid') {
+        const transactionRef = doc(collection(firestore, 'transactions'));
+        batch.set(transactionRef, {
+            type: 'revenue',
+            source: 'Manual (Admin)',
+            amount: inv.amount,
+            description: `Invoice Payment - ${inv.customerName} (${inv.invoiceId})`,
+            date: serverTimestamp(),
+            method: 'Manual Update',
+            customerId: inv.customerId,
+            invoiceIds: [inv.invoiceId]
         });
+    }
+
+    try {
+        await batch.commit();
+        toast({
+            title: "Invoice Status Updated",
+            description: `Invoice ${inv.invoiceId} marked as ${status} and logged in Finance.`
+        });
+    } catch (error) {
+         errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: invoiceDocRef.path,
+            operation: 'update',
+            requestResourceData: { status },
+        }));
+    }
   }
 
   const handleAddTransaction = async () => {
@@ -229,6 +234,7 @@ export default function FinancePage() {
     const transactionCollectionRef = collection(firestore, 'transactions');
     const transactionToAdd = {
         ...newTransaction,
+        source: 'Manual Entry',
         amount: parseFloat(newTransaction.amount),
         date: new Date(newTransaction.date)
     };
@@ -263,9 +269,9 @@ export default function FinancePage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Finance</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Finance Dashboard</h1>
           <p className="text-muted-foreground">
-            View your financial statements, transactions, and invoices.
+            Universal ledger synchronized with POS, Manual, and Hub systems.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -285,7 +291,7 @@ export default function FinancePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">JMD ${financeSummary.revenue.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground flex items-center">From all paid invoices</p>
+                <p className="text-xs text-muted-foreground flex items-center">From all recorded payments</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
             </Card>
@@ -298,7 +304,7 @@ export default function FinancePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">JMD ${financeSummary.expenses.toLocaleString()}</div>
-                 <p className="text-xs text-muted-foreground flex items-center">From manual expense entries</p>
+                 <p className="text-xs text-muted-foreground flex items-center">From warehouse and ops costs</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
             </Card>
@@ -311,7 +317,7 @@ export default function FinancePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">JMD ${financeSummary.profit.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground flex items-center">Based on current data</p>
+                <p className="text-xs text-muted-foreground flex items-center">Real-time worldwide summary</p>
               </CardContent>
                <CardFooter><p className="text-xs text-muted-foreground flex items-center">View breakdown <ArrowRight className="h-4 w-4 ml-1" /></p></CardFooter>
             </Card>
@@ -323,22 +329,22 @@ export default function FinancePage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Financial Overview</CardTitle>
-                    <CardDescription>Paid Revenue vs. Expenses over the last months.</CardDescription>
+                    <CardDescription>Ledger performance over the last few months.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {financeSummary.chartData.length > 0 ? (
                         <FinanceChart data={financeSummary.chartData} />
                     ) : (
-                        <div className="flex h-[300px] items-center justify-center text-muted-foreground">
-                            No financial data to display in chart.
+                        <div className="flex h-[300px] items-center justify-center text-muted-foreground italic">
+                            No ledger records found to populate charts.
                         </div>
                     )}
                 </CardContent>
             </Card>
             <Card>
                 <CardHeader>
-                    <CardTitle>Detailed Breakdown</CardTitle>
-                    <CardDescription>Monthly financial data based on paid invoices and manual transactions.</CardDescription>
+                    <CardTitle>Monthly Breakdown</CardTitle>
+                    <CardDescription>Fiscal data extracted from the global transactions ledger.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="relative w-full overflow-auto">
@@ -349,14 +355,14 @@ export default function FinancePage() {
                                 financeSummary.chartData.map((item) => (
                                 <TableRow key={item.month}>
                                     <TableCell className="font-medium">{item.month}</TableCell>
-                                    <TableCell className="text-right text-green-500">JMD ${item.revenue.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-green-500 font-bold">JMD ${item.revenue.toLocaleString()}</TableCell>
                                     <TableCell className="text-right text-red-500">JMD ${item.expenses.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right font-bold">JMD ${item.profit.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right font-black italic tracking-tighter">JMD ${item.profit.toLocaleString()}</TableCell>
                                 </TableRow>
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">No monthly data available.</TableCell>
+                                    <TableCell colSpan={4} className="h-24 text-center italic text-muted-foreground">Waiting for worldwide data sync...</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
@@ -368,34 +374,37 @@ export default function FinancePage() {
         <div className="lg:col-span-1 grid gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Add Transaction</CardTitle>
-              <CardDescription>Manually record a new transaction.</CardDescription>
+              <CardTitle>Direct Ledger Entry</CardTitle>
+              <CardDescription>Manually record non-invoice movements.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                  <Label htmlFor="tx-type">Transaction Type</Label>
+                  <Label htmlFor="tx-type">Category</Label>
                   <Select value={newTransaction.type} onValueChange={(value: 'revenue' | 'expense') => setNewTransaction({...newTransaction, type: value})}>
                       <SelectTrigger id="tx-type"><SelectValue placeholder="Select type" /></SelectTrigger>
-                      <SelectContent><SelectItem value="revenue">Revenue</SelectItem><SelectItem value="expense">Expense</SelectItem></SelectContent>
+                      <SelectContent><SelectItem value="revenue">Revenue (Income)</SelectItem><SelectItem value="expense">Expense (Cost)</SelectItem></SelectContent>
                   </Select>
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="tx-desc">Description</Label>
-                  <Input id="tx-desc" placeholder="e.g., Shipping supplies" value={newTransaction.description} onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})} />
+                  <Label htmlFor="tx-desc">Memo</Label>
+                  <Input id="tx-desc" placeholder="e.g., Office Rent, Agent Commission" value={newTransaction.description} onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})} />
               </div>
               <div className="space-y-2">
                   <Label htmlFor="tx-amount">Amount (JMD)</Label>
-                  <Input id="tx-amount" type="number" placeholder="e.g., 1500.00" value={newTransaction.amount} onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})} />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-40">JMD $</span>
+                    <Input id="tx-amount" type="number" placeholder="0.00" value={newTransaction.amount} onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})} className="pl-14" />
+                  </div>
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="tx-date">Date</Label>
+                  <Label htmlFor="tx-date">Value Date</Label>
                   <Input id="tx-date" type="date" value={newTransaction.date} onChange={(e) => setNewTransaction({...newTransaction, date: e.target.value})} />
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleAddTransaction} disabled={isAddingTransaction}>
+              <Button onClick={handleAddTransaction} disabled={isAddingTransaction} className="w-full">
                 {isAddingTransaction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                Add Transaction
+                Post to Ledger
               </Button>
             </CardFooter>
           </Card>
@@ -406,7 +415,7 @@ export default function FinancePage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Invoice Management</CardTitle>
-            <CardDescription>Generate and manage customer invoices.</CardDescription>
+            <CardDescription>Generate customer invoices and synchronize status with Finance.</CardDescription>
           </div>
           <Button onClick={() => setIsCreateOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Create Invoice</Button>
         </CardHeader>
@@ -416,14 +425,14 @@ export default function FinancePage() {
                 <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Customer</TableHead><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
                 {invoices.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center h-24">No invoices found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center h-24 italic text-muted-foreground">No invoices generated yet.</TableCell></TableRow>
                 ) : (
                     invoices.map((invoice) => (
                         <TableRow key={invoice.invoiceId}>
-                        <TableCell className="font-mono">{invoice.invoiceId}</TableCell>
+                        <TableCell className="font-mono font-bold">{invoice.invoiceId}</TableCell>
                         <TableCell className="font-medium">{invoice.customerName}</TableCell>
-                        <TableCell>{invoice.date ? new Date((invoice.date as any).toDate()).toLocaleDateString() : 'N/A'}</TableCell>
-                        <TableCell>JMD ${invoice.amount.toFixed(2)}</TableCell>
+                        <TableCell>{invoice.date ? (invoice.date.toDate ? invoice.date.toDate().toLocaleDateString() : new Date(invoice.date).toLocaleDateString()) : 'N/A'}</TableCell>
+                        <TableCell className="font-black">JMD ${invoice.amount.toFixed(2)}</TableCell>
                         <TableCell><Badge variant={invoice.status === 'Paid' ? 'outline' : 'destructive'}>{invoice.status}</Badge></TableCell>
                         <TableCell className="text-right">
                             <DropdownMenu>
@@ -438,11 +447,11 @@ export default function FinancePage() {
                                         <FileText className="mr-2 h-4 w-4" />
                                         View Invoice
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Paid')} disabled={invoice.status === 'Paid'}>
+                                    <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice, 'Paid')} disabled={invoice.status === 'Paid'}>
                                         <CheckCircle2 className="mr-2 h-4 w-4" />
                                         Mark as Paid
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice.invoiceId, 'Unpaid')} disabled={invoice.status === 'Unpaid'}>
+                                    <DropdownMenuItem onClick={() => handleUpdateInvoiceStatus(invoice, 'Unpaid')} disabled={invoice.status === 'Unpaid'}>
                                         <Receipt className="mr-2 h-4 w-4" />
                                         Mark as Unpaid
                                     </DropdownMenuItem>

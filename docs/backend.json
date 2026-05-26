@@ -89,6 +89,23 @@
         "cost": { "type": "number" },
         "paymentStatus": { "type": "string", "enum": ["Paid", "Unpaid"] }
       }
+    },
+    "Transaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Transaction",
+      "type": "object",
+      "description": "Records every movement of funds (revenue or expense) for financial auditing.",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["revenue", "expense"] },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "method": { "type": "string" },
+        "customerId": { "type": "string" },
+        "source": { "type": "string", "description": "e.g., 'POS', 'Online', 'Manual'" },
+        "invoiceIds": { "type": "array", "items": { "type": "string" } }
+      }
     }
   },
   "auth": {
@@ -115,6 +132,13 @@
         "definition": {
           "entityName": "Shipment",
           "description": "User-specific shipment records."
+        }
+      },
+      {
+        "path": "/transactions/{transactionId}",
+        "definition": {
+          "entityName": "Transaction",
+          "description": "Global financial ledger."
         }
       },
       {

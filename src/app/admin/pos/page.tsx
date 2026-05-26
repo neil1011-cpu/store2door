@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -57,7 +58,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { AppLogo } from '@/components/app-logo';
 
 /**
- * @fileOverview POS System with integrated Receipt Printing.
+ * @fileOverview POS System with integrated Receipt Printing and Finance linking.
  */
 
 export default function POSPage() {
@@ -148,16 +149,17 @@ export default function POSPage() {
                 });
             });
 
-            // Log Transaction
+            // Log Transaction (LINKED TO FINANCE)
             const transactionRef = doc(collection(firestore, 'transactions'));
             batch.set(transactionRef, {
                 type: 'revenue',
+                source: 'POS',
                 amount: totalToPay,
                 description: `POS Payment - ${selectedUser.fullName} (${selectedUser.mailboxNumber})`,
                 date: serverTimestamp(),
                 method: paymentMethod,
                 customerId: selectedUser.id,
-                items: Array.from(selectedInvoices)
+                invoiceIds: Array.from(selectedInvoices)
             });
 
             await batch.commit();
@@ -172,7 +174,7 @@ export default function POSPage() {
             });
 
             setCheckoutComplete(true);
-            toast({ title: "Payment Processed!", description: `JMD $${totalToPay.toLocaleString()} recorded via ${paymentMethod}.` });
+            toast({ title: "Payment Processed!", description: `JMD $${totalToPay.toLocaleString()} recorded in Finance.` });
         } catch (error) {
             toast({ title: "Checkout Failed", variant: "destructive" });
         } finally {
@@ -468,11 +470,15 @@ export default function POSPage() {
                         <div className="space-y-6 py-6">
                             <div className="p-6 rounded-2xl bg-muted/30 border-2 border-dashed flex flex-col items-center gap-4 text-center">
                                 <DollarSign className="h-12 w-12 text-primary animate-bounce" />
-                                <div>
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Confirm Receipt of Funds</p>
-                                    <p className="text-4xl font-black tracking-tighter">JMD ${totalToPay.toLocaleString()}</p>
-                                    <p className="text-[11px] font-bold text-primary mt-2">VIA {paymentMethod.toUpperCase()}</p>
-                                </div>
+                                {totalToPay > 0 ? (
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Confirm Receipt of Funds</p>
+                                        <p className="text-4xl font-black tracking-tighter">JMD ${totalToPay.toLocaleString()}</p>
+                                        <p className="text-[11px] font-bold text-primary mt-2">VIA {paymentMethod.toUpperCase()}</p>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm font-bold text-destructive italic">Cart is empty.</p>
+                                )}
                             </div>
                             <div className="bg-primary/5 p-4 rounded-xl space-y-1">
                                 <p className="text-[10px] font-black uppercase opacity-60">Impacted Account</p>
@@ -487,7 +493,7 @@ export default function POSPage() {
                             </div>
                             <div>
                                 <p className="text-3xl font-black italic uppercase tracking-tighter">Payment Complete</p>
-                                <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Transaction Secured & Logged</p>
+                                <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Transaction Secured & Logged in Finance</p>
                             </div>
                             <Separator className="bg-muted" />
                             <div className="grid grid-cols-2 gap-4">
@@ -508,7 +514,7 @@ export default function POSPage() {
                             </DialogClose>
                             <Button 
                                 onClick={handleProcessPayment} 
-                                disabled={isProcessing} 
+                                disabled={isProcessing || totalToPay <= 0} 
                                 className="flex-1 h-12 font-black uppercase italic tracking-tight"
                             >
                                 {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Authorize Payment Now"}
