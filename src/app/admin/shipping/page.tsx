@@ -169,19 +169,19 @@ export default function ShippingPage() {
         ? data 
         : data.shipments || data.shippers || data.data || [];
       
-      const all = [...(firebaseShipments || []), ...logicwareArray];
+      const allCount = (firebaseShipments?.length || 0) + logicwareArray.length;
       
       console.log(
         '[FINAL DATA]',
         {
           logicwareArray,
-          total: all.length,
+          total: allCount,
         }
       );
 
       toast({
         title: 'Success',
-        description: `Loaded ${all.length} worldwide records`,
+        description: `Loaded ${allCount} worldwide records`,
       });
       
       setLogicwareShipments(logicwareArray);
@@ -332,9 +332,9 @@ export default function ShippingPage() {
                     <TableRow key={shipment.id} className={cn("hover:bg-muted/30 transition-colors", shipment.isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
                     <TableCell className="pl-6">
                         {shipment.isLogicware ? (
-                            <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200">Logicware Hub</Badge>
+                            <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 uppercase text-[9px] font-bold">Logicware Hub</Badge>
                         ) : (
-                            <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200">Local OS</Badge>
+                            <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 uppercase text-[9px] font-bold">Local OS</Badge>
                         )}
                     </TableCell>
                     <TableCell className="font-mono font-black text-primary uppercase">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -111,13 +112,13 @@ export default function UsersPage() {
           if (!res.ok) throw new Error(data.message || 'Sync failed');
           
           const rawShippers = Array.isArray(data) ? data : data.shippers || data.data || [];
-          const all = [...(users || []), ...rawShippers];
+          const allCount = (users?.length || 0) + rawShippers.length;
 
-          console.log('[FINAL DATA]', { shippersArray: rawShippers, total: all.length });
+          console.log('[FINAL DATA]', { shippersArray: rawShippers, total: allCount });
 
           toast({ 
               title: 'Success', 
-              description: `Loaded ${all.length} worldwide records` 
+              description: `Loaded ${allCount} worldwide records` 
           });
 
           setLogicwareUsers(rawShippers);
@@ -250,9 +251,9 @@ export default function UsersPage() {
                 <TableRow key={u.id} className={cn("group hover:bg-muted/30 transition-colors", u.isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
                   <TableCell>
                       {u.isLogicware ? (
-                          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 uppercase text-[9px]">Hub</Badge>
+                          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 uppercase text-[9px] font-bold">Hub</Badge>
                       ) : (
-                          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 uppercase text-[9px]">Local</Badge>
+                          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 uppercase text-[9px] font-bold">Local</Badge>
                       )}
                   </TableCell>
                   <TableCell>

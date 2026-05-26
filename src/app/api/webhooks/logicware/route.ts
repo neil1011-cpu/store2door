@@ -6,8 +6,7 @@ import { serverTimestamp } from 'firebase-admin/firestore';
 /**
  * @fileOverview Universal Webhook for Logicware Hub updates.
  * Handles incoming status changes for shipments and manifests.
- * 
- * Target URL: https://[domain]/api/webhooks/logicware
+ * Target URL: https://fromstore2door.com/api/webhooks/logicware
  */
 
 export async function POST(request: Request) {

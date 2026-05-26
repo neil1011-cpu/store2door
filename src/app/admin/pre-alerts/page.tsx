@@ -112,7 +112,6 @@ export default function PreAlertsPage() {
 
       const rawShipments = Array.isArray(data) ? data : data.shipments || data.data || [];
       
-      // Filter for pre-alerts or pending warehouse intakes and exhaustively map fields
       const mappedPreAlerts: PreAlert[] = rawShipments
         .filter((s: any) => {
             const status = (s.status?.name || s.status || '').toLowerCase();
@@ -132,19 +131,19 @@ export default function PreAlertsPage() {
             isLogicware: true
         }));
 
-      const all = [...(firebasePreAlerts || []), ...mappedPreAlerts];
+      const allCount = (firebasePreAlerts?.length || 0) + mappedPreAlerts.length;
 
       console.log(
         '[FINAL DATA]',
         {
           logicwareArray: mappedPreAlerts,
-          total: all.length,
+          total: allCount,
         }
       );
 
       toast({
         title: 'Success',
-        description: `Loaded ${all.length} worldwide records`,
+        description: `Loaded ${allCount} worldwide records`,
       });
       
       setLogicwarePreAlerts(mappedPreAlerts);
@@ -222,7 +221,6 @@ export default function PreAlertsPage() {
         status: 'Processed', shippingDate: serverTimestamp(), cost, paymentStatus: 'Unpaid', invoiceId, invoiceUrl: invoiceHtml,
     });
     
-    // Only update firebase records status
     if (!preAlert.isLogicware) {
         batch.update(doc(firestore, 'users', preAlert.customerId, 'pre_alerts', preAlert.id), { status: 'Processed' });
     }

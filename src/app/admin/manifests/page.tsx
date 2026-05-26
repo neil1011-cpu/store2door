@@ -84,13 +84,13 @@ export default function ManifestsPage() {
           isLogicware: true
       }));
 
-      const all = [...manifests, ...mapped];
+      const allCount = manifests.length + mapped.length;
       
-      console.log('[FINAL DATA]', { manifestsArray: mapped, total: all.length });
+      console.log('[FINAL DATA]', { manifestsArray: mapped, total: allCount });
 
       toast({ 
           title: 'Success', 
-          description: `Loaded ${all.length} worldwide records` 
+          description: `Loaded ${allCount} worldwide records` 
       });
 
       setLogicwareManifests(mapped);
@@ -241,9 +241,9 @@ export default function ManifestsPage() {
                   <TableCell><Badge variant={getStatusVariant(manifest.status as string)} className="text-[10px]">{manifest.status}</Badge></TableCell>
                   <TableCell className="text-right">
                     {manifest.isLogicware ? (
-                        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">Logicware</Badge>
+                        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 uppercase text-[9px] font-bold">Logicware</Badge>
                     ) : (
-                        <Badge variant="outline">Local</Badge>
+                        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 uppercase text-[9px] font-bold">Local</Badge>
                     )}
                   </TableCell>
                 </TableRow>

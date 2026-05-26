@@ -14,7 +14,7 @@ export function getLogicwareClient(apiKey?: string) {
   const finalKey = apiKey || process.env.LOGICWARE_API_KEY;
   
   if (!finalKey) {
-    // Only throw if on server side.
+    // Only throw if on server side to prevent browser crashes during import
     if (typeof window === 'undefined') {
       throw new Error('Logicware API key is required on server side.');
     }
