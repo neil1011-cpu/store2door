@@ -5,14 +5,22 @@ import { serverTimestamp } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Universal Webhook for Logicware Hub updates.
- * Handles incoming status changes for shipments and manifests.
- * Target URL: https://fromstore2door.com/api/webhooks/logicware
+ * Now includes secret verification for security.
  */
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { event, data } = body;
+
+        // Webhook Secret Verification (Optional but recommended)
+        const signature = request.headers.get('x-logicware-signature');
+        const secret = process.env.LOGICWARE_WEBHOOK_SECRET;
+
+        if (secret && signature && signature !== secret) {
+            console.warn('[WEBHOOK] Invalid signature detected.');
+            return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+        }
 
         if (!event || !data) {
             return NextResponse.json({ message: 'Invalid payload' }, { status: 400 });
@@ -34,7 +42,6 @@ export async function POST(request: Request) {
             const trackingId = (data.trackingNumber || data.referenceCode || '').toUpperCase();
             
             if (trackingId) {
-                // Find matching local shipment across all users via Collection Group
                 const shipmentSnap = await adminDb.collectionGroup('shipments')
                     .where('trackingNumber', '==', trackingId)
                     .limit(1)

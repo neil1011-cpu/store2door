@@ -42,13 +42,12 @@ export default function SetupAdminPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: 'info@fromstore2door.com',
+      email: 'admin@neilussolutions.com',
       password: '',
     },
   });
 
   const setupAdminPrivileges = async (user: User) => {
-    // 1. Admin Role Document (existence is key for isAdmin() check)
     const adminRoleRef = doc(firestore, 'admin_roles', user.uid);
     await setDoc(adminRoleRef, { 
         isAdmin: true, 
@@ -57,7 +56,6 @@ export default function SetupAdminPage() {
         updatedAt: serverTimestamp() 
     }, { merge: true });
 
-    // 2. User Profile Document (Fixes "Critical profile data missing" error)
     const userDocRef = doc(firestore, 'users', user.uid);
     await setDoc(userDocRef, {
         id: user.uid,
@@ -78,7 +76,6 @@ export default function SetupAdminPage() {
         dropoffAddresses: [],
     }, { merge: true });
     
-    // 3. Initialize Metadata if missing
     const mailboxCounterRef = doc(firestore, 'metadata', 'mailboxCounter');
     await setDoc(mailboxCounterRef, { next: 101 }, { merge: true });
   }
@@ -93,7 +90,6 @@ export default function SetupAdminPage() {
           await setupAdminPrivileges(currentUser);
           toast({ title: 'Privileges Granted!', description: 'Your administrator identity and profile have been synchronized.' });
           
-          // Clear any caches and redirect
           setTimeout(() => {
             window.location.href = '/admin';
           }, 1500);
@@ -192,7 +188,7 @@ export default function SetupAdminPage() {
                   <FormItem>
                     <FormLabel>Admin Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="info@fromstore2door.com" {...field} />
+                      <Input type="email" placeholder="admin@neilussolutions.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

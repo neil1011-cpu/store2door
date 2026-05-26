@@ -10,11 +10,11 @@ service cloud.firestore {
     }
 
     // Administrators have full access.
-    // Explicit email fallback ensures primary admin can recover the system even if DB is empty.
+    // Reverted email fallback to admin@neilussolutions.com
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
-        request.auth.token.email == "info@fromstore2door.com"
+        request.auth.token.email == "admin@neilussolutions.com"
       );
     }
 
@@ -23,14 +23,12 @@ service cloud.firestore {
     }
 
     // --- Global Administrative Override ---
-    // Grants full unrestricted access to any path for recognized admins.
     match /{allPaths=**} {
       allow read, write, list: if isAdmin();
     }
 
     // --- Public & User Collection Rules ---
 
-    // Allow users to see their own data
     match /users/{userId} {
        allow read, write: if isOwner(userId) || isAdmin();
        
@@ -39,12 +37,10 @@ service cloud.firestore {
        }
     }
 
-    // Admin-specific global collection access
     match /users {
       allow list: if isAdmin();
     }
     
-    // Explicit authorization for global Collection Group queries (Dashboard stats)
     match /{path=**}/pre_alerts/{id} {
       allow read, list: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
     }
@@ -54,7 +50,6 @@ service cloud.firestore {
        allow list: if isAdmin();
     }
 
-    // Financial Records
     match /transactions/{id} {
        allow read, write, list: if isAdmin();
     }
@@ -65,15 +60,13 @@ service cloud.firestore {
 
     match /admin_roles/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == "info@fromstore2door.com");
+      allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == "admin@neilussolutions.com");
     }
 
-    // System Metadata
     match /metadata/{id} {
       allow read, write: if isAdmin() || isSignedIn();
     }
 
-    // System Logs (Webhook debugging)
     match /system_logs/{id} {
        allow read, write: if isAdmin();
     }

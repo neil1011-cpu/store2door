@@ -4,7 +4,7 @@ import { adminAuth } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Resilient Account Creation API.
- * Hardened to prevent unauthorized creation and ensure domain-specific admin access.
+ * Reverted admin email verification to admin@neilussolutions.com.
  */
 
 const FIREBASE_API_KEY = "AIzaSyCxZ7fHM0GTfBtkyxaAhotzDw5udr7lFvQ";
@@ -35,16 +35,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Missing email address' }, { status: 400 });
     }
 
-    // 1. Authorization: Manual JWT Decode
+    // 1. Authorization Check
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ message: 'Unauthorized: Missing token' }, { status: 401 });
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const idToken = authHeader.substring(7);
     const tokenParts = idToken.split('.');
     if (tokenParts.length !== 3) {
-        return NextResponse.json({ message: 'Unauthorized: Malformed token structure' }, { status: 401 });
+        return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     let tokenClaims;
@@ -52,17 +52,17 @@ export async function POST(request: Request) {
         const decoded = Buffer.from(tokenParts[1], 'base64').toString();
         tokenClaims = decoded ? JSON.parse(decoded) : null;
     } catch (e) {
-        return NextResponse.json({ message: 'Unauthorized: Invalid token encoding' }, { status: 401 });
+        return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const adminEmail = tokenClaims?.email;
 
-    // Domain-specific bypass for the primary administrator
-    if (adminEmail !== 'info@fromstore2door.com') {
-        return NextResponse.json({ message: 'Forbidden: Admin access required' }, { status: 403 });
+    // Reverted admin email association
+    if (adminEmail !== 'admin@neilussolutions.com') {
+        return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    // 2. Create Auth user via REST API 
+    // 2. Create Auth user
     const authPayload = {
       email: email.trim().toLowerCase(),
       password: defaultPassword || 'User@1234',
@@ -92,13 +92,10 @@ export async function POST(request: Request) {
                     existingUid: user.uid 
                 }, { status: 200 });
             } catch (adminError) {
-                return NextResponse.json({ 
-                    message: 'User exists but identity check failed.', 
-                    existingUid: null 
-                }, { status: 409 });
+                return NextResponse.json({ message: 'User exists' }, { status: 409 });
             }
         }
-        throw new Error(`Auth System Error: ${authData.error?.message || 'Unknown'}`);
+        throw new Error(authData.error?.message || 'Auth System Error');
     }
 
   } catch (error: any) {

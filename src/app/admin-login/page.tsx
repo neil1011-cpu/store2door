@@ -49,9 +49,9 @@ export default function AdminLoginPage() {
     try {
       const cred = await signInWithEmailAndPassword(auth, values.email, values.password);
       
-      // Critical check for the 'admin_roles' collection or domain-specific fallback
       const adminSnap = await getDoc(doc(firestore, 'admin_roles', cred.user.uid));
-      const isDomainAdmin = values.email === 'info@fromstore2door.com';
+      // Reverted domain fallback
+      const isDomainAdmin = values.email === 'admin@neilussolutions.com';
       
       if (adminSnap.exists() || isDomainAdmin) {
         setShowWelcome(true);
@@ -105,7 +105,7 @@ export default function AdminLoginPage() {
                 <FormItem>
                     <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Admin ID</FormLabel>
                     <FormControl>
-                        <Input placeholder="info@fromstore2door.com" {...field} className="h-12 border-2 focus:border-primary" />
+                        <Input placeholder="admin@neilussolutions.com" {...field} className="h-12 border-2 focus:border-primary" />
                     </FormControl>
                     <FormMessage />
                 </FormItem>

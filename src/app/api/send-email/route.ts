@@ -12,7 +12,6 @@ function getAdminDB() {
   };
 
   if (!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
-    console.warn("Firebase admin credentials not set. Email logging will be skipped.");
     return null;
   }
 
@@ -42,38 +41,25 @@ export async function POST(request: Request) {
             };
             await db.collection('sent_emails').add(emailLog);
         } catch (error) {
-            console.error("Failed to log email to Firestore:", error);
+            console.error("Log error:", error);
         }
     };
 
-    const SENDER_EMAIL = `"FromStore2Door" <info@fromstore2door.com>`;
+    // Reverted sender email
+    const SENDER_EMAIL = `"FromStore2Door" <admin@neilussolutions.com>`;
 
     if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
-        try {
-            console.log("--- SIMULATING EMAIL (SMTP not configured) ---");
-            console.log(`From: ${SENDER_EMAIL}`);
-            if (Array.isArray(to)) {
-                 console.log(`To: "Undisclosed Recipients" <info@fromstore2door.com>`);
-                 console.log(`Bcc: ${to.length} recipients`);
-            } else {
-                console.log(`To: ${to}`);
-            }
-            console.log(`Subject: ${subject}`);
-            console.log(`Body:\n${body}`);
-            console.log("------------------------");
-            
-            await logEmail();
-
-            return NextResponse.json({ message: 'Email sent successfully (simulated)!' });
-        } catch (error) {
-            console.error('API Error in send-email (simulation):', error);
-            return NextResponse.json({ message: 'An unexpected error occurred during simulation.' }, { status: 500 });
-        }
+        console.log("--- SIMULATING EMAIL (SMTP not configured) ---");
+        console.log(`From: ${SENDER_EMAIL}`);
+        console.log(`To: ${to}`);
+        console.log(`Subject: ${subject}`);
+        await logEmail();
+        return NextResponse.json({ message: 'Email sent successfully (simulated)!' });
     }
 
     try {
         if (!to || !subject || !body) {
-            return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+            return NextResponse.json({ message: 'Missing fields' }, { status: 400 });
         }
         
         const signatureHtml = `
@@ -81,7 +67,7 @@ export async function POST(request: Request) {
 <p>--</p>
 <p>Best regards,</p>
 <p><b>The FromStore2Door Team</b></p>
-<p><a href="mailto:info@fromstore2door.com">info@fromstore2door.com</a></p>
+<p><a href="mailto:admin@neilussolutions.com">admin@neilussolutions.com</a></p>
 `;
 
         const fullBodyHtml = `<p>${body.replace(/\n/g, "<br>")}</p>${signatureHtml}`;
@@ -95,14 +81,14 @@ export async function POST(request: Request) {
 
         const mailOptions: nodemailer.SendMailOptions = {
             from: SENDER_EMAIL,
-            replyTo: 'info@fromstore2door.com',
+            replyTo: 'admin@neilussolutions.com',
             subject: subject,
             text: body + "\n\n--\nBest regards,\nThe FromStore2Door Team",
             html: fullBodyHtml,
         };
 
         if (Array.isArray(to)) {
-            mailOptions.to = `"Undisclosed Recipients" <info@fromstore2door.com>`;
+            mailOptions.to = `"Undisclosed Recipients" <admin@neilussolutions.com>`;
             mailOptions.bcc = to;
         } else {
             mailOptions.to = to;
@@ -114,7 +100,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Email sent successfully!' });
 
     } catch (error: any) {
-        console.error('API Error in send-email (Nodemailer):', error);
+        console.error('SMTP Error:', error);
         return NextResponse.json({ message: 'Failed to send email.', error: error.message }, { status: 500 });
     }
 }
