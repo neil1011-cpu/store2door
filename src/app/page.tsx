@@ -5,6 +5,7 @@ import { Package, ShieldCheck, ArrowRight, Truck, Quote, Globe, Box, MapPin } fr
 import Image from 'next/image';
 import Link from 'next/link';
 import { AppLogo } from '@/components/app-logo';
+import placeholderImages from '@/lib/placeholder-images.json';
 
 const features = [
   {
@@ -50,12 +51,12 @@ export default function HomePage() {
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <div className="absolute inset-0">
           <Image 
-            src="https://picsum.photos/seed/cargo-jet-terminal/1920/1080"
-            alt="Global Shipping Cargo Terminal"
+            src={placeholderImages.homeHero.src}
+            alt={placeholderImages.homeHero.alt}
             fill
             className="object-cover grayscale-[10%]"
             priority
-            data-ai-hint="cargo plane"
+            data-ai-hint={placeholderImages.homeHero.hint}
           />
           <div className="absolute inset-0 bg-primary/20 mix-blend-multiply" />
         </div>

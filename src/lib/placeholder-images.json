@@ -1,8 +1,8 @@
 {
   "homeHero": {
-    "src": "https://picsum.photos/seed/hero-ship/1200/800",
-    "alt": "Cargo ship with containers",
-    "hint": "cargo ship"
+    "src": "https://picsum.photos/seed/cargo-airplane/1920/1080",
+    "alt": "International Cargo Airplane",
+    "hint": "cargo airplane"
   },
   "howItWorks": {
     "src": "https://picsum.photos/seed/shipping/800/600",
