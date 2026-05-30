@@ -27,12 +27,26 @@ export function UserHeader() {
     setMounted(true);
   }, []);
 
-  const userActions = !mounted || isUserLoading ? (
-    <div className="flex items-center gap-2">
-        <Skeleton className="h-9 w-20" />
-        <Skeleton className="h-9 w-24" />
-    </div>
-  ) : user ? (
+  // Show skeleton during initial load or while determining auth state
+  if (!mounted || isUserLoading) {
+    return (
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all">
+        <div className="container mx-auto flex h-16 items-center px-4 md:px-6">
+          <AppLogo />
+          <div className="flex flex-1 items-center justify-end space-x-4">
+             <Skeleton className="h-9 w-20" />
+             <Skeleton className="h-9 w-24" />
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  // Force Sign In/Sign Up buttons on Homepage to avoid confusion with persistent login
+  // or if the user is not logged in.
+  const showAuthActions = pathname === '/' || !user;
+
+  const userActions = !showAuthActions ? (
     <div className="flex items-center gap-2">
         <Button asChild className="font-bold shadow-md">
             <Link href="/account">

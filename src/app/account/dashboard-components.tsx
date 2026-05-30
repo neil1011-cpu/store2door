@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -104,7 +103,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
 
   const formatDate = (date: any) => {
     if (!date) return 'N/A';
-    if (!isMounted) return '...'; // Prevent hydration mismatch
+    if (!isMounted) return '...'; // CRITICAL: Prevent hydration mismatch
     try {
         if (date.toDate) return date.toDate().toLocaleString();
         return new Date(date).toLocaleString();
@@ -126,7 +125,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                     <Package className="h-5 w-5 text-primary" /> Latest Shipment Status
                 </CardTitle>
             </CardHeader>
-            {isLoadingShipments ? (
+            {isLoadingShipments || !isMounted ? (
               <CardContent className="pt-6">
                 <div className="flex justify-center items-center h-24">
                   <Loader2 className="h-6 w-6 animate-spin" />
