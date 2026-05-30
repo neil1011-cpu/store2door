@@ -4,8 +4,8 @@ import { adminDb } from '@/lib/firebaseAdmin';
 import { serverTimestamp } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Standardized Email API with Gmail SMTP support and unified Admin Logging.
- * Reverted admin email association to admin@neilussolutions.com.
+ * @fileOverview Standardized Email API with Dynamic SMTP support.
+ * Uses SMTP_USER from .env as the primary sender address.
  */
 
 export async function POST(request: Request) {
@@ -28,7 +28,8 @@ export async function POST(request: Request) {
         }
     };
 
-    const SENDER_EMAIL = `"FromStore2Door" <admin@neilussolutions.com>`;
+    // Dynamically use the configured SMTP user as the sender email
+    const SENDER_EMAIL = `"FromStore2Door" <${SMTP_USER || 'admin@neilussolutions.com'}>`;
 
     // If SMTP is not configured, we run in SIMULATION MODE
     if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
@@ -54,12 +55,12 @@ export async function POST(request: Request) {
             <p>--</p>
             <p>Best regards,</p>
             <p><b>The FromStore2Door Team</b></p>
-            <p><a href="mailto:admin@neilussolutions.com">admin@neilussolutions.com</a></p>
+            <p><a href="mailto:${SMTP_USER}">${SMTP_USER}</a></p>
         `;
 
         const fullBodyHtml = `<div style="font-family: sans-serif; line-height: 1.6; color: #333;"><p>${body.replace(/\n/g, "<br>")}</p>${signatureHtml}</div>`;
 
-        // Configure Transporter for Gmail or General SMTP
+        // Configure Transporter
         const transporter = nodemailer.createTransport({
             host: SMTP_HOST,
             port: Number(SMTP_PORT),
@@ -72,14 +73,14 @@ export async function POST(request: Request) {
 
         const mailOptions: nodemailer.SendMailOptions = {
             from: SENDER_EMAIL,
-            replyTo: 'admin@neilussolutions.com',
+            replyTo: SMTP_USER,
             subject: subject,
-            text: body + "\n\n--\nBest regards,\nThe FromStore2Door Team",
+            text: body + `\n\n--\nBest regards,\nThe FromStore2Door Team\n${SMTP_USER}`,
             html: fullBodyHtml,
         };
 
         if (Array.isArray(to)) {
-            mailOptions.to = `"Undisclosed Recipients" <admin@neilussolutions.com>`;
+            mailOptions.to = `"Undisclosed Recipients" <${SMTP_USER}>`;
             mailOptions.bcc = to;
         } else {
             mailOptions.to = to;
