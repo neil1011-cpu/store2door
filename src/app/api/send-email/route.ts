@@ -1,19 +1,18 @@
-
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { serverTimestamp } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Standardized Email API with SMTP support and unified Admin Logging.
- * Reverted admin email association to admin@neilussolutions.com as requested.
+ * @fileOverview Standardized Email API with Gmail SMTP support and unified Admin Logging.
+ * Reverted admin email association to admin@neilussolutions.com.
  */
 
 export async function POST(request: Request) {
     const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
     const { to, subject, body, recipientName } = await request.json();
 
-    const logEmail = async (status: 'sent' | 'simulated' | 'failed') => {
+    const logEmail = async (status: 'sent' | 'simulated' | 'failed', error?: string) => {
         try {
             await adminDb.collection('sent_emails').add({
                 recipientName: recipientName || (Array.isArray(to) ? `Multiple (${to.length})` : to),
@@ -21,10 +20,11 @@ export async function POST(request: Request) {
                 subject,
                 body,
                 status,
+                error: error || null,
                 sentAt: serverTimestamp(),
             });
-        } catch (error) {
-            console.error("[EMAIL LOG ERROR]:", error);
+        } catch (dbError) {
+            console.error("[EMAIL LOG ERROR]:", dbError);
         }
     };
 
@@ -36,11 +36,10 @@ export async function POST(request: Request) {
         console.log(`TO: ${to}`);
         console.log(`SUBJECT: ${subject}`);
         console.log("-------------------------------------");
-        console.log("To send real emails, please configure SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS in your .env file.");
         
         await logEmail('simulated');
         return NextResponse.json({ 
-            message: 'Email processed in simulation mode. No real email was sent.',
+            message: 'Email processed in simulation mode. Fill in SMTP credentials in .env to send real emails.',
             simulated: true 
         });
     }
@@ -60,11 +59,15 @@ export async function POST(request: Request) {
 
         const fullBodyHtml = `<div style="font-family: sans-serif; line-height: 1.6; color: #333;"><p>${body.replace(/\n/g, "<br>")}</p>${signatureHtml}</div>`;
 
+        // Configure Transporter for Gmail or General SMTP
         const transporter = nodemailer.createTransport({
             host: SMTP_HOST,
             port: Number(SMTP_PORT),
-            secure: Number(SMTP_PORT) === 465, 
-            auth: { user: SMTP_USER, pass: SMTP_PASS },
+            secure: Number(SMTP_PORT) === 465, // true for 465, false for other ports
+            auth: {
+                user: SMTP_USER,
+                pass: SMTP_PASS,
+            },
         });
 
         const mailOptions: nodemailer.SendMailOptions = {
@@ -89,9 +92,9 @@ export async function POST(request: Request) {
 
     } catch (error: any) {
         console.error('[SMTP FATAL ERROR]:', error);
-        await logEmail('failed');
+        await logEmail('failed', error.message);
         return NextResponse.json({ 
-            message: 'Failed to transmit email through SMTP provider.', 
+            message: 'Failed to transmit email. If using Gmail, ensure you are using an App Password.', 
             error: error.message 
         }, { status: 500 });
     }
