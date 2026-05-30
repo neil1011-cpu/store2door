@@ -67,6 +67,11 @@ const WarehouseIcon = (props: React.SVGProps<SVGSVGElement>) => (
 export function DashboardTab({ details }: { details: UserProfile }) {
   const firestore = useFirestore();
   const [logicwarePackage, setLogicwarePackage] = useState<any | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !details) return null;
@@ -96,6 +101,17 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   }, [details.mailboxNumber]);
 
   const recentShipment = shipments?.[0] || logicwarePackage;
+
+  const formatDate = (date: any) => {
+    if (!date) return 'N/A';
+    if (!isMounted) return '...'; // Prevent hydration mismatch
+    try {
+        if (date.toDate) return date.toDate().toLocaleString();
+        return new Date(date).toLocaleString();
+    } catch (e) {
+        return 'N/A';
+    }
+  };
 
   return (
     <Card>
@@ -148,7 +164,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                     <div className="space-y-1">
                         <span className="text-muted-foreground block text-xs uppercase font-semibold">Last Update</span>
                         <span className="font-medium text-foreground">
-                            {recentShipment.shippingDate?.toDate ? recentShipment.shippingDate.toDate().toLocaleString() : new Date(recentShipment.shippingDate).toLocaleString()}
+                            {formatDate(recentShipment.shippingDate)}
                         </span>
                     </div>
                 </div>
@@ -201,10 +217,12 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber 
   const [contents, setContents] = useState('');
   const [invoice, setInvoice] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
 
   useEffect(() => {
+    setIsMounted(true);
     if (prefilledTrackingNumber) setTrackingNumber(prefilledTrackingNumber);
   }, [prefilledTrackingNumber]);
 
@@ -283,7 +301,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber 
                 <Table>
                     <TableHeader><TableRow><TableHead>Tracking #</TableHead><TableHead>Contents</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                     <TableBody>
-                        {isLoadingPreAlerts ? (
+                        {isLoadingPreAlerts || !isMounted ? (
                             <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
                         ) : preAlerts && preAlerts.length > 0 ? (
                             preAlerts.map(alert => (
@@ -311,6 +329,11 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
   const [selectedTrackingNumber, setSelectedTrackingNumber] = useState('');
   const [logicwareShipments, setLogicwareShipments] = useState<any[]>([]);
   const [isFetchingLw, setIsFetchingLw] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !customerId) return null;
@@ -347,23 +370,23 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
     toast({ title: "Redirecting...", description: `Redirecting to payment for JMD $${shipment.cost?.toFixed(2)}` });
   };
 
-  const preAlertMap = new Map(userPreAlerts?.map(pa => [pa.trackingNumber.toUpperCase(), pa]));
+  const preAlertMap = useMemo(() => new Map(userPreAlerts?.map(pa => [pa.trackingNumber.toUpperCase(), pa])), [userPreAlerts]);
   
   const combinedPackages = useMemo(() => {
       const local = userShipments || [];
       const localTracking = new Set(local.map(s => s.trackingNumber.toUpperCase()));
       
       // Merge logicware only if not already in local firebase
-      const external = logicwareShipments.filter(s => !localTracking.has(s.trackingNumber.toUpperCase()));
+      const external = logicwareShipments.filter(s => !localTracking.has((s.trackingNumber || '').toUpperCase()));
       
       return [...local, ...external].sort((a, b) => {
-          const dateA = a.shippingDate?.toMillis?.() || new Date(a.shippingDate).getTime() || 0;
-          const dateB = b.shippingDate?.toMillis?.() || new Date(b.shippingDate).getTime() || 0;
+          const dateA = a.shippingDate?.toMillis?.() || (a.shippingDate ? new Date(a.shippingDate).getTime() : 0) || 0;
+          const dateB = b.shippingDate?.toMillis?.() || (b.shippingDate ? new Date(b.shippingDate).getTime() : 0) || 0;
           return dateB - dateA;
       });
   }, [userShipments, logicwareShipments]);
 
-  const isLoading = isLoadingShipments || isLoadingPreAlerts || isFetchingLw;
+  const isLoading = isLoadingShipments || isLoadingPreAlerts || isFetchingLw || !isMounted;
 
   return (
     <Card>

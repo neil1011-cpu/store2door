@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRouter } from 'next/navigation';
@@ -12,6 +13,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAccountProfile } from './layout';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { useState, useEffect } from 'react';
 
 const featureCards = [
     {
@@ -56,6 +58,11 @@ export default function AccountPage() {
     const { toast } = useToast();
     const auth = useAuth();
     const userProfile = useAccountProfile();
+    const [year, setYear] = useState<number | null>(null);
+
+    useEffect(() => {
+        setYear(new Date().getFullYear());
+    }, []);
 
     const handleSignOut = async () => {
         try {
@@ -117,7 +124,7 @@ export default function AccountPage() {
             </div>
 
             <div className="mt-16 text-center text-sm text-muted-foreground border-t pt-8">
-                <p>&copy; {new Date().getFullYear()} FromStore2Door. All rights reserved.</p>
+                <p>&copy; {year || '...'} FromStore2Door. All rights reserved.</p>
             </div>
         </div>
     );

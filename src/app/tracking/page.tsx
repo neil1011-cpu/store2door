@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -18,7 +19,12 @@ export default function TrackingPage() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const firestore = useFirestore();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,9 +81,14 @@ export default function TrackingPage() {
 
   const formatTimestamp = (ts: any) => {
     if (!ts) return 'N/A';
-    if (typeof ts === 'string') return new Date(ts).toLocaleDateString();
-    if (typeof ts.toDate === 'function') return ts.toDate().toLocaleDateString();
-    return new Date(ts).toLocaleDateString();
+    if (!isMounted) return '...'; // Prevent hydration mismatch
+    try {
+        if (typeof ts === 'string') return new Date(ts).toLocaleDateString();
+        if (typeof ts.toDate === 'function') return ts.toDate().toLocaleDateString();
+        return new Date(ts).toLocaleDateString();
+    } catch (e) {
+        return 'N/A';
+    }
   };
 
   return (
