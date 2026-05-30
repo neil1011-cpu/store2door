@@ -1,76 +1,64 @@
 
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import { getApps, initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore, serverTimestamp } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebaseAdmin';
+import { serverTimestamp } from 'firebase-admin/firestore';
 
-function getAdminDB() {
-  const serviceAccount = {
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  };
-
-  if (!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
-    return null;
-  }
-
-  if (!getApps().length) {
-    initializeApp({
-      credential: cert(serviceAccount)
-    });
-  }
-  return getFirestore();
-}
+/**
+ * @fileOverview Standardized Email API with SMTP support and unified Admin Logging.
+ * Reverted admin email association to admin@neilussolutions.com as requested.
+ */
 
 export async function POST(request: Request) {
     const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
     const { to, subject, body, recipientName } = await request.json();
 
-    const db = getAdminDB();
-
-    const logEmail = async () => {
-        if (!db) return;
+    const logEmail = async (status: 'sent' | 'simulated' | 'failed') => {
         try {
-            const emailLog = {
+            await adminDb.collection('sent_emails').add({
                 recipientName: recipientName || (Array.isArray(to) ? `Multiple (${to.length})` : to),
                 recipientEmail: Array.isArray(to) ? to.join(', ') : to,
                 subject,
                 body,
+                status,
                 sentAt: serverTimestamp(),
-            };
-            await db.collection('sent_emails').add(emailLog);
+            });
         } catch (error) {
-            console.error("Log error:", error);
+            console.error("[EMAIL LOG ERROR]:", error);
         }
     };
 
-    // Reverted sender email
     const SENDER_EMAIL = `"FromStore2Door" <admin@neilussolutions.com>`;
 
+    // If SMTP is not configured, we run in SIMULATION MODE
     if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
-        console.log("--- SIMULATING EMAIL (SMTP not configured) ---");
-        console.log(`From: ${SENDER_EMAIL}`);
-        console.log(`To: ${to}`);
-        console.log(`Subject: ${subject}`);
-        await logEmail();
-        return NextResponse.json({ message: 'Email sent successfully (simulated)!' });
+        console.warn("--- EMAIL SIMULATION MODE ACTIVE ---");
+        console.log(`TO: ${to}`);
+        console.log(`SUBJECT: ${subject}`);
+        console.log("-------------------------------------");
+        console.log("To send real emails, please configure SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS in your .env file.");
+        
+        await logEmail('simulated');
+        return NextResponse.json({ 
+            message: 'Email processed in simulation mode. No real email was sent.',
+            simulated: true 
+        });
     }
 
     try {
         if (!to || !subject || !body) {
-            return NextResponse.json({ message: 'Missing fields' }, { status: 400 });
+            return NextResponse.json({ message: 'Missing required email fields' }, { status: 400 });
         }
         
         const signatureHtml = `
-<br><br>
-<p>--</p>
-<p>Best regards,</p>
-<p><b>The FromStore2Door Team</b></p>
-<p><a href="mailto:admin@neilussolutions.com">admin@neilussolutions.com</a></p>
-`;
+            <br><br>
+            <p>--</p>
+            <p>Best regards,</p>
+            <p><b>The FromStore2Door Team</b></p>
+            <p><a href="mailto:admin@neilussolutions.com">admin@neilussolutions.com</a></p>
+        `;
 
-        const fullBodyHtml = `<p>${body.replace(/\n/g, "<br>")}</p>${signatureHtml}`;
+        const fullBodyHtml = `<div style="font-family: sans-serif; line-height: 1.6; color: #333;"><p>${body.replace(/\n/g, "<br>")}</p>${signatureHtml}</div>`;
 
         const transporter = nodemailer.createTransport({
             host: SMTP_HOST,
@@ -95,12 +83,16 @@ export async function POST(request: Request) {
         }
 
         await transporter.sendMail(mailOptions);
-        await logEmail();
+        await logEmail('sent');
 
         return NextResponse.json({ message: 'Email sent successfully!' });
 
     } catch (error: any) {
-        console.error('SMTP Error:', error);
-        return NextResponse.json({ message: 'Failed to send email.', error: error.message }, { status: 500 });
+        console.error('[SMTP FATAL ERROR]:', error);
+        await logEmail('failed');
+        return NextResponse.json({ 
+            message: 'Failed to transmit email through SMTP provider.', 
+            error: error.message 
+        }, { status: 500 });
     }
 }
