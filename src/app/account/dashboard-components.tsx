@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -73,15 +74,15 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   }, []);
 
   const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !details) return null;
+    if (!firestore || !details?.id) return null;
     return query(collection(firestore, 'users', details.id, 'shipments'), orderBy('shippingDate', 'desc'), limit(1));
-  }, [firestore, details]);
+  }, [firestore, details?.id]);
   const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
 
   // Check Logicware network for missing local shipments
   useEffect(() => {
     const checkLogicware = async () => {
-        if (!details.mailboxNumber) return;
+        if (!details?.mailboxNumber) return;
         try {
             const res = await fetch('/api/admin/logicware-shipments', {
                 method: 'POST',
@@ -97,7 +98,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
         } catch (e) {}
     };
     checkLogicware();
-  }, [details.mailboxNumber]);
+  }, [details?.mailboxNumber]);
 
   const recentShipment = shipments?.[0] || logicwarePackage;
 
@@ -105,7 +106,9 @@ export function DashboardTab({ details }: { details: UserProfile }) {
     if (!date) return 'N/A';
     if (!isMounted) return '...'; // CRITICAL: Prevent hydration mismatch
     try {
-        if (date.toDate) return date.toDate().toLocaleString();
+        if (date.toDate && typeof date.toDate === 'function') {
+            return date.toDate().toLocaleString();
+        }
         return new Date(date).toLocaleString();
     } catch (e) {
         return 'N/A';
@@ -128,7 +131,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
             {isLoadingShipments || !isMounted ? (
               <CardContent className="pt-6">
                 <div className="flex justify-center items-center h-24">
-                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               </CardContent>
             ) : recentShipment ? (
@@ -301,7 +304,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber 
                     <TableHeader><TableRow><TableHead>Tracking #</TableHead><TableHead>Contents</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                     <TableBody>
                         {isLoadingPreAlerts || !isMounted ? (
-                            <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                            <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
                         ) : preAlerts && preAlerts.length > 0 ? (
                             preAlerts.map(alert => (
                                 <TableRow key={alert.id}>
@@ -358,7 +361,7 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
             });
             const data = await res.json();
             if (data.success) {
-                setLogicwareShipments(data.shipments);
+                setLogicwareShipments(data.shipments || []);
             }
         } catch (e) {} finally { setIsFetchingLw(false); }
     };
@@ -405,7 +408,7 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
           </TableHeader>
           <TableBody>
             {isLoading && combinedPackages.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
             ) : combinedPackages.length > 0 ? (
                 combinedPackages.map((shipment) => {
                   const hasPreAlert = preAlertMap.has(shipment.trackingNumber.toUpperCase());
