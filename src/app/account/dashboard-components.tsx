@@ -28,6 +28,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const getStatusVariant = (status: ShipmentStatus | string) => {
+  if (!status) return 'default';
   switch (status) {
     case 'In Transit': 
     case 'Being Shipped':
@@ -50,6 +51,7 @@ const getStatusVariant = (status: ShipmentStatus | string) => {
 };
 
 const getStatusIcon = (status: ShipmentStatus | string) => {
+    if (!status) return <Package className="h-4 w-4" />;
     if (status.includes('Warehouse')) return <WarehouseIcon className="h-4 w-4" />;
     if (status.includes('Jamaica')) return <MapPin className="h-4 w-4" />;
     if (status.includes('Delivered')) return <CheckCircle2 className="h-4 w-4" />;

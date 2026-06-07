@@ -25,6 +25,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
 
 const getStatusVariant = (status: ShipmentStatus | string) => {
+  if (!status) return 'default';
   switch (status) {
     case 'In Transit':
     case 'Being Shipped':
@@ -144,10 +145,10 @@ export default function ShippingPage() {
     if (!searchTerm) return all;
     const lowerTerm = searchTerm.toLowerCase();
     return all.filter(s => 
-        s.trackingNumber.toLowerCase().includes(lowerTerm) || 
-        (s as any).user?.fullName?.toLowerCase().includes(lowerTerm) ||
-        (s as any).shipperName?.toLowerCase().includes(lowerTerm) ||
-        s.contents.toLowerCase().includes(lowerTerm)
+        (s.trackingNumber || '').toLowerCase().includes(lowerTerm) || 
+        ((s as any).user?.fullName || '').toLowerCase().includes(lowerTerm) ||
+        ((s as any).shipperName || '').toLowerCase().includes(lowerTerm) ||
+        (s.contents || '').toLowerCase().includes(lowerTerm)
     );
   }, [firebaseShipments, logicwareShipments, users, searchTerm]);
 

@@ -58,7 +58,7 @@ export default function TrackingPage() {
                 });
                 const lwData = await lwRes.json();
                 if (lwData.success) {
-                    const match = lwData.shipments.find((s: any) => s.trackingNumber === tid);
+                    const match = lwData.shipments.find((s: any) => (s.trackingNumber || '').toUpperCase() === tid);
                     if (match) {
                         setShipment({ ...match, source: 'External' });
                     }
@@ -74,6 +74,7 @@ export default function TrackingPage() {
   };
   
   const getStatusVariant = (status: string) => {
+    if (!status) return 'secondary';
     if (status.includes('Delivered')) return 'outline';
     if (status.includes('Transit') || status.includes('Shipped')) return 'default';
     return 'secondary';

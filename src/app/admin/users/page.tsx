@@ -94,9 +94,9 @@ export default function UsersPage() {
       if (!searchTerm) return all;
       const lower = searchTerm.toLowerCase();
       return all.filter(u => 
-          u.fullName.toLowerCase().includes(lower) ||
-          u.email.toLowerCase().includes(lower) ||
-          u.mailboxNumber?.toLowerCase().includes(lower)
+          (u.fullName || '').toLowerCase().includes(lower) ||
+          (u.email || '').toLowerCase().includes(lower) ||
+          (u.mailboxNumber || '').toLowerCase().includes(lower)
       );
   }, [users, logicwareUsers, searchTerm]);
 
@@ -300,6 +300,10 @@ function ImportCSVDialog() {
         reader.onload = async (event) => {
             const text = event.target?.result as string;
             const lines = text.split('\n').filter(line => line.trim() !== '');
+            if (lines.length < 1) {
+              setIsSubmitting(false);
+              return;
+            }
             const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
             const dataRows = lines.slice(1);
             
@@ -313,6 +317,7 @@ function ImportCSVDialog() {
                 const values = row.split(',').map(v => v.trim());
                 const uData: any = {};
                 headers.forEach((header, i) => {
+                    if (!header) return;
                     if (header.includes('firstname')) uData.firstName = values[i];
                     else if (header.includes('lastname')) uData.lastName = values[i];
                     else if (header === 'email') uData.email = values[i];
@@ -330,11 +335,11 @@ function ImportCSVDialog() {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${idToken}`
                         },
-                        body: JSON.stringify({
+                        super: JSON.stringify({
                             ...uData,
                             defaultPassword: 'User@' + Math.floor(1000 + Math.random() * 9000),
                         })
-                    });
+                    } as any);
                     if (res.ok) successCount++;
                     else failCount++;
                 } catch (err) {
