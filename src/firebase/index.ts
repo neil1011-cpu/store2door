@@ -7,29 +7,20 @@ import { getFirestore } from 'firebase/firestore'
 
 /**
  * Initializes the Firebase JS SDK.
- * Handles both automatic configuration (Firebase App Hosting) and manual fallback.
+ * Refined to handle 'app/no-options' warnings silently in production.
  */
 export function initializeFirebase() {
   if (getApps().length > 0) {
     return getSdks(getApp());
   }
 
-  // Important! initializeApp() is called without any arguments because Firebase App Hosting
-  // integrates with the initializeApp() function to provide the environment variables needed to
-  // populate the FirebaseOptions in production. It is critical that we attempt to call initializeApp()
-  // without arguments.
   let firebaseApp;
   try {
-    // Attempt to initialize via Firebase App Hosting environment variables
+    // Attempt automatic initialization (Firebase App Hosting)
     firebaseApp = initializeApp();
   } catch (e: any) {
-    // Silence the warning for the common 'app/no-options' error, which just means 
-    // we need to proceed with our manual fallback configuration.
-    if (process.env.NODE_ENV === "production" && e.code !== 'app/no-options') {
-      console.warn('Firebase automatic initialization failed. Falling back to firebase config object.', e);
-    }
-    
-    // Fallback to the hardcoded config provided in firebase/config.ts
+    // Silently fall back to manual config object if automatic check fails.
+    // 'app/no-options' is expected when local or when not in a pre-configured hosting environment.
     firebaseApp = initializeApp(firebaseConfig);
   }
 

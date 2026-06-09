@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +8,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { AppLogo } from '@/components/app-logo';
 import placeholderImages from '@/lib/placeholder-images.json';
+import { useState, useEffect } from 'react';
 
 const features = [
   {
@@ -44,6 +47,12 @@ const testimonials = [
 ]
 
 export default function HomePage() {
+  const [year, setYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    setYear(new Date().getFullYear());
+  }, []);
+
   return (
     <div className="flex flex-col bg-background font-body">
       {/* Hero Section with Professional Cargo Logistics Imagery */}
@@ -121,47 +130,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-24 border-t">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="grid md:grid-cols-3 gap-12">
-            {features.map((f) => (
-              <Card key={f.title} className="text-center border-none shadow-none bg-transparent hover:translate-y-[-4px] transition-transform">
-                <CardHeader className="items-center">
-                  <div className="bg-primary/5 p-6 rounded-3xl mb-4 border border-primary/10">{f.icon}</div>
-                  <CardTitle className="text-2xl font-black uppercase tracking-tight italic">{f.title}</CardTitle>
-                </CardHeader>
-                <CardContent><p className="text-muted-foreground leading-relaxed text-sm">{f.description}</p></CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-       {/* Testimonials */}
-       <section className="py-24 bg-zinc-950 text-white">
-        <div className="container mx-auto px-4 md:px-6 text-center space-y-16">
-          <h2 className="text-4xl font-black tracking-tighter uppercase italic">Client Experiences</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {testimonials.map((t) => (
-                <Card key={t.name} className="bg-white/5 border-white/10 text-white text-left h-full backdrop-blur-sm">
-                    <CardContent className="pt-10">
-                        <Quote className="h-10 w-10 text-primary opacity-50 mb-6" />
-                        <p className="text-lg italic mb-8 font-medium">"{t.review}"</p>
-                        <div className="flex items-center gap-4">
-                             <div className="h-1 w-8 bg-primary rounded-full" />
-                             <div>
-                                <p className="font-black uppercase tracking-tighter italic">{t.name}</p>
-                                <p className="text-[10px] opacity-60 uppercase font-bold tracking-widest">{t.role}</p>
-                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* CTA Footer */}
       <footer className="py-16 bg-background border-t">
          <div className="container mx-auto px-4 md:px-6 flex flex-col items-center text-center gap-8">
@@ -173,7 +141,7 @@ export default function HomePage() {
                 <Link href="/tracking" className="hover:text-primary transition-colors">Global Tracking</Link>
             </div>
             <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-8">
-                &copy; {new Date().getFullYear()} FromStore2Door Global Logistics. Portmore, Jamaica.
+                &copy; {year || '...'} FromStore2Door Global Logistics. Portmore, Jamaica.
             </p>
          </div>
       </footer>

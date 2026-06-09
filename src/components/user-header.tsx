@@ -27,7 +27,6 @@ export function UserHeader() {
     setMounted(true);
   }, []);
 
-  // Show skeleton during initial load or while determining auth state
   if (!mounted || isUserLoading) {
     return (
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all">
@@ -43,8 +42,9 @@ export function UserHeader() {
   }
 
   // Force Sign In/Sign Up buttons on Homepage to avoid confusion with persistent login
-  // or if the user is not logged in.
-  const showAuthActions = pathname === '/' || !user;
+  // Per user request: "Stop this once a user gets to the home page it needs to tell them to sign in or sign up"
+  const isHomepage = pathname === '/';
+  const showAuthActions = isHomepage || !user;
 
   const userActions = !showAuthActions ? (
     <div className="flex items-center gap-2">
