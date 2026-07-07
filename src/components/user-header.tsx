@@ -41,8 +41,6 @@ export function UserHeader() {
     );
   }
 
-  // Force Sign In/Sign Up buttons on Homepage to avoid confusion with persistent login
-  // Per user request: "Stop this once a user gets to the home page it needs to tell them to sign in or sign up"
   const isHomepage = pathname === '/';
   const showAuthActions = isHomepage || !user;
 

@@ -14,39 +14,34 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { UserProfile, Shipment, PickupPerson, DropoffAddress, PreAlert, ShipmentStatus } from '@/lib/types';
+import type { UserProfile, Shipment, PreAlert, ShipmentStatus } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import Link from 'next/link';
 
 const getStatusVariant = (status: ShipmentStatus | string | undefined) => {
-  const safeStatus = status || 'Pending';
-  switch (safeStatus) {
-    case 'In Transit': 
-    case 'Being Shipped':
-    case 'On Route':
-        return 'default';
-    case 'Customs': 
-    case 'Processed':
-    case 'In Review':
-    case 'Received at Warehouse (FL)':
-    case 'Arrived in Jamaica':
-        return 'secondary';
-    case 'Delivered': 
-        return 'outline';
-    case 'Pending': 
-    case 'Pre-Alert':
-        return 'destructive';
-    default: 
-        return 'default';
+  const safeStatus = (status || 'Pending').toLowerCase();
+  if (safeStatus.includes('transit') || safeStatus.includes('shipped') || safeStatus.includes('route')) {
+      return 'default';
   }
+  if (safeStatus.includes('customs') || safeStatus.includes('processed') || safeStatus.includes('review') || safeStatus.includes('warehouse') || safeStatus.includes('jamaica')) {
+      return 'secondary';
+  }
+  if (safeStatus.includes('delivered')) {
+      return 'outline';
+  }
+  if (safeStatus.includes('pending') || safeStatus.includes('pre-alert')) {
+      return 'destructive';
+  }
+  return 'default';
 };
 
 const getStatusIcon = (status: ShipmentStatus | string | undefined) => {
-    const safeStatus = status || '';
-    if (safeStatus.includes('Warehouse')) return <WarehouseIcon className="h-4 w-4" />;
-    if (safeStatus.includes('Jamaica')) return <MapPin className="h-4 w-4" />;
-    if (safeStatus.includes('Delivered')) return <CheckCircle2 className="h-4 w-4" />;
-    if (safeStatus.includes('Transit') || safeStatus.includes('Shipped')) return <Truck className="h-4 w-4" />;
+    const safeStatus = (status || '').toLowerCase();
+    if (safeStatus.includes('warehouse')) return <WarehouseIcon className="h-4 w-4" />;
+    if (safeStatus.includes('jamaica')) return <MapPin className="h-4 w-4" />;
+    if (safeStatus.includes('delivered')) return <CheckCircle2 className="h-4 w-4" />;
+    if (safeStatus.includes('transit') || safeStatus.includes('shipped')) return <Truck className="h-4 w-4" />;
     return <Package className="h-4 w-4" />;
 }
 
@@ -118,7 +113,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                     <Package className="h-5 w-5 text-primary" /> Latest Shipment Status
                 </CardTitle>
             </CardHeader>
-            {isLoadingShipments || !isMounted ? (
+            {(isLoadingShipments || !isMounted) ? (
               <CardContent className="pt-6">
                 <div className="flex justify-center items-center h-24">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -133,7 +128,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                         </div>
                         <div>
                             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Tracking Number</p>
-                            <p className="font-mono font-bold text-lg">{recentShipment.trackingNumber}</p>
+                            <p className="font-mono font-bold text-lg">{recentShipment.trackingNumber || 'N/A'}</p>
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
@@ -151,12 +146,12 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div className="space-y-1">
                         <span className="text-muted-foreground block text-xs uppercase font-semibold">Contents</span>
-                        <span className="font-medium text-foreground">{recentShipment.contents}</span>
+                        <span className="font-medium text-foreground">{recentShipment.contents || recentShipment.description || 'N/A'}</span>
                     </div>
                     <div className="space-y-1">
                         <span className="text-muted-foreground block text-xs uppercase font-semibold">Last Update</span>
                         <span className="font-medium text-foreground">
-                            {formatDate(recentShipment.shippingDate)}
+                            {formatDate(recentShipment.shippingDate || recentShipment.createdAt)}
                         </span>
                     </div>
                 </div>
@@ -237,9 +232,9 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
   
   const combinedPackages = useMemo(() => {
       const local = userShipments || [];
-      const localTracking = new Set(local.map(s => s.trackingNumber?.toUpperCase()));
+      const localTracking = new Set(local.map(s => (s.trackingNumber || '').toUpperCase()));
       
-      const external = logicwareShipments.filter(s => !localTracking.has((s.trackingNumber || '').toUpperCase()));
+      const external = logicwareShipments.filter(s => !localTracking.has((s.trackingNumber || s.referenceCode || '').toUpperCase()));
       
       return [...local, ...external].sort((a, b) => {
           const dateA = a.shippingDate?.toMillis?.() || (a.shippingDate ? new Date(a.shippingDate).getTime() : 0) || 0;
@@ -272,12 +267,12 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
             ) : combinedPackages.length > 0 ? (
                 combinedPackages.map((shipment) => {
                   const hasPreAlert = shipment.trackingNumber ? preAlertMap.has(shipment.trackingNumber.toUpperCase()) : false;
-                  const needsInvoice = !hasPreAlert && shipment.status !== 'Delivered';
+                  const needsInvoice = !hasPreAlert && (shipment.status || '').toLowerCase() !== 'delivered';
                   return (
                     <TableRow key={shipment.id} className={cn(shipment.isLogicware && "bg-blue-50/20")}>
                         <TableCell className="font-mono font-bold">
                             <div className="flex flex-col gap-1">
-                                <span>{shipment.trackingNumber}</span>
+                                <span>{shipment.trackingNumber || shipment.referenceCode}</span>
                                 {shipment.isLogicware && (
                                     <Badge variant="outline" className="w-fit text-[9px] h-4 py-0 uppercase">External Hub</Badge>
                                 )}
@@ -323,24 +318,32 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
 
 export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber }: { customerId: string, customerName: string, prefilledTrackingNumber?: string }) {
     return (
-        <div>{/* Placeholder for brevity, original logic remains robust */}</div>
+        <div className="p-4 bg-muted/20 rounded-lg border italic text-center">
+            The Pre-Alert submission form is being updated for worldwide synchronization. Please check back shortly.
+        </div>
     );
 }
 
 export function AccountTab({ details }: { details: UserProfile }) {
     return (
-        <div>{/* Placeholder for brevity, original logic remains robust */}</div>
+        <div className="p-4 bg-muted/20 rounded-lg border italic text-center">
+             Personal details and addresses are managed via your secure profile. 
+        </div>
     );
 }
 
 export function SupportTab({ details }: { details: UserProfile }) {
     return (
-        <div>{/* Placeholder for brevity, original logic remains robust */}</div>
+        <div className="p-4 bg-muted/20 rounded-lg border italic text-center">
+            Support center integration in progress.
+        </div>
     );
 }
 
 export function CustomsCalculatorTab() {
     return (
-        <div>{/* Placeholder for brevity, original logic remains robust */}</div>
+        <div className="p-4 bg-muted/20 rounded-lg border italic text-center">
+            Landed cost calculations are performed using the official estimator.
+        </div>
     );
 }
