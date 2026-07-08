@@ -85,7 +85,7 @@ const generateInvoiceHtml = (invoiceData: {
           <div class="company-details">
             <p style="font-weight: bold; font-size: 1.2em;">FromStore2Door</p>
             <p>3507 NW 19th ST</p>
-            <p>Lauderdale Lake, Florida, 33311-4224</p>
+            <p>Lauderdale Lake, FL, 33311-4224</p>
             <p>info@fromstore2door.com</p>
           </div>
         </div>
@@ -273,7 +273,7 @@ export function CreateInvoiceDialog({
                         <Label>Line Items</Label>
                         <div className="relative w-full overflow-auto">
                             <Table>
-                                <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="w-24">Qty</TableHead><TableHead className="w-32 text-right">Price (JMD)</TableHead><TableHead className="w-32 text-right">Total (JMD)</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="w-24">Qty</TableHead><TableHead className="text-right">Price (JMD)</TableHead><TableHead className="text-right">Total (JMD)</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {lineItems.map((item, index) => (
                                         <TableRow key={index}>

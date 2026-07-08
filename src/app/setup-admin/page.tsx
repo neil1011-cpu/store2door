@@ -67,7 +67,7 @@ export default function SetupAdminPage() {
             address1: '3507 NW 19th ST',
             address2: `FSTD-ADMIN`,
             city: 'Lauderdale Lake',
-            state: 'Florida',
+            state: 'FL',
             zip: '33311-4224',
         },
         createdAt: serverTimestamp(),
@@ -150,7 +150,7 @@ export default function SetupAdminPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-           <Alert className="mb-6 bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-900">
+           <Alert className="mb-6 bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-900">
                 <AlertCircle className="h-4 w-4 text-blue-600" />
                 <AlertTitle>Action Required</AlertTitle>
                 <AlertDescription className="text-xs">

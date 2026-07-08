@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy, Zap, UserPlus, Phone, User, X } from 'lucide-react';
+import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy, Zap, UserPlus, Phone, User, X, Mail } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -442,7 +442,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
             await updateDoc(doc(firestore, 'users', details.id), { phone, trn });
             toast({ title: "Profile Secured", description: "Your contact details have been updated." });
         } catch (e: any) {
-            toast({ title: "Save Failed", description: e.message, variant: "destructive" });
+            toast({ title: "Save Failed", description: e.message, variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -476,17 +476,26 @@ export function AccountTab({ details }: { details: UserProfile }) {
                         <CardTitle className="text-xl font-black uppercase italic tracking-tighter">Your US Shipping Hub</CardTitle>
                         <CardDescription className="text-primary-foreground/70 font-bold text-[10px] uppercase tracking-widest">Use this address at checkout world-wide.</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-6 font-mono text-sm leading-relaxed border-x border-b rounded-b-xl">
-                        <p className="font-bold text-primary">{details.fullName}</p>
-                        <p>{details.address.address1}</p>
-                        <p className="bg-orange-50 dark:bg-orange-950/20 px-2 py-0.5 rounded text-orange-600 font-black inline-block mt-1">{details.address.address2}</p>
-                        <p>{details.address.city}, {details.address.state} {details.address.zip}</p>
-                        <Button variant="outline" size="sm" className="mt-4 w-full border-2 font-bold uppercase tracking-tight" onClick={() => {
+                    <CardContent className="p-6 font-mono text-sm leading-relaxed border-x border-b rounded-b-xl bg-muted/5">
+                        <div className="space-y-1">
+                            <p className="font-black text-primary uppercase text-xs tracking-widest opacity-60">Full Name</p>
+                            <p className="font-bold text-lg">{details.fullName}</p>
+                        </div>
+                        <Separator className="my-4 opacity-10" />
+                        <div className="space-y-1">
+                            <p className="font-black text-primary uppercase text-xs tracking-widest opacity-60">Shipping Address</p>
+                            <p className="text-base">{details.address.address1}</p>
+                            <p className="bg-orange-100 dark:bg-orange-950/40 px-3 py-1 rounded text-orange-600 font-black inline-block mt-2 border border-orange-200">
+                                {details.address.address2}
+                            </p>
+                            <p className="mt-1">{details.address.city}, {details.address.state} {details.address.zip}</p>
+                        </div>
+                        <Button variant="outline" size="sm" className="mt-6 w-full border-2 font-black uppercase tracking-tighter italic h-12" onClick={() => {
                             const addr = `${details.fullName}\n${details.address.address1}\n${details.address.address2}\n${details.address.city}, ${details.address.state} ${details.address.zip}`;
                             navigator.clipboard.writeText(addr);
-                            toast({ title: "Copied to clipboard" });
+                            toast({ title: "Identity Copied", description: "Global shipping address ready for checkout." });
                         }}>
-                            <Copy className="h-3 w-3 mr-2" /> Copy Full Address
+                            <Copy className="h-4 w-4 mr-2" /> Copy Full Logistics Identity
                         </Button>
                     </CardContent>
                 </Card>

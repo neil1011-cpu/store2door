@@ -202,7 +202,7 @@ export default function POSPage() {
                         <div className="text-center border-b pb-4">
                             <h1 className="text-xl font-bold uppercase tracking-tighter">FromStore2Door</h1>
                             <p className="text-[10px] mt-1">3507 NW 19th ST</p>
-                            <p className="text-[10px]">Lauderdale Lake, Florida, 33311-4224</p>
+                            <p className="text-[10px]">Lauderdale Lake, FL, 33311-4224</p>
                             <p className="text-[10px] font-bold mt-2">admin@neilussolutions.com</p>
                         </div>
 

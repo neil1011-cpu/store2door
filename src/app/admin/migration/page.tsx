@@ -330,7 +330,7 @@ const MIGRATION_DATA = [
 const NEW_DEFAULT_ADDRESS = {
     address1: '3507 NW 19th ST',
     city: 'Lauderdale Lake',
-    state: 'Florida',
+    state: 'FL',
     zip: '33311-4224',
 };
 

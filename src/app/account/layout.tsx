@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { UserProfile } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { createContext, useContext } from 'react';
@@ -38,6 +38,22 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             router.push('/account/change-password');
         }
     }, [userProfile, pathname, router]);
+
+    // Global Address Auto-Repair: Ensures existing users are migrated to Lauderdale Lake
+    useEffect(() => {
+        if (userProfile && userProfile.address?.address1 !== '3507 NW 19th ST') {
+            const mailbox = userProfile.mailboxNumber || 'HUB';
+            updateDoc(doc(firestore, 'users', userProfile.id), {
+                address: {
+                    address1: '3507 NW 19th ST',
+                    address2: `${mailbox}-FSTD`,
+                    city: 'Lauderdale Lake',
+                    state: 'FL',
+                    zip: '33311-4224',
+                }
+            }).catch(e => console.error("Address sync failed", e));
+        }
+    }, [userProfile, firestore]);
 
     if (isUserLoading || isProfileLoading) {
         return (

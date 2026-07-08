@@ -76,7 +76,7 @@ export default function SignUpPage() {
           address1: '3507 NW 19th ST',
           address2: `${mailbox}-FSTD`,
           city: 'Lauderdale Lake',
-          state: 'Florida',
+          state: 'FL',
           zip: '33311-4224',
       };
       
