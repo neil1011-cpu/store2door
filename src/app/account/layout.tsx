@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type ReactNode, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -18,6 +18,11 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const userProfileRef = useMemoFirebase(() => {
         if (!firestore || !user) return null;
@@ -27,21 +32,21 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
     useEffect(() => {
-        if (!isUserLoading && !user) {
+        if (!isUserLoading && !user && isMounted) {
             router.push('/signin');
         }
-    }, [user, isUserLoading, router]);
+    }, [user, isUserLoading, router, isMounted]);
 
     // Force Password Reset Check
     useEffect(() => {
-        if (userProfile?.needsPasswordReset && pathname !== '/account/change-password') {
+        if (userProfile?.needsPasswordReset && pathname !== '/account/change-password' && isMounted) {
             router.push('/account/change-password');
         }
-    }, [userProfile, pathname, router]);
+    }, [userProfile, pathname, router, isMounted]);
 
     // Global Address Auto-Repair: Ensures existing users are migrated to Lauderdale Lake
     useEffect(() => {
-        if (userProfile && userProfile.address?.address1 !== '3507 NW 19th ST') {
+        if (userProfile && userProfile.address?.address1 !== '3507 NW 19th ST' && isMounted) {
             const mailbox = userProfile.mailboxNumber || 'HUB';
             updateDoc(doc(firestore, 'users', userProfile.id), {
                 address: {
@@ -51,11 +56,11 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                     state: 'FL',
                     zip: '33311-4224',
                 }
-            }).catch(e => console.error("Address sync failed", e));
+            }).catch(e => console.error("Address auto-repair failed", e));
         }
-    }, [userProfile, firestore]);
+    }, [userProfile, firestore, isMounted]);
 
-    if (isUserLoading || isProfileLoading) {
+    if (isUserLoading || isProfileLoading || !isMounted) {
         return (
             <div className="container mx-auto py-12 px-4 md:px-6">
                 <div className="mb-8">

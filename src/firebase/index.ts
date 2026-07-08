@@ -14,7 +14,7 @@ export function initializeFirebase() {
     return getSdks(getApp());
   }
 
-  // Explicitly initialize with provided config object
+  // Explicitly initialize with provided config object as requested
   const firebaseApp = initializeApp(firebaseConfig);
 
   return getSdks(firebaseApp);

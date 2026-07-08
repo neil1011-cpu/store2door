@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-// Import from direct files to break loops
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+// Import from direct files to break loops with index barrel
+import { errorEmitter } from '../firebase/error-emitter';
+import { FirestorePermissionError } from '../firebase/errors';
 
 /**
  * An invisible component that listens for globally emitted 'permission-error' events.
