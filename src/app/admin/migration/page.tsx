@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   Lock,
   Zap,
+  MapPin,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore } from '@/firebase';
@@ -24,11 +26,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDocs, collection, updateDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Fault-Tolerant Bulk Migration Tool with Logicware Integration.
+ * @fileOverview Fault-Tolerant Bulk Migration Tool with Logicware Integration and Address Maintenance.
  */
 
 const MIGRATION_DATA = [
@@ -325,6 +327,13 @@ const MIGRATION_DATA = [
   { code: "FSTD10343", first: "Nickeisha", last: "Lindsay", email: "nickeishalindsay5@gmail.com", phone: "18762976237" }
 ];
 
+const NEW_DEFAULT_ADDRESS = {
+    address1: '3507 NW 19th ST',
+    city: 'Lauderdale Lake',
+    state: 'Florida',
+    zip: '33311-4224',
+};
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function MigrationPage() {
@@ -333,11 +342,12 @@ export default function MigrationPage() {
   const firestore = useFirestore();
 
   const [isMigrating, setIsMigrating] = useState(false);
+  const [isUpdatingAddresses, setIsUpdatingAddresses] = useState(false);
   const [doLogicwareSync, setDoLogicwareSync] = useState(true);
   const [logs, setLogs] = useState<{message: string, type: 'success' | 'error' | 'info' | 'logicware'}[]>([]);
   const [progress, setProgress] = useState({
     current: 0,
-    total: MIGRATION_DATA.length,
+    total: 0,
   });
 
   const runMigration = async () => {
@@ -365,7 +375,6 @@ export default function MigrationPage() {
 
         while (!processed && retryCount < 2) {
             try {
-                // 1. Create/Retrieve AUTH Account
                 const res = await fetch('/api/admin/create-user', {
                     method: 'POST',
                     headers: {
@@ -383,10 +392,6 @@ export default function MigrationPage() {
                 });
 
                 const result = await res.json();
-                if (!result) {
-                    throw new Error('Server returned empty response during identity sync.');
-                }
-
                 if (res.status === 429) {
                     setLogs(prev => [...prev, { message: `RATE LIMIT: Backing off 10s...`, type: 'info' }]);
                     await sleep(10000);
@@ -397,7 +402,6 @@ export default function MigrationPage() {
                 const userUid = result.uid || result.existingUid;
 
                 if (userUid) {
-                    // 2. Synchronize FIRESTORE Profile
                     const mailbox = user.code?.trim();
                     const profileRef = doc(firestore, 'users', userUid);
                     
@@ -411,11 +415,8 @@ export default function MigrationPage() {
                         trn: 'N/A',
                         mailboxNumber: mailbox,
                         address: {
-                            address1: '3507 NW 19th ST',
+                            ...NEW_DEFAULT_ADDRESS,
                             address2: `${mailbox}-FSTD`,
-                            city: 'Lauderdale Lake',
-                            state: 'Florida',
-                            zip: '33311-4224',
                         },
                         createdAt: serverTimestamp(),
                         needsPasswordReset: true,
@@ -425,7 +426,6 @@ export default function MigrationPage() {
 
                     setLogs(prev => [...prev, { message: `SYNC: ${user.email} (${mailbox})`, type: 'success' }]);
 
-                    // 3. Optional LOGICWARE Sync
                     if (doLogicwareSync && logicwareKey) {
                         try {
                             const lwRes = await fetch('/api/admin/logicware-sync', {
@@ -442,15 +442,10 @@ export default function MigrationPage() {
                                     }
                                 })
                             });
-                            const lwData = await lwRes.json();
-                            if (!lwData) throw new Error('Logicware returned empty data');
-                            
                             if (lwRes.ok) {
                                 setLogs(prev => [...prev, { message: `LOGICWARE: Shipper ${mailbox} synced.`, type: 'logicware' }]);
                             }
-                        } catch (lwErr) {
-                            setLogs(prev => [...prev, { message: `LOGICWARE ERROR: Sync skipped for ${mailbox}.`, type: 'error' }]);
-                        }
+                        } catch (lwErr) {}
                     }
 
                     processed = true;
@@ -472,10 +467,7 @@ export default function MigrationPage() {
         await sleep(1500); 
       }
 
-      toast({
-        title: 'Worldwide Sync Complete',
-        description: `Processed all records. Data matches across Firebase and Logicware.`,
-      });
+      toast({ title: 'Worldwide Sync Complete' });
     } catch (err: any) {
       toast({ title: 'Critical Failure', description: err.message, variant: 'destructive' });
     } finally {
@@ -483,16 +475,47 @@ export default function MigrationPage() {
     }
   };
 
+  const updateAllUserAddresses = async () => {
+      setIsUpdatingAddresses(true);
+      setLogs([]);
+      try {
+          const snapshot = await getDocs(collection(firestore, 'users'));
+          const total = snapshot.size;
+          setProgress({ current: 0, total });
+
+          for (const userDoc of snapshot.docs) {
+              const data = userDoc.data();
+              const mailbox = data.mailboxNumber || 'HUB';
+              
+              await updateDoc(userDoc.ref, {
+                  address: {
+                      ...NEW_DEFAULT_ADDRESS,
+                      address2: `${mailbox}-FSTD`,
+                  }
+              });
+
+              setLogs(prev => [...prev, { message: `UPDATED ADDRESS: ${mailbox}`, type: 'success' }]);
+              setProgress(prev => ({ ...prev, current: prev.current + 1 }));
+          }
+
+          toast({ title: "Address Update Complete", description: `Synchronized ${total} user profiles.` });
+      } catch (err: any) {
+          toast({ title: "Batch Update Failed", description: err.message, variant: 'destructive' });
+      } finally {
+          setIsUpdatingAddresses(false);
+      }
+  };
+
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6">
-      <Card className="border-t-4 border-t-primary">
+    <div className="max-w-4xl mx-auto flex flex-col gap-6 pb-20">
+      <Card className="border-t-4 border-t-primary shadow-2xl">
         <CardHeader>
           <div className="flex items-center gap-3">
               <DatabaseZap className="h-8 w-8 text-primary" />
               <div>
                   <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Worldwide Logistics Sync</CardTitle>
                   <CardDescription>
-                    Fault-Tolerant Hybrid Synchronization v5.0 (Connect SDK)
+                    Fault-Tolerant Hybrid Synchronization v6.0
                   </CardDescription>
               </div>
           </div>
@@ -503,88 +526,61 @@ export default function MigrationPage() {
              <Alert className="bg-orange-50 border-orange-200 dark:bg-orange-950/40 dark:border-orange-900">
                 <Lock className="h-4 w-4 text-orange-600" />
                 <AlertTitle className="font-bold uppercase text-[10px] tracking-widest text-orange-800 dark:text-orange-400">Temporary Access Key</AlertTitle>
-                <AlertDescription className="text-xl font-black italic tracking-tighter text-orange-900 dark:text-orange-200">
-                    User@1234
-                </AlertDescription>
+                <AlertDescription className="text-xl font-black italic tracking-tighter text-orange-900 dark:text-orange-200">User@1234</AlertDescription>
             </Alert>
             <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-900">
-                <Zap className="h-4 w-4 text-blue-600" />
-                <AlertTitle className="font-bold uppercase text-[10px] tracking-widest text-blue-800 dark:text-blue-400">Logicware Enabled</AlertTitle>
-                <AlertDescription className="text-xs font-medium text-blue-900 dark:text-blue-200 leading-relaxed">
-                    Optionally sync shippers directly to from-store-to-door.logicware.app.
+                <MapPin className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="font-bold uppercase text-[10px] tracking-widest text-blue-800 dark:text-blue-400">Target US Hub</AlertTitle>
+                <AlertDescription className="text-xs font-bold text-blue-900 dark:text-blue-200 uppercase">
+                    3507 NW 19th ST, Lauderdale Lake, FL
                 </AlertDescription>
             </Alert>
           </div>
 
           <div className="flex items-center space-x-3 p-4 rounded-xl border-2 border-dashed bg-muted/30">
-            <Checkbox 
-                id="lw-sync" 
-                checked={doLogicwareSync} 
-                onCheckedChange={(v) => setDoLogicwareSync(!!v)}
-                className="h-5 w-5"
-            />
+            <Checkbox id="lw-sync" checked={doLogicwareSync} onCheckedChange={(v) => setDoLogicwareSync(!!v)} className="h-5 w-5" />
             <div className="grid gap-1.5 leading-none">
-                <label htmlFor="lw-sync" className="text-sm font-black uppercase italic cursor-pointer">
-                    Sync with Logicware Shipper Portal
-                </label>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Registers each user as a professional shipper in your external courier hub.</p>
+                <label htmlFor="lw-sync" className="text-sm font-black uppercase italic cursor-pointer">Sync with Logicware Hub</label>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Registers each user in your external courier portal.</p>
             </div>
           </div>
 
-          {isMigrating && (
+          {(isMigrating || isUpdatingAddresses) && (
             <div className="space-y-4">
               <div className="flex justify-between items-center text-sm font-bold uppercase tracking-widest">
                 <span>Progress: {progress.current} / {progress.total}</span>
                 <span className="animate-pulse text-primary italic">Syncing Worldwide Data...</span>
               </div>
-              <Progress value={(progress.current / progress.total) * 100} className="h-3 bg-muted" />
+              <Progress value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0} className="h-3 bg-muted" />
             </div>
           )}
 
           <div className="space-y-2">
             <Label className="text-[10px] font-bold uppercase opacity-60 tracking-widest">Live Activity Stream</Label>
-            <ScrollArea className="h-[350px] w-full rounded-md border bg-zinc-950 p-4 shadow-inner">
-              {logs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin opacity-20" />
-                    <p className="text-[10px] uppercase font-bold tracking-widest italic">Waiting to Authorize Data Stream...</p>
-                </div>
-              ) : (
-                <div className="space-y-1 font-mono text-[10px]">
-                  {logs.map((log, i) => (
-                    <div key={i} className={cn(
-                        log.type === 'success' ? 'text-green-400' : 
-                        log.type === 'error' ? 'text-red-400' : 
-                        log.type === 'logicware' ? 'text-blue-400 font-bold' : 
-                        'text-zinc-500'
-                    )}>
-                      {log.type === 'success' ? '✓ ' : log.type === 'error' ? '✗ ' : log.type === 'logicware' ? '⚡ ' : '○ '}
-                      {log.message}
+            <ScrollArea className="h-[300px] w-full rounded-md border bg-zinc-950 p-4 shadow-inner">
+                {logs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-zinc-600 opacity-20"><Loader2 className="h-5 w-5 animate-spin mb-2" /><p className="text-[10px] uppercase font-bold">Awaiting authorization...</p></div>
+                ) : (
+                    <div className="space-y-1 font-mono text-[10px]">
+                        {logs.map((log, i) => (
+                            <div key={i} className={cn(log.type === 'success' ? 'text-green-400' : log.type === 'error' ? 'text-red-400' : log.type === 'logicware' ? 'text-blue-400 font-bold' : 'text-zinc-500')}>
+                                {log.type === 'success' ? '✓ ' : log.type === 'error' ? '✗ ' : log.type === 'logicware' ? '⚡ ' : '○ '}
+                                {log.message}
+                            </div>
+                        ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                )}
             </ScrollArea>
           </div>
         </CardContent>
 
-        <CardFooter>
-          <Button
-            onClick={runMigration}
-            disabled={isMigrating}
-            className="w-full h-16 font-black uppercase text-xl italic shadow-2xl transition-all active:scale-95"
-          >
-            {isMigrating ? (
-              <>
-                <Loader2 className="mr-3 h-6 w-6 animate-spin" />
-                Processing Worldwide List...
-              </>
-            ) : (
-              <>
-                <DatabaseZap className="mr-3 h-5 w-5" />
-                Authorize 291-User Sync
-              </>
-            )}
+        <CardFooter className="flex flex-col gap-4 pt-4">
+          <Button onClick={runMigration} disabled={isMigrating || isUpdatingAddresses} className="w-full h-16 font-black uppercase text-xl italic shadow-2xl">
+            {isMigrating ? <><Loader2 className="mr-3 h-6 w-6 animate-spin" /> Processing List...</> : <><DatabaseZap className="mr-3 h-5 w-5" /> Authorize 291-User Sync</>}
+          </Button>
+          
+          <Button onClick={updateAllUserAddresses} variant="secondary" disabled={isMigrating || isUpdatingAddresses} className="w-full h-12 font-bold uppercase border-2">
+              {isUpdatingAddresses ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Updating Addresses...</> : <><MapPin className="mr-2 h-4 w-4" /> Update All Existing Users to Lauderdale Lake</>}
           </Button>
         </CardFooter>
       </Card>

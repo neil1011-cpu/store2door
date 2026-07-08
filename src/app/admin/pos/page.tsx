@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -202,8 +201,8 @@ export default function POSPage() {
                     <div className="max-w-[300px] mx-auto space-y-6">
                         <div className="text-center border-b pb-4">
                             <h1 className="text-xl font-bold uppercase tracking-tighter">FromStore2Door</h1>
-                            <p className="text-[10px] mt-1">4350 NE 5th Terrace Bay #3</p>
-                            <p className="text-[10px]">Oakland Park, Florida, 33334</p>
+                            <p className="text-[10px] mt-1">3507 NW 19th ST</p>
+                            <p className="text-[10px]">Lauderdale Lake, Florida, 33311-4224</p>
                             <p className="text-[10px] font-bold mt-2">admin@neilussolutions.com</p>
                         </div>
 

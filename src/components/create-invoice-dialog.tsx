@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -85,8 +84,8 @@ const generateInvoiceHtml = (invoiceData: {
           <h1>INVOICE</h1>
           <div class="company-details">
             <p style="font-weight: bold; font-size: 1.2em;">FromStore2Door</p>
-            <p>4350 NE 5th Terrace Bay #3</p>
-            <p>Oakland Park, Florida, 33334</p>
+            <p>3507 NW 19th ST</p>
+            <p>Lauderdale Lake, Florida, 33311-4224</p>
             <p>info@fromstore2door.com</p>
           </div>
         </div>

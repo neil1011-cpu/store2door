@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -66,7 +65,7 @@ const generateInvoiceHtml = (invoiceData: {
     </head>
     <body>
       <div class="container">
-        <div class="header"><h1>INVOICE</h1><div><strong>FromStore2Door</strong><br>Florida, USA</div></div>
+        <div class="header"><h1>INVOICE</h1><div><strong>FromStore2Door</strong><br>3507 NW 19th ST, Lauderdale Lake, FL 33311-4224</div></div>
         <div style="margin-top: 20px;"><strong>BILL TO:</strong> ${customerName}<br>Invoice #: ${invoiceId}<br>Date: ${invoiceDate.toLocaleDateString()}</div>
         <table><thead><tr><th>Description</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${lineItemsHtml}</tbody></table>
         <div class="text-right" style="margin-top: 20px;"><div class="grand-total">Total: JMD $${totalAmount.toFixed(2)}</div></div>
@@ -132,28 +131,10 @@ export default function PreAlertsPage() {
         }));
 
       const allCount = (firebasePreAlerts?.length || 0) + mappedPreAlerts.length;
-
-      console.log(
-        '[FINAL DATA]',
-        {
-          logicwareArray: mappedPreAlerts,
-          total: allCount,
-        }
-      );
-
-      toast({
-        title: 'Success',
-        description: `Loaded ${allCount} worldwide records`,
-      });
-      
+      toast({ title: 'Success', description: `Loaded ${allCount} worldwide records` });
       setLogicwarePreAlerts(mappedPreAlerts);
-      
     } catch (error: any) {
-      toast({
-        title: 'Sync Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Sync Failed', description: error.message, variant: 'destructive' });
     } finally {
       setIsFetchingLogicware(false);
     }
