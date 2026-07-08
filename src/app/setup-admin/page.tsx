@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -65,11 +64,11 @@ export default function SetupAdminPage() {
         trn: 'N/A',
         mailboxNumber: `FSTD-ADMIN`,
         address: {
-            address1: '4350 NE 5th Terrace Bay #3',
+            address1: '3507 NW 19th ST',
             address2: `FSTD-ADMIN`,
-            city: 'Oakland Park',
+            city: 'Lauderdale Lake',
             state: 'Florida',
-            zip: '33334',
+            zip: '33311-4224',
         },
         createdAt: serverTimestamp(),
         pickupPersonnel: [],
