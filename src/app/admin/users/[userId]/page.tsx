@@ -4,11 +4,11 @@
 import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useDoc, useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
-import { doc, collection, query, orderBy } from 'firebase/firestore';
+import { doc, collection, query, orderBy, updateDoc, serverTimestamp } from 'firebase/firestore';
 import type { UserProfile, Shipment, DropoffAddress, PickupPerson } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, Package, KeyRound } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, Package, KeyRound, Wallet, DollarSign, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
@@ -83,7 +83,7 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="destructive">
+                <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/5 font-bold">
                     <KeyRound className="mr-2 h-4 w-4" /> Reset Password
                 </Button>
             </DialogTrigger>
@@ -109,6 +109,74 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
                     <Button onClick={handleResetPassword} disabled={isResetting}>
                         {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Confirm Reset
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: string, userName: string, currentBalance: number }) {
+    const [open, setOpen] = useState(false);
+    const [amount, setAmount] = useState(currentBalance.toString());
+    const [isUpdating, setIsUpdating] = useState(false);
+    const { toast } = useToast();
+    const firestore = useFirestore();
+
+    const handleAdjustBalance = async () => {
+        setIsUpdating(true);
+        try {
+            const newBalance = parseFloat(amount);
+            if (isNaN(newBalance)) throw new Error("Invalid amount entered.");
+
+            await updateDoc(doc(firestore, 'users', userId), {
+                walletBalance: newBalance,
+                balanceUpdatedAt: serverTimestamp()
+            });
+
+            toast({ title: "Balance Adjusted", description: `New balance for ${userName}: JMD $${newBalance.toLocaleString()}` });
+            setOpen(false);
+        } catch (error: any) {
+            toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="w-full font-bold border-2">
+                    <PlusCircle className="mr-2 h-4 w-4 text-primary" /> Adjust Wallet Balance
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="uppercase italic tracking-tighter">Adjust Wallet Balance</DialogTitle>
+                    <DialogDescription>Modify the current credit for {userName}.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 text-center">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Current Balance</p>
+                        <p className="text-2xl font-black italic tracking-tighter">JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase opacity-60">Set New Balance (JMD $)</Label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
+                            <Input 
+                                type="number" 
+                                value={amount} 
+                                onChange={(e) => setAmount(e.target.value)} 
+                                className="pl-16 h-12 text-lg font-black border-2" 
+                            />
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleAdjustBalance} disabled={isUpdating} className="h-11 px-8 font-black uppercase tracking-tight">
+                        {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Adjustment"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -179,44 +247,55 @@ export default function UserDetailsPage() {
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 flex flex-col gap-6">
-                    <Card>
-                        <CardHeader className="items-center">
-                            <Avatar className="h-24 w-24">
+                    <Card className="overflow-hidden border-none shadow-lg">
+                        <CardHeader className="items-center bg-primary/5 pb-8">
+                            <Avatar className="h-24 w-24 border-4 border-white shadow-xl">
                                 <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${userProfile.fullName}`} />
                                 <AvatarFallback>{userProfile.fullName.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            <CardTitle className="text-2xl pt-2">{userProfile.fullName}</CardTitle>
-                            <CardDescription>Mailbox #: {userProfile.mailboxNumber}</CardDescription>
+                            <CardTitle className="text-2xl pt-4 font-black italic uppercase tracking-tighter">{userProfile.fullName}</CardTitle>
+                            <CardDescription className="font-bold text-[10px] uppercase tracking-widest">Mailbox: {userProfile.mailboxNumber}</CardDescription>
                         </CardHeader>
-                        <CardContent className="text-sm space-y-2">
-                             <div className="flex items-center gap-2 text-muted-foreground">
-                                <Mail className="h-4 w-4" />
-                                <span>{userProfile.email}</span>
+                        <CardContent className="text-sm space-y-4 pt-6">
+                             <div className="flex items-center gap-3">
+                                <div className="bg-muted p-2 rounded-lg"><Mail className="h-4 w-4 text-muted-foreground" /></div>
+                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Email</p><p className="font-medium">{userProfile.email}</p></div>
                             </div>
-                             <div className="flex items-center gap-2 text-muted-foreground">
-                                <Phone className="h-4 w-4" />
-                                <span>{userProfile.phone}</span>
+                             <div className="flex items-center gap-3">
+                                <div className="bg-muted p-2 rounded-lg"><Phone className="h-4 w-4 text-muted-foreground" /></div>
+                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Phone</p><p className="font-medium">{userProfile.phone}</p></div>
                             </div>
-                             <div>
-                                <span className="font-semibold">TRN:</span> {userProfile.trn}
-                            </div>
-                             <div>
-                                <span className="font-semibold">Member Since:</span> {userProfile.createdAt ? new Date(userProfile.createdAt.toDate()).toLocaleDateString() : 'N/A'}
+                             <div className="flex items-center gap-3">
+                                <div className="bg-muted p-2 rounded-lg"><Home className="h-4 w-4 text-muted-foreground" /></div>
+                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">TRN</p><p className="font-medium">{userProfile.trn}</p></div>
                             </div>
                         </CardContent>
-                        <CardFooter>
-                            <ResetPasswordDialog userId={userProfile.id} userName={userProfile.fullName} />
-                        </CardFooter>
                     </Card>
 
-                     <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg">US Shipping Address</CardTitle>
+                    <Card className="border-primary/20 shadow-md">
+                        <CardHeader className="bg-primary/5 pb-4">
+                            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                                <Wallet className="h-4 w-4 text-primary" /> Wallet Management
+                            </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-1 font-mono text-sm">
-                            <p>{userProfile.address.address1}</p>
-                            <p className="font-bold">{userProfile.address.address2}</p>
-                            <p>{userProfile.address.city}, {userProfile.address.state} {userProfile.zip}</p>
+                        <CardContent className="pt-6 space-y-6">
+                            <div className="text-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Available Credit</p>
+                                <p className="text-4xl font-black italic tracking-tighter text-primary">JMD ${ (userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 }) }</p>
+                            </div>
+                            <AdjustBalanceDialog userId={userProfile.id} userName={userProfile.fullName} currentBalance={userProfile.walletBalance || 0} />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="bg-muted/10">
+                            <CardTitle className="text-sm font-bold uppercase opacity-60">Security & Maintenance</CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4 flex flex-col gap-2">
+                            <ResetPasswordDialog userId={userProfile.id} userName={userProfile.fullName} />
+                            <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-muted font-bold" disabled>
+                                <Trash2 className="mr-2 h-4 w-4" /> Deactivate Account
+                            </Button>
                         </CardContent>
                     </Card>
                 </div>
@@ -241,19 +320,19 @@ export default function UserDetailsPage() {
                                     {userShipments && userShipments.length > 0 ? (
                                         userShipments.map((shipment) => (
                                         <TableRow key={shipment.id}>
-                                            <TableCell className="font-mono">{shipment.trackingNumber}</TableCell>
-                                            <TableCell>{shipment.contents}</TableCell>
+                                            <TableCell className="font-mono font-bold text-primary">{shipment.trackingNumber}</TableCell>
+                                            <TableCell className="text-sm">{shipment.contents}</TableCell>
                                             <TableCell>
                                                 <Badge variant={getStatusVariant(shipment.status)}>{shipment.status}</Badge>
                                             </TableCell>
-                                            <TableCell className="text-right font-medium">
+                                            <TableCell className="text-right font-black italic tracking-tighter">
                                                 {shipment.cost ? `JMD $${shipment.cost.toFixed(2)}` : 'N/A'}
                                             </TableCell>
                                         </TableRow>
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center h-24">This user has no shipments.</TableCell>
+                                            <TableCell colSpan={4} className="text-center h-24 italic text-muted-foreground">This user has no shipments.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
@@ -299,7 +378,7 @@ export default function UserDetailsPage() {
                                 <TableBody>
                                     {pickupPersonnel.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={2} className="text-center h-24">No pickup personnel added.</TableCell>
+                                            <TableCell colSpan={2} className="text-center h-24 italic text-muted-foreground">No pickup personnel added.</TableCell>
                                         </TableRow>
                                     ) : (
                                         pickupPersonnel.map(person => (

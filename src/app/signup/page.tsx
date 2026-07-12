@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -88,6 +89,7 @@ export default function SignUpPage() {
         trn: values.trn,
         mailboxNumber: mailbox,
         address: userAddress,
+        walletBalance: 0,
         createdAt: serverTimestamp(),
         pickupPersonnel: [],
         dropoffAddresses: [],

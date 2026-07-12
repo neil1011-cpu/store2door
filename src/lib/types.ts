@@ -35,6 +35,7 @@ export type UserProfile = {
   needsPasswordReset?: boolean;
   dropoffAddresses?: DropoffAddress[];
   pickupPersonnel?: PickupPerson[];
+  walletBalance?: number;
 };
 
 export type ShipmentStatus = 

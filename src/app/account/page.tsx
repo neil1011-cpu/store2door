@@ -12,7 +12,6 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAccountProfile } from './layout';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { useState, useEffect } from 'react';
 
 const featureCards = [
@@ -83,15 +82,14 @@ export default function AccountPage() {
     if (!userProfile) return null;
 
     return (
-        <div className="container mx-auto py-8 px-4 md:px-6">
+        <div className="container mx-auto px-4 md:px-6">
             <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Welcome, {userProfile.fullName}!</h1>
                     <p className="text-muted-foreground mt-1">Manage your imports and account settings.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <ThemeToggle />
-                    <Button variant="outline" onClick={handleSignOut} size="sm">
+                    <Button variant="outline" onClick={handleSignOut} size="sm" className="font-bold border-2">
                         <LogOut className="mr-2 h-4 w-4" /> Sign Out
                     </Button>
                 </div>

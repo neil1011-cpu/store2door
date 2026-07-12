@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, type ReactNode, useState } from 'react';
@@ -7,6 +8,10 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { UserProfile } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { createContext, useContext } from 'react';
+import { AppLogo } from '@/components/app-logo';
+import { Separator } from '@/components/ui/separator';
+import { Wallet } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 // Create a context to share the user profile data with child pages
 const UserProfileContext = createContext<UserProfile | null>(null);
@@ -87,7 +92,29 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     return (
         <UserProfileContext.Provider value={userProfile}>
             <div className="min-h-screen bg-muted/20">
-                {children}
+                {/* User Account Sub-Header with Balance */}
+                <div className="bg-background border-b shadow-sm sticky top-0 z-40 print:hidden">
+                    <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <AppLogo className="scale-90" />
+                            <Separator orientation="vertical" className="h-6 hidden sm:block" />
+                            <span className="text-[10px] font-black uppercase italic tracking-tighter opacity-40 hidden sm:block">Account Console</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="bg-primary/5 border-2 border-primary/10 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-inner">
+                                <Wallet className="h-4 w-4 text-primary" />
+                                <div className="flex flex-col">
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground leading-none">Wallet Balance</span>
+                                    <span className="text-sm font-black italic tracking-tighter leading-tight">JMD ${(userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            </div>
+                            <ThemeToggle />
+                        </div>
+                    </div>
+                </div>
+                <div className="py-8">
+                    {children}
+                </div>
             </div>
         </UserProfileContext.Provider>
     );
