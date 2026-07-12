@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -6,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -193,22 +194,38 @@ export default function PreAlertsPage() {
       invoiceId, customerName: preAlert.customerName, invoiceDate: new Date(),
       lineItems: [{ description: preAlert.contents, quantity: 1, price: cost }], totalAmount: cost,
     });
+    
+    // 1. Create the global invoice record
     batch.set(doc(firestore, 'invoices', invoiceId), {
         invoiceId, customerId: preAlert.customerId, customerName: preAlert.customerName,
         date: serverTimestamp(), amount: cost, status: 'Unpaid', invoiceUrl: invoiceHtml,
     });
+
+    // 2. Create the shipment record (COPY THE UPLOADED INVOICE URL HERE)
     batch.set(doc(collection(firestore, 'users', preAlert.customerId, 'shipments')), {
-        customerId: preAlert.customerId, trackingNumber: preAlert.trackingNumber, contents: preAlert.contents,
-        status: 'Processed', shippingDate: serverTimestamp(), cost, paymentStatus: 'Unpaid', invoiceId, invoiceUrl: invoiceHtml,
+        customerId: preAlert.customerId, 
+        trackingNumber: preAlert.trackingNumber, 
+        contents: preAlert.contents,
+        status: 'Processed', 
+        shippingDate: serverTimestamp(), 
+        cost, 
+        paymentStatus: 'Unpaid', 
+        invoiceId, 
+        invoiceUrl: invoiceHtml, // System invoice
+        uploadedInvoiceUrl: preAlert.uploadedInvoiceUrl || '', // User's original upload
+        weight: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
     });
     
+    // 3. Mark the pre-alert as processed
     if (!preAlert.isLogicware) {
         batch.update(doc(firestore, 'users', preAlert.customerId, 'pre_alerts', preAlert.id), { status: 'Processed' });
     }
 
     batch.commit()
       .then(() => {
-          toast({ title: "Shipment Created" });
+          toast({ title: "Shipment Created", description: "The user's receipt has been carried over to the active shipment." });
           if (preAlert.isLogicware) {
               setLogicwarePreAlerts(prev => prev.filter(p => p.id !== preAlert.id));
           }
@@ -345,19 +362,21 @@ function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
           Receipt
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="uppercase italic tracking-tighter">Receipt for {preAlert.trackingNumber}</DialogTitle>
+          <DialogTitle className="uppercase italic tracking-tighter flex items-center gap-2">
+            <Eye className="h-5 w-5 text-primary" /> Commercial Invoice Overview
+          </DialogTitle>
           <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mt-1">
-            Submitted by {preAlert.customerName}
+            Tracking: {preAlert.trackingNumber} • Customer: {preAlert.customerName}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 overflow-auto rounded-lg border bg-muted/20 mt-4 min-h-[400px] flex items-center justify-center">
+        <div className="flex-1 overflow-auto rounded-lg border bg-muted/20 mt-4 min-h-[500px] flex items-center justify-center p-4">
           {preAlert.uploadedInvoiceUrl ? (
              preAlert.uploadedInvoiceUrl.startsWith('data:application/pdf') || preAlert.uploadedInvoiceUrl.toLowerCase().endsWith('.pdf') ? (
                 <iframe 
                   src={preAlert.uploadedInvoiceUrl} 
-                  className="w-full h-full min-h-[500px]" 
+                  className="w-full h-full min-h-[600px] rounded-md border shadow-lg bg-white" 
                   title="Invoice PDF"
                 />
              ) : (
@@ -365,19 +384,22 @@ function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
                 <img 
                   src={preAlert.uploadedInvoiceUrl} 
                   alt="Customer Invoice" 
-                  className="max-w-full h-auto object-contain shadow-2xl"
+                  className="max-w-full h-auto object-contain shadow-2xl rounded-md"
                 />
              )
           ) : (
-            <div className="text-center space-y-2 opacity-30">
-              <FileText className="h-12 w-12 mx-auto" />
-              <p className="text-xs font-bold uppercase tracking-widest">No invoice file attached</p>
+            <div className="text-center space-y-4 opacity-40">
+              <FileText className="h-16 w-16 mx-auto" />
+              <div className="space-y-1">
+                <p className="text-sm font-black uppercase tracking-widest">No Document Found</p>
+                <p className="text-xs italic">The user has not attached a commercial invoice to this pre-alert.</p>
+              </div>
             </div>
           )}
         </div>
-        <DialogFooter className="mt-4">
-          <DialogClose asChild><Button variant="outline">Close Overview</Button></DialogClose>
-          <Button onClick={handleDownload} disabled={!preAlert.uploadedInvoiceUrl} className="h-10 font-bold uppercase tracking-tight">
+        <DialogFooter className="mt-6 flex gap-2">
+          <DialogClose asChild><Button variant="outline" className="px-8 font-bold">Close Overview</Button></DialogClose>
+          <Button onClick={handleDownload} disabled={!preAlert.uploadedInvoiceUrl} className="h-10 px-8 font-black uppercase tracking-tight italic shadow-lg">
             <Download className="mr-2 h-4 w-4" /> Download Original
           </Button>
         </DialogFooter>

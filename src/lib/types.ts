@@ -86,7 +86,8 @@ export type Shipment = {
   exchangeRate?: number;
 
   invoiceUploaded?: boolean;
-  invoiceUrl: string;
+  invoiceUrl: string; // This is the generated HTML invoice
+  uploadedInvoiceUrl?: string; // This is the user's original uploaded receipt
   invoiceId?: string;
 
   fragile?: boolean;
