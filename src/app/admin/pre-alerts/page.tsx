@@ -7,14 +7,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
 import type { Shipment, PreAlert, UserProfile, LineItem } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, collectionGroup, query, serverTimestamp, doc, addDoc, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -119,7 +119,7 @@ export default function PreAlertsPage() {
         })
         .map((s: any) => ({
             id: `lw-${s.id}`,
-            trackingNumber: s.trackingNumber || s.referenceCode || s.reference_code || 'N/A',
+            trackingNumber: (s.trackingNumber || s.referenceCode || s.reference_code || 'N/A').toUpperCase(),
             customerName: s.shipperName || s.customer_name || s.shipper?.name || 'Logicware Client',
             customerId: s.shipperId || s.customer_id || '',
             contents: s.contents || s.description || s.item_description || 'Incoming Package',
@@ -131,8 +131,6 @@ export default function PreAlertsPage() {
             isLogicware: true
         }));
 
-      const allCount = (firebasePreAlerts?.length || 0) + mappedPreAlerts.length;
-      toast({ title: 'Success', description: `Loaded ${allCount} worldwide records` });
       setLogicwarePreAlerts(mappedPreAlerts);
     } catch (error: any) {
       toast({ title: 'Sync Failed', description: error.message, variant: 'destructive' });
@@ -195,37 +193,34 @@ export default function PreAlertsPage() {
       lineItems: [{ description: preAlert.contents, quantity: 1, price: cost }], totalAmount: cost,
     });
     
-    // 1. Create the global invoice record
     batch.set(doc(firestore, 'invoices', invoiceId), {
         invoiceId, customerId: preAlert.customerId, customerName: preAlert.customerName,
         date: serverTimestamp(), amount: cost, status: 'Unpaid', invoiceUrl: invoiceHtml,
     });
 
-    // 2. Create the shipment record (COPY THE UPLOADED INVOICE URL HERE)
     batch.set(doc(collection(firestore, 'users', preAlert.customerId, 'shipments')), {
         customerId: preAlert.customerId, 
-        trackingNumber: preAlert.trackingNumber, 
+        trackingNumber: preAlert.trackingNumber.toUpperCase(), 
         contents: preAlert.contents,
         status: 'Processed', 
         shippingDate: serverTimestamp(), 
         cost, 
         paymentStatus: 'Unpaid', 
         invoiceId, 
-        invoiceUrl: invoiceHtml, // System invoice
-        uploadedInvoiceUrl: preAlert.uploadedInvoiceUrl || '', // User's original upload
+        invoiceUrl: invoiceHtml, 
+        uploadedInvoiceUrl: preAlert.uploadedInvoiceUrl || '', 
         weight: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     });
     
-    // 3. Mark the pre-alert as processed
     if (!preAlert.isLogicware) {
         batch.update(doc(firestore, 'users', preAlert.customerId, 'pre_alerts', preAlert.id), { status: 'Processed' });
     }
 
     batch.commit()
       .then(() => {
-          toast({ title: "Shipment Created", description: "The user's receipt has been carried over to the active shipment." });
+          toast({ title: "Shipment Created", description: "The original invoice has been attached to the active shipment." });
           if (preAlert.isLogicware) {
               setLogicwarePreAlerts(prev => prev.filter(p => p.id !== preAlert.id));
           }
@@ -248,13 +243,13 @@ export default function PreAlertsPage() {
     <div className="flex flex-col gap-6">
        <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Worldwide Pre-Alerts</h1>
-          <p className="text-muted-foreground">Manage incoming notifications and process them into active shipments.</p>
+          <h1 className="text-3xl font-bold tracking-tight italic uppercase">Worldwide Pre-Alerts</h1>
+          <p className="text-muted-foreground">Manage incoming notifications and process them for customs clearance.</p>
         </div>
         <div className="flex gap-2">
-            <Button onClick={fetchLogicwarePreAlerts} variant="outline" disabled={isFetchingLogicware} className="border-primary/20 hover:bg-primary/5">
+            <Button onClick={fetchLogicwarePreAlerts} variant="outline" disabled={isFetchingLogicware} className="border-primary/20">
                 {isFetchingLogicware ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
-                Sync External Hub
+                Sync Hub
             </Button>
             <Button variant="outline" asChild><Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link></Button>
             <Dialog open={open} onOpenChange={setOpen}>
@@ -277,21 +272,20 @@ export default function PreAlertsPage() {
         </div>
       </div>
 
-      <Card className="shadow-md overflow-hidden border-none">
+      <Card className="shadow-md overflow-hidden">
         <CardHeader className="bg-muted/10">
-          <CardTitle>Incoming Pre-Alerts</CardTitle>
-          <CardDescription>Review customer-submitted invoices and synchronized records from global hubs.</CardDescription>
+          <CardTitle>Incoming Queue</CardTitle>
+          <CardDescription>Review user-uploaded documentation for customs processing.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">Source</TableHead>
+                <TableHead className="pl-6">Status</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Tracking #</TableHead>
                 <TableHead>Contents</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Invoice</TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -299,21 +293,22 @@ export default function PreAlertsPage() {
               {combinedPreAlerts.map((alert) => (
                   <TableRow key={alert.id} className={cn("hover:bg-muted/30 transition-colors", alert.isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
                     <TableCell className="pl-6">
-                        {alert.isLogicware ? (
-                            <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 uppercase text-[9px] font-bold">Logicware Hub</Badge>
-                        ) : (
-                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 uppercase text-[9px] font-bold">Local OS</Badge>
-                        )}
+                        <Badge variant={getStatusVariant(alert.status)} className="px-3">{alert.status}</Badge>
                     </TableCell>
                     <TableCell className="font-bold text-sm">{alert.customerName}</TableCell>
-                    <TableCell className="font-mono font-black text-primary uppercase">{alert.trackingNumber}</TableCell>
-                    <TableCell className="text-xs max-w-[200px] truncate">{alert.contents}</TableCell>
-                    <TableCell className="text-xs">
-                      {alert.submissionDate && typeof alert.submissionDate.toDate === 'function' 
-                        ? alert.submissionDate.toDate().toLocaleDateString() 
-                        : (typeof alert.submissionDate === 'string' ? new Date(alert.submissionDate).toLocaleDateString() : 'N/A')}
+                    <TableCell className="font-mono font-black text-primary uppercase text-sm tracking-tighter">{alert.trackingNumber}</TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate opacity-70">{alert.contents}</TableCell>
+                    <TableCell>
+                        {alert.uploadedInvoiceUrl ? (
+                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter">
+                                <CheckCircle2 className="h-3 w-3" /> Ready
+                            </Badge>
+                        ) : (
+                            <Badge variant="outline" className="text-muted-foreground border-dashed text-[9px] flex items-center gap-1 uppercase">
+                                <AlertCircle className="h-3 w-3" /> Missing
+                            </Badge>
+                        )}
                     </TableCell>
-                    <TableCell><Badge variant={getStatusVariant(alert.status)} className="px-3">{alert.status}</Badge></TableCell>
                      <TableCell className="text-right pr-6">
                        <div className="flex justify-end gap-2">
                           <ViewReceiptDialog preAlert={alert} />
@@ -324,7 +319,7 @@ export default function PreAlertsPage() {
                 ))}
                 {combinedPreAlerts.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center h-32 text-muted-foreground italic">No incoming pre-alerts detected.</TableCell>
+                    <TableCell colSpan={6} className="text-center h-48 text-muted-foreground italic">No incoming pre-alerts detected.</TableCell>
                   </TableRow>
                 )}
             </TableBody>
@@ -337,27 +332,23 @@ export default function PreAlertsPage() {
 
 function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
   const { toast } = useToast();
-  
+  if (!preAlert.uploadedInvoiceUrl) return null;
+
   const handleDownload = () => {
-    if (!preAlert.uploadedInvoiceUrl) return;
-    
+    const isPdf = preAlert.uploadedInvoiceUrl.includes('application/pdf');
     const link = document.createElement('a');
     link.href = preAlert.uploadedInvoiceUrl;
-    link.download = `Invoice-${preAlert.trackingNumber}.png`;
+    link.download = `Invoice-${preAlert.trackingNumber}${isPdf ? '.pdf' : '.png'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    toast({
-      title: "Downloading Invoice",
-      description: `The file for tracking ${preAlert.trackingNumber} is being saved.`
-    });
+    toast({ title: "Downloading Original", description: `Documentation for ${preAlert.trackingNumber} saved.` });
   };
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 font-bold" disabled={!preAlert.uploadedInvoiceUrl}>
+        <Button variant="outline" size="sm" className="h-8 font-bold border-2" disabled={!preAlert.uploadedInvoiceUrl}>
           <FileText className="mr-2 h-3.5 w-3.5 text-primary" />
           Receipt
         </Button>
@@ -372,34 +363,23 @@ function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-auto rounded-lg border bg-muted/20 mt-4 min-h-[500px] flex items-center justify-center p-4">
-          {preAlert.uploadedInvoiceUrl ? (
-             preAlert.uploadedInvoiceUrl.startsWith('data:application/pdf') || preAlert.uploadedInvoiceUrl.toLowerCase().endsWith('.pdf') ? (
-                <iframe 
-                  src={preAlert.uploadedInvoiceUrl} 
-                  className="w-full h-full min-h-[600px] rounded-md border shadow-lg bg-white" 
-                  title="Invoice PDF"
-                />
-             ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img 
-                  src={preAlert.uploadedInvoiceUrl} 
-                  alt="Customer Invoice" 
-                  className="max-w-full h-auto object-contain shadow-2xl rounded-md"
-                />
-             )
+          {preAlert.uploadedInvoiceUrl.startsWith('data:application/pdf') || preAlert.uploadedInvoiceUrl.toLowerCase().endsWith('.pdf') ? (
+            <iframe 
+                src={preAlert.uploadedInvoiceUrl} 
+                className="w-full h-full min-h-[600px] rounded-md border shadow-lg bg-white" 
+                title="Invoice PDF"
+            />
           ) : (
-            <div className="text-center space-y-4 opacity-40">
-              <FileText className="h-16 w-16 mx-auto" />
-              <div className="space-y-1">
-                <p className="text-sm font-black uppercase tracking-widest">No Document Found</p>
-                <p className="text-xs italic">The user has not attached a commercial invoice to this pre-alert.</p>
-              </div>
-            </div>
+            <img 
+                src={preAlert.uploadedInvoiceUrl} 
+                alt="Customer Invoice" 
+                className="max-w-full h-auto object-contain shadow-2xl rounded-md"
+            />
           )}
         </div>
         <DialogFooter className="mt-6 flex gap-2">
-          <DialogClose asChild><Button variant="outline" className="px-8 font-bold">Close Overview</Button></DialogClose>
-          <Button onClick={handleDownload} disabled={!preAlert.uploadedInvoiceUrl} className="h-10 px-8 font-black uppercase tracking-tight italic shadow-lg">
+          <DialogClose asChild><Button variant="outline" className="px-8 font-bold">Close</Button></DialogClose>
+          <Button onClick={handleDownload} className="h-10 px-8 font-black uppercase tracking-tight italic shadow-lg">
             <Download className="mr-2 h-4 w-4" /> Download Original
           </Button>
         </DialogFooter>
