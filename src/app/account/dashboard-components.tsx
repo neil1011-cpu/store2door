@@ -198,7 +198,7 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
 
   const preAlertsQuery = useMemoFirebase(() => {
       if (!firestore || !customerId) return null;
-      return query(collection(firestore, 'users', customerId, 'pre_alerts'));
+      return query(collection(firestore, 'users', customerId, 'pre_alerts'), orderBy('submissionDate', 'desc'));
   }, [firestore, customerId]);
   const { data: userPreAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
 
@@ -237,14 +237,17 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
       const local = userShipments || [];
       const localTracking = new Set(local.map(s => (s.trackingNumber || '').toUpperCase()));
       
+      // Include Pending Pre-Alerts that haven't become shipments yet
+      const pendingAlerts = (userPreAlerts || []).filter(pa => pa.status === 'Pending' && !localTracking.has((pa.trackingNumber || '').toUpperCase()));
+      
       const external = logicwareShipments.filter(s => !localTracking.has((s.trackingNumber || s.referenceCode || '').toUpperCase()));
       
-      return [...local, ...external].sort((a, b) => {
-          const dateA = a.shippingDate?.toMillis?.() || (a.shippingDate ? new Date(a.shippingDate).getTime() : 0) || 0;
-          const dateB = b.shippingDate?.toMillis?.() || (b.shippingDate ? new Date(b.shippingDate).getTime() : 0) || 0;
+      return [...local, ...pendingAlerts, ...external].sort((a, b) => {
+          const dateA = (a as any).shippingDate?.toMillis?.() || (a as any).submissionDate?.toMillis?.() || (a.shippingDate ? new Date(a.shippingDate).getTime() : 0) || 0;
+          const dateB = (b as any).shippingDate?.toMillis?.() || (b as any).submissionDate?.toMillis?.() || (b.shippingDate ? new Date(b.shippingDate).getTime() : 0) || 0;
           return dateB - dateA;
       });
-  }, [userShipments, logicwareShipments]);
+  }, [userShipments, logicwareShipments, userPreAlerts]);
 
   const isLoading = isLoadingShipments || isLoadingPreAlerts || isFetchingLw || !isMounted;
 
@@ -252,7 +255,7 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
     <Card>
       <CardHeader>
         <CardTitle>My Packages</CardTitle>
-        <CardDescription>Real-time status of your shipments and invoices.</CardDescription>
+        <CardDescription>Real-time status of your shipments, pre-alerts, and invoices.</CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
@@ -269,15 +272,20 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
                 <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
             ) : combinedPackages.length > 0 ? (
                 combinedPackages.map((shipment) => {
+                  const isPreAlert = (shipment as any).status === 'Pending' && !(shipment as any).shippingDate;
                   const hasPreAlert = shipment.trackingNumber ? preAlertMap.has(shipment.trackingNumber.toUpperCase()) : false;
-                  const needsInvoice = !hasPreAlert && (shipment.status || '').toLowerCase() !== 'delivered';
+                  const needsInvoice = !hasPreAlert && (shipment.status || '').toLowerCase() !== 'delivered' && !isPreAlert;
+                  
                   return (
-                    <TableRow key={shipment.id} className={cn(shipment.isLogicware && "bg-blue-50/20")}>
+                    <TableRow key={shipment.id} className={cn(shipment.isLogicware && "bg-blue-50/20", isPreAlert && "bg-orange-50/10")}>
                         <TableCell className="font-mono font-bold">
                             <div className="flex flex-col gap-1">
-                                <span>{shipment.trackingNumber || shipment.referenceCode}</span>
+                                <span>{shipment.trackingNumber || (shipment as any).referenceCode}</span>
                                 {shipment.isLogicware && (
                                     <Badge variant="outline" className="w-fit text-[9px] h-4 py-0 uppercase">External Hub</Badge>
+                                )}
+                                {isPreAlert && (
+                                    <Badge variant="outline" className="w-fit text-[9px] h-4 py-0 uppercase bg-orange-100 text-orange-700">Pre-Alert Submitted</Badge>
                                 )}
                                 {needsInvoice && <span className="block text-[10px] text-orange-600 font-bold uppercase animate-pulse">Invoice Required</span>}
                             </div>
@@ -294,7 +302,7 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
                                 {shipment.paymentStatus === 'Unpaid' && (shipment.cost || 0) > 0 ? (
                                     <Button size="sm" onClick={() => handlePayNow(shipment)} className="h-8"><CreditCard className="h-4 w-4 mr-2" /> Pay</Button>
                                 ) : (
-                                    <Badge variant="outline">{shipment.paymentStatus === 'Paid' ? 'Paid' : 'Awaiting Invoice'}</Badge>
+                                    <Badge variant="outline">{shipment.paymentStatus === 'Paid' ? 'Paid' : isPreAlert ? 'Awaiting Acknowledgment' : 'Awaiting Invoice'}</Badge>
                                 )}
                             </div>
                         </TableCell>
@@ -370,7 +378,23 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 })
             });
 
-            toast({ title: "Pre-Alert Submitted", description: "Our warehouse team will be notified of your incoming package." });
+            // NOTIFY ADMIN VIA EMAIL
+            try {
+              await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: 'admin@neilussolutions.com',
+                  subject: `New Pre-Alert Received: ${finalTracking}`,
+                  body: `A new pre-alert has been submitted by ${customerName}.\n\nTracking Number: ${finalTracking}\nContents: ${contents}\n\nPlease check the admin panel to acknowledge and process this shipment.`,
+                  recipientName: 'FSTD Admin'
+                }),
+              });
+            } catch (emailErr) {
+              console.error("Admin notification email failed", emailErr);
+            }
+
+            toast({ title: "Pre-Alert Submitted", description: "Our warehouse team has been notified via email of your incoming package." });
             setTrackingNumber('');
             setContents('');
             setInvoiceBase64(null);
@@ -589,7 +613,7 @@ export function SupportTab({ details }: { details: UserProfile }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2 border-2 hover:bg-green-50 hover:border-green-200 transition-all group" asChild>
                     <Link href="https://wa.me/18765069727" target="_blank">
-                        <svg className="h-6 w-6 text-green-600 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.328-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.136 1.36.117 1.871.053.571-.072 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.87 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.414 0 .018 5.393 0 12.03c0 2.122.554 4.197 1.607 6.048L0 24l6.233-1.635a11.84 11.84 0 005.808 1.51h.005c6.637 0 12.032-5.395 12.036-12.032a11.817 11.815 0 00-3.41-8.423z"/></svg>
+                        <svg className="h-6 w-6 text-green-600 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.328-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.136 1.36.117 1.871.053.571-.072 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.414 0 .018 5.393 0 12.03c0 2.122.554 4.197 1.607 6.048L0 24l6.233-1.635a11.84 11.84 0 005.808 1.51h.005c6.637 0 12.032-5.395 12.036-12.032a11.817 11.815 0 00-3.41-8.423z"/></svg>
                         <span className="font-black uppercase tracking-tighter italic">WhatsApp Support</span>
                     </Link>
                 </Button>
