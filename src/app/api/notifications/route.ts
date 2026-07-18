@@ -4,18 +4,17 @@ import type { PreAlert, Shipment } from '@/lib/types';
 
 /**
  * @fileOverview API to fetch recent activity for the admin dashboard.
- * Utilizes centralized Firebase Admin instance.
+ * Optimized to avoid index requirements by performing sorting in memory.
  */
 
 export async function GET() {
   try {
     const notifications: any[] = [];
 
-    // 1. Recent Pre-Alerts
+    // 1. Fetch Recent Pre-Alerts (No orderBy to avoid index requirement)
     const preAlertsSnapshot = await adminDb
       .collectionGroup("pre_alerts")
-      .orderBy("submissionDate", "desc")
-      .limit(10)
+      .limit(20)
       .get();
 
     preAlertsSnapshot.forEach(doc => {
@@ -26,17 +25,16 @@ export async function GET() {
           type: "pre-alert",
           title: `New Pre-Alert: ${data.trackingNumber}`,
           description: `${data.customerName} notified us of an incoming package.`,
-          timestamp: data.submissionDate.toDate().toISOString(),
+          timestamp: data.submissionDate.toDate ? data.submissionDate.toDate().toISOString() : data.submissionDate,
           href: "/admin/pre-alerts"
         });
       }
     });
 
-    // 2. Recent Shipment Movements
+    // 2. Fetch Recent Shipment Movements (No orderBy to avoid index requirement)
     const shipmentsSnapshot = await adminDb
       .collectionGroup("shipments")
-      .orderBy("shippingDate", "desc")
-      .limit(10)
+      .limit(20)
       .get();
 
     shipmentsSnapshot.forEach(doc => {
@@ -47,13 +45,13 @@ export async function GET() {
             type: 'status-update',
             title: `Update: ${data.status}`,
             description: `Package ${data.trackingNumber} moved to "${data.status}".`,
-            timestamp: data.shippingDate.toDate().toISOString(),
+            timestamp: data.shippingDate.toDate ? data.shippingDate.toDate().toISOString() : data.shippingDate,
             href: '/admin/shipping',
         });
       }
     });
 
-    // 3. Aggregate and Sort
+    // 3. Aggregate and Sort IN MEMORY
     const finalNotifications = notifications
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 15);
@@ -63,7 +61,7 @@ export async function GET() {
   } catch (error: any) {
     console.error('Notification API Error:', error);
     return NextResponse.json(
-      { message: 'Failed to retrieve notifications' },
+      { message: 'Failed to retrieve notifications', error: error.message },
       { status: 500 }
     );
   }

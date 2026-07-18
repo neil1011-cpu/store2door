@@ -15,7 +15,7 @@ import { Badge } from './ui/badge';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collectionGroup, query, orderBy, limit } from 'firebase/firestore';
+import { collectionGroup, query, limit } from 'firebase/firestore';
 import type { PreAlert, Shipment } from '@/lib/types';
 
 const READ_NOTIFICATIONS_KEY = 'read-notifications';
@@ -45,15 +45,16 @@ export function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const firestore = useFirestore();
 
+  // REMOVED orderBy to avoid index requirements for collectionGroups
   const preAlertsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collectionGroup(firestore, 'pre_alerts'), orderBy('submissionDate', 'desc'), limit(10));
+    return query(collectionGroup(firestore, 'pre_alerts'), limit(20));
   }, [firestore]);
   const { data: preAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collectionGroup(firestore, 'shipments'), orderBy('shippingDate', 'desc'), limit(10));
+    return query(collectionGroup(firestore, 'shipments'), limit(20));
   }, [firestore]);
   const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
 
@@ -96,9 +97,10 @@ export function Notifications() {
       });
     });
 
+    // SORT IN MEMORY to avoid index requirement
     const sorted = combined.sort((a, b) => {
-      const timeA = a.timestamp?.toMillis?.() || 0;
-      const timeB = b.timestamp?.toMillis?.() || 0;
+      const timeA = a.timestamp?.toMillis?.() || (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+      const timeB = b.timestamp?.toMillis?.() || (b.timestamp ? new Date(b.timestamp).getTime() : 0);
       return timeB - timeA;
     });
 
