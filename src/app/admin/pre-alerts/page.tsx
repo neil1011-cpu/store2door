@@ -92,6 +92,7 @@ export default function PreAlertsPage() {
 
   const preAlertsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // Real-time collection group query for all user pre-alerts
     return query(collectionGroup(firestore, 'pre_alerts'));
   }, [firestore]);
   const { data: firebasePreAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
@@ -145,12 +146,17 @@ export default function PreAlertsPage() {
   }, []);
 
   const combinedPreAlerts = useMemo(() => {
-      const fb = (firebasePreAlerts || []).map(pa => ({ ...pa, source: 'firebase' as const, isLogicware: false }));
-      return [...fb, ...logicwarePreAlerts].sort((a, b) => {
-          const dateA = a.submissionDate?.toMillis?.() || new Date(a.submissionDate).getTime() || 0;
-          const dateB = b.submissionDate?.toMillis?.() || new Date(b.submissionDate).getTime() || 0;
-          return dateB - dateA;
-      });
+      const fb = (firebasePreAlerts || [])
+        .map(pa => ({ ...pa, source: 'firebase' as const, isLogicware: false }));
+      
+      // Merge and sort by newest first. Admins focus on the 'Pending' queue.
+      return [...fb, ...logicwarePreAlerts]
+        .filter(pa => pa.status === 'Pending') // FOCUS ON INCOMING QUEUE
+        .sort((a, b) => {
+            const dateA = a.submissionDate?.toMillis?.() || new Date(a.submissionDate).getTime() || 0;
+            const dateB = b.submissionDate?.toMillis?.() || new Date(b.submissionDate).getTime() || 0;
+            return dateB - dateA;
+        });
   }, [firebasePreAlerts, logicwarePreAlerts]);
 
   const handleCreateAlert = async () => {
@@ -218,6 +224,19 @@ export default function PreAlertsPage() {
         batch.update(doc(firestore, 'users', preAlert.customerId, 'pre_alerts', preAlert.id), { status: 'Processed' });
     }
 
+    // LOG THE PROCESSING EVENT
+    await fetch('/api/log-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            type: 'pre_alert_processed',
+            description: `Admin processed Pre-Alert ${preAlert.trackingNumber} for ${preAlert.customerName}.`,
+            userId: 'admin',
+            userName: 'System Admin',
+            metadata: { trackingNumber: preAlert.trackingNumber, cost }
+        })
+    });
+
     batch.commit()
       .then(() => {
           toast({ title: "Shipment Created", description: "The original invoice has been attached to the active shipment." });
@@ -243,7 +262,7 @@ export default function PreAlertsPage() {
     <div className="flex flex-col gap-6">
        <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight italic uppercase">Worldwide Pre-Alerts</h1>
+          <h1 className="text-3xl font-bold tracking-tight italic uppercase">Incoming Pre-Alert Queue</h1>
           <p className="text-muted-foreground">Manage incoming notifications and process them for customs clearance.</p>
         </div>
         <div className="flex gap-2">
@@ -274,7 +293,7 @@ export default function PreAlertsPage() {
 
       <Card className="shadow-md overflow-hidden">
         <CardHeader className="bg-muted/10">
-          <CardTitle>Incoming Queue</CardTitle>
+          <CardTitle>Incoming Documentation</CardTitle>
           <CardDescription>Review user-uploaded documentation for customs processing.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
