@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -30,6 +31,7 @@ import {
   Bell,
   DatabaseZap,
   ShoppingCart,
+  History,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
@@ -127,6 +129,7 @@ export default function AdminLayout({
     { href: "/admin/manifests", icon: <Plane />, label: "Manifests" },
     { href: "/admin/rates", icon: <Tag />, label: "Rates" },
     { href: "/admin/customs-calculator", icon: <Calculator />, label: "Calculator" },
+    { href: "/admin/logs", icon: <History />, label: "Activity Logs" },
     { href: "/admin/notifications", icon: <Bell />, label: "Notifications" },
     { href: "/admin/migration", icon: <DatabaseZap />, label: "Migration" },
     { href: "/admin/settings", icon: <Settings />, label: "Settings" },

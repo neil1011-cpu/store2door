@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -344,15 +345,29 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
+            const finalTracking = trackingNumber.toUpperCase();
             await addDoc(collection(firestore, 'users', customerId, 'pre_alerts'), {
                 customerName,
                 customerId,
-                trackingNumber: trackingNumber.toUpperCase(),
+                trackingNumber: finalTracking,
                 contents,
                 status: 'Pending',
                 submissionDate: serverTimestamp(),
                 uploadedInvoiceUrl: invoiceBase64,
                 invoiceHtml: ''
+            });
+
+            // LOG ACTIVITY FOR ADMIN
+            await fetch('/api/log-activity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'pre_alert_upload',
+                    description: `User uploaded a new pre-alert for ${finalTracking}.`,
+                    userId: customerId,
+                    userName: customerName,
+                    metadata: { trackingNumber: finalTracking, contents }
+                })
             });
 
             toast({ title: "Pre-Alert Submitted", description: "Our warehouse team will be notified of your incoming package." });

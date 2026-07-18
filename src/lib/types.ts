@@ -164,3 +164,13 @@ export type Transaction = {
   amount: number;
   date: Timestamp | any;
 }
+
+export type SystemLog = {
+    id: string;
+    type: string;
+    description: string;
+    userId?: string;
+    userName?: string;
+    timestamp: Timestamp | any;
+    metadata?: any;
+};
