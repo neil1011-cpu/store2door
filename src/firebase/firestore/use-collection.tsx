@@ -43,20 +43,31 @@ function getFirestorePath(target: FirestoreTarget): string {
   if (!target) return '';
 
   try {
+    // If it's a collection reference, it has a direct path
     if (target.type === 'collection') {
-      return target.path;
+      return (target as CollectionReference).path;
     }
 
-    return (target as unknown as InternalQuery)
-      ._query
-      .path
-      .canonicalString();
+    // For general queries (including collectionGroups), we try to extract the canonical string
+    const internal = target as unknown as InternalQuery;
+    const path = internal._query?.path?.canonicalString?.() || internal._query?.path?.toString?.();
+    
+    // collectionGroup queries often return an empty path because they target all collections with a specific ID
+    // We return a placeholder to avoid the "Invalid Path" error while still identifying it as a query
+    if (!path && target.type === 'query') {
+        return '(collection-group)';
+    }
+
+    return path || '';
   } catch {
     return '';
   }
 }
 
-function isInvalidFirestorePath(path: string): boolean {
+function isInvalidFirestorePath(path: string, target: FirestoreTarget): boolean {
+  // If it's a known query type, we allow it even if the path is unconventional
+  if (target?.type === 'query' || path === '(collection-group)') return false;
+  
   if (!path) return true;
 
   const normalized = path.trim();
@@ -75,7 +86,6 @@ export function useCollection<T = any>(
   type ResultItemType = WithId<T>;
 
   const [data, setData] = useState<ResultItemType[] | null>(null);
-  // CRITICAL: Initialize in loading state if a query is provided
   const [isLoading, setIsLoading] = useState<boolean>(
     !!memoizedTargetRefOrQuery
   );
@@ -104,7 +114,7 @@ export function useCollection<T = any>(
       memoizedTargetRefOrQuery
     );
 
-    if (isInvalidFirestorePath(path)) {
+    if (isInvalidFirestorePath(path, memoizedTargetRefOrQuery)) {
       const pathError = new Error(
         `Invalid Firestore query path: "${path}". Likely undefined or empty collection path upstream.`
       );
@@ -146,10 +156,10 @@ export function useCollection<T = any>(
         const contextualError =
           new FirestorePermissionError({
             operation: 'list',
-            path,
+            path: path || 'collection-group-query',
           });
 
-        setError(contextualError);
+        setError(err || contextualError);
         setData(null);
         setIsLoading(false);
 
