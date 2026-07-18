@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye, CheckCircle2, AlertCircle } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -15,10 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link';
 import type { Shipment, PreAlert, UserProfile, LineItem } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, collectionGroup, query, serverTimestamp, doc, addDoc, writeBatch } from 'firebase/firestore';
+import { collection, collectionGroup, query, serverTimestamp, doc, addDoc, writeBatch, orderBy } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -84,18 +85,20 @@ export default function PreAlertsPage() {
   
   const firestore = useFirestore();
 
+  // 1. Load All Users for Manual Alert Creation
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'users'));
+    return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
   }, [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
+  // 2. Real-time Listener for ALL Pre-Alerts across all users
+  // We use collectionGroup without orderBy first to ensure it works without a pre-built index
   const preAlertsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // Real-time collection group query for all user pre-alerts
     return query(collectionGroup(firestore, 'pre_alerts'));
   }, [firestore]);
-  const { data: firebasePreAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
+  const { data: firebasePreAlerts, isLoading: isLoadingPreAlerts, error: firebaseError } = useCollection<PreAlert>(preAlertsQuery);
 
   const fetchLogicwarePreAlerts = async () => {
     try {
@@ -134,7 +137,7 @@ export default function PreAlertsPage() {
 
       setLogicwarePreAlerts(mappedPreAlerts);
     } catch (error: any) {
-      toast({ title: 'Sync Failed', description: error.message, variant: 'destructive' });
+      toast({ title: 'Hub Sync Failed', description: error.message, variant: 'destructive' });
     } finally {
       setIsFetchingLogicware(false);
     }
@@ -149,9 +152,8 @@ export default function PreAlertsPage() {
       const fb = (firebasePreAlerts || [])
         .map(pa => ({ ...pa, source: 'firebase' as const, isLogicware: false }));
       
-      // Merge and sort by newest first. Admins focus on the 'Pending' queue.
       return [...fb, ...logicwarePreAlerts]
-        .filter(pa => pa.status === 'Pending') // FOCUS ON INCOMING QUEUE
+        .filter(pa => pa.status === 'Pending') // Only show ACTIVE pending queue
         .sort((a, b) => {
             const dateA = a.submissionDate?.toMillis?.() || new Date(a.submissionDate).getTime() || 0;
             const dateB = b.submissionDate?.toMillis?.() || new Date(b.submissionDate).getTime() || 0;
@@ -224,7 +226,7 @@ export default function PreAlertsPage() {
         batch.update(doc(firestore, 'users', preAlert.customerId, 'pre_alerts', preAlert.id), { status: 'Processed' });
     }
 
-    // LOG THE PROCESSING EVENT
+    // Record the processing event in logs
     await fetch('/api/log-activity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,7 +241,7 @@ export default function PreAlertsPage() {
 
     batch.commit()
       .then(() => {
-          toast({ title: "Shipment Created", description: "The original invoice has been attached to the active shipment." });
+          toast({ title: "Shipment Created", description: "Package moved to shipping ledger." });
           if (preAlert.isLogicware) {
               setLogicwarePreAlerts(prev => prev.filter(p => p.id !== preAlert.id));
           }
@@ -247,12 +249,12 @@ export default function PreAlertsPage() {
       .catch(() => toast({ title: "Error creating shipment", variant: "destructive" }));
   }
 
-  if (isLoadingUsers || isLoadingPreAlerts) {
+  if (isLoadingUsers || (isLoadingPreAlerts && !firebaseError)) {
     return (
         <div className="flex h-screen items-center justify-center bg-background">
             <div className="flex flex-col items-center gap-4">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="font-bold uppercase tracking-widest text-xs animate-pulse">Loading Worldwide Alerts...</p>
+                <p className="font-bold uppercase tracking-widest text-xs animate-pulse">Establishing Worldwide Uplink...</p>
             </div>
         </div>
     );
@@ -262,19 +264,19 @@ export default function PreAlertsPage() {
     <div className="flex flex-col gap-6">
        <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight italic uppercase">Incoming Pre-Alert Queue</h1>
-          <p className="text-muted-foreground">Manage incoming notifications and process them for customs clearance.</p>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Incoming Pre-Alert Queue</h1>
+          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Real-time worldwide documentation synchronization</p>
         </div>
         <div className="flex gap-2">
-            <Button onClick={fetchLogicwarePreAlerts} variant="outline" disabled={isFetchingLogicware} className="border-primary/20">
+            <Button onClick={fetchLogicwarePreAlerts} variant="outline" disabled={isFetchingLogicware} className="border-primary/20 font-bold">
                 {isFetchingLogicware ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
-                Sync Hub
+                Sync External Hub
             </Button>
-            <Button variant="outline" asChild><Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link></Button>
+            <Button variant="outline" asChild className="font-bold"><Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link></Button>
             <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button><PlusCircle className="mr-2 h-4 w-4" />Create Pre-Alert</Button></DialogTrigger>
+            <DialogTrigger asChild><Button className="font-bold"><PlusCircle className="mr-2 h-4 w-4" />Create Pre-Alert</Button></DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader><DialogTitle>New Pre-Alert</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle className="uppercase italic tracking-tighter">Manual Pre-Alert Entry</DialogTitle></DialogHeader>
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Customer</Label>
                     <Select onValueChange={(value) => setNewAlert({...newAlert, customerId: value})} >
@@ -291,39 +293,63 @@ export default function PreAlertsPage() {
         </div>
       </div>
 
-      <Card className="shadow-md overflow-hidden">
-        <CardHeader className="bg-muted/10">
-          <CardTitle>Incoming Documentation</CardTitle>
-          <CardDescription>Review user-uploaded documentation for customs processing.</CardDescription>
+      {firebaseError && (
+          <Alert variant="destructive" className="border-2 shadow-lg">
+              <ShieldAlert className="h-5 w-5" />
+              <AlertTitle className="font-black uppercase italic tracking-tight">Sync Failure Detected</AlertTitle>
+              <AlertDescription className="text-xs font-medium uppercase tracking-widest leading-relaxed mt-1">
+                  The real-time listener was unable to connect to the subcollection group. 
+                  {firebaseError.message.includes('index') ? (
+                      <span className="block mt-2 font-bold text-white bg-destructive px-2 py-1 rounded">
+                          CRITICAL: A Firestore Index is required for this collection group. Please check the Firebase Console logs.
+                      </span>
+                  ) : firebaseError.message}
+              </AlertDescription>
+          </Alert>
+      )}
+
+      <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
+        <CardHeader className="bg-muted/10 border-b">
+          <CardTitle className="text-sm font-black uppercase tracking-[0.2em] flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" /> Incoming Documentation Queue
+          </CardTitle>
+          <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Review and process user-uploaded invoices for customs clearance.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Status</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Tracking #</TableHead>
-                <TableHead>Contents</TableHead>
-                <TableHead>Invoice</TableHead>
-                <TableHead className="text-right pr-6">Actions</TableHead>
+            <TableHeader className="bg-muted/30">
+              <TableRow className="h-12">
+                <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Status</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Customer</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Tracking #</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Contents</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Invoice</TableHead>
+                <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {combinedPreAlerts.map((alert) => (
-                  <TableRow key={alert.id} className={cn("hover:bg-muted/30 transition-colors", alert.isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
+                  <TableRow key={alert.id} className={cn("hover:bg-primary/5 transition-colors h-20", alert.isLogicware && "bg-blue-50/20 dark:bg-blue-950/10")}>
                     <TableCell className="pl-6">
-                        <Badge variant={getStatusVariant(alert.status)} className="px-3">{alert.status}</Badge>
+                        <Badge variant={getStatusVariant(alert.status)} className="px-3 py-1 uppercase text-[9px] font-black italic tracking-widest border-2">
+                            {alert.status}
+                        </Badge>
                     </TableCell>
-                    <TableCell className="font-bold text-sm">{alert.customerName}</TableCell>
+                    <TableCell>
+                        <div className="flex flex-col">
+                            <span className="font-black text-sm uppercase">{alert.customerName}</span>
+                            {alert.isLogicware && <span className="text-[8px] font-bold text-blue-600 uppercase tracking-widest">Logicware Client</span>}
+                        </div>
+                    </TableCell>
                     <TableCell className="font-mono font-black text-primary uppercase text-sm tracking-tighter">{alert.trackingNumber}</TableCell>
-                    <TableCell className="text-xs max-w-[200px] truncate opacity-70">{alert.contents}</TableCell>
+                    <TableCell className="text-[11px] max-w-[200px] truncate font-medium opacity-70 uppercase">{alert.contents}</TableCell>
                     <TableCell>
                         {alert.uploadedInvoiceUrl ? (
-                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter">
+                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter shadow-inner">
                                 <CheckCircle2 className="h-3 w-3" /> Ready
                             </Badge>
                         ) : (
-                            <Badge variant="outline" className="text-muted-foreground border-dashed text-[9px] flex items-center gap-1 uppercase">
+                            <Badge variant="outline" className="text-muted-foreground border-dashed text-[9px] flex items-center gap-1 uppercase opacity-40">
                                 <AlertCircle className="h-3 w-3" /> Missing
                             </Badge>
                         )}
@@ -338,7 +364,12 @@ export default function PreAlertsPage() {
                 ))}
                 {combinedPreAlerts.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center h-48 text-muted-foreground italic">No incoming pre-alerts detected.</TableCell>
+                    <TableCell colSpan={6} className="text-center h-64">
+                        <div className="flex flex-col items-center gap-2 opacity-20">
+                            <RefreshCw className="h-10 w-10 animate-spin" />
+                            <p className="text-xs font-black uppercase italic tracking-tighter">Monitoring Worldwide Uplink...</p>
+                        </div>
+                    </TableCell>
                   </TableRow>
                 )}
             </TableBody>
@@ -367,21 +398,21 @@ function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 font-bold border-2" disabled={!preAlert.uploadedInvoiceUrl}>
+        <Button variant="outline" size="sm" className="h-9 font-black border-2 uppercase tracking-tighter text-[10px]" disabled={!preAlert.uploadedInvoiceUrl}>
           <FileText className="mr-2 h-3.5 w-3.5 text-primary" />
           Receipt
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="uppercase italic tracking-tighter flex items-center gap-2">
-            <Eye className="h-5 w-5 text-primary" /> Commercial Invoice Overview
+          <DialogTitle className="uppercase italic tracking-tighter flex items-center gap-2 text-2xl">
+            <Eye className="h-6 w-6 text-primary" /> Commercial Invoice Overview
           </DialogTitle>
           <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mt-1">
             Tracking: {preAlert.trackingNumber} • Customer: {preAlert.customerName}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 overflow-auto rounded-lg border bg-muted/20 mt-4 min-h-[500px] flex items-center justify-center p-4">
+        <div className="flex-1 overflow-auto rounded-xl border bg-muted/20 mt-4 min-h-[500px] flex items-center justify-center p-4 shadow-inner">
           {preAlert.uploadedInvoiceUrl.startsWith('data:application/pdf') || preAlert.uploadedInvoiceUrl.toLowerCase().endsWith('.pdf') ? (
             <iframe 
                 src={preAlert.uploadedInvoiceUrl} 
@@ -397,8 +428,8 @@ function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
           )}
         </div>
         <DialogFooter className="mt-6 flex gap-2">
-          <DialogClose asChild><Button variant="outline" className="px-8 font-bold">Close</Button></DialogClose>
-          <Button onClick={handleDownload} className="h-10 px-8 font-black uppercase tracking-tight italic shadow-lg">
+          <DialogClose asChild><Button variant="outline" className="px-8 font-bold h-12 uppercase">Close</Button></DialogClose>
+          <Button onClick={handleDownload} className="h-12 px-8 font-black uppercase tracking-tight italic shadow-lg">
             <Download className="mr-2 h-4 w-4" /> Download Original
           </Button>
         </DialogFooter>
@@ -412,30 +443,32 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
     const [cost, setCost] = useState('');
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button variant="secondary" size="sm" className="h-8 font-bold" disabled={preAlert.status === 'Processed'}>Process</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="secondary" size="sm" className="h-9 font-black uppercase italic text-[10px] px-6" disabled={preAlert.status === 'Processed'}>Process</Button></DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter">Authorize Global Shipment</DialogTitle>
+                    <DialogTitle className="uppercase italic tracking-tighter text-2xl">Authorize Global Intake</DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">Converting documentation to active shipping record</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-6 py-4">
-                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-center gap-4">
-                         <Zap className="h-8 w-8 text-primary" />
+                <div className="space-y-6 py-6">
+                    <div className="p-4 rounded-xl bg-primary/5 border-2 border-dashed border-primary/20 flex items-center gap-4">
+                         <Zap className="h-8 w-8 text-primary animate-pulse" />
                          <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Converting Record</p>
-                            <p className="font-mono font-black text-lg text-primary">{preAlert.trackingNumber}</p>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground leading-none mb-1">Impacted Tracking Record</p>
+                            <p className="font-mono font-black text-xl text-primary">{preAlert.trackingNumber}</p>
                          </div>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase opacity-60">Shipping & Logistics Cost (JMD $)</Label>
+                        <Label className="text-[10px] font-black uppercase opacity-60 tracking-widest">Shipping & Logistics Cost (JMD $)</Label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
-                            <Input type="number" placeholder="5500.00" value={cost} onChange={(e) => setCost(e.target.value)} className="pl-16 h-12 text-lg font-black border-2" />
+                            <Input type="number" placeholder="5500.00" value={cost} onChange={(e) => setCost(e.target.value)} className="pl-16 h-14 text-2xl font-black border-2 focus:border-primary shadow-inner" />
                         </div>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase text-center mt-2">Cost will be added to the customer's unpaid balance</p>
                     </div>
                 </div>
-                <DialogFooter>
-                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                    <Button onClick={() => { onShipmentCreated(preAlert, parseFloat(cost)); setOpen(false); }} className="h-11 px-8 font-black uppercase tracking-tight">Finalize Intake</Button>
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase">Cancel</Button></DialogClose>
+                    <Button onClick={() => { onShipmentCreated(preAlert, parseFloat(cost)); setOpen(false); }} className="flex-1 h-12 font-black uppercase tracking-tight italic shadow-xl">Finalize Intake & Log</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

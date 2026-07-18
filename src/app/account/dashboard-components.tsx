@@ -354,7 +354,10 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         setIsSubmitting(true);
         try {
             const finalTracking = trackingNumber.toUpperCase();
-            await addDoc(collection(firestore, 'users', customerId, 'pre_alerts'), {
+            // EXPLICIT PATH: Ensure we write to /users/{uid}/pre_alerts
+            const preAlertsCollection = collection(firestore, 'users', customerId, 'pre_alerts');
+            
+            await addDoc(preAlertsCollection, {
                 customerName,
                 customerId,
                 trackingNumber: finalTracking,
@@ -371,7 +374,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'pre_alert_upload',
-                    description: `User uploaded a new pre-alert for ${finalTracking}.`,
+                    description: `User ${customerName} uploaded a new pre-alert for ${finalTracking}.`,
                     userId: customerId,
                     userName: customerName,
                     metadata: { trackingNumber: finalTracking, contents }
@@ -394,7 +397,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
               console.error("Admin notification email failed", emailErr);
             }
 
-            toast({ title: "Pre-Alert Submitted", description: "Our warehouse team has been notified via email of your incoming package." });
+            toast({ title: "Pre-Alert Submitted", description: "Our warehouse team has been notified of your incoming package." });
             setTrackingNumber('');
             setContents('');
             setInvoiceBase64(null);
