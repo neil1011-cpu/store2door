@@ -4,5 +4,6 @@ export const firebaseConfig = {
   "apiKey": "AIzaSyCxZ7fHM0GTfBtkyxaAhotzDw5udr7lFvQ",
   "authDomain": "swiftroute-3230b.firebaseapp.com",
   "measurementId": "",
-  "messagingSenderId": "196006185725"
+  "messagingSenderId": "196006185725",
+  "storageBucket": "swiftroute-3230b.firebasestorage.app"
 };

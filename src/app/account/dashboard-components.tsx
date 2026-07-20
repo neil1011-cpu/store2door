@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -18,8 +17,9 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import type { UserProfile, Shipment, PreAlert, ShipmentStatus, DropoffAddress, PickupPerson } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useStorage } from '@/firebase';
 import { collection, query, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Link from 'next/link';
 
 const getStatusVariant = (status: ShipmentStatus | string | undefined) => {
@@ -329,24 +329,28 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
 
 export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber, onSuccess }: { customerId: string, customerName: string, prefilledTrackingNumber?: string, onSuccess?: () => void }) {
     const firestore = useFirestore();
+    const storage = useStorage();
     const { toast } = useToast();
     const [trackingNumber, setTrackingNumber] = useState(prefilledTrackingNumber || '');
     const [contents, setContents] = useState('');
-    const [invoiceBase64, setInvoiceBase64] = useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => setInvoiceBase64(reader.result as string);
-            reader.readAsDataURL(file);
+            // Check for 500MB limit
+            if (file.size > 500 * 1024 * 1024) {
+                toast({ title: "File Too Large", description: "The maximum upload size is 500MB.", variant: "destructive" });
+                return;
+            }
+            setSelectedFile(file);
         }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!trackingNumber || !contents || !invoiceBase64) {
+        if (!trackingNumber || !contents || !selectedFile) {
             toast({ title: "Missing Fields", description: "Tracking #, contents, and invoice are required.", variant: "destructive" });
             return;
         }
@@ -354,9 +358,15 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         setIsSubmitting(true);
         try {
             const finalTracking = trackingNumber.toUpperCase();
-            // EXPLICIT PATH: Ensure we write to /users/{uid}/pre_alerts
-            const preAlertsCollection = collection(firestore, 'users', customerId, 'pre_alerts');
             
+            // 1. Upload to Firebase Storage
+            const storagePath = `invoices/${customerId}/${Date.now()}_${selectedFile.name}`;
+            const storageRef = ref(storage, storagePath);
+            await uploadBytes(storageRef, selectedFile);
+            const downloadUrl = await getDownloadURL(storageRef);
+
+            // 2. Save Reference in Firestore
+            const preAlertsCollection = collection(firestore, 'users', customerId, 'pre_alerts');
             await addDoc(preAlertsCollection, {
                 customerName,
                 customerId,
@@ -364,11 +374,11 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 contents,
                 status: 'Pending',
                 submissionDate: serverTimestamp(),
-                uploadedInvoiceUrl: invoiceBase64,
+                uploadedInvoiceUrl: downloadUrl,
                 invoiceHtml: ''
             });
 
-            // LOG ACTIVITY FOR ADMIN
+            // 3. LOG ACTIVITY FOR ADMIN
             await fetch('/api/log-activity', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -377,11 +387,11 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                     description: `User ${customerName} uploaded a new pre-alert for ${finalTracking}.`,
                     userId: customerId,
                     userName: customerName,
-                    metadata: { trackingNumber: finalTracking, contents }
+                    metadata: { trackingNumber: finalTracking, contents, fileUrl: downloadUrl }
                 })
             });
 
-            // NOTIFY ADMIN VIA EMAIL
+            // 4. NOTIFY ADMIN VIA EMAIL
             try {
               await fetch('/api/send-email', {
                 method: 'POST',
@@ -400,7 +410,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             toast({ title: "Pre-Alert Submitted", description: "Our warehouse team has been notified of your incoming package." });
             setTrackingNumber('');
             setContents('');
-            setInvoiceBase64(null);
+            setSelectedFile(null);
             onSuccess?.();
         } catch (error: any) {
             toast({ title: "Submission Failed", description: error.message, variant: "destructive" });
@@ -435,7 +445,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             </div>
 
             <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase opacity-60">Upload Invoice (Image or PDF)</Label>
+                <Label className="text-xs font-bold uppercase opacity-60">Upload Invoice (Limit: 500MB)</Label>
                 <div className="border-2 border-dashed rounded-xl p-8 text-center bg-muted/20 relative group hover:bg-muted/30 transition-colors">
                     <input 
                         type="file" 
@@ -444,14 +454,17 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                         className="absolute inset-0 opacity-0 cursor-pointer"
                         required
                     />
-                    {!invoiceBase64 ? (
+                    {!selectedFile ? (
                         <div className="space-y-2">
                             <UploadCloud className="h-10 w-10 mx-auto text-primary opacity-40 group-hover:scale-110 transition-transform" />
                             <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Select Invoice File</p>
+                            <p className="text-[10px] text-muted-foreground">PDF or Image up to 500MB</p>
                         </div>
                     ) : (
-                        <div className="flex items-center justify-center gap-2 text-green-600 font-bold uppercase text-xs">
-                            <CheckCircle2 className="h-5 w-5" /> File Selected & Ready
+                        <div className="flex flex-col items-center justify-center gap-2 text-green-600 font-bold uppercase text-xs">
+                            <CheckCircle2 className="h-5 w-5" />
+                            <span>{selectedFile.name}</span>
+                            <span className="text-muted-foreground text-[10px]">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
                         </div>
                     )}
                 </div>
