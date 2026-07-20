@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, type ReactNode, useState } from 'react';
@@ -10,13 +9,23 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
-import { Wallet } from 'lucide-react';
+import { Wallet, Menu } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 // Create a context to share the user profile data with child pages
 const UserProfileContext = createContext<UserProfile | null>(null);
 
 export const useAccountProfile = () => useContext(UserProfileContext);
+
+const accountNavLinks = [
+    { href: '/account', label: 'Dashboard' },
+    { href: '/account/pre-alert', label: 'Pre-Alert' },
+    { href: '/account/packages', label: 'Packages' },
+    { href: '/account/profile', label: 'Profile' },
+];
 
 export default function AccountLayout({ children }: { children: ReactNode }) {
     const router = useRouter();
@@ -24,6 +33,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const [isMounted, setIsMounted] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
@@ -94,25 +104,56 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             <div className="min-h-screen bg-muted/20">
                 {/* User Account Sub-Header with Balance */}
                 <div className="bg-background border-b shadow-sm sticky top-0 z-40 print:hidden">
-                    <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <AppLogo className="scale-90" />
-                            <Separator orientation="vertical" className="h-6 hidden sm:block" />
-                            <span className="text-[10px] font-black uppercase italic tracking-tighter opacity-40 hidden sm:block">Account Console</span>
+                    <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 md:gap-4 shrink-0">
+                            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                                <SheetTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="md:hidden">
+                                        <Menu className="h-5 w-5" />
+                                    </Button>
+                                </SheetTrigger>
+                                <SheetContent side="left" className="w-[300px]">
+                                    <SheetHeader className="mb-8">
+                                        <SheetTitle><AppLogo onClick={() => setIsMobileMenuOpen(false)} /></SheetTitle>
+                                    </SheetHeader>
+                                    <nav className="flex flex-col gap-2">
+                                        {accountNavLinks.map(link => (
+                                            <Link 
+                                                key={link.href}
+                                                href={link.href}
+                                                onClick={() => setIsMobileMenuOpen(false)}
+                                                className={cn(
+                                                    "text-base font-bold uppercase tracking-wider p-4 rounded-lg transition-colors",
+                                                    pathname === link.href ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                                                )}
+                                            >
+                                                {link.label}
+                                            </Link>
+                                        ))}
+                                        <Separator className="my-4" />
+                                        <Link href="/tracking" className="p-4 text-sm font-bold opacity-60 uppercase">Public Tracking</Link>
+                                        <Link href="/support" className="p-4 text-sm font-bold opacity-60 uppercase">Get Help</Link>
+                                    </nav>
+                                </SheetContent>
+                            </Sheet>
+                            <AppLogo className="scale-75 sm:scale-90" />
+                            <Separator orientation="vertical" className="h-6 hidden lg:block" />
+                            <span className="text-[10px] font-black uppercase italic tracking-tighter opacity-40 hidden lg:block">Console</span>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <div className="bg-primary/5 border-2 border-primary/10 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-inner">
-                                <Wallet className="h-4 w-4 text-primary" />
-                                <div className="flex flex-col">
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground leading-none">Wallet Balance</span>
-                                    <span className="text-sm font-black italic tracking-tighter leading-tight">JMD ${(userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        
+                        <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end overflow-hidden">
+                            <div className="bg-primary/5 border-2 border-primary/10 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[180px] sm:max-w-none">
+                                <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-muted-foreground leading-none">Wallet</span>
+                                    <span className="text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate">JMD ${(userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
                             </div>
-                            <ThemeToggle />
+                            <div className="shrink-0"><ThemeToggle /></div>
                         </div>
                     </div>
                 </div>
-                <div className="py-8">
+                <div className="py-4 sm:py-8">
                     {children}
                 </div>
             </div>
