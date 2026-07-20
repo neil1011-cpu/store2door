@@ -1,27 +1,23 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { useState, useMemo, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, ArrowLeft, Edit, Loader2, Search, PlusCircle, ScanLine, CheckCircle2, AlertCircle, Zap, RefreshCw, ShoppingCart, Weight, DollarSign, Store, Eye, Info, Package, Plane, MapPin, Ruler, ShieldAlert, History, FileText, Download } from 'lucide-react';
+import { Mail, ArrowLeft, Edit, Loader2, Search, CheckCircle2, AlertCircle, Zap, RefreshCw, Eye, Info, Package, FileText, Download, ShieldAlert, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import type { Shipment, UserProfile, ShipmentStatus } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, collectionGroup, query, doc, updateDoc, serverTimestamp, where, getDocs, writeBatch, orderBy } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { collection, collectionGroup, query, doc, updateDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
@@ -49,19 +45,30 @@ const getStatusVariant = (status: ShipmentStatus | string | undefined) => {
   }
 };
 
+const OFFICIAL_STATUSES: ShipmentStatus[] = [
+    'Pending',
+    'Pre-Alert',
+    'Received at Warehouse (FL)',
+    'Processed',
+    'In Review',
+    'Being Shipped',
+    'In Transit',
+    'Arrived in Jamaica',
+    'Customs',
+    'On Route',
+    'Delivered'
+];
+
 export default function ShippingPage() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedShipment, setSelectedShipment] = useState<(Shipment & { user?: Partial<UserProfile> }) | null>(null);
-  const [editableShipment, setEditableShipment] = useState<Shipment | null>(null);
-  const [viewingShipment, setViewingShipment] = useState<Shipment | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [viewingShipment, setViewingShipment] = useState<(Shipment & { user?: Partial<UserProfile> }) | null>(null);
+  const [editingShipment, setEditingShipment] = useState<(Shipment & { user?: Partial<UserProfile> }) | null>(null);
   const [isFetchingLogicware, setIsFetchingLogicware] = useState(false);
   const [logicwareShipments, setLogicwareShipments] = useState<any[]>([]);
 
   const firestore = useFirestore();
 
-  // Real-time listener for ALL shipments across all users
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collectionGroup(firestore, 'shipments'));
@@ -144,6 +151,48 @@ export default function ShippingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleUpdateStatus = async (shipment: Shipment & { user?: Partial<UserProfile> }, newStatus: string) => {
+      try {
+          const docRef = doc(firestore, 'users', shipment.customerId, 'shipments', shipment.id);
+          await updateDoc(docRef, {
+              status: newStatus,
+              updatedAt: serverTimestamp()
+          });
+
+          // 1. Log Activity
+          await fetch('/api/log-activity', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  type: 'shipment_status_update',
+                  description: `Shipment ${shipment.trackingNumber} status updated to "${newStatus}" for ${shipment.user?.fullName || 'Customer'}.`,
+                  userId: 'admin',
+                  userName: 'System Admin',
+                  metadata: { trackingNumber: shipment.trackingNumber, newStatus }
+              })
+          });
+
+          // 2. Notify Customer via Email
+          if (shipment.user?.email) {
+              await fetch('/api/send-email', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      to: shipment.user.email,
+                      subject: `Status Update: Package ${shipment.trackingNumber}`,
+                      body: `Hi ${shipment.user.fullName || 'Valued Customer'},\n\nYour package with tracking number ${shipment.trackingNumber} has been updated.\n\nNew Status: ${newStatus}\n\nYou can track the live progress of your shipment in your account dashboard.\n\nThank you for shipping with FromStore2Door!`,
+                      recipientName: shipment.user.fullName
+                  })
+              });
+          }
+
+          toast({ title: "Status Synchronized", description: `Shipment updated to ${newStatus} and customer notified.` });
+          setEditingShipment(null);
+      } catch (err: any) {
+          toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+      }
+  };
+
   if (loading && !firebaseError) {
     return (
         <div className="flex h-screen items-center justify-center bg-background">
@@ -175,12 +224,7 @@ export default function ShippingPage() {
               <ShieldAlert className="h-5 w-5" />
               <AlertTitle className="font-black uppercase italic tracking-tight">Sync Failure Detected</AlertTitle>
               <AlertDescription className="text-xs font-medium uppercase tracking-widest leading-relaxed mt-1">
-                  The real-time listener was unable to connect to the subcollection group. 
-                  {firebaseError.message.includes('index') ? (
-                      <span className="block mt-2 font-bold text-white bg-destructive px-2 py-1 rounded">
-                          CRITICAL: A Firestore Index is required for this collection group.
-                      </span>
-                  ) : firebaseError.message}
+                  The real-time listener was unable to connect to the subcollection group. Sorting handled in-memory.
               </AlertDescription>
           </Alert>
       )}
@@ -235,9 +279,16 @@ export default function ShippingPage() {
                         )}
                     </TableCell>
                     <TableCell className="text-right pr-6">
-                        <Button variant="outline" size="sm" onClick={() => setViewingShipment(shipment as Shipment)} className="h-9 font-black border-2 uppercase tracking-tighter text-[10px]">
-                            <Eye className="h-4 w-4 mr-2" /> Details
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                            {!shipment.isLogicware && (
+                                <Button variant="secondary" size="sm" onClick={() => setEditingShipment(shipment as any)} className="h-9 font-black uppercase italic text-[10px] px-4">
+                                    <Edit className="h-3.5 w-3.5 mr-1" /> Update
+                                </Button>
+                            )}
+                            <Button variant="outline" size="sm" onClick={() => setViewingShipment(shipment as any)} className="h-9 font-black border-2 uppercase tracking-tighter text-[10px]">
+                                <Eye className="h-3.5 w-3.5 mr-2" /> Details
+                            </Button>
+                        </div>
                     </TableCell>
                     </TableRow>
                 ))}
@@ -257,11 +308,55 @@ export default function ShippingPage() {
       </Card>
 
       <ShipmentDetailsDialog shipment={viewingShipment} onOpenChange={(open) => !open && setViewingShipment(null)} />
+      
+      {/* Status Update Dialog */}
+      <Dialog open={!!editingShipment} onOpenChange={(open) => !open && setEditingShipment(null)}>
+          <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Modify Package Status</DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">Update transit state and notify customer</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-6">
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 space-y-1">
+                        <p className="text-[10px] font-bold uppercase opacity-60">Package Reference</p>
+                        <p className="font-mono font-black text-lg text-primary">{editingShipment?.trackingNumber}</p>
+                        <p className="text-[9px] font-bold uppercase text-muted-foreground">{editingShipment?.user?.fullName}</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">New Logistics Status</Label>
+                        <Select 
+                            onValueChange={(val) => editingShipment && handleUpdateStatus(editingShipment, val)}
+                            defaultValue={editingShipment?.status}
+                        >
+                            <SelectTrigger className="h-12 border-2 text-sm font-bold uppercase italic focus:border-primary">
+                                <SelectValue placeholder="Select New Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {OFFICIAL_STATUSES.map(status => (
+                                    <SelectItem key={status} value={status} className="font-bold uppercase text-xs italic">
+                                        {status}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3">
+                        <Mail className="h-5 w-5 text-amber-600 shrink-0" />
+                        <p className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
+                            Confirming the status update will automatically dispatch an official notification email to the customer.
+                        </p>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="ghost" className="h-12 font-bold uppercase">Cancel</Button></DialogClose>
+                </DialogFooter>
+          </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: Shipment | null, onOpenChange: (open: boolean) => void }) {
+function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: (Shipment & { user?: Partial<UserProfile> }) | null, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
     if (!shipment) return null;
 
@@ -273,7 +368,7 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: Shipment 
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        toast({ title: "Downloading Receipt", description: "The commercial invoice is being saved to your device." });
+        toast({ title: "Downloading Receipt", description: "The commercial invoice is being saved." });
     };
 
     return (
@@ -295,13 +390,17 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: Shipment 
                             <Card className="bg-muted/30 border-none shadow-inner rounded-2xl">
                                 <CardContent className="pt-6 space-y-4">
                                     <div className="flex justify-between items-center bg-background p-3 rounded-xl border shadow-sm">
-                                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Status</Label>
+                                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Customer</Label>
+                                        <p className="text-sm font-black uppercase">{shipment.user?.fullName || 'N/A'}</p>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-background p-3 rounded-xl border shadow-sm">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Current Status</Label>
                                         <Badge variant={getStatusVariant(shipment.status)} className="font-black italic uppercase px-4">{shipment.status || 'Pending'}</Badge>
                                     </div>
                                     <Separator className="opacity-10" />
                                     <div>
                                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1 block">Package Contents</Label>
-                                        <p className="text-sm font-bold uppercase italic tracking-tight bg-background p-3 rounded-xl border">{shipment.contents || 'No description provided.'}</p>
+                                        <p className="text-sm font-bold uppercase italic tracking-tight bg-background p-3 rounded-xl border">{shipment.contents || 'No description.'}</p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-background p-3 rounded-xl border">
@@ -355,7 +454,7 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: Shipment 
                                 ) : (
                                     <div className="text-center p-8 space-y-4 opacity-10">
                                         <FileText className="h-24 w-24 mx-auto" />
-                                        <p className="text-sm font-black uppercase italic tracking-tighter">Documentation Missing from System</p>
+                                        <p className="text-sm font-black uppercase italic tracking-tighter">Documentation Missing</p>
                                     </div>
                                 )}
                             </div>
