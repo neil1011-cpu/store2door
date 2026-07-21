@@ -6,6 +6,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { UserProfile } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
