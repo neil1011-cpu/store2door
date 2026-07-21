@@ -36,7 +36,8 @@ import {
   Building2,
   Trash2,
   FileText,
-  Edit3
+  Edit3,
+  FileDown
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -56,16 +57,18 @@ import {
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 /**
- * @fileOverview POS System with integrated Receipt Printing and Finance linking.
- * Allows admins to search users, select their unpaid invoices, and process payments.
- * Includes Manual Amount Override for flexible branch operations.
+ * @fileOverview POS System with integrated PDF Receipt Generation and Finance linking.
+ * Includes Manual Amount Override and optimized PDF export for thermal printing.
  */
 
 export default function POSPage() {
     const { toast } = useToast();
     const firestore = useFirestore();
+    const receiptRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
     const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
@@ -73,6 +76,7 @@ export default function POSPage() {
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Transfer'>('Cash');
     const [isProcessing, setIsProcessing] = useState(false);
     const [checkoutComplete, setCheckoutComplete] = useState(false);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     
     // Manual Amount States
     const [useManualAmount, setUseManualAmount] = useState(false);
@@ -167,11 +171,11 @@ export default function POSPage() {
                     status: 'Paid',
                     paymentMethod,
                     paidAt: serverTimestamp(),
-                    actualAmountPaid: useManualAmount ? (finalAmount / selectedInvoices.size) : null // Note: Simplified partial payment logic
+                    actualAmountPaid: useManualAmount ? (finalAmount / selectedInvoices.size) : null 
                 });
             });
 
-            // Log Transaction (LINKED TO FINANCE)
+            // Log Transaction
             const transactionRef = doc(collection(firestore, 'transactions'));
             batch.set(transactionRef, {
                 type: 'revenue',
@@ -219,8 +223,41 @@ export default function POSPage() {
         }
     };
 
-    const handlePrintReceipt = () => {
-        window.print();
+    const handlePrintReceipt = async () => {
+        if (!receiptRef.current || !receiptData) return;
+        
+        setIsGeneratingPdf(true);
+        try {
+            const element = receiptRef.current;
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+            });
+            
+            const imgData = canvas.toDataURL('image/png');
+            
+            // Typical thermal paper is 80mm wide. Height is proportional.
+            const pdfWidth = 80;
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: [pdfWidth, pdfHeight]
+            });
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`Receipt-${receiptData.customer.mailboxNumber}-${Date.now()}.pdf`);
+            
+            toast({ title: "PDF Receipt Generated", description: "The receipt has been converted and saved." });
+        } catch (error) {
+            console.error("PDF Generation Error:", error);
+            toast({ title: "PDF Conversion Failed", variant: "destructive" });
+        } finally {
+            setIsGeneratingPdf(false);
+        }
     };
 
     const resetPOS = () => {
@@ -235,63 +272,63 @@ export default function POSPage() {
 
     return (
         <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-            {/* Print Only Receipt Container */}
-            {receiptData && (
-                <div className="hidden print:block fixed inset-0 bg-white p-8 font-mono text-black z-[999]">
-                    <div className="max-w-[300px] mx-auto space-y-6">
-                        <div className="text-center border-b pb-4">
-                            <h1 className="text-xl font-bold uppercase tracking-tighter">FromStore2Door</h1>
-                            <p className="text-[10px] mt-1">3507 NW 19th ST</p>
-                            <p className="text-[10px]">Lauderdale Lake, FL, 33311-4224</p>
-                            <p className="text-[10px] font-bold mt-2">info@fromstore2door.com</p>
+            {/* Hidden Receipt Template for PDF Capture */}
+            <div className="fixed -left-[9999px] top-0">
+                {receiptData && (
+                    <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
+                        <div className="text-center border-b-2 border-black pb-4 mb-6">
+                            <h1 className="text-2xl font-black uppercase tracking-tighter">FromStore2Door</h1>
+                            <p className="text-xs mt-1">3507 NW 19th ST</p>
+                            <p className="text-xs">Lauderdale Lake, FL, 33311-4224</p>
+                            <p className="text-xs font-bold mt-2">info@fromstore2door.com</p>
                         </div>
 
-                        <div className="space-y-1 text-[10px]">
+                        <div className="space-y-2 text-xs mb-6">
                             <div className="flex justify-between"><span>DATE:</span> <span>{receiptData.date.toLocaleString()}</span></div>
                             <div className="flex justify-between"><span>CUSTOMER:</span> <span className="font-bold">{receiptData.customer.fullName}</span></div>
                             <div className="flex justify-between"><span>MAILBOX:</span> <span className="font-bold">{receiptData.customer.mailboxNumber}</span></div>
                         </div>
 
-                        <Separator className="border-black border-dashed" />
+                        <Separator className="border-black border-dashed my-4" />
 
-                        <div className="space-y-3 text-[10px]">
-                            <div className="grid grid-cols-4 font-bold border-b pb-1">
-                                <span className="col-span-2">DESCRIPTION</span>
+                        <div className="space-y-3 text-xs">
+                            <div className="grid grid-cols-4 font-black border-b border-black pb-2">
+                                <span className="col-span-2 text-left">DESCRIPTION</span>
                                 <span className="text-right">QTY</span>
                                 <span className="text-right">TOTAL</span>
                             </div>
                             {receiptData.items.map(item => (
                                 <div key={item.id} className="grid grid-cols-4 py-1">
-                                    <span className="col-span-2">{item.invoiceId} - SHIPMENT</span>
+                                    <span className="col-span-2 text-left truncate">{item.invoiceId} - SHIPMENT</span>
                                     <span className="text-right">1</span>
                                     <span className="text-right">${item.amount.toFixed(2)}</span>
                                 </div>
                             ))}
                         </div>
 
-                        <Separator className="border-black border-dashed" />
+                        <Separator className="border-black border-dashed my-6" />
 
-                        <div className="space-y-1">
-                            <div className="flex justify-between text-lg font-black">
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xl font-black">
                                 <span>TOTAL PAID:</span>
                                 <span>JMD ${receiptData.total.toLocaleString()}</span>
                             </div>
-                            <div className="flex justify-between text-[10px] font-bold">
+                            <div className="flex justify-between text-xs font-bold uppercase">
                                 <span>PAID VIA:</span>
-                                <span>{receiptData.method.toUpperCase()}</span>
+                                <span>{receiptData.method}</span>
                             </div>
                         </div>
 
-                        <div className="text-center pt-8 border-t border-dashed">
-                            <p className="text-[10px] font-bold italic uppercase">*** THANK YOU FOR SHIPPING WITH US ***</p>
-                            <p className="text-[8px] mt-2 opacity-60">System Receipt Generated by FSTD OS</p>
+                        <div className="text-center mt-12 pt-8 border-t border-dashed border-black">
+                            <p className="text-xs font-black italic uppercase">*** THANK YOU FOR SHIPPING ***</p>
+                            <p className="text-[10px] mt-2 opacity-60">System Receipt Generated by FSTD OS</p>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* Standard Dashboard Header */}
-            <div className="flex items-center justify-between print:hidden">
+            <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
                         <ShoppingCart className="h-8 w-8" /> POS Checkout System
@@ -303,7 +340,7 @@ export default function POSPage() {
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Left Column: Customer & Item Selection */}
                 <div className="lg:col-span-8 space-y-6">
                     {/* Customer Lookup */}
@@ -561,8 +598,9 @@ export default function POSPage() {
                             </div>
                             <Separator className="bg-muted" />
                             <div className="grid grid-cols-2 gap-4">
-                                <Button className="h-14 font-black uppercase tracking-tight" onClick={handlePrintReceipt}>
-                                    <Printer className="mr-2 h-5 w-5" /> Print Receipt
+                                <Button className="h-14 font-black uppercase tracking-tight" onClick={handlePrintReceipt} disabled={isGeneratingPdf}>
+                                    {isGeneratingPdf ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileDown className="mr-2 h-5 w-5" />}
+                                    Receipt PDF
                                 </Button>
                                 <Button variant="outline" className="h-14 font-black border-2 uppercase tracking-tight" onClick={resetPOS}>
                                     New Customer
