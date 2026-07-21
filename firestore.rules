@@ -10,7 +10,6 @@ service cloud.firestore {
     }
 
     // Administrators have full access.
-    // Reverted email fallback to admin@neilussolutions.com
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
@@ -41,13 +40,16 @@ service cloud.firestore {
       allow list: if isAdmin();
     }
     
+    // Explicitly allow users to see their own pre-alerts via collectionGroup
     match /{path=**}/pre_alerts/{id} {
-      allow read, list: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
+      allow read: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && request.query.filters.customerId == request.auth.uid);
     }
     
+    // Explicitly allow tracking (read by ID) and owner listing for shipments
     match /{path=**}/shipments/{id} {
-       allow read: if true;
-       allow list: if isAdmin();
+       allow read: if true; 
+       allow list: if isAdmin() || (isSignedIn() && request.query.filters.customerId == request.auth.uid);
     }
 
     match /transactions/{id} {
@@ -55,7 +57,9 @@ service cloud.firestore {
     }
     
     match /invoices/{id} {
-       allow read, write, list: if isAdmin();
+       allow read: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
+       allow list: if isAdmin() || (isSignedIn() && request.query.filters.customerId == request.auth.uid);
+       allow write: if isAdmin();
     }
 
     match /admin_roles/{uid} {

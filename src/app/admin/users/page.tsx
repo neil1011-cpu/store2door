@@ -114,8 +114,6 @@ export default function UsersPage() {
           const rawShippers = Array.isArray(data) ? data : data.shippers || data.data || [];
           const allCount = (users?.length || 0) + rawShippers.length;
 
-          console.log('[FINAL DATA]', { shippersArray: rawShippers, total: allCount });
-
           toast({ 
               title: 'Success', 
               description: `Loaded ${allCount} worldwide records` 
@@ -335,11 +333,11 @@ function ImportCSVDialog() {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${idToken}`
                         },
-                        super: JSON.stringify({
+                        body: JSON.stringify({
                             ...uData,
                             defaultPassword: 'User@' + Math.floor(1000 + Math.random() * 9000),
                         })
-                    } as any);
+                    });
                     if (res.ok) successCount++;
                     else failCount++;
                 } catch (err) {
