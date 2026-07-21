@@ -35,7 +35,8 @@ import {
   Banknote,
   Building2,
   Trash2,
-  FileText
+  FileText,
+  Edit3
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -54,10 +55,12 @@ import {
     DialogClose 
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
 
 /**
  * @fileOverview POS System with integrated Receipt Printing and Finance linking.
  * Allows admins to search users, select their unpaid invoices, and process payments.
+ * Includes Manual Amount Override for flexible branch operations.
  */
 
 export default function POSPage() {
@@ -71,6 +74,10 @@ export default function POSPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [checkoutComplete, setCheckoutComplete] = useState(false);
     
+    // Manual Amount States
+    const [useManualAmount, setUseManualAmount] = useState(false);
+    const [manualAmount, setManualAmount] = useState('');
+
     // Receipt Snapshot Data
     const [receiptData, setReceiptData] = useState<{
         customer: UserProfile;
@@ -109,17 +116,32 @@ export default function POSPage() {
         ).slice(0, 5);
     }, [users, searchTerm]);
 
-    const totalToPay = useMemo(() => {
+    const calculatedTotal = useMemo(() => {
         if (!userInvoices) return 0;
         return userInvoices
             .filter(inv => selectedInvoices.has(inv.id))
             .reduce((sum, inv) => sum + inv.amount, 0);
     }, [userInvoices, selectedInvoices]);
 
+    const finalAmount = useMemo(() => {
+        if (useManualAmount) {
+            return parseFloat(manualAmount) || 0;
+        }
+        return calculatedTotal;
+    }, [useManualAmount, manualAmount, calculatedTotal]);
+
+    // Update manual amount input when selection changes if manual mode is off
+    useEffect(() => {
+        if (!useManualAmount) {
+            setManualAmount(calculatedTotal.toString());
+        }
+    }, [calculatedTotal, useManualAmount]);
+
     const handleSelectUser = (user: UserProfile) => {
         setSelectedUser(user);
         setSearchTerm('');
         setSelectedInvoices(new Set());
+        setUseManualAmount(false);
     };
 
     const toggleInvoice = (invoiceId: string) => {
@@ -144,7 +166,8 @@ export default function POSPage() {
                 batch.update(invRef, { 
                     status: 'Paid',
                     paymentMethod,
-                    paidAt: serverTimestamp()
+                    paidAt: serverTimestamp(),
+                    actualAmountPaid: useManualAmount ? (finalAmount / selectedInvoices.size) : null // Note: Simplified partial payment logic
                 });
             });
 
@@ -153,8 +176,8 @@ export default function POSPage() {
             batch.set(transactionRef, {
                 type: 'revenue',
                 source: 'POS',
-                amount: totalToPay,
-                description: `POS Payment - ${selectedUser.fullName} (${selectedUser.mailboxNumber})`,
+                amount: finalAmount,
+                description: `POS Payment ${useManualAmount ? '(Override)' : ''} - ${selectedUser.fullName} (${selectedUser.mailboxNumber})`,
                 date: serverTimestamp(),
                 method: paymentMethod,
                 customerId: selectedUser.id,
@@ -167,13 +190,13 @@ export default function POSPage() {
             setReceiptData({
                 customer: selectedUser,
                 items: itemsToSnap,
-                total: totalToPay,
+                total: finalAmount,
                 method: paymentMethod,
                 date: new Date()
             });
 
             setCheckoutComplete(true);
-            toast({ title: "Payment Processed!", description: `JMD $${totalToPay.toLocaleString()} recorded in Finance.` });
+            toast({ title: "Payment Processed!", description: `JMD $${finalAmount.toLocaleString()} recorded in Finance.` });
             
             // Log Activity for Audit Trail
             await fetch('/api/log-activity', {
@@ -181,10 +204,10 @@ export default function POSPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'pos_payment',
-                    description: `POS checkout completed for ${selectedUser.fullName} (${selectedUser.mailboxNumber}). Total: JMD $${totalToPay.toFixed(2)}`,
+                    description: `POS checkout completed for ${selectedUser.fullName}. Final Amount: JMD $${finalAmount.toFixed(2)}`,
                     userId: 'admin',
                     userName: 'System Admin',
-                    metadata: { customerId: selectedUser.id, amount: totalToPay, method: paymentMethod }
+                    metadata: { customerId: selectedUser.id, amount: finalAmount, method: paymentMethod, overridden: useManualAmount }
                 })
             });
 
@@ -206,6 +229,8 @@ export default function POSPage() {
         setCheckoutComplete(false);
         setIsCheckoutOpen(false);
         setReceiptData(null);
+        setUseManualAmount(false);
+        setManualAmount('');
     };
 
     return (
@@ -248,7 +273,7 @@ export default function POSPage() {
 
                         <div className="space-y-1">
                             <div className="flex justify-between text-lg font-black">
-                                <span>TOTAL:</span>
+                                <span>TOTAL PAID:</span>
                                 <span>JMD ${receiptData.total.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between text-[10px] font-bold">
@@ -428,11 +453,33 @@ export default function POSPage() {
 
                             <Separator className="bg-white/10" />
 
-                            <div className="text-center space-y-2 py-4">
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Grand Total Due</p>
-                                <div className="flex items-center justify-center gap-2">
-                                    <span className="text-2xl font-bold opacity-30 text-primary">JMD</span>
-                                    <span className="text-6xl font-black italic tracking-tighter text-white">${totalToPay.toLocaleString()}</span>
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <Label htmlFor="manual-override" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2 cursor-pointer">
+                                        <Edit3 className="h-3 w-3" /> Manual Amount Override
+                                    </Label>
+                                    <Switch id="manual-override" checked={useManualAmount} onCheckedChange={setUseManualAmount} />
+                                </div>
+
+                                <div className="text-center space-y-2 py-4">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Grand Total Due</p>
+                                    {useManualAmount ? (
+                                        <div className="relative max-w-[200px] mx-auto">
+                                            <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xl font-bold text-primary opacity-50">JMD $</span>
+                                            <Input 
+                                                type="number" 
+                                                value={manualAmount}
+                                                onChange={e => setManualAmount(e.target.value)}
+                                                className="bg-transparent border-b-2 border-primary border-t-0 border-x-0 rounded-none h-16 text-4xl font-black italic text-center focus-visible:ring-0 px-10"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <span className="text-2xl font-bold opacity-30 text-primary">JMD</span>
+                                            <span className="text-6xl font-black italic tracking-tighter text-white">${calculatedTotal.toLocaleString()}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -460,7 +507,7 @@ export default function POSPage() {
                         <CardFooter className="pt-4 pb-8">
                             <Button 
                                 onClick={() => setIsCheckoutOpen(true)} 
-                                disabled={selectedInvoices.size === 0} 
+                                disabled={selectedInvoices.size === 0 || (useManualAmount && !manualAmount)} 
                                 className="w-full h-20 text-2xl font-black italic uppercase tracking-tighter shadow-2xl group overflow-hidden"
                             >
                                 <span className="relative z-10 flex items-center gap-3">
@@ -484,11 +531,14 @@ export default function POSPage() {
                         <div className="space-y-6 py-6">
                             <div className="p-6 rounded-2xl bg-muted/30 border-2 border-dashed flex flex-col items-center gap-4 text-center">
                                 <DollarSign className="h-12 w-12 text-primary animate-bounce" />
-                                {totalToPay > 0 ? (
+                                {finalAmount > 0 ? (
                                     <div>
                                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Confirm Receipt of Funds</p>
-                                        <p className="text-4xl font-black tracking-tighter">JMD ${totalToPay.toLocaleString()}</p>
+                                        <p className="text-4xl font-black tracking-tighter">JMD ${finalAmount.toLocaleString()}</p>
                                         <p className="text-[11px] font-bold text-primary mt-2">VIA {paymentMethod.toUpperCase()}</p>
+                                        {useManualAmount && (
+                                            <Badge variant="destructive" className="mt-2 uppercase text-[8px]">Manual Overridden Amount</Badge>
+                                        )}
                                     </div>
                                 ) : (
                                     <p className="text-sm font-bold text-destructive italic">Cart is empty.</p>
@@ -528,7 +578,7 @@ export default function POSPage() {
                             </DialogClose>
                             <Button 
                                 onClick={handleProcessPayment} 
-                                disabled={isProcessing || totalToPay <= 0} 
+                                disabled={isProcessing || finalAmount <= 0} 
                                 className="flex-1 h-12 font-black uppercase italic tracking-tight"
                             >
                                 {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Authorize Payment Now"}
