@@ -54,10 +54,10 @@ import {
     DialogClose 
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { AppLogo } from '@/components/app-logo';
 
 /**
  * @fileOverview POS System with integrated Receipt Printing and Finance linking.
+ * Allows admins to search users, select their unpaid invoices, and process payments.
  */
 
 export default function POSPage() {
@@ -130,7 +130,7 @@ export default function POSPage() {
     };
 
     const handleProcessPayment = async () => {
-        if (!selectedUser || selectedInvoices.size === 0) return;
+        if (!selectedUser || selectedInvoices.size === 0 || !firestore) return;
         
         setIsProcessing(true);
         const batch = writeBatch(firestore);
@@ -163,7 +163,7 @@ export default function POSPage() {
 
             await batch.commit();
             
-            // Set Receipt Snapshot
+            // Set Receipt Snapshot for printing
             setReceiptData({
                 customer: selectedUser,
                 items: itemsToSnap,
@@ -174,7 +174,22 @@ export default function POSPage() {
 
             setCheckoutComplete(true);
             toast({ title: "Payment Processed!", description: `JMD $${totalToPay.toLocaleString()} recorded in Finance.` });
+            
+            // Log Activity for Audit Trail
+            await fetch('/api/log-activity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'pos_payment',
+                    description: `POS checkout completed for ${selectedUser.fullName} (${selectedUser.mailboxNumber}). Total: JMD $${totalToPay.toFixed(2)}`,
+                    userId: 'admin',
+                    userName: 'System Admin',
+                    metadata: { customerId: selectedUser.id, amount: totalToPay, method: paymentMethod }
+                })
+            });
+
         } catch (error) {
+            console.error("Checkout Error:", error);
             toast({ title: "Checkout Failed", variant: "destructive" });
         } finally {
             setIsProcessing(false);
@@ -197,13 +212,13 @@ export default function POSPage() {
         <div className="flex flex-col gap-6 max-w-7xl mx-auto">
             {/* Print Only Receipt Container */}
             {receiptData && (
-                <div className="hidden print:block fixed inset-0 bg-white p-8 font-mono text-black">
+                <div className="hidden print:block fixed inset-0 bg-white p-8 font-mono text-black z-[999]">
                     <div className="max-w-[300px] mx-auto space-y-6">
                         <div className="text-center border-b pb-4">
                             <h1 className="text-xl font-bold uppercase tracking-tighter">FromStore2Door</h1>
                             <p className="text-[10px] mt-1">3507 NW 19th ST</p>
                             <p className="text-[10px]">Lauderdale Lake, FL, 33311-4224</p>
-                            <p className="text-[10px] font-bold mt-2">admin@neilussolutions.com</p>
+                            <p className="text-[10px] font-bold mt-2">info@fromstore2door.com</p>
                         </div>
 
                         <div className="space-y-1 text-[10px]">
