@@ -43,17 +43,13 @@ function getFirestorePath(target: FirestoreTarget): string {
   if (!target) return '';
 
   try {
-    // If it's a collection reference, it has a direct path
     if (target.type === 'collection') {
       return (target as CollectionReference).path;
     }
 
-    // For general queries (including collectionGroups), we try to extract the canonical string
     const internal = target as unknown as InternalQuery;
     const path = internal._query?.path?.canonicalString?.() || internal._query?.path?.toString?.();
     
-    // collectionGroup queries often return an empty path because they target all collections with a specific ID
-    // We return a placeholder to avoid the "Invalid Path" error while still identifying it as a query
     if (!path && target.type === 'query') {
         return '(collection-group)';
     }
@@ -65,13 +61,10 @@ function getFirestorePath(target: FirestoreTarget): string {
 }
 
 function isInvalidFirestorePath(path: string, target: FirestoreTarget): boolean {
-  // If it's a known query type, we allow it even if the path is unconventional
   if (target?.type === 'query' || path === '(collection-group)') return false;
-  
   if (!path) return true;
 
   const normalized = path.trim();
-
   return (
     normalized === '' ||
     normalized === '/' ||
@@ -93,13 +86,9 @@ export function useCollection<T = any>(
     null
   );
 
-  if (
-    memoizedTargetRefOrQuery &&
-    !memoizedTargetRefOrQuery.__memo
-  ) {
-    throw new Error(
-      'Firestore query was not memoized using useMemoFirebase'
-    );
+  // Replaced throw with console.error to prevent fatal render crashes
+  if (memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
+    console.error('[Firebase] Firestore query was not memoized using useMemoFirebase. This can cause infinite re-renders.');
   }
 
   useEffect(() => {
@@ -110,19 +99,13 @@ export function useCollection<T = any>(
       return;
     }
 
-    const path = getFirestorePath(
-      memoizedTargetRefOrQuery
-    );
+    const path = getFirestorePath(memoizedTargetRefOrQuery);
 
     if (isInvalidFirestorePath(path, memoizedTargetRefOrQuery)) {
-      const pathError = new Error(
-        `Invalid Firestore query path: "${path}". Likely undefined or empty collection path upstream.`
-      );
-
+      const pathError = new Error(`Invalid Firestore query path: "${path}". Likely undefined or empty collection path upstream.`);
       setData(null);
       setError(pathError);
       setIsLoading(false);
-
       return;
     }
 
@@ -131,51 +114,33 @@ export function useCollection<T = any>(
 
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
-
       (snapshot: QuerySnapshot<DocumentData>) => {
         const results: ResultItemType[] = [];
-
         for (const doc of snapshot.docs) {
           results.push({
             ...(doc.data() as T),
             id: doc.id,
           });
         }
-
         setData(results);
         setError(null);
         setIsLoading(false);
       },
-
       (err: FirestoreError) => {
-        console.error(
-          '[Firestore] Snapshot error:',
-          err
-        );
-
-        const contextualError =
-          new FirestorePermissionError({
-            operation: 'list',
-            path: path || 'collection-group-query',
-          });
-
+        console.error('[Firestore] Snapshot error:', err);
+        const contextualError = new FirestorePermissionError({
+          operation: 'list',
+          path: path || 'collection-group-query',
+        });
         setError(err || contextualError);
         setData(null);
         setIsLoading(false);
-
-        errorEmitter.emit(
-          'permission-error',
-          contextualError
-        );
+        errorEmitter.emit('permission-error', contextualError);
       }
     );
 
     return () => unsubscribe();
   }, [memoizedTargetRefOrQuery]);
 
-  return {
-    data,
-    isLoading,
-    error,
-  };
+  return { data, isLoading, error };
 }

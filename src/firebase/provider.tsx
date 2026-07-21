@@ -5,7 +5,6 @@ import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseStorage } from 'firebase/storage';
-// Import directly from file to break circular dependency with barrel file
 import { FirebaseErrorListener } from '../components/FirebaseErrorListener';
 
 interface FirebaseProviderProps {
@@ -59,10 +58,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   });
 
   useEffect(() => {
-    if (!auth) {
-      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
-      return;
-    }
+    if (!auth) return;
 
     const unsubscribe = onAuthStateChanged(
       auth,
@@ -98,19 +94,20 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   );
 };
 
-export const useFirebase = (): FirebaseServicesAndUser => {
+/**
+ * SSR-safe hook to access Firebase services.
+ * Returns null if services are not yet available (e.g. during pre-render or initialization).
+ */
+export const useFirebase = (): FirebaseServicesAndUser | null => {
   const context = useContext(FirebaseContext);
-  if (context === undefined) {
-    throw new Error('useFirebase must be used within a FirebaseProvider.');
-  }
-  if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth || !context.storage) {
-    throw new Error('Firebase core services not available.');
+  if (!context || !context.areServicesAvailable) {
+    return null;
   }
   return {
-    firebaseApp: context.firebaseApp,
-    firestore: context.firestore,
-    auth: context.auth,
-    storage: context.storage,
+    firebaseApp: context.firebaseApp!,
+    firestore: context.firestore!,
+    auth: context.auth!,
+    storage: context.storage!,
     user: context.user,
     isUserLoading: context.isUserLoading,
     userError: context.userError,

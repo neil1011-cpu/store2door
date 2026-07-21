@@ -13,6 +13,15 @@ export interface UserHookResult {
  * Hook specifically for accessing the authenticated user's state.
  */
 export function useUser(): UserHookResult {
-  const { user, isUserLoading, userError } = useFirebase();
-  return { user, isUserLoading, userError };
+  const firebase = useFirebase();
+  
+  if (!firebase) {
+    return { user: null, isUserLoading: true, userError: null };
+  }
+  
+  return { 
+    user: firebase.user, 
+    isUserLoading: firebase.isUserLoading, 
+    userError: firebase.userError 
+  };
 }
