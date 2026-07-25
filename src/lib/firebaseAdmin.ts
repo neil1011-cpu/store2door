@@ -6,10 +6,17 @@ import admin from 'firebase-admin';
  * in the workstation and App Hosting environments.
  */
 
+const projectId = process.env.GOOGLE_CLOUD_PROJECT || 'swiftroute-3230b';
+
 if (!admin.apps.length) {
-  admin.initializeApp({
-    projectId: process.env.GOOGLE_CLOUD_PROJECT || 'swiftroute-3230b'
-  });
+  try {
+    admin.initializeApp({
+      projectId: projectId
+    });
+    console.log(`[Admin SDK] Initialized for project: ${projectId}`);
+  } catch (error) {
+    console.error('[Admin SDK] Initialization Error:', error);
+  }
 }
 
 export const adminAuth = admin.auth();

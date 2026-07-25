@@ -164,13 +164,13 @@ export default function UsersPage() {
         const text = await res.text();
         let data;
         try {
-            data = JSON.parse(text);
+            data = text ? JSON.parse(text) : {};
         } catch (e) {
-            data = { message: `Server error (${res.status}): ${text.substring(0, 50)}...` };
+            data = { message: `Server error (${res.status}): Response was not valid JSON.` };
         }
 
         if (!res.ok) {
-            throw new Error(data.message || 'User creation failed.');
+            throw new Error(data.message || `API Error (${res.status})`);
         }
 
         toast({ title: 'User Created Successfully', description: `Mailbox: ${data.mailbox}` });

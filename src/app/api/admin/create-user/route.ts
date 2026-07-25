@@ -3,8 +3,7 @@ import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Secure Administrative Account Creation API.
- * Handles Auth user creation, Mailbox Number generation, and Firestore Profile establishment.
- * Hardened with defensive parsing and robust error reporting.
+ * Hardened with definitive return paths and robust error reporting to prevent 500 crashes.
  */
 
 async function getSafeBody(request: Request) {
@@ -42,19 +41,21 @@ export async function POST(request: Request) {
 
     // 2. Authorization Check (Admin only)
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ success: false, message: 'Unauthorized: Missing token' }, { status: 401 });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ success: false, message: 'Unauthorized: Missing or malformed token' }, { status: 401 });
     }
 
     let decodedToken;
     try {
       const idToken = authHeader.substring(7);
+      if (!idToken) throw new Error('Empty token payload');
       decodedToken = await adminAuth.verifyIdToken(idToken);
     } catch (tokenErr: any) {
       console.error('[API AUTH ERROR]:', tokenErr.message);
-      return NextResponse.json({ success: false, message: 'Session expired or invalid. Please re-sign in.' }, { status: 401 });
+      return NextResponse.json({ success: false, message: `Session invalid: ${tokenErr.message}` }, { status: 401 });
     }
     
+    // Check for admin role in Firestore or hardcoded fallback
     const adminEmail = decodedToken.email;
     const isHardcodedAdmin = adminEmail === 'admin@neilussolutions.com';
     const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
                  code: authError.code 
              }, { status: 409 });
         }
-        return NextResponse.json({ success: false, message: `Auth Service: ${authError.message}` }, { status: 500 });
+        return NextResponse.json({ success: false, message: `Authentication Service Error: ${authError.message}` }, { status: 500 });
     }
 
     // 4. Atomic Mailbox Generation & Profile Creation
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
                 mailboxNumber: finalMailbox,
                 address: userAddress,
                 walletBalance: 0,
-                createdAt: new Date(), // JS Date is fine here
+                createdAt: new Date(),
                 needsPasswordReset: true,
                 pickupPersonnel: [],
                 dropoffAddresses: [],
@@ -136,15 +137,15 @@ export async function POST(request: Request) {
         });
     } catch (dbError: any) {
         console.error('[API DB ERROR]:', dbError);
-        // Attempt to cleanup Auth if DB profile creation failed
+        // Attempt to cleanup Auth if DB profile creation failed to allow retry
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
-        return NextResponse.json({ success: false, message: `Database Failure: ${dbError.message}` }, { status: 500 });
+        return NextResponse.json({ success: false, message: `Database Profile Error: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (error: any) {
     console.error('[API CRITICAL ERROR]:', error);
     return NextResponse.json(
-      { success: false, message: error.message || 'An unhandled server exception occurred.' },
+      { success: false, message: error?.message || 'An unhandled server exception occurred.' },
       { status: 500 }
     );
   }
