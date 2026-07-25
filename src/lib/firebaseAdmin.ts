@@ -1,24 +1,25 @@
 import admin from 'firebase-admin';
 
 /**
- * @fileOverview Centralized Firebase Admin SDK initialization.
- * Hardened to ensure stable initialization across API routes and environments.
+ * @fileOverview Centralized and hardened Firebase Admin SDK initialization.
+ * Optimized for stable performance in Next.js and high-concurrency administrative tasks.
  */
 
-const projectId = process.env.GOOGLE_CLOUD_PROJECT || 'swiftroute-3230b';
+// Explicit project ID from config for reliability
+const PROJECT_ID = 'swiftroute-3230b';
 
 if (!admin.apps.length) {
   try {
     admin.initializeApp({
-      projectId: projectId,
-      // In production/Firebase Hosting environments, credentials are automatically discovered.
+      projectId: PROJECT_ID,
     });
-    console.log(`[Admin SDK] Successfully initialized for project: ${projectId}`);
+    console.log(`[Admin SDK] Initialized for project: ${PROJECT_ID}`);
   } catch (error) {
-    console.error('[Admin SDK] Critical Initialization Failure:', error);
+    console.error('[Admin SDK] Initialization error:', error);
   }
 }
 
+// Export pre-initialized services
 export const adminAuth = admin.auth();
 export const adminDb = admin.firestore();
 export const adminField = admin.firestore.FieldValue;

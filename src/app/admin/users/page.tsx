@@ -115,7 +115,7 @@ export default function UsersPage() {
           try {
               data = JSON.parse(text);
           } catch (e) {
-              data = { message: `Hub error (${res.status}): ${text.substring(0, 50)}...` };
+              data = { message: `Hub error (${res.status})` };
           }
 
           if (!res.ok) {
@@ -166,7 +166,7 @@ export default function UsersPage() {
         try {
             data = text ? JSON.parse(text) : {};
         } catch (e) {
-            data = { message: `Server error (${res.status}): Response was not valid JSON.` };
+            data = { message: `Server error (${res.status}): Non-JSON response.` };
         }
 
         if (!res.ok) {
