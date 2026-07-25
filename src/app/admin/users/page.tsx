@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -35,13 +34,14 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, getCountFromServer } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 
 export default function UsersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user: currentUser } = useUser();
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -59,7 +59,7 @@ export default function UsersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncingLw, setIsSyncingLw] = useState(false);
   const [logicwareUsers, setLogicwareUsers] = useState<any[]>([]);
-  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '' });
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', phone: '', trn: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [totalDbCount, setTotalDbCount] = useState<number | null>(null);
   
@@ -128,10 +128,14 @@ export default function UsersPage() {
   };
 
   const handleAddUser = async () => {
-    if(!newUser.firstName || !newUser.lastName || !newUser.email) return;
+    if(!newUser.firstName || !newUser.lastName || !newUser.email) {
+        toast({ title: "Missing Information", description: "Name and email are required for security setup.", variant: "destructive" });
+        return;
+    }
+    
     setIsSubmitting(true);
     try {
-        const idToken = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+        const idToken = await currentUser?.getIdToken(true);
         
         const res = await fetch('/api/admin/create-user', {
             method: 'POST',
@@ -143,20 +147,20 @@ export default function UsersPage() {
                 firstName: newUser.firstName,
                 lastName: newUser.lastName,
                 email: newUser.email,
-                defaultPassword: 'Welcome' + Math.floor(Math.random() * 1000),
-                phone: 'N/A',
-                trn: 'N/A'
+                phone: newUser.phone,
+                trn: newUser.trn,
+                defaultPassword: 'User@1234', // Temporary password
             })
         });
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.message);
 
-        toast({ title: 'User Created', description: `Assigned Mailbox: ${data.mailbox}` });
+        toast({ title: 'User Created Successfully', description: `Assigned Mailbox: ${data.mailbox}` });
         setOpenAddUser(false);
-        setNewUser({ firstName: '', lastName: '', email: '' });
+        setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '' });
     } catch (e: any) {
-        toast({ title: 'Error', description: e.message, variant: 'destructive' });
+        toast({ title: 'User Creation Failed', description: e.message, variant: 'destructive' });
     } finally {
         setIsSubmitting(false);
     }
@@ -179,26 +183,40 @@ export default function UsersPage() {
                 <DialogTrigger asChild>
                     <Button className="font-bold shadow-md"><PlusCircle className="mr-2 h-4 w-4" /> Add User</Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>New Account Entry</DialogTitle>
+                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">New Account Entry</DialogTitle>
+                        <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Authorize new global logistics profile</DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-2 gap-4 py-4">
-                        <div className="space-y-2">
-                            <Label>First Name</Label>
-                            <Input value={newUser.firstName} onChange={(e) => setNewUser({...newUser, firstName: e.target.value})} placeholder="Jane" />
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">First Name</Label>
+                            <Input value={newUser.firstName} onChange={(e) => setNewUser({...newUser, firstName: e.target.value})} placeholder="Jane" className="h-11 border-2" />
                         </div>
-                        <div className="space-y-2">
-                            <Label>Last Name</Label>
-                            <Input value={newUser.lastName} onChange={(e) => setNewUser({...newUser, lastName: e.target.value})} placeholder="Doe" />
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Last Name</Label>
+                            <Input value={newUser.lastName} onChange={(e) => setNewUser({...newUser, lastName: e.target.value})} placeholder="Doe" className="h-11 border-2" />
                         </div>
-                        <div className="space-y-2 col-span-2">
-                            <Label>Email Address</Label>
-                            <Input type="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} placeholder="jane@example.com" />
+                        <div className="space-y-1.5 col-span-2">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Email Address</Label>
+                            <Input type="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} placeholder="jane@example.com" className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Phone</Label>
+                            <Input value={newUser.phone} onChange={(e) => setNewUser({...newUser, phone: e.target.value})} placeholder="876..." className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Tax ID (TRN)</Label>
+                            <Input value={newUser.trn} onChange={(e) => setNewUser({...newUser, trn: e.target.value})} placeholder="9 digits" maxLength={9} className="h-11 border-2" />
                         </div>
                     </div>
+                    <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl mb-4">
+                        <p className="text-[10px] font-bold text-orange-800 uppercase leading-relaxed">
+                            Note: The user will be assigned a temporary password (User@1234) and will be forced to reset it upon their first login.
+                        </p>
+                    </div>
                     <DialogFooter>
-                        <Button onClick={handleAddUser} disabled={isSubmitting} className="w-full h-12 text-lg font-black uppercase italic shadow-xl">
+                        <Button onClick={handleAddUser} disabled={isSubmitting} className="w-full h-14 text-lg font-black uppercase italic shadow-xl">
                             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize New Account"}
                         </Button>
                     </DialogFooter>
@@ -287,6 +305,7 @@ function ImportCSVDialog() {
     const [progress, setProgress] = useState({ current: 0, total: 0 });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
+    const { user: currentUser } = useUser();
 
     const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -306,7 +325,7 @@ function ImportCSVDialog() {
             const dataRows = lines.slice(1);
             
             setProgress({ current: 0, total: dataRows.length });
-            const idToken = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+            const idToken = await currentUser?.getIdToken(true);
 
             let successCount = 0;
             let failCount = 0;
@@ -321,7 +340,6 @@ function ImportCSVDialog() {
                     else if (header === 'email') uData.email = values[i];
                     else if (header === 'phone') uData.phone = values[i];
                     else if (header === 'trn') uData.trn = values[i];
-                    else if (header === 'mailboxnumber') uData.mailboxNumber = values[i];
                 });
 
                 if (!uData.email || !uData.firstName) continue;
@@ -335,7 +353,7 @@ function ImportCSVDialog() {
                         },
                         body: JSON.stringify({
                             ...uData,
-                            defaultPassword: 'User@' + Math.floor(1000 + Math.random() * 9000),
+                            defaultPassword: 'User@1234',
                         })
                     });
                     if (res.ok) successCount++;
@@ -373,10 +391,10 @@ function ImportCSVDialog() {
                 <div className="p-4 bg-muted/50 rounded-xl border-2 border-dashed text-sm space-y-4">
                     <p className="font-black uppercase flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" /> CSV Schema Template:</p>
                     <code className="block p-3 bg-zinc-950 text-green-400 rounded-lg text-[10px] font-mono leading-relaxed">
-                        firstName, lastName, email, phone, trn, mailboxNumber
+                        firstName, lastName, email, phone, trn
                     </code>
                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest leading-relaxed">
-                        Note: Default passwords will be generated and users will be prompted to reset upon first entry.
+                        Note: Default passwords will be set to "User@1234" and users will be forced to reset upon first entry.
                     </p>
                 </div>
                 <div className="py-6">

@@ -100,6 +100,8 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         );
     }
 
+    const isSecurityPage = pathname === '/account/change-password';
+
     return (
         <UserProfileContext.Provider value={userProfile}>
             <div className="min-h-screen bg-muted/20">
@@ -107,49 +109,53 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 <div className="bg-background border-b shadow-sm sticky top-0 z-40 print:hidden">
                     <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 md:gap-4 shrink-0">
-                            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-                                <SheetTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="md:hidden">
-                                        <Menu className="h-5 w-5" />
-                                    </Button>
-                                </SheetTrigger>
-                                <SheetContent side="left" className="w-[300px]">
-                                    <SheetHeader className="mb-8">
-                                        <SheetTitle><AppLogo onClick={() => setIsMobileMenuOpen(false)} /></SheetTitle>
-                                    </SheetHeader>
-                                    <nav className="flex flex-col gap-2">
-                                        {accountNavLinks.map(link => (
-                                            <Link 
-                                                key={link.href}
-                                                href={link.href}
-                                                onClick={() => setIsMobileMenuOpen(false)}
-                                                className={cn(
-                                                    "text-base font-bold uppercase tracking-wider p-4 rounded-lg transition-colors",
-                                                    pathname === link.href ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-                                                )}
-                                            >
-                                                {link.label}
-                                            </Link>
-                                        ))}
-                                        <Separator className="my-4" />
-                                        <Link href="/tracking" className="p-4 text-sm font-bold opacity-60 uppercase">Public Tracking</Link>
-                                        <Link href="/support" className="p-4 text-sm font-bold opacity-60 uppercase">Get Help</Link>
-                                    </nav>
-                                </SheetContent>
-                            </Sheet>
+                            {!isSecurityPage && (
+                                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                                    <SheetTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="md:hidden">
+                                            <Menu className="h-5 w-5" />
+                                        </Button>
+                                    </SheetTrigger>
+                                    <SheetContent side="left" className="w-[300px]">
+                                        <SheetHeader className="mb-8">
+                                            <SheetTitle><AppLogo onClick={() => setIsMobileMenuOpen(false)} /></SheetTitle>
+                                        </SheetHeader>
+                                        <nav className="flex flex-col gap-2">
+                                            {accountNavLinks.map(link => (
+                                                <Link 
+                                                    key={link.href}
+                                                    href={link.href}
+                                                    onClick={() => setIsMobileMenuOpen(false)}
+                                                    className={cn(
+                                                        "text-base font-bold uppercase tracking-wider p-4 rounded-lg transition-colors",
+                                                        pathname === link.href ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                                                    )}
+                                                >
+                                                    {link.label}
+                                                </Link>
+                                            ))}
+                                            <Separator className="my-4" />
+                                            <Link href="/tracking" className="p-4 text-sm font-bold opacity-60 uppercase">Public Tracking</Link>
+                                            <Link href="/support" className="p-4 text-sm font-bold opacity-60 uppercase">Get Help</Link>
+                                        </nav>
+                                    </SheetContent>
+                                </Sheet>
+                            )}
                             <AppLogo className="scale-75 sm:scale-90" />
                             <Separator orientation="vertical" className="h-6 hidden lg:block" />
                             <span className="text-[10px] font-black uppercase italic tracking-tighter opacity-40 hidden lg:block">Console</span>
                         </div>
                         
                         <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end overflow-hidden">
-                            <div className="bg-primary/5 border-2 border-primary/10 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[180px] sm:max-w-none">
-                                <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
-                                <div className="flex flex-col min-w-0">
-                                    <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-muted-foreground leading-none">Wallet</span>
-                                    <span className="text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate">JMD ${(userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            {!isSecurityPage && (
+                                <div className="bg-primary/5 border-2 border-primary/10 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[180px] sm:max-w-none">
+                                    <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-muted-foreground leading-none">Wallet</span>
+                                        <span className="text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate">JMD ${(userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                             <div className="shrink-0"><ThemeToggle /></div>
                         </div>
                     </div>

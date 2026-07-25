@@ -35,7 +35,7 @@ export default function ChangePasswordPage() {
 
         setIsUpdating(true);
         try {
-            const user = auth.currentUser;
+            const user = auth?.currentUser;
             if (!user || !profile) throw new Error("Authentication session lost.");
 
             await updatePassword(user, newPassword);

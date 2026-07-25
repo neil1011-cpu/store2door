@@ -1,104 +1,105 @@
 import { NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebaseAdmin';
+import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Resilient Account Creation API.
- * Reverted admin email verification to admin@neilussolutions.com.
+ * @fileOverview Secure Administrative Account Creation API.
+ * Handles Auth user creation, Mailbox Number generation, and Firestore Profile establishment.
  */
-
-const FIREBASE_API_KEY = "AIzaSyCxZ7fHM0GTfBtkyxaAhotzDw5udr7lFvQ";
-
-async function getSafeBody(request: Request) {
-  try {
-    const text = await request.text();
-    if (!text) return {};
-    const parsed = JSON.parse(text);
-    return (parsed && typeof parsed === 'object') ? parsed : {};
-  } catch (e) {
-    return {};
-  }
-}
 
 export async function POST(request: Request) {
   try {
-    const body = await getSafeBody(request);
+    const body = await request.json();
     
     const {
       firstName,
       lastName,
       email,
+      phone,
+      trn,
       defaultPassword,
     } = body;
 
-    if (!email) {
-        return NextResponse.json({ message: 'Missing email address' }, { status: 400 });
+    if (!email || !firstName || !lastName) {
+        return NextResponse.json({ message: 'Missing required fields (email, name)' }, { status: 400 });
     }
 
-    // 1. Authorization Check
+    // 1. Authorization Check (Admin only)
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const idToken = authHeader.substring(7);
-    const tokenParts = idToken.split('.');
-    if (tokenParts.length !== 3) {
-        return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    
+    // Verify admin privileges
+    const adminEmail = decodedToken.email;
+    const isHardcodedAdmin = adminEmail === 'admin@neilussolutions.com';
+    const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
+
+    if (!isHardcodedAdmin && !adminRoleSnap.exists) {
+        return NextResponse.json({ message: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    let tokenClaims;
-    try {
-        const decoded = Buffer.from(tokenParts[1], 'base64').toString();
-        tokenClaims = decoded ? JSON.parse(decoded) : null;
-    } catch (e) {
-        return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
+    // 2. Atomic Mailbox Generation & User Creation
+    const result = await adminDb.runTransaction(async (transaction) => {
+        // A. Generate Mailbox Number
+        const counterRef = adminDb.collection('metadata').doc('mailboxCounter');
+        const counterSnap = await transaction.get(counterRef);
+        
+        let nextNum = 101;
+        if (counterSnap.exists) {
+            nextNum = counterSnap.data()?.next || 101;
+        }
+        
+        const mailboxNumber = `FSTD${nextNum}`;
+        transaction.set(counterRef, { next: nextNum + 1 }, { merge: true });
 
-    const adminEmail = tokenClaims?.email;
+        // B. Create Auth User
+        const userRecord = await adminAuth.createUser({
+            email: email.trim().toLowerCase(),
+            password: defaultPassword || 'User@1234',
+            displayName: `${firstName} ${lastName}`.trim(),
+        });
 
-    // Reverted admin email association
-    if (adminEmail !== 'admin@neilussolutions.com') {
-        return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+        // C. Create Firestore Profile
+        const userProfileRef = adminDb.collection('users').doc(userRecord.uid);
+        const userAddress = {
+            address1: '3507 NW 19th ST',
+            address2: `${mailboxNumber}-FSTD`,
+            city: 'Lauderdale Lake',
+            state: 'FL',
+            zip: '33311-4224',
+        };
 
-    // 2. Create Auth user
-    const authPayload = {
-      email: email.trim().toLowerCase(),
-      password: defaultPassword || 'User@1234',
-      displayName: `${firstName || ''} ${lastName || ''}`.trim(),
-      returnSecureToken: false
-    };
+        transaction.set(userProfileRef, {
+            id: userRecord.uid,
+            fullName: `${firstName} ${lastName}`.trim(),
+            firstName,
+            lastName,
+            email: email.trim().toLowerCase(),
+            phone: phone || 'N/A',
+            trn: trn || 'N/A',
+            mailboxNumber,
+            address: userAddress,
+            walletBalance: 0,
+            createdAt: new Date(),
+            needsPasswordReset: true, // Mandatory reset on first login
+            pickupPersonnel: [],
+            dropoffAddresses: [],
+        });
 
-    const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(authPayload)
+        return { uid: userRecord.uid, mailbox: mailboxNumber };
     });
 
-    const authData = await authRes.json();
-
-    if (authRes.ok) {
-        return NextResponse.json({
-            message: 'Auth account created',
-            uid: authData.localId,
-        });
-    } else {
-        if (authData.error?.message === 'EMAIL_EXISTS') {
-            try {
-                const user = await adminAuth.getUserByEmail(email.trim().toLowerCase());
-                return NextResponse.json({ 
-                    message: 'User identity synchronized.', 
-                    existingUid: user.uid 
-                }, { status: 200 });
-            } catch (adminError) {
-                return NextResponse.json({ message: 'User exists' }, { status: 409 });
-            }
-        }
-        throw new Error(authData.error?.message || 'Auth System Error');
-    }
+    return NextResponse.json({
+        message: 'Account created successfully',
+        uid: result.uid,
+        mailbox: result.mailbox
+    });
 
   } catch (error: any) {
-    console.error('Migration API Error:', error);
+    console.error('Admin User Creation Error:', error);
     return NextResponse.json(
       { message: error.message || 'Operation failed' },
       { status: 500 }
