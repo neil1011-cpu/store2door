@@ -4,6 +4,7 @@ import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 /**
  * @fileOverview Secure Administrative Account Creation API.
  * Handles Auth user creation, Mailbox Number generation, and Firestore Profile establishment.
+ * Hardened with defensive parsing and robust error reporting.
  */
 
 async function getSafeBody(request: Request) {
@@ -12,6 +13,7 @@ async function getSafeBody(request: Request) {
     if (!text) return {};
     return JSON.parse(text);
   } catch (e) {
+    console.error('[API] Failed to parse request body as JSON:', e);
     return {};
   }
 }
@@ -30,14 +32,18 @@ export async function POST(request: Request) {
       mailboxNumber: requestedMailbox
     } = body;
 
+    // 1. Initial Validation
     if (!email || !firstName || !lastName) {
-        return NextResponse.json({ message: 'Missing required fields (email, name)' }, { status: 400 });
+        return NextResponse.json({ 
+            success: false, 
+            message: `Missing required fields: ${!email ? 'email' : ''} ${!firstName ? 'firstName' : ''} ${!lastName ? 'lastName' : ''}`.trim() 
+        }, { status: 400 });
     }
 
-    // 1. Authorization Check (Admin only)
+    // 2. Authorization Check (Admin only)
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ success: false, message: 'Unauthorized: Missing token' }, { status: 401 });
     }
 
     let decodedToken;
@@ -45,7 +51,8 @@ export async function POST(request: Request) {
       const idToken = authHeader.substring(7);
       decodedToken = await adminAuth.verifyIdToken(idToken);
     } catch (tokenErr: any) {
-      return NextResponse.json({ message: 'Invalid or expired session token.' }, { status: 401 });
+      console.error('[API AUTH ERROR]:', tokenErr.message);
+      return NextResponse.json({ success: false, message: 'Session expired or invalid. Please re-sign in.' }, { status: 401 });
     }
     
     const adminEmail = decodedToken.email;
@@ -53,10 +60,10 @@ export async function POST(request: Request) {
     const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
 
     if (!isHardcodedAdmin && !adminRoleSnap.exists) {
-        return NextResponse.json({ message: 'Forbidden: Admin access required' }, { status: 403 });
+        return NextResponse.json({ success: false, message: 'Forbidden: Administrator privileges required' }, { status: 403 });
     }
 
-    // 2. Create Auth User (Outside transaction to avoid service lock)
+    // 3. Create Auth User (Outside transaction to avoid service-lock)
     let userRecord;
     try {
         userRecord = await adminAuth.createUser({
@@ -65,18 +72,18 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
+        console.error('[API AUTH CREATE ERROR]:', authError);
         if (authError.code === 'auth/email-already-in-use') {
-             const existing = await adminAuth.getUserByEmail(email.trim().toLowerCase());
              return NextResponse.json({ 
-                 message: 'This email is already registered in the system.', 
-                 existingUid: existing.uid,
+                 success: false,
+                 message: 'This email address is already registered in the system.', 
                  code: authError.code 
              }, { status: 409 });
         }
-        return NextResponse.json({ message: `Auth Service Error: ${authError.message}` }, { status: 500 });
+        return NextResponse.json({ success: false, message: `Auth Service: ${authError.message}` }, { status: 500 });
     }
 
-    // 3. Atomic Mailbox Generation & Profile Creation
+    // 4. Atomic Mailbox Generation & Profile Creation
     try {
         const mailboxResult = await adminDb.runTransaction(async (transaction) => {
             let finalMailbox = requestedMailbox;
@@ -112,7 +119,7 @@ export async function POST(request: Request) {
                 mailboxNumber: finalMailbox,
                 address: userAddress,
                 walletBalance: 0,
-                createdAt: new Date(),
+                createdAt: new Date(), // JS Date is fine here
                 needsPasswordReset: true,
                 pickupPersonnel: [],
                 dropoffAddresses: [],
@@ -128,15 +135,16 @@ export async function POST(request: Request) {
             mailbox: mailboxResult
         });
     } catch (dbError: any) {
-        // Cleanup Auth if DB failed (optional but recommended)
+        console.error('[API DB ERROR]:', dbError);
+        // Attempt to cleanup Auth if DB profile creation failed
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
-        return NextResponse.json({ message: `Database Transaction Failed: ${dbError.message}` }, { status: 500 });
+        return NextResponse.json({ success: false, message: `Database Failure: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (error: any) {
-    console.error('CRITICAL ERROR in create-user route:', error);
+    console.error('[API CRITICAL ERROR]:', error);
     return NextResponse.json(
-      { success: false, message: error.message || 'An unexpected server error occurred.' },
+      { success: false, message: error.message || 'An unhandled server exception occurred.' },
       { status: 500 }
     );
   }

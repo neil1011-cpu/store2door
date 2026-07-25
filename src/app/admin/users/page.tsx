@@ -115,7 +115,7 @@ export default function UsersPage() {
           try {
               data = JSON.parse(text);
           } catch (e) {
-              data = { message: text || 'Invalid response from hub.' };
+              data = { message: `Hub error (${res.status}): ${text.substring(0, 50)}...` };
           }
 
           if (!res.ok) {
@@ -141,7 +141,7 @@ export default function UsersPage() {
     setIsSubmitting(true);
     try {
         const userInstance = currentUser;
-        if (!userInstance) throw new Error("Session lost. Please re-sign in.");
+        if (!userInstance) throw new Error("Authentication session lost. Please refresh.");
 
         const idToken = await userInstance.getIdToken(true);
         
@@ -166,7 +166,7 @@ export default function UsersPage() {
         try {
             data = JSON.parse(text);
         } catch (e) {
-            data = { message: text || 'Server returned invalid response.' };
+            data = { message: `Server error (${res.status}): ${text.substring(0, 50)}...` };
         }
 
         if (!res.ok) {
