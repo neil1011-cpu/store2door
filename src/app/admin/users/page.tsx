@@ -108,9 +108,13 @@ export default function UsersPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ apiKey: localStorage.getItem('LOGICWARE_API_KEY') })
           });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.message || 'Sync failed');
           
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Sync failed');
+          }
+          
+          const data = await res.json();
           const rawShippers = Array.isArray(data) ? data : data.shippers || data.data || [];
           const allCount = (users?.length || 0) + rawShippers.length;
 
@@ -149,12 +153,14 @@ export default function UsersPage() {
                 email: newUser.email,
                 phone: newUser.phone,
                 trn: newUser.trn,
-                defaultPassword: 'User@1234', // Temporary password
+                defaultPassword: 'User@1234',
             })
         });
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message);
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : {};
+
+        if (!res.ok) throw new Error(data.message || 'Creation failed');
 
         toast({ title: 'User Created Successfully', description: `Assigned Mailbox: ${data.mailbox}` });
         setOpenAddUser(false);

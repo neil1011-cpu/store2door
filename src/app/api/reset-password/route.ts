@@ -1,15 +1,24 @@
-
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Secure administrative password reset endpoint.
- * Reverted admin email verification to admin@neilussolutions.com.
  */
+
+async function getSafeBody(request: Request) {
+  try {
+    const text = await request.text();
+    if (!text) return {};
+    return JSON.parse(text);
+  } catch (e) {
+    return {};
+  }
+}
 
 export async function POST(request: Request) {
     try {
-        const { userId, newPassword } = await request.json();
+        const body = await getSafeBody(request);
+        const { userId, newPassword } = body;
 
         const authorization = request.headers.get('Authorization');
         if (!authorization?.startsWith('Bearer ')) {
@@ -20,7 +29,6 @@ export async function POST(request: Request) {
         const decodedToken = await adminAuth.verifyIdToken(idToken);
         const adminUid = decodedToken.uid;
 
-        // Reverted email check
         const isAdminEmail = decodedToken.email === 'admin@neilussolutions.com';
         const adminRoleDoc = await adminDb.collection('admin_roles').doc(adminUid).get();
         
@@ -36,10 +44,10 @@ export async function POST(request: Request) {
             password: newPassword,
         });
 
-        return NextResponse.json({ message: 'Password updated' });
+        return NextResponse.json({ success: true, message: 'Password updated successfully' });
 
     } catch (error: any) {
         console.error('Reset Password Error:', error);
-        return NextResponse.json({ message: error.message }, { status: 500 });
+        return NextResponse.json({ success: false, message: error.message || 'Internal error' }, { status: 500 });
     }
 }

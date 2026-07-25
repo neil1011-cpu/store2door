@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -57,7 +56,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10128", first: "Tracy-ann", last: "Arnold-McInnis", email: "tarnoldmcinnis@yahoo.com", phone: "8763912415" },
   { code: "FSTD10104", first: "Erwin", last: "Bishop", email: "jahwinmusic@gmail.com", phone: "8762277372" },
   { code: "FSTD10165", first: "Dakisha", last: "Hamil", email: "dakishahamil25@gmail.com", phone: "8762911300" },
-  { code: "FSTD10107", first: "Andre", last: "Carty", email: "kingandre355@gmail.com", phone: "18768975765" },
+  { code: "FSTD10107", first: "Andre", last: "Carty", email: " kingandre355@gmail.com", phone: "18768975765" },
   { code: "FSTD10111", first: "Kimberlee", last: "Smith", email: "kimberleesmith07@gmail.com", phone: "8765328022" },
   { code: "FSTD10176", first: "Javier", last: "Conville", email: "CONVILLEJAVIER@YAHOO.COM", phone: "18764045106" },
   { code: "FSTD10194", first: "Sheldon", last: "White", email: "sheldonjw3@gmail.com", phone: "8763744313" },
@@ -249,7 +248,7 @@ const MIGRATION_DATA = [
   { code: "FSTD10258", first: "Stephanie", last: "Haye", email: "stewartstephanie04@gmail.com", phone: "8764389718" },
   { code: "FSTD10263", first: "Britany", last: "Henry", email: "henrybritany203@gmail.com", phone: "18768122167" },
   { code: "FSTD10015", first: "Danielle", last: "Moodie", email: "ashleighmoodie@yahoo.com", phone: "18764452607" },
-  { code: "FSTD10026", first: "Glenrick", last: "Dennis", email: "bootlord1@hotmail.com", phone: "8763824650" },
+  { code: "FSTD10026", first: " Glenrick", last: "Dennis", email: "bootlord1@hotmail.com", phone: "8763824650" },
   { code: "FSTD10232", first: "Richard", last: "Gunn", email: "richardgunn1999@gmail.com", phone: "8768787739" },
   { code: "FSTD10020", first: "Shadaye", last: "Taylor", email: "taylorshadaye@gmail.com", phone: "8765455712" },
   { code: "FSTD10217", first: "Keisha", last: "Anderson", email: "KEISHA2006A@GMAIL.COM", phone: "8763899359" },
@@ -363,102 +362,63 @@ export default function MigrationPage() {
     });
 
     try {
-      const currentUser = auth.currentUser;
+      const currentUser = auth?.currentUser;
       if (!currentUser) {
-          throw new Error('Authorization required. Please sign out and sign back in to refresh your admin session.');
+          throw new Error('Authorization required.');
       }
 
       const idToken = await currentUser.getIdToken(true);
 
       for (const user of MIGRATION_DATA) {
-        let retryCount = 0;
-        let processed = false;
+        try {
+            const res = await fetch('/api/admin/create-user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({
+                    firstName: user.first?.trim(),
+                    lastName: user.last?.trim(),
+                    email: user.email?.trim().toLowerCase(),
+                    phone: user.phone?.trim(),
+                    mailboxNumber: user.code?.trim(),
+                    defaultPassword: 'User@1234'
+                }),
+            });
 
-        while (!processed && retryCount < 2) {
-            try {
-                const res = await fetch('/api/admin/create-user', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${idToken}`,
-                    },
-                    body: JSON.stringify({
-                        firstName: user.first?.trim(),
-                        lastName: user.last?.trim(),
-                        email: user.email?.trim().toLowerCase(),
-                        phone: user.phone?.trim(),
-                        mailboxNumber: user.code?.trim(),
-                        defaultPassword: 'User@1234'
-                    }),
-                });
+            const text = await res.text();
+            const result = text ? JSON.parse(text) : {};
 
-                const result = await res.json();
-                if (res.status === 429) {
-                    setLogs(prev => [...prev, { message: `RATE LIMIT: Backing off 10s...`, type: 'info' }]);
-                    await sleep(10000);
-                    retryCount++;
-                    continue; 
-                }
-
-                const userUid = result.uid || result.existingUid;
-
-                if (userUid) {
-                    const mailbox = user.code?.trim();
-                    const profileRef = doc(firestore, 'users', userUid);
-                    
-                    await setDoc(profileRef, {
-                        id: userUid,
-                        fullName: `${user.first} ${user.last}`,
-                        firstName: user.first,
-                        lastName: user.last,
-                        email: user.email?.trim().toLowerCase(),
-                        phone: user.phone?.trim(),
-                        trn: 'N/A',
-                        mailboxNumber: mailbox,
-                        address: {
-                            ...NEW_DEFAULT_ADDRESS,
-                            address2: `${mailbox}-FSTD`,
-                        },
-                        walletBalance: 0,
-                        createdAt: serverTimestamp(),
-                        needsPasswordReset: true,
-                        pickupPersonnel: [],
-                        dropoffAddresses: [],
-                    }, { merge: true });
-
-                    setLogs(prev => [...prev, { message: `SYNC: ${user.email} (${mailbox})`, type: 'success' }]);
-
-                    if (doLogicwareSync && logicwareKey) {
-                        try {
-                            const lwRes = await fetch('/api/admin/logicware-sync', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    apiKey: logicwareKey,
-                                    shipper: {
-                                        email: user.email?.trim().toLowerCase(),
-                                        firstName: user.first,
-                                        lastName: user.last,
-                                        phone: user.phone?.trim(),
-                                        mailbox: mailbox
-                                    }
-                                })
-                            });
-                            if (lwRes.ok) {
-                                setLogs(prev => [...prev, { message: `LOGICWARE: Shipper ${mailbox} synced.`, type: 'logicware' }]);
-                            }
-                        } catch (lwErr) {}
-                    }
-
-                    processed = true;
-                } else {
-                    throw new Error(result.message || 'Identity failure');
-                }
-
-            } catch (err: any) {
-                setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${err.message}`, type: 'error' }]);
-                processed = true; 
+            if (res.status === 409) {
+                setLogs(prev => [...prev, { message: `EXISTS: ${user.email}`, type: 'info' }]);
+            } else if (!res.ok) {
+                setLogs(prev => [...prev, { message: `FAILED: ${user.email} - ${result.message || 'Server error'}`, type: 'error' }]);
+            } else {
+                setLogs(prev => [...prev, { message: `SYNC: ${user.email} (${result.mailbox})`, type: 'success' }]);
             }
+
+            if (res.ok && doLogicwareSync && logicwareKey) {
+                try {
+                    await fetch('/api/admin/logicware-sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            apiKey: logicwareKey,
+                            shipper: {
+                                email: user.email?.trim().toLowerCase(),
+                                firstName: user.first,
+                                lastName: user.last,
+                                phone: user.phone?.trim(),
+                                mailbox: user.code?.trim()
+                            }
+                        })
+                    });
+                } catch (lwErr) {}
+            }
+
+        } catch (err: any) {
+            setLogs(prev => [...prev, { message: `CRITICAL: ${user.email} - ${err.message}`, type: 'error' }]);
         }
 
         setProgress((prev) => ({
@@ -466,12 +426,12 @@ export default function MigrationPage() {
           current: prev.current + 1,
         }));
 
-        await sleep(1500); 
+        await sleep(1000); 
       }
 
       toast({ title: 'Worldwide Sync Complete' });
     } catch (err: any) {
-      toast({ title: 'Critical Failure', description: err.message, variant: 'destructive' });
+      toast({ title: 'Migration Failed', description: err.message, variant: 'destructive' });
     } finally {
       setIsMigrating(false);
     }
@@ -481,7 +441,7 @@ export default function MigrationPage() {
       setIsUpdatingAddresses(true);
       setLogs([]);
       try {
-          const snapshot = await getDocs(collection(firestore, 'users'));
+          const snapshot = await getDocs(collection(firestore!, 'users'));
           const total = snapshot.size;
           setProgress({ current: 0, total });
 
@@ -517,7 +477,7 @@ export default function MigrationPage() {
               <div>
                   <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Worldwide Logistics Sync</CardTitle>
                   <CardDescription>
-                    Fault-Tolerant Hybrid Synchronization v6.0
+                    Fault-Tolerant Hybrid Synchronization v7.0
                   </CardDescription>
               </div>
           </div>
