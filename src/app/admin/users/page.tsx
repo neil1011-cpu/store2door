@@ -68,6 +68,7 @@ export default function UsersPage() {
   useEffect(() => {
     const fetchTotalCount = async () => {
       try {
+        if (!firestore) return;
         const coll = collection(firestore, 'users');
         const snapshot = await getCountFromServer(coll);
         setTotalDbCount(snapshot.data().count);
@@ -109,20 +110,20 @@ export default function UsersPage() {
               body: JSON.stringify({ apiKey: localStorage.getItem('LOGICWARE_API_KEY') })
           });
           
+          const text = await res.text();
+          let data;
+          try {
+              data = JSON.parse(text);
+          } catch (e) {
+              data = { message: text || 'Invalid response from hub.' };
+          }
+
           if (!res.ok) {
-            const errorData = await res.json().catch(() => ({}));
-            throw new Error(errorData.message || 'Sync failed');
+            throw new Error(data.message || 'Sync failed');
           }
           
-          const data = await res.json();
           const rawShippers = Array.isArray(data) ? data : data.shippers || data.data || [];
-          const allCount = (users?.length || 0) + rawShippers.length;
-
-          toast({ 
-              title: 'Success', 
-              description: `Loaded ${allCount} worldwide records` 
-          });
-
+          toast({ title: 'Sync Successful', description: `Loaded ${rawShippers.length} hub shippers.` });
           setLogicwareUsers(rawShippers);
       } catch (e: any) {
           toast({ title: 'Hub Sync Failed', description: e.message, variant: 'destructive' });
@@ -133,13 +134,16 @@ export default function UsersPage() {
 
   const handleAddUser = async () => {
     if(!newUser.firstName || !newUser.lastName || !newUser.email) {
-        toast({ title: "Missing Information", description: "Name and email are required for security setup.", variant: "destructive" });
+        toast({ title: "Missing Information", description: "Name and email are required.", variant: "destructive" });
         return;
     }
     
     setIsSubmitting(true);
     try {
-        const idToken = await currentUser?.getIdToken(true);
+        const userInstance = currentUser;
+        if (!userInstance) throw new Error("Session lost. Please re-sign in.");
+
+        const idToken = await userInstance.getIdToken(true);
         
         const res = await fetch('/api/admin/create-user', {
             method: 'POST',
@@ -158,15 +162,22 @@ export default function UsersPage() {
         });
 
         const text = await res.text();
-        const data = text ? JSON.parse(text) : {};
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            data = { message: text || 'Server returned invalid response.' };
+        }
 
-        if (!res.ok) throw new Error(data.message || 'Creation failed');
+        if (!res.ok) {
+            throw new Error(data.message || 'User creation failed.');
+        }
 
-        toast({ title: 'User Created Successfully', description: `Assigned Mailbox: ${data.mailbox}` });
+        toast({ title: 'User Created Successfully', description: `Mailbox: ${data.mailbox}` });
         setOpenAddUser(false);
         setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '' });
     } catch (e: any) {
-        toast({ title: 'User Creation Failed', description: e.message, variant: 'destructive' });
+        toast({ title: 'Operation Failed', description: e.message, variant: 'destructive' });
     } finally {
         setIsSubmitting(false);
     }
@@ -218,7 +229,7 @@ export default function UsersPage() {
                     </div>
                     <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl mb-4">
                         <p className="text-[10px] font-bold text-orange-800 uppercase leading-relaxed">
-                            Note: The user will be assigned a temporary password (User@1234) and will be forced to reset it upon their first login.
+                            Note: The user will be assigned a temporary password (User@1234) and forced to reset it upon first entry.
                         </p>
                     </div>
                     <DialogFooter>
@@ -400,7 +411,7 @@ function ImportCSVDialog() {
                         firstName, lastName, email, phone, trn
                     </code>
                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest leading-relaxed">
-                        Note: Default passwords will be set to "User@1234" and users will be forced to reset upon first entry.
+                        Note: Default passwords will be set to "User@1234" and users forced to reset.
                     </p>
                 </div>
                 <div className="py-6">
