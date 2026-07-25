@@ -41,8 +41,24 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    // 2. Atomic Mailbox Generation & User Creation
-    const result = await adminDb.runTransaction(async (transaction) => {
+    // 2. Create Auth User (Must happen outside the transaction)
+    let userRecord;
+    try {
+        userRecord = await adminAuth.createUser({
+            email: email.trim().toLowerCase(),
+            password: defaultPassword || 'User@1234',
+            displayName: `${firstName} ${lastName}`.trim(),
+        });
+    } catch (authError: any) {
+        if (authError.code === 'auth/email-already-in-use') {
+             // If user already exists in Auth, we might still need to create their profile or return failure
+             return NextResponse.json({ message: 'Identity already exists in Authentication system.', code: authError.code }, { status: 409 });
+        }
+        throw authError;
+    }
+
+    // 3. Atomic Mailbox Generation & Profile Creation
+    const mailboxResult = await adminDb.runTransaction(async (transaction) => {
         // A. Generate Mailbox Number
         const counterRef = adminDb.collection('metadata').doc('mailboxCounter');
         const counterSnap = await transaction.get(counterRef);
@@ -55,14 +71,7 @@ export async function POST(request: Request) {
         const mailboxNumber = `FSTD${nextNum}`;
         transaction.set(counterRef, { next: nextNum + 1 }, { merge: true });
 
-        // B. Create Auth User
-        const userRecord = await adminAuth.createUser({
-            email: email.trim().toLowerCase(),
-            password: defaultPassword || 'User@1234',
-            displayName: `${firstName} ${lastName}`.trim(),
-        });
-
-        // C. Create Firestore Profile
+        // B. Create Firestore Profile
         const userProfileRef = adminDb.collection('users').doc(userRecord.uid);
         const userAddress = {
             address1: '3507 NW 19th ST',
@@ -87,15 +96,15 @@ export async function POST(request: Request) {
             needsPasswordReset: true, // Mandatory reset on first login
             pickupPersonnel: [],
             dropoffAddresses: [],
-        });
+        }, { merge: true });
 
-        return { uid: userRecord.uid, mailbox: mailboxNumber };
+        return mailboxNumber;
     });
 
     return NextResponse.json({
         message: 'Account created successfully',
-        uid: result.uid,
-        mailbox: result.mailbox
+        uid: userRecord.uid,
+        mailbox: mailboxResult
     });
 
   } catch (error: any) {
