@@ -32,13 +32,15 @@ export const adminField = FieldValue;
 export function cleanPayload(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
 
-  // Detect FieldValue or other internal Firestore types to stop recursion
-  const isFieldValue = obj && (
+  // Robust FieldValue detection to prevent corruption of sentinels (like serverTimestamp)
+  const isFieldValue = (obj instanceof adminField) || 
     (obj.constructor && obj.constructor.name === 'FieldValue') || 
-    (typeof obj._methodName === 'string')
-  );
+    (typeof obj._methodName === 'string');
 
   if (isFieldValue) return obj;
+
+  // Handle Dates
+  if (obj instanceof Date) return obj;
 
   if (Array.isArray(obj)) {
     return obj.map(v => cleanPayload(v));
