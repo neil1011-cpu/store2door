@@ -79,7 +79,6 @@ export default function UsersPage() {
 
   const combinedUsers = useMemo(() => {
       const local = (users || []).map(u => ({ ...u, source: 'firebase' as const, isLogicware: false }));
-      
       const mappedLogicware = logicwareUsers.map((u: any) => ({
           id: `lw-${u.id}`,
           fullName: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || 'Logicware Shipper',
@@ -91,7 +90,6 @@ export default function UsersPage() {
       }));
 
       const all = [...local, ...mappedLogicware];
-
       if (!searchTerm) return all;
       const lower = searchTerm.toLowerCase();
       return all.filter(u => 
@@ -101,37 +99,6 @@ export default function UsersPage() {
       );
   }, [users, logicwareUsers, searchTerm]);
 
-  const fetchLogicwareShippers = async () => {
-      setIsSyncingLw(true);
-      try {
-          const res = await fetch('/api/admin/logicware-shippers', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ apiKey: localStorage.getItem('LOGICWARE_API_KEY') })
-          });
-          
-          const text = await res.text();
-          let data;
-          try {
-              data = JSON.parse(text);
-          } catch (e) {
-              data = { message: `Hub error (${res.status})` };
-          }
-
-          if (!res.ok) {
-            throw new Error(data.message || 'Sync failed');
-          }
-          
-          const rawShippers = Array.isArray(data) ? data : data.shippers || data.data || [];
-          toast({ title: 'Sync Successful', description: `Loaded ${rawShippers.length} hub shippers.` });
-          setLogicwareUsers(rawShippers);
-      } catch (e: any) {
-          toast({ title: 'Hub Sync Failed', description: e.message, variant: 'destructive' });
-      } finally {
-          setIsSyncingLw(false);
-      }
-  };
-
   const handleAddUser = async () => {
     if(!newUser.firstName || !newUser.lastName || !newUser.email) {
         toast({ title: "Missing Information", description: "Name and email are required.", variant: "destructive" });
@@ -140,10 +107,8 @@ export default function UsersPage() {
     
     setIsSubmitting(true);
     try {
-        const userInstance = currentUser;
-        if (!userInstance) throw new Error("Authentication session lost. Please refresh.");
-
-        const idToken = await userInstance.getIdToken(true);
+        if (!currentUser) throw new Error("Authentication session required.");
+        const idToken = await currentUser.getIdToken(true);
         
         const res = await fetch('/api/admin/create-user', {
             method: 'POST',
@@ -151,33 +116,26 @@ export default function UsersPage() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
             },
-            body: JSON.stringify({
-                firstName: newUser.firstName,
-                lastName: newUser.lastName,
-                email: newUser.email,
-                phone: newUser.phone,
-                trn: newUser.trn,
-                defaultPassword: 'User@1234',
-            })
+            body: JSON.stringify(newUser)
         });
 
         const text = await res.text();
         let data;
         try {
-            data = text ? JSON.parse(text) : {};
+            data = JSON.parse(text);
         } catch (e) {
-            data = { message: `Server error (${res.status}): Non-JSON response.` };
+            throw new Error(`Server returned invalid response (Status ${res.status}). Check server logs.`);
         }
 
         if (!res.ok) {
-            throw new Error(data.message || `API Error (${res.status})`);
+            throw new Error(data.message || `Creation failed (${res.status})`);
         }
 
-        toast({ title: 'User Created Successfully', description: `Mailbox: ${data.mailbox}` });
+        toast({ title: 'User Authorized', description: `Assigned Mailbox: ${data.mailbox}` });
         setOpenAddUser(false);
         setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '' });
     } catch (e: any) {
-        toast({ title: 'Operation Failed', description: e.message, variant: 'destructive' });
+        toast({ title: 'Account Creation Failed', description: e.message, variant: 'destructive' });
     } finally {
         setIsSubmitting(false);
     }
@@ -187,23 +145,19 @@ export default function UsersPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-primary italic uppercase">System Users</h1>
-          <p className="text-muted-foreground">Manage accounts and high-speed data transfers.</p>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">System Client Registry</h1>
+          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Manual account management & worldwide synchronization</p>
         </div>
         <div className="flex gap-2">
-            <Button onClick={fetchLogicwareShippers} variant="outline" disabled={isSyncingLw} className="border-primary/20">
-                {isSyncingLw ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
-                Sync Global Hub
-            </Button>
             <ImportCSVDialog />
             <Dialog open={openAddUser} onOpenChange={setOpenAddUser}>
                 <DialogTrigger asChild>
-                    <Button className="font-bold shadow-md"><PlusCircle className="mr-2 h-4 w-4" /> Add User</Button>
+                    <Button className="font-black uppercase italic tracking-tight shadow-lg"><PlusCircle className="mr-2 h-4 w-4" /> Add User Account</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">New Account Entry</DialogTitle>
-                        <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Authorize new global logistics profile</DialogDescription>
+                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Manual Onboarding</DialogTitle>
+                        <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Establish new global logistics identity</DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-2 gap-4 py-4">
                         <div className="space-y-1.5">
@@ -229,12 +183,12 @@ export default function UsersPage() {
                     </div>
                     <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl mb-4">
                         <p className="text-[10px] font-bold text-orange-800 uppercase leading-relaxed">
-                            Note: The user will be assigned a temporary password (User@1234) and forced to reset it upon first entry.
+                            A temporary password will be assigned. The user will be required to define their own private key upon first entry.
                         </p>
                     </div>
                     <DialogFooter>
                         <Button onClick={handleAddUser} disabled={isSubmitting} className="w-full h-14 text-lg font-black uppercase italic shadow-xl">
-                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize New Account"}
+                            {isSubmitting ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Authorize Entry"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -242,71 +196,55 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-primary/5 border-primary/20">
-            <CardHeader className="p-4 pb-2">
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Total Database Records</CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 flex items-center gap-3">
-                <UsersIcon className="h-8 w-8 text-primary opacity-40" />
-                <div className="text-3xl font-black tracking-tighter italic">
-                    {totalDbCount === null ? <Loader2 className="h-6 w-6 animate-spin opacity-20" /> : totalDbCount}
-                </div>
-            </CardContent>
-        </Card>
-      </div>
-
-      <Card className="shadow-lg border-primary/10">
-        <CardHeader>
+      <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
+        <CardHeader className="bg-muted/10 border-b">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <CardTitle className="uppercase tracking-tighter italic">Authorized Personnel & Clients</CardTitle>
+              <CardTitle className="text-sm font-black uppercase tracking-[0.2em] italic">Authorized Personnel Ledger</CardTitle>
               <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search worldwide database..." className="pl-9 h-11 border-2" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <Input placeholder="Search worldwide registry..." className="pl-9 h-11 border-2 uppercase font-bold text-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Source</TableHead>
-                <TableHead>Customer Identity</TableHead>
-                <TableHead>Global Mailbox</TableHead>
-                <TableHead>Secure Contact</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+            <TableHeader className="bg-muted/30">
+              <TableRow className="h-12">
+                <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Source</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Identity</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Global Mailbox</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Secure Contact</TableHead>
+                <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoadingUsers ? (
-                  <TableRow><TableCell colSpan={5} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin inline-block" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin inline-block text-primary" /></TableCell></TableRow>
               ) : combinedUsers.map((u) => (
-                <TableRow key={u.id} className={cn("group hover:bg-muted/30 transition-colors", u.isLogicware && "bg-blue-50/30 dark:bg-blue-950/10")}>
-                  <TableCell>
-                      {u.isLogicware ? (
-                          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 uppercase text-[9px] font-bold">Hub</Badge>
-                      ) : (
-                          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 uppercase text-[9px] font-bold">Local</Badge>
-                      )}
+                <TableRow key={u.id} className={cn("group hover:bg-muted/30 transition-colors h-16", u.isLogicware && "bg-blue-50/30")}>
+                  <TableCell className="pl-6">
+                      <Badge variant="outline" className={cn("uppercase text-[9px] font-black border-2", u.isLogicware ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-green-100 text-green-700 border-green-200")}>
+                          {u.isLogicware ? 'Hub' : 'Local'}
+                      </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                        <span className="font-black text-primary uppercase">{u.fullName}</span>
+                        <span className="font-black text-primary uppercase text-sm">{u.fullName}</span>
                         {adminIds.has(u.id) && <ShieldCheck className="h-4 w-4 text-primary fill-primary/10" />}
                     </div>
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{u.email}</div>
+                    <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{u.email}</div>
                   </TableCell>
                   <TableCell className="font-mono font-black text-lg tracking-tighter text-primary">{u.mailboxNumber}</TableCell>
-                  <TableCell className="text-sm font-medium">{u.phone}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="outline" size="sm" asChild className="h-8 font-bold border-2 hover:bg-primary hover:text-primary-foreground" disabled={u.isLogicware}>
-                        <Link href={`/admin/users/${u.id}`}><Eye className="h-4 w-4 mr-2" />View profile</Link>
+                  <TableCell className="text-xs font-medium uppercase opacity-70">{u.phone}</TableCell>
+                  <TableCell className="text-right pr-6">
+                    <Button variant="outline" size="sm" asChild className="h-9 font-black border-2 uppercase tracking-tighter text-[10px] px-6" disabled={u.isLogicware}>
+                        <Link href={`/admin/users/${u.id}`}><Eye className="h-4 w-4 mr-2" />Profile</Link>
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
               {combinedUsers.length === 0 && !isLoadingUsers && (
-                  <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No results found in current system.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No worldwide records found.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -368,10 +306,7 @@ function ImportCSVDialog() {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${idToken}`
                         },
-                        body: JSON.stringify({
-                            ...uData,
-                            defaultPassword: 'User@1234',
-                        })
+                        body: JSON.stringify(uData)
                     });
                     if (res.ok) successCount++;
                     else failCount++;
@@ -382,10 +317,7 @@ function ImportCSVDialog() {
                 setProgress(prev => ({ ...prev, current: prev.current + 1 }));
             }
 
-            toast({ 
-                title: 'Data Transfer Complete', 
-                description: `Successfully added ${successCount} users. Errors: ${failCount}` 
-            });
+            toast({ title: 'Migration Complete', description: `Successfully imported ${successCount} users. Errors: ${failCount}` });
             setIsSubmitting(false);
             setOpen(false);
         };
@@ -396,29 +328,24 @@ function ImportCSVDialog() {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" className="font-bold border-2"><FileSpreadsheet className="mr-2 h-4 w-4" /> Transfer Data</Button>
+                <Button variant="outline" className="font-black uppercase italic border-2"><FileSpreadsheet className="mr-2 h-4 w-4" /> Transfer Data</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="uppercase italic tracking-tighter">Worldwide Client Migration</DialogTitle>
-                    <DialogDescription>
-                        Upload a CSV file to bulk-import users from your previous system.
-                    </DialogDescription>
+                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Bulk-import users from external systems</DialogDescription>
                 </DialogHeader>
                 <div className="p-4 bg-muted/50 rounded-xl border-2 border-dashed text-sm space-y-4">
-                    <p className="font-black uppercase flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" /> CSV Schema Template:</p>
+                    <p className="font-black uppercase flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" /> Required Schema:</p>
                     <code className="block p-3 bg-zinc-950 text-green-400 rounded-lg text-[10px] font-mono leading-relaxed">
                         firstName, lastName, email, phone, trn
                     </code>
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest leading-relaxed">
-                        Note: Default passwords will be set to "User@1234" and users forced to reset.
-                    </p>
                 </div>
                 <div className="py-6">
                     {isImporting ? (
                         <div className="space-y-4 text-center">
                             <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
-                            <p className="font-black italic uppercase animate-pulse">Syncing Database: {progress.current} / {progress.total}</p>
+                            <p className="font-black italic uppercase animate-pulse">Synchronizing: {progress.current} / {progress.total}</p>
                             <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                                 <div className="h-full bg-primary transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
                             </div>
@@ -434,7 +361,7 @@ function ImportCSVDialog() {
                     )}
                 </div>
                 <DialogFooter>
-                    <DialogClose asChild><Button variant="ghost" disabled={isImporting} className="font-bold">Cancel Migration</Button></DialogClose>
+                    <DialogClose asChild><Button variant="ghost" disabled={isImporting} className="font-bold uppercase">Cancel</Button></DialogClose>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

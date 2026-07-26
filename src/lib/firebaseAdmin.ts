@@ -1,36 +1,32 @@
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Centralized and hardened Firebase Admin SDK initialization.
- * Optimized for stable performance in Next.js and high-concurrency administrative tasks.
+ * @fileOverview Hardened Firebase Admin SDK initialization.
+ * Optimized for stable performance in Next.js 15.
  */
 
 const PROJECT_ID = 'swiftroute-3230b';
 
-/**
- * Ensures the Admin SDK is initialized only once and returns the service instances.
- */
-function getAdminApp() {
-  if (admin.apps.length > 0) {
-    return admin.apps[0]!;
+function getAdminApp(): App {
+  if (getApps().length > 0) {
+    return getApps()[0];
   }
-
-  return admin.initializeApp({
+  return initializeApp({
     projectId: PROJECT_ID,
   });
 }
 
 const app = getAdminApp();
 
-// Export pre-initialized services using modular SDK getters
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
 export const adminField = FieldValue;
 
 /**
- * Utility to recursively strip undefined values from an object to prevent Firestore "payload argument" errors.
+ * Robust utility to recursively strip undefined values and ensure non-null types.
+ * Prevents Firestore "payload argument" errors.
  */
 export function cleanPayload<T extends Record<string, any>>(obj: T): T {
   const result: any = Array.isArray(obj) ? [] : {};
