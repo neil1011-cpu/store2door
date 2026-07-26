@@ -66,7 +66,7 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
-        console.error('[API] Auth user create error:', authError.code);
+        console.error('[API] Auth user create error:', authError);
         if (authError.code === 'auth/email-already-in-use') {
              return NextResponse.json({ success: false, message: 'This email address is already registered.' }, { status: 409 });
         }
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
-        console.error('[API] Firestore transaction error:', dbError.message);
+        console.error('[API] Firestore transaction error:', dbError);
         // Rollback
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database error: ${dbError.message}` }, { status: 500 });
@@ -134,6 +134,7 @@ export async function POST(request: Request) {
 
   } catch (criticalError: any) {
     console.error('[API] Critical failure:', criticalError);
+    console.error(criticalError.stack);
     return NextResponse.json(
       { success: false, message: criticalError?.message || 'A catastrophic internal server error occurred.' },
       { status: 500 }
