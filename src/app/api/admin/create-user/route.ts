@@ -1,8 +1,10 @@
+
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Robust Administrative User Creation API with exhaustive diagnostic logging.
+ * Updated with specific console.error formats requested for deep debugging.
  */
 
 export async function POST(request: Request) {
@@ -17,7 +19,8 @@ export async function POST(request: Request) {
     }
 
     const idToken = authHeader.substring(7);
-    if (!idToken) {
+    if (!idToken || idToken.length < 10) {
+        console.warn('[API] Invalid or short session token detected.');
         return NextResponse.json({ success: false, message: 'Invalid session token.' }, { status: 401 });
     }
 
@@ -26,6 +29,7 @@ export async function POST(request: Request) {
     try {
       body = await request.json();
     } catch (e) {
+      console.error('[API] Request body parsing failed:', e);
       return NextResponse.json({ success: false, message: 'Request body must be valid JSON.' }, { status: 400 });
     }
     
@@ -70,7 +74,9 @@ export async function POST(request: Request) {
         });
         console.log(`[API] Auth account created: ${userRecord.uid}`);
     } catch (authError: any) {
+        // REQUESTED LOGGING FORMAT
         console.error('[API] Auth user create error:', authError);
+        
         if (authError.code === 'auth/email-already-in-use') {
              return NextResponse.json({ success: false, message: 'This email address is already registered.' }, { status: 409 });
         }
@@ -93,7 +99,6 @@ export async function POST(request: Request) {
                 
                 mailboxId = `FSTD${nextNum}`;
                 transaction.set(counterRef, { next: nextNum + 1 }, { merge: true });
-                console.log(`[API] Generated next mailbox number: ${mailboxId}`);
             }
 
             const userProfileRef = adminDb.collection('users').doc(userRecord.uid);
@@ -133,15 +138,19 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
+        // REQUESTED LOGGING FORMAT
         console.error('[API] Firestore transaction error:', dbError);
+        
         // Rollback Auth creation if database write fails
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database error: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (criticalError: any) {
+    // REQUESTED LOGGING FORMAT
     console.error('[API] Critical failure:', criticalError);
     console.error(criticalError.stack);
+    
     return NextResponse.json(
       { success: false, message: criticalError?.message || 'A catastrophic internal server error occurred.' },
       { status: 500 }

@@ -1,3 +1,4 @@
+
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -26,29 +27,30 @@ export const adminField = FieldValue;
 
 /**
  * Robust utility to recursively strip undefined values and ensure non-null types.
- * Prevents Firestore "payload argument" errors.
- * Explicitly ignores FieldValue objects to prevent recursive corruption.
+ * Prevents Firestore "payload argument" errors while preserving FieldValue objects.
  */
-export function cleanPayload<T extends Record<string, any>>(obj: T): T {
+export function cleanPayload(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
 
-  const result: any = Array.isArray(obj) ? [] : {};
-  
+  // Detect FieldValue or other internal Firestore types to stop recursion
+  const isFieldValue = obj && (
+    (obj.constructor && obj.constructor.name === 'FieldValue') || 
+    (typeof obj._methodName === 'string')
+  );
+
+  if (isFieldValue) return obj;
+
+  if (Array.isArray(obj)) {
+    return obj.map(v => cleanPayload(v));
+  }
+
+  const result: any = {};
   Object.keys(obj).forEach((key) => {
     const value = obj[key];
-    
-    // Explicitly ignore undefined
-    if (value === undefined) return;
-    
-    // Detect FieldValue or other non-plain objects to stop recursion
-    const isFieldValue = value && typeof value === 'object' && ('_methodName' in value || value instanceof FieldValue);
-
-    if (value !== null && typeof value === 'object' && !isFieldValue) {
+    if (value !== undefined) {
       result[key] = cleanPayload(value);
-    } else {
-      result[key] = value;
     }
   });
   
-  return result as T;
+  return result;
 }
