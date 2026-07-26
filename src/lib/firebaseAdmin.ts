@@ -1,4 +1,6 @@
 import * as admin from 'firebase-admin';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Centralized and hardened Firebase Admin SDK initialization.
@@ -22,20 +24,27 @@ function getAdminApp() {
 
 const app = getAdminApp();
 
-// Export pre-initialized services using the official getters from the app instance
-export const adminAuth = admin.auth(app);
-export const adminDb = admin.firestore(app);
-export const adminField = admin.firestore.FieldValue;
+// Export pre-initialized services using modular SDK getters
+export const adminAuth = getAuth(app);
+export const adminDb = getFirestore(app);
+export const adminField = FieldValue;
 
 /**
- * Utility to strip undefined values from an object to prevent Firestore "payload argument" errors.
+ * Utility to recursively strip undefined values from an object to prevent Firestore "payload argument" errors.
  */
 export function cleanPayload<T extends Record<string, any>>(obj: T): T {
-  const result = { ...obj };
-  Object.keys(result).forEach((key) => {
-    if (result[key] === undefined) {
-      delete result[key];
+  const result: any = Array.isArray(obj) ? [] : {};
+  
+  Object.keys(obj).forEach((key) => {
+    const value = obj[key];
+    if (value === undefined) return;
+    
+    if (value !== null && typeof value === 'object' && !(value instanceof FieldValue)) {
+      result[key] = cleanPayload(value);
+    } else {
+      result[key] = value;
     }
   });
-  return result;
+  
+  return result as T;
 }

@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Robust Administrative User Creation API.
- * Features: Secure auth-first creation, atomic mailbox assignment, and cleaned payload assurance.
+ * @fileOverview Robust Administrative User Onboarding API.
+ * Features: Secure auth-first creation, atomic mailbox assignment, and mandatory password reset flag.
  */
 
 export async function POST(request: Request) {
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: 'Invalid token format.' }, { status: 401 });
     }
 
+    // Defensive body parsing
     let body;
     try {
       body = await request.json();
@@ -27,20 +28,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Invalid JSON payload.' }, { status: 400 });
     }
     
-    const {
-      firstName,
-      lastName,
-      email,
-      phone,
-      trn,
-      defaultPassword,
-      mailboxNumber: requestedMailbox
-    } = body;
+    // Explicit casting to prevent 'undefined' values reaching Firestore
+    const firstName = String(body.firstName || '').trim();
+    const lastName = String(body.lastName || '').trim();
+    const email = String(body.email || '').trim().toLowerCase();
+    const phone = String(body.phone || 'N/A').trim();
+    const trn = String(body.trn || 'N/A').trim();
+    const defaultPassword = String(body.defaultPassword || 'User@1234');
+    const requestedMailbox = body.mailboxNumber ? String(body.mailboxNumber).trim() : null;
 
     if (!email || !firstName || !lastName) {
         return NextResponse.json({ 
             success: false, 
-            message: 'Email and full name are required.' 
+            message: 'Email, First Name, and Last Name are required.' 
         }, { status: 400 });
     }
 
@@ -71,8 +71,8 @@ export async function POST(request: Request) {
     let userRecord;
     try {
         userRecord = await adminAuth.createUser({
-            email: email.trim().toLowerCase(),
-            password: defaultPassword || 'User@1234',
+            email: email,
+            password: defaultPassword,
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
@@ -80,13 +80,13 @@ export async function POST(request: Request) {
         if (authError.code === 'auth/email-already-in-use') {
              return NextResponse.json({ 
                  success: false,
-                 message: 'This email is already registered.', 
+                 message: 'This email is already registered in the system.', 
              }, { status: 409 });
         }
-        throw authError;
+        return NextResponse.json({ success: false, message: `Auth service error: ${authError.message}` }, { status: 500 });
     }
 
-    // 3. Create Database Profile with Cleaned Payload
+    // 3. Establish Database Profile within an Atomic Transaction
     try {
         const finalMailbox = await adminDb.runTransaction(async (transaction) => {
             let mailboxId = requestedMailbox;
@@ -118,9 +118,9 @@ export async function POST(request: Request) {
                 fullName: `${firstName} ${lastName}`.trim(),
                 firstName: firstName,
                 lastName: lastName,
-                email: email.trim().toLowerCase(),
-                phone: phone || 'N/A',
-                trn: trn || 'N/A',
+                email: email,
+                phone: phone,
+                trn: trn,
                 mailboxNumber: mailboxId,
                 address: userAddress,
                 walletBalance: 0,
@@ -138,21 +138,22 @@ export async function POST(request: Request) {
         console.log(`[API SUCCESS] Created user ${email} with mailbox ${finalMailbox}`);
         return NextResponse.json({
             success: true,
-            message: 'User profile created.',
+            message: 'User profile established successfully.',
             uid: userRecord.uid,
             mailbox: finalMailbox
         });
         
     } catch (dbError: any) {
         console.error('[API DB ERROR]:', dbError.message);
+        // Rollback: Attempt to cleanup the auth user if DB profile fails
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
-        return NextResponse.json({ success: false, message: dbError.message }, { status: 500 });
+        return NextResponse.json({ success: false, message: `Database transaction failure: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (error: any) {
     console.error('[API CRITICAL ERROR]:', error);
     return NextResponse.json(
-      { success: false, message: error?.message || 'Server error occurred.' },
+      { success: false, message: error?.message || 'A catastrophic server error occurred.' },
       { status: 500 }
     );
   }
