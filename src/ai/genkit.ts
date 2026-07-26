@@ -1,5 +1,5 @@
 /**
- * @fileOverview Genkit AI Initialization (Disabled for Manual Mode)
+ * @fileOverview Genkit AI Initialization (Stubbed for Manual Operation Mode)
  */
 
 export const ai = {
@@ -10,8 +10,9 @@ export const ai = {
 };
 
 export const z = {
-  object: (obj: any) => ({ describe: (s: string) => ({ infer: {} }) }),
+  object: (obj: any) => ({ describe: (s: string) => ({ infer: {} as any }) }),
   string: () => ({ describe: (s: string) => ({}) }),
+  number: () => ({ describe: (s: string) => ({}) }),
   boolean: () => ({ describe: (s: string) => ({}) }),
   any: () => ({}),
   infer: {} as any,

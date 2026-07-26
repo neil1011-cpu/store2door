@@ -2,22 +2,22 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Robust Administrative User Creation API.
- * Features: Secure auth account creation, atomic mailbox assignment, and mandatory profile setup.
+ * @fileOverview Robust Administrative User Creation API with exhaustive diagnostic logging.
  */
 
 export async function POST(request: Request) {
-  console.log('[API] User Creation Started');
+  console.log('[API] User Creation Process Initiated');
   
   try {
     // 1. Authorization Check
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.warn('[API] Missing or invalid authorization header');
       return NextResponse.json({ success: false, message: 'Authorization required.' }, { status: 401 });
     }
 
     const idToken = authHeader.substring(7);
-    if (!idToken || idToken === 'null' || idToken === 'undefined') {
+    if (!idToken) {
         return NextResponse.json({ success: false, message: 'Invalid session token.' }, { status: 401 });
     }
 
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const requestedMailbox = body.mailboxNumber ? String(body.mailboxNumber).trim() : null;
 
     if (!email || !firstName || !lastName) {
-        return NextResponse.json({ success: false, message: 'Identity missing: Email, First, and Last names are required.' }, { status: 400 });
+        return NextResponse.json({ success: false, message: 'Email, First, and Last names are required.' }, { status: 400 });
     }
 
     // 3. Admin Verification
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
     } catch (tokenErr: any) {
-      console.error('[API] Auth verify error:', tokenErr.message);
+      console.error('[API] Token verification failed:', tokenErr);
       return NextResponse.json({ success: false, message: 'Session expired. Please sign in again.' }, { status: 401 });
     }
     
@@ -54,8 +54,11 @@ export async function POST(request: Request) {
     const isHardcodedAdmin = decodedToken.email === 'admin@neilussolutions.com';
     
     if (!adminRoleSnap.exists && !isHardcodedAdmin) {
+        console.warn(`[API] Unauthorized access attempt by ${decodedToken.email}`);
         return NextResponse.json({ success: false, message: 'Access Denied: Administrator privileges required.' }, { status: 403 });
     }
+
+    console.log(`[API] Authorizing creation for email: ${email}`);
 
     // 4. Auth Account Creation
     let userRecord;
@@ -65,6 +68,7 @@ export async function POST(request: Request) {
             password: defaultPassword,
             displayName: `${firstName} ${lastName}`.trim(),
         });
+        console.log(`[API] Auth account created: ${userRecord.uid}`);
     } catch (authError: any) {
         console.error('[API] Auth user create error:', authError);
         if (authError.code === 'auth/email-already-in-use') {
@@ -89,6 +93,7 @@ export async function POST(request: Request) {
                 
                 mailboxId = `FSTD${nextNum}`;
                 transaction.set(counterRef, { next: nextNum + 1 }, { merge: true });
+                console.log(`[API] Generated next mailbox number: ${mailboxId}`);
             }
 
             const userProfileRef = adminDb.collection('users').doc(userRecord.uid);
@@ -119,6 +124,8 @@ export async function POST(request: Request) {
             return mailboxId;
         });
 
+        console.log(`[API] User profile synchronized for mailbox: ${finalMailbox}`);
+
         return NextResponse.json({
             success: true,
             uid: userRecord.uid,
@@ -127,7 +134,7 @@ export async function POST(request: Request) {
         
     } catch (dbError: any) {
         console.error('[API] Firestore transaction error:', dbError);
-        // Rollback Auth creation if database write fails to prevent orphaned auth accounts
+        // Rollback Auth creation if database write fails
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database error: ${dbError.message}` }, { status: 500 });
     }

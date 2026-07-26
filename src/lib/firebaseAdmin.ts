@@ -27,15 +27,23 @@ export const adminField = FieldValue;
 /**
  * Robust utility to recursively strip undefined values and ensure non-null types.
  * Prevents Firestore "payload argument" errors.
+ * Explicitly ignores FieldValue objects to prevent recursive corruption.
  */
 export function cleanPayload<T extends Record<string, any>>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') return obj;
+
   const result: any = Array.isArray(obj) ? [] : {};
   
   Object.keys(obj).forEach((key) => {
     const value = obj[key];
+    
+    // Explicitly ignore undefined
     if (value === undefined) return;
     
-    if (value !== null && typeof value === 'object' && !(value instanceof FieldValue)) {
+    // Detect FieldValue or other non-plain objects to stop recursion
+    const isFieldValue = value && typeof value === 'object' && ('_methodName' in value || value instanceof FieldValue);
+
+    if (value !== null && typeof value === 'object' && !isFieldValue) {
       result[key] = cleanPayload(value);
     } else {
       result[key] = value;
