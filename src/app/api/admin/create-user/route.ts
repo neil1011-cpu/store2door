@@ -127,7 +127,7 @@ export async function POST(request: Request) {
         
     } catch (dbError: any) {
         console.error('[API] Firestore transaction error:', dbError);
-        // Rollback
+        // Rollback Auth creation if database write fails to prevent orphaned auth accounts
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database error: ${dbError.message}` }, { status: 500 });
     }
