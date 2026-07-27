@@ -93,7 +93,6 @@ export default function PreAlertsPage() {
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   // 2. Real-time Listener for ALL Pre-Alerts across all users
-  // We use collectionGroup without orderBy first to ensure it works without a pre-built index
   const preAlertsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collectionGroup(firestore, 'pre_alerts'));
@@ -287,7 +286,7 @@ export default function PreAlertsPage() {
                 <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Tracking #</Label><Input value={newAlert.trackingNumber} onChange={(e) => setNewAlert({...newAlert, trackingNumber: e.target.value})} className="col-span-3 h-11 font-mono uppercase" /></div>
                 <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Contents</Label><Input value={newAlert.contents} onChange={(e) => setNewAlert({...newAlert, contents: e.target.value})} className="col-span-3 h-11" /></div>
                 </div>
-                <DialogFooter><Button onClick={handleCreateAlert} disabled={isSubmitting} className="w-full h-11 font-bold uppercase tracking-tight">{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Authorize Alert"}</Button></DialogFooter>
+                <DialogFooter><Button onClick={handleCreateAlert} disabled={isSubmitting} className="w-full h-11 font-bold uppercase tracking-tight">{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Alert"}</Button></DialogFooter>
             </DialogContent>
             </Dialog>
         </div>
@@ -298,12 +297,7 @@ export default function PreAlertsPage() {
               <ShieldAlert className="h-5 w-5" />
               <AlertTitle className="font-black uppercase italic tracking-tight">Sync Failure Detected</AlertTitle>
               <AlertDescription className="text-xs font-medium uppercase tracking-widest leading-relaxed mt-1">
-                  The real-time listener was unable to connect to the subcollection group. 
-                  {firebaseError.message.includes('index') ? (
-                      <span className="block mt-2 font-bold text-white bg-destructive px-2 py-1 rounded">
-                          CRITICAL: A Firestore Index is required for this collection group. Please check the Firebase Console logs.
-                      </span>
-                  ) : firebaseError.message}
+                  The real-time listener was unable to connect to the subcollection group. Sorting handled in-memory.
               </AlertDescription>
           </Alert>
       )}

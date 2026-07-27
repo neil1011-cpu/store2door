@@ -374,13 +374,11 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: (Shipment
     return (
         <Dialog open={!!shipment} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
-                <DialogHeader>
-                    <div className="flex items-center gap-3 text-primary">
-                        <Package className="h-8 w-8" />
-                        <div>
-                            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Shipment: {shipment.trackingNumber}</DialogTitle>
-                            <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Global Logistics Detailed View</DialogDescription>
-                        </div>
+                <DialogHeader className="flex flex-row items-center gap-3 space-y-0">
+                    <Package className="h-8 w-8 text-primary" />
+                    <div className="text-left">
+                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Shipment: {shipment.trackingNumber}</DialogTitle>
+                        <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Global Logistics Detailed View</DialogDescription>
                     </div>
                 </DialogHeader>
 
