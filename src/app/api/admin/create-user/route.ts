@@ -4,7 +4,7 @@ import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmi
 
 /**
  * @fileOverview Robust Administrative User Creation API.
- * Ensures JSON response is ALWAYS returned to prevent browser crashes.
+ * Includes exhaustive diagnostic logging with full error objects and stack traces.
  */
 
 export async function POST(request: Request) {
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
 
   } catch (criticalError: any) {
     console.error('[API] Critical failure:', criticalError);
-    if (criticalError.stack) console.error(criticalError.stack);
+    console.error(criticalError.stack);
     
     // ENSURE JSON RESPONSE
     return NextResponse.json(

@@ -1,5 +1,5 @@
 
-import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
@@ -41,11 +41,11 @@ export function cleanPayload(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
 
   // CRITICAL: Do NOT clone or traverse internal Firestore types (sentinels)
-  // These objects often contain private state or cycles.
+  // These objects have a specific internal structure used by the SDK.
   const isFieldValue = 
     obj.constructor?.name === 'FieldValue' || 
-    obj._methodName !== undefined || 
-    obj instanceof adminField;
+    typeof obj._methodName === 'string' || 
+    (obj.prototype && obj.prototype.constructor.name === 'FieldValue');
 
   if (isFieldValue) return obj;
 

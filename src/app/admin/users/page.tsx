@@ -256,12 +256,15 @@ function ImportCSVDialog() {
 
         reader.onload = async (event) => {
             const text = event.target?.result as string;
-            const lines = text.split('\n').filter(line => line.trim() !== '');
+            // Handle various line endings (Windows/Unix)
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
             if (lines.length < 1) {
               setIsSubmitting(false);
               return;
             }
-            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            
+            // Normalize headers: lowercase and remove spaces
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
             const dataRows = lines.slice(1);
             
             setProgress({ current: 0, total: dataRows.length });
@@ -271,10 +274,13 @@ function ImportCSVDialog() {
             let failCount = 0;
 
             for (const row of dataRows) {
-                const values = row.split(',').map(v => v.trim());
+                // Simplified CSV splitting (doesn't handle commas in quotes, but efficient for basic data)
+                const values = row.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
                 const uData: any = {};
+                
                 headers.forEach((header, i) => {
-                    if (!header) return;
+                    if (!header || values[i] === undefined) return;
+                    
                     if (header.includes('firstname')) uData.firstName = values[i];
                     else if (header.includes('lastname')) uData.lastName = values[i];
                     else if (header === 'email') uData.email = values[i];
@@ -283,7 +289,11 @@ function ImportCSVDialog() {
                     else if (header.includes('mailbox')) uData.mailboxNumber = values[i];
                 });
 
-                if (!uData.email || !uData.firstName) continue;
+                if (!uData.email || !uData.firstName) {
+                    failCount++;
+                    setProgress(prev => ({ ...prev, current: prev.current + 1 }));
+                    continue;
+                }
 
                 try {
                     const res = await fetch('/api/admin/create-user', {
