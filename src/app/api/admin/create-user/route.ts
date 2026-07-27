@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Robust Administrative User Creation API with exhaustive diagnostic logging.
- * Updated to support manual mailbox assignment for past users.
+ * @fileOverview Robust Administrative User Creation API.
+ * Ensures JSON response is ALWAYS returned to prevent browser crashes.
  */
 
 export async function POST(request: Request) {
@@ -17,8 +17,14 @@ export async function POST(request: Request) {
 
     const idToken = authHeader.substring(7);
 
-    // 2. Safe Body Parsing
-    const body = await request.json();
+    // 2. Body Parsing
+    let body;
+    try {
+        body = await request.json();
+    } catch (e) {
+        return NextResponse.json({ success: false, message: 'Invalid JSON payload.' }, { status: 400 });
+    }
+
     const firstName = String(body.firstName || '').trim();
     const lastName = String(body.lastName || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
@@ -36,7 +42,8 @@ export async function POST(request: Request) {
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
     } catch (tokenErr: any) {
-      return NextResponse.json({ success: false, message: 'Session expired. Please sign in again.' }, { status: 401 });
+      console.error('[API] Token verification failed:', tokenErr);
+      return NextResponse.json({ success: false, message: 'Session expired or invalid.' }, { status: 401 });
     }
     
     const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
@@ -56,19 +63,17 @@ export async function POST(request: Request) {
         });
     } catch (authError: any) {
         console.error('[API] Auth user create error:', authError);
-        
         if (authError.code === 'auth/email-already-in-use') {
-             return NextResponse.json({ success: false, message: 'This email address is already registered.' }, { status: 409 });
+             return NextResponse.json({ success: false, message: 'Email is already registered.' }, { status: 409 });
         }
-        return NextResponse.json({ success: false, message: `Authentication error: ${authError.message}` }, { status: 500 });
+        return NextResponse.json({ success: false, message: `Auth Error: ${authError.message}` }, { status: 500 });
     }
 
-    // 5. Atomic Database Setup
+    // 5. Database Setup (Atomic Transaction)
     try {
         const finalMailbox = await adminDb.runTransaction(async (transaction) => {
             let mailboxId = requestedMailbox;
 
-            // If no mailbox provided, get the next sequential one
             if (!mailboxId) {
                 const counterRef = adminDb.collection('metadata').doc('mailboxCounter');
                 const counterSnap = await transaction.get(counterRef);
@@ -118,7 +123,6 @@ export async function POST(request: Request) {
         
     } catch (dbError: any) {
         console.error('[API] Firestore transaction error:', dbError);
-        
         // Rollback Auth creation if database write fails
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database error: ${dbError.message}` }, { status: 500 });
@@ -126,10 +130,11 @@ export async function POST(request: Request) {
 
   } catch (criticalError: any) {
     console.error('[API] Critical failure:', criticalError);
-    console.error(criticalError.stack);
+    if (criticalError.stack) console.error(criticalError.stack);
     
+    // ENSURE JSON RESPONSE
     return NextResponse.json(
-      { success: false, message: criticalError?.message || 'A catastrophic internal server error occurred.' },
+      { success: false, message: 'A catastrophic internal server error occurred.' },
       { status: 500 }
     );
   }

@@ -275,7 +275,9 @@ export default function PreAlertsPage() {
             <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button className="font-bold"><PlusCircle className="mr-2 h-4 w-4" />Create Pre-Alert</Button></DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader><DialogTitle className="uppercase italic tracking-tighter">Manual Pre-Alert Entry</DialogTitle></DialogHeader>
+                <DialogHeader>
+                    <DialogTitle className="uppercase italic tracking-tighter">Manual Pre-Alert Entry</DialogTitle>
+                </DialogHeader>
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Customer</Label>
                     <Select onValueChange={(value) => setNewAlert({...newAlert, customerId: value})} >
