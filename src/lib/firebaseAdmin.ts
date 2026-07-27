@@ -33,6 +33,7 @@ export function cleanPayload(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
 
   // Robust FieldValue detection to prevent corruption of sentinels (like serverTimestamp)
+  // Admin SDK FieldValue check usually relies on constructor name or specific method presence.
   const isFieldValue = (obj instanceof adminField) || 
     (obj.constructor && obj.constructor.name === 'FieldValue') || 
     (typeof obj._methodName === 'string');

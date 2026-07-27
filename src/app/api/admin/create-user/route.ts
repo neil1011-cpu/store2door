@@ -4,42 +4,28 @@ import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmi
 
 /**
  * @fileOverview Robust Administrative User Creation API with exhaustive diagnostic logging.
- * Updated with specific console.error formats requested for deep debugging.
+ * Updated to support manual mailbox assignment for past users.
  */
 
 export async function POST(request: Request) {
-  console.log('[API] User Creation Process Initiated');
-  
   try {
     // 1. Authorization Check
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.warn('[API] Missing or invalid authorization header');
       return NextResponse.json({ success: false, message: 'Authorization required.' }, { status: 401 });
     }
 
     const idToken = authHeader.substring(7);
-    if (!idToken || idToken.length < 10) {
-        console.warn('[API] Invalid or short session token detected.');
-        return NextResponse.json({ success: false, message: 'Invalid session token.' }, { status: 401 });
-    }
 
     // 2. Safe Body Parsing
-    let body;
-    try {
-      body = await request.json();
-    } catch (e) {
-      console.error('[API] Request body parsing failed:', e);
-      return NextResponse.json({ success: false, message: 'Request body must be valid JSON.' }, { status: 400 });
-    }
-    
+    const body = await request.json();
     const firstName = String(body.firstName || '').trim();
     const lastName = String(body.lastName || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     const phone = String(body.phone || 'N/A').trim();
     const trn = String(body.trn || 'N/A').trim();
     const defaultPassword = String(body.defaultPassword || 'User@1234');
-    const requestedMailbox = body.mailboxNumber ? String(body.mailboxNumber).trim() : null;
+    const requestedMailbox = body.mailboxNumber ? String(body.mailboxNumber).trim().toUpperCase() : null;
 
     if (!email || !firstName || !lastName) {
         return NextResponse.json({ success: false, message: 'Email, First, and Last names are required.' }, { status: 400 });
@@ -50,7 +36,6 @@ export async function POST(request: Request) {
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
     } catch (tokenErr: any) {
-      console.error('[API] Token verification failed:', tokenErr);
       return NextResponse.json({ success: false, message: 'Session expired. Please sign in again.' }, { status: 401 });
     }
     
@@ -58,11 +43,8 @@ export async function POST(request: Request) {
     const isHardcodedAdmin = decodedToken.email === 'admin@neilussolutions.com';
     
     if (!adminRoleSnap.exists && !isHardcodedAdmin) {
-        console.warn(`[API] Unauthorized access attempt by ${decodedToken.email}`);
         return NextResponse.json({ success: false, message: 'Access Denied: Administrator privileges required.' }, { status: 403 });
     }
-
-    console.log(`[API] Authorizing creation for email: ${email}`);
 
     // 4. Auth Account Creation
     let userRecord;
@@ -72,9 +54,7 @@ export async function POST(request: Request) {
             password: defaultPassword,
             displayName: `${firstName} ${lastName}`.trim(),
         });
-        console.log(`[API] Auth account created: ${userRecord.uid}`);
     } catch (authError: any) {
-        // REQUESTED LOGGING FORMAT
         console.error('[API] Auth user create error:', authError);
         
         if (authError.code === 'auth/email-already-in-use') {
@@ -88,6 +68,7 @@ export async function POST(request: Request) {
         const finalMailbox = await adminDb.runTransaction(async (transaction) => {
             let mailboxId = requestedMailbox;
 
+            // If no mailbox provided, get the next sequential one
             if (!mailboxId) {
                 const counterRef = adminDb.collection('metadata').doc('mailboxCounter');
                 const counterSnap = await transaction.get(counterRef);
@@ -129,8 +110,6 @@ export async function POST(request: Request) {
             return mailboxId;
         });
 
-        console.log(`[API] User profile synchronized for mailbox: ${finalMailbox}`);
-
         return NextResponse.json({
             success: true,
             uid: userRecord.uid,
@@ -138,7 +117,6 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
-        // REQUESTED LOGGING FORMAT
         console.error('[API] Firestore transaction error:', dbError);
         
         // Rollback Auth creation if database write fails
@@ -147,7 +125,6 @@ export async function POST(request: Request) {
     }
 
   } catch (criticalError: any) {
-    // REQUESTED LOGGING FORMAT
     console.error('[API] Critical failure:', criticalError);
     console.error(criticalError.stack);
     

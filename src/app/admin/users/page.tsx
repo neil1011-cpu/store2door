@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -57,39 +58,14 @@ export default function UsersPage() {
 
   const [openAddUser, setOpenAddUser] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSyncingLw, setIsSyncingLw] = useState(false);
-  const [logicwareUsers, setLogicwareUsers] = useState<any[]>([]);
-  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', phone: '', trn: '' });
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', phone: '', trn: '', mailboxNumber: '' });
   const [searchTerm, setSearchTerm] = useState('');
-  const [totalDbCount, setTotalDbCount] = useState<number | null>(null);
   
   const adminIds = useMemo(() => new Set(adminRoles?.map(role => role.id)), [adminRoles]);
 
-  useEffect(() => {
-    const fetchTotalCount = async () => {
-      try {
-        if (!firestore) return;
-        const coll = collection(firestore, 'users');
-        const snapshot = await getCountFromServer(coll);
-        setTotalDbCount(snapshot.data().count);
-      } catch (e) {}
-    };
-    fetchTotalCount();
-  }, [firestore, users]);
-
   const combinedUsers = useMemo(() => {
       const local = (users || []).map(u => ({ ...u, source: 'firebase' as const, isLogicware: false }));
-      const mappedLogicware = logicwareUsers.map((u: any) => ({
-          id: `lw-${u.id}`,
-          fullName: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || 'Logicware Shipper',
-          email: u.email || u.emailAddress || 'N/A',
-          phone: u.phone || u.phoneNumber || 'N/A',
-          mailboxNumber: u.referenceCode || u.mailbox || u.code || 'HUB',
-          source: 'logicware' as const,
-          isLogicware: true
-      }));
-
-      const all = [...local, ...mappedLogicware];
+      const all = [...local];
       if (!searchTerm) return all;
       const lower = searchTerm.toLowerCase();
       return all.filter(u => 
@@ -97,7 +73,7 @@ export default function UsersPage() {
           (u.email || '').toLowerCase().includes(lower) ||
           (u.mailboxNumber || '').toLowerCase().includes(lower)
       );
-  }, [users, logicwareUsers, searchTerm]);
+  }, [users, searchTerm]);
 
   const handleAddUser = async () => {
     if(!newUser.firstName || !newUser.lastName || !newUser.email) {
@@ -124,7 +100,7 @@ export default function UsersPage() {
         try {
             data = JSON.parse(text);
         } catch (e) {
-            throw new Error(`Server returned invalid response (Status ${res.status}). Check server logs.`);
+            throw new Error(`Server returned invalid response (Status ${res.status}). Check server logs for full stack trace.`);
         }
 
         if (!res.ok) {
@@ -133,7 +109,7 @@ export default function UsersPage() {
 
         toast({ title: 'User Authorized', description: `Assigned Mailbox: ${data.mailbox}` });
         setOpenAddUser(false);
-        setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '' });
+        setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', mailboxNumber: '' });
     } catch (e: any) {
         toast({ title: 'Account Creation Failed', description: e.message, variant: 'destructive' });
     } finally {
@@ -146,7 +122,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">System Client Registry</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Manual account management & worldwide synchronization</p>
+          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Manual account management & legacy user onboarding</p>
         </div>
         <div className="flex gap-2">
             <ImportCSVDialog />
@@ -172,6 +148,15 @@ export default function UsersPage() {
                             <Label className="text-[10px] font-bold uppercase opacity-60">Email Address</Label>
                             <Input type="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} placeholder="jane@example.com" className="h-11 border-2" />
                         </div>
+                        <div className="space-y-1.5 col-span-2">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Existing Mailbox # (Optional)</Label>
+                            <Input 
+                                value={newUser.mailboxNumber} 
+                                onChange={(e) => setNewUser({...newUser, mailboxNumber: e.target.value})} 
+                                placeholder="e.g. FSTD999" 
+                                className="h-11 border-2 font-mono" 
+                            />
+                        </div>
                         <div className="space-y-1.5">
                             <Label className="text-[10px] font-bold uppercase opacity-60">Phone</Label>
                             <Input value={newUser.phone} onChange={(e) => setNewUser({...newUser, phone: e.target.value})} placeholder="876..." className="h-11 border-2" />
@@ -183,7 +168,7 @@ export default function UsersPage() {
                     </div>
                     <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl mb-4">
                         <p className="text-[10px] font-bold text-orange-800 uppercase leading-relaxed">
-                            A temporary password will be assigned. The user will be required to define their own private key upon first entry.
+                            Past users can have their original FSTD numbers assigned. Leave blank to generate the next number in sequence.
                         </p>
                     </div>
                     <DialogFooter>
@@ -295,6 +280,7 @@ function ImportCSVDialog() {
                     else if (header === 'email') uData.email = values[i];
                     else if (header === 'phone') uData.phone = values[i];
                     else if (header === 'trn') uData.trn = values[i];
+                    else if (header.includes('mailbox')) uData.mailboxNumber = values[i];
                 });
 
                 if (!uData.email || !uData.firstName) continue;
@@ -338,7 +324,7 @@ function ImportCSVDialog() {
                 <div className="p-4 bg-muted/50 rounded-xl border-2 border-dashed text-sm space-y-4">
                     <p className="font-black uppercase flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" /> Required Schema:</p>
                     <code className="block p-3 bg-zinc-950 text-green-400 rounded-lg text-[10px] font-mono leading-relaxed">
-                        firstName, lastName, email, phone, trn
+                        firstName, lastName, email, phone, trn, mailboxNumber
                     </code>
                 </div>
                 <div className="py-6">
