@@ -62,7 +62,9 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
+        // REQUESTED VERBOSE LOGGING
         console.error('[API] Auth user create error:', authError);
+        
         if (authError.code === 'auth/email-already-in-use') {
              return NextResponse.json({ success: false, message: 'Email is already registered.' }, { status: 409 });
         }
@@ -88,6 +90,8 @@ export async function POST(request: Request) {
             }
 
             const userProfileRef = adminDb.collection('users').doc(userRecord.uid);
+            
+            // PAYLOAD SANITIZATION
             const profileData = cleanPayload({
                 id: userRecord.uid,
                 fullName: `${firstName} ${lastName}`.trim(),
@@ -122,17 +126,19 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
+        // REQUESTED VERBOSE LOGGING
         console.error('[API] Firestore transaction error:', dbError);
+        
         // Rollback Auth creation if database write fails
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database error: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (criticalError: any) {
+    // REQUESTED VERBOSE LOGGING WITH STACK TRACE
     console.error('[API] Critical failure:', criticalError);
     console.error(criticalError.stack);
     
-    // ENSURE JSON RESPONSE
     return NextResponse.json(
       { success: false, message: 'A catastrophic internal server error occurred.' },
       { status: 500 }

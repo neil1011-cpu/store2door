@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle, Users as UsersIcon, RefreshCw, Zap } from 'lucide-react';
+import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle, Trash2, RefreshCw } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -30,13 +30,24 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, getCountFromServer } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 
 export default function UsersPage() {
@@ -46,7 +57,7 @@ export default function UsersPage() {
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'users'));
+    return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
   }, [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
   
@@ -58,17 +69,17 @@ export default function UsersPage() {
 
   const [openAddUser, setOpenAddUser] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', phone: '', trn: '', mailboxNumber: '' });
   const [searchTerm, setSearchTerm] = useState('');
   
   const adminIds = useMemo(() => new Set(adminRoles?.map(role => role.id)), [adminRoles]);
 
   const combinedUsers = useMemo(() => {
-      const local = (users || []).map(u => ({ ...u, source: 'firebase' as const, isLogicware: false }));
-      const all = [...local];
-      if (!searchTerm) return all;
+      const local = (users || []).map(u => ({ ...u, source: 'firebase' as const }));
+      if (!searchTerm) return local;
       const lower = searchTerm.toLowerCase();
-      return all.filter(u => 
+      return local.filter(u => 
           (u.fullName || '').toLowerCase().includes(lower) ||
           (u.email || '').toLowerCase().includes(lower) ||
           (u.mailboxNumber || '').toLowerCase().includes(lower)
@@ -95,17 +106,8 @@ export default function UsersPage() {
             body: JSON.stringify(newUser)
         });
 
-        const text = await res.text();
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            throw new Error(`Server returned invalid response (Status ${res.status}). Check server logs for full stack trace.`);
-        }
-
-        if (!res.ok) {
-            throw new Error(data.message || `Creation failed (${res.status})`);
-        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Creation failed');
 
         toast({ title: 'User Authorized', description: `Assigned Mailbox: ${data.mailbox}` });
         setOpenAddUser(false);
@@ -115,6 +117,32 @@ export default function UsersPage() {
     } finally {
         setIsSubmitting(false);
     }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+      setIsDeleting(userId);
+      try {
+          if (!currentUser) throw new Error("Session lost.");
+          const idToken = await currentUser.getIdToken(true);
+
+          const res = await fetch('/api/admin/delete-user', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({ userId })
+          });
+
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message || 'Deletion failed');
+
+          toast({ title: "User Removed", description: "Account and profile purged from system." });
+      } catch (e: any) {
+          toast({ title: "Deletion Failed", description: e.message, variant: "destructive" });
+      } finally {
+          setIsDeleting(null);
+      }
   };
 
   return (
@@ -166,11 +194,6 @@ export default function UsersPage() {
                             <Input value={newUser.trn} onChange={(e) => setNewUser({...newUser, trn: e.target.value})} placeholder="9 digits" maxLength={9} className="h-11 border-2" />
                         </div>
                     </div>
-                    <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl mb-4">
-                        <p className="text-[10px] font-bold text-orange-800 uppercase leading-relaxed">
-                            Past users can have their original FSTD numbers assigned. Leave blank to generate the next number in sequence.
-                        </p>
-                    </div>
                     <DialogFooter>
                         <Button onClick={handleAddUser} disabled={isSubmitting} className="w-full h-14 text-lg font-black uppercase italic shadow-xl">
                             {isSubmitting ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Authorize Entry"}
@@ -187,7 +210,7 @@ export default function UsersPage() {
               <CardTitle className="text-sm font-black uppercase tracking-[0.2em] italic">Authorized Personnel Ledger</CardTitle>
               <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search worldwide registry..." className="pl-9 h-11 border-2 uppercase font-bold text-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <Input placeholder="Search registry..." className="pl-9 h-11 border-2 font-bold text-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
           </div>
         </CardHeader>
@@ -195,8 +218,7 @@ export default function UsersPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow className="h-12">
-                <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Source</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest">Identity</TableHead>
+                <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Identity</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Global Mailbox</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Secure Contact</TableHead>
                 <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
@@ -204,15 +226,10 @@ export default function UsersPage() {
             </TableHeader>
             <TableBody>
               {isLoadingUsers ? (
-                  <TableRow><TableCell colSpan={5} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin inline-block text-primary" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={4} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin inline-block text-primary" /></TableCell></TableRow>
               ) : combinedUsers.map((u) => (
-                <TableRow key={u.id} className={cn("group hover:bg-muted/30 transition-colors h-16", u.isLogicware && "bg-blue-50/30")}>
+                <TableRow key={u.id} className="group hover:bg-muted/30 transition-colors h-16">
                   <TableCell className="pl-6">
-                      <Badge variant="outline" className={cn("uppercase text-[9px] font-black border-2", u.isLogicware ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-green-100 text-green-700 border-green-200")}>
-                          {u.isLogicware ? 'Hub' : 'Local'}
-                      </Badge>
-                  </TableCell>
-                  <TableCell>
                     <div className="flex items-center gap-2">
                         <span className="font-black text-primary uppercase text-sm">{u.fullName}</span>
                         {adminIds.has(u.id) && <ShieldCheck className="h-4 w-4 text-primary fill-primary/10" />}
@@ -222,14 +239,35 @@ export default function UsersPage() {
                   <TableCell className="font-mono font-black text-lg tracking-tighter text-primary">{u.mailboxNumber}</TableCell>
                   <TableCell className="text-xs font-medium uppercase opacity-70">{u.phone}</TableCell>
                   <TableCell className="text-right pr-6">
-                    <Button variant="outline" size="sm" asChild className="h-9 font-black border-2 uppercase tracking-tighter text-[10px] px-6" disabled={u.isLogicware}>
-                        <Link href={`/admin/users/${u.id}`}><Eye className="h-4 w-4 mr-2" />Profile</Link>
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" asChild className="h-9 font-black border-2 uppercase tracking-tighter text-[10px] px-4">
+                            <Link href={`/admin/users/${u.id}`}><Eye className="h-4 w-4 mr-2" />Profile</Link>
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-9 text-destructive hover:text-destructive hover:bg-destructive/5 font-black uppercase text-[10px] px-2">
+                                    {isDeleting === u.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Authorize Deletion Protocol?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Permanently removing <strong>{u.fullName}</strong> will purge their identity from Authentication and the Master Registry. This cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Abort</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm Purge</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
               {combinedUsers.length === 0 && !isLoadingUsers && (
-                  <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No worldwide records found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">No worldwide records found.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -256,15 +294,14 @@ function ImportCSVDialog() {
 
         reader.onload = async (event) => {
             const text = event.target?.result as string;
-            // Handle various line endings (Windows/Unix)
             const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-            if (lines.length < 1) {
+            if (lines.length < 2) {
               setIsSubmitting(false);
               return;
             }
             
-            // Normalize headers: lowercase and remove spaces
-            const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
+            // ROBUST HEADER NORMALIZATION
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/gi, ''));
             const dataRows = lines.slice(1);
             
             setProgress({ current: 0, total: dataRows.length });
@@ -274,7 +311,6 @@ function ImportCSVDialog() {
             let failCount = 0;
 
             for (const row of dataRows) {
-                // Simplified CSV splitting (doesn't handle commas in quotes, but efficient for basic data)
                 const values = row.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
                 const uData: any = {};
                 

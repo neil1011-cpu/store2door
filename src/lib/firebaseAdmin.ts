@@ -14,20 +14,13 @@ function getAdminApp(): App {
   if (getApps().length > 0) {
     return getApps()[0];
   }
-  // We use the projectId directly which works in most Firebase/Google Cloud environments
   return initializeApp({
     projectId: PROJECT_ID,
   });
 }
 
-// Initialize app once at module level, but handle potential errors
-let app: App;
-try {
-    app = getAdminApp();
-} catch (e) {
-    console.error('[Firebase Admin] Initialization failed:', e);
-    throw e;
-}
+// Initialize app once at module level
+const app = getAdminApp();
 
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
@@ -40,8 +33,8 @@ export const adminField = FieldValue;
 export function cleanPayload(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
 
-  // CRITICAL: Do NOT clone or traverse internal Firestore types (sentinels)
-  // These objects have a specific internal structure used by the SDK.
+  // CRITICAL: Do NOT traverse internal Firestore types (sentinels)
+  // We check for common internal markers used by the Admin SDK.
   const isFieldValue = 
     obj.constructor?.name === 'FieldValue' || 
     typeof obj._methodName === 'string' || 
@@ -49,12 +42,12 @@ export function cleanPayload(obj: any): any {
 
   if (isFieldValue) return obj;
 
-  // Handle Dates (Firestore Admin handles these natively)
+  // Handle Dates
   if (obj instanceof Date) return obj;
 
   // Handle Arrays
   if (Array.isArray(obj)) {
-    return obj.map(v => cleanPayload(v));
+    return obj.map(v => cleanPayload(v)).filter(v => v !== undefined);
   }
 
   // Handle Plain Objects
