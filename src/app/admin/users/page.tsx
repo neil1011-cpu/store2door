@@ -160,8 +160,8 @@ export default function UsersPage() {
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Manual Onboarding</DialogTitle>
-                        <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Establish new global logistics identity</DialogDescription>
+                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Manual Onboarding</DialogTitle>
+                        <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Establish new global logistics identity</DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-2 gap-4 py-4">
                         <div className="space-y-1.5">
@@ -251,8 +251,8 @@ export default function UsersPage() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle>Authorize Deletion Protocol?</AlertDialogTitle>
-                                    <AlertDialogDescription>
+                                    <AlertDialogTitle className="text-center">Authorize Deletion Protocol?</AlertDialogTitle>
+                                    <AlertDialogDescription className="text-center">
                                         Permanently removing <strong>{u.fullName}</strong> will purge their identity from Authentication and the Master Registry. This cannot be undone.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
@@ -278,30 +278,45 @@ export default function UsersPage() {
 }
 
 function ImportCSVDialog() {
-    const [isImporting, setIsSubmitting] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
     const [open, setOpen] = useState(false);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     const { user: currentUser } = useUser();
 
+    const parseCSVLine = (line: string) => {
+        const result = [];
+        let start = 0;
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            if (line[i] === '"') inQuotes = !inQuotes;
+            if (line[i] === ',' && !inQuotes) {
+                result.push(line.substring(start, i).replace(/^"|"$/g, '').trim());
+                start = i + 1;
+            }
+        }
+        result.push(line.substring(start).replace(/^"|"$/g, '').trim());
+        return result;
+    };
+
     const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        setIsSubmitting(true);
+        setIsImporting(true);
         const reader = new FileReader();
 
         reader.onload = async (event) => {
             const text = event.target?.result as string;
             const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
             if (lines.length < 2) {
-              setIsSubmitting(false);
+              setIsImporting(false);
               return;
             }
             
             // ROBUST HEADER NORMALIZATION
-            const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/gi, ''));
+            const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/gi, ''));
             const dataRows = lines.slice(1);
             
             setProgress({ current: 0, total: dataRows.length });
@@ -311,18 +326,20 @@ function ImportCSVDialog() {
             let failCount = 0;
 
             for (const row of dataRows) {
-                const values = row.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                const values = parseCSVLine(row);
                 const uData: any = {};
                 
                 headers.forEach((header, i) => {
                     if (!header || values[i] === undefined) return;
                     
-                    if (header.includes('firstname')) uData.firstName = values[i];
-                    else if (header.includes('lastname')) uData.lastName = values[i];
-                    else if (header === 'email') uData.email = values[i];
-                    else if (header === 'phone') uData.phone = values[i];
-                    else if (header === 'trn') uData.trn = values[i];
-                    else if (header.includes('mailbox')) uData.mailboxNumber = values[i];
+                    const val = values[i];
+                    // Mapping with multiple aliases for robustness
+                    if (['firstname', 'first', 'fname'].includes(header)) uData.firstName = val;
+                    else if (['lastname', 'last', 'lname'].includes(header)) uData.lastName = val;
+                    else if (['email', 'emailaddress'].includes(header)) uData.email = val;
+                    else if (['phone', 'phonenumber', 'tel'].includes(header)) uData.phone = val;
+                    else if (['trn', 'taxid'].includes(header)) uData.trn = val;
+                    else if (['mailbox', 'mailboxnumber', 'fstdnumber', 'customercode'].some(k => header.includes(k))) uData.mailboxNumber = val;
                 });
 
                 if (!uData.email || !uData.firstName) {
@@ -350,7 +367,7 @@ function ImportCSVDialog() {
             }
 
             toast({ title: 'Migration Complete', description: `Successfully imported ${successCount} users. Errors: ${failCount}` });
-            setIsSubmitting(false);
+            setIsImporting(false);
             setOpen(false);
         };
 
@@ -364,8 +381,8 @@ function ImportCSVDialog() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter">Worldwide Client Migration</DialogTitle>
-                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Bulk-import users from external systems</DialogDescription>
+                    <DialogTitle className="uppercase italic tracking-tighter text-center">Worldwide Client Migration</DialogTitle>
+                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Bulk-import users from external systems</DialogDescription>
                 </DialogHeader>
                 <div className="p-4 bg-muted/50 rounded-xl border-2 border-dashed text-sm space-y-4">
                     <p className="font-black uppercase flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" /> Required Schema:</p>

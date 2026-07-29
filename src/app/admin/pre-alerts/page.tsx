@@ -85,14 +85,12 @@ export default function PreAlertsPage() {
   
   const firestore = useFirestore();
 
-  // 1. Load All Users for Manual Alert Creation
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
   }, [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
-  // 2. Real-time Listener for ALL Pre-Alerts across all users
   const preAlertsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collectionGroup(firestore, 'pre_alerts'));
@@ -276,7 +274,7 @@ export default function PreAlertsPage() {
             <DialogTrigger asChild><Button className="font-bold"><PlusCircle className="mr-2 h-4 w-4" />Create Pre-Alert</Button></DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter">Manual Pre-Alert Entry</DialogTitle>
+                    <DialogTitle className="uppercase italic tracking-tighter text-center">Manual Pre-Alert Entry</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Customer</Label>
@@ -401,10 +399,10 @@ function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="uppercase italic tracking-tighter flex items-center gap-2 text-2xl">
+          <DialogTitle className="uppercase italic tracking-tighter flex items-center gap-2 text-2xl justify-center">
             <Eye className="h-6 w-6 text-primary" /> Commercial Invoice Overview
           </DialogTitle>
-          <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mt-1">
+          <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mt-1 text-center">
             Tracking: {preAlert.trackingNumber} • Customer: {preAlert.customerName}
           </DialogDescription>
         </DialogHeader>
@@ -424,8 +422,8 @@ function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
           )}
         </div>
         <DialogFooter className="mt-6 flex gap-2">
-          <DialogClose asChild><Button variant="outline" className="px-8 font-bold h-12 uppercase">Close</Button></DialogClose>
-          <Button onClick={handleDownload} className="h-12 px-8 font-black uppercase tracking-tight italic shadow-lg">
+          <DialogClose asChild><Button variant="outline" className="px-8 font-bold h-12 uppercase w-full sm:w-auto">Close</Button></DialogClose>
+          <Button onClick={handleDownload} className="h-12 px-8 font-black uppercase tracking-tight italic shadow-lg flex-1">
             <Download className="mr-2 h-4 w-4" /> Download Original
           </Button>
         </DialogFooter>
@@ -442,8 +440,8 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
             <DialogTrigger asChild><Button variant="secondary" size="sm" className="h-9 font-black uppercase italic text-[10px] px-6" disabled={preAlert.status === 'Processed'}>Process</Button></DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-2xl">Authorize Global Intake</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">Converting documentation to active shipping record</DialogDescription>
+                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Authorize Global Intake</DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">Converting documentation to active shipping record</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-6">
                     <div className="p-4 rounded-xl bg-primary/5 border-2 border-dashed border-primary/20 flex items-center gap-4">
@@ -463,7 +461,7 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
                     </div>
                 </div>
                 <DialogFooter className="gap-2">
-                    <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase">Cancel</Button></DialogClose>
+                    <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
                     <Button onClick={() => { onShipmentCreated(preAlert, parseFloat(cost)); setOpen(false); }} className="flex-1 h-12 font-black uppercase tracking-tight italic shadow-xl">Finalize Intake & Log</Button>
                 </DialogFooter>
             </DialogContent>

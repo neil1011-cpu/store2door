@@ -313,8 +313,8 @@ export default function ShippingPage() {
       <Dialog open={!!editingShipment} onOpenChange={(open) => !open && setEditingShipment(null)}>
           <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Modify Package Status</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">Update transit state and notify customer</DialogDescription>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Modify Package Status</DialogTitle>
+                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Update transit state and notify customer</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-6">
                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 space-y-1">
@@ -348,7 +348,7 @@ export default function ShippingPage() {
                     </div>
                 </div>
                 <DialogFooter>
-                    <DialogClose asChild><Button variant="ghost" className="h-12 font-bold uppercase">Cancel</Button></DialogClose>
+                    <DialogClose asChild><Button variant="ghost" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
                 </DialogFooter>
           </DialogContent>
       </Dialog>
@@ -375,11 +375,11 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: (Shipment
         <Dialog open={!!shipment} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
                 <DialogHeader>
-                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3">
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3 justify-center">
                          <Package className="h-8 w-8 text-primary" />
                          Shipment: {shipment.trackingNumber}
                     </DialogTitle>
-                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Global Logistics Detailed View</DialogDescription>
+                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Global Logistics Detailed View</DialogDescription>
                 </DialogHeader>
 
                 <ScrollArea className="flex-1 px-1">
@@ -440,7 +440,7 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: (Shipment
                         </div>
 
                         <div className="space-y-4">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 block">Global Documentation Preview</Label>
+                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 block text-center">Global Documentation Preview</Label>
                             <div className="aspect-[3/4] w-full rounded-2xl border-4 bg-white overflow-hidden shadow-2xl flex items-center justify-center relative">
                                 {shipment.uploadedInvoiceUrl ? (
                                     shipment.uploadedInvoiceUrl.startsWith('data:application/pdf') ? (
@@ -461,7 +461,7 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: (Shipment
                 </ScrollArea>
 
                 <DialogFooter className="pt-6 border-t mt-4">
-                    <DialogClose asChild><Button variant="outline" className="font-black uppercase h-12 px-10 tracking-widest text-[11px] border-2">Close Overview</Button></DialogClose>
+                    <DialogClose asChild><Button variant="outline" className="font-black uppercase h-12 px-10 tracking-widest text-[11px] border-2 w-full sm:w-auto">Close Overview</Button></DialogClose>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

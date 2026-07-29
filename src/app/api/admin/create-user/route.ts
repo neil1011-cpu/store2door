@@ -62,7 +62,6 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
-        // REQUESTED VERBOSE LOGGING
         console.error('[API] Auth user create error:', authError);
         
         if (authError.code === 'auth/email-already-in-use') {
@@ -91,7 +90,6 @@ export async function POST(request: Request) {
 
             const userProfileRef = adminDb.collection('users').doc(userRecord.uid);
             
-            // PAYLOAD SANITIZATION
             const profileData = cleanPayload({
                 id: userRecord.uid,
                 fullName: `${firstName} ${lastName}`.trim(),
@@ -126,7 +124,6 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
-        // REQUESTED VERBOSE LOGGING
         console.error('[API] Firestore transaction error:', dbError);
         
         // Rollback Auth creation if database write fails
@@ -135,7 +132,6 @@ export async function POST(request: Request) {
     }
 
   } catch (criticalError: any) {
-    // REQUESTED VERBOSE LOGGING WITH STACK TRACE
     console.error('[API] Critical failure:', criticalError);
     console.error(criticalError.stack);
     
