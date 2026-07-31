@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Robust Administrative User Creation API with exhaustive diagnostics.
+ * @fileOverview Robust Administrative User Creation API with exhaustive diagnostics and mailbox override support.
  */
 
 export async function POST(request: Request) {
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
-        // EXACT LOGGING AS REQUESTED
+        // EXHAUSTIVE LOGGING AS REQUESTED
         console.error('[API] Auth user create error:', authError);
         
         if (authError.code === 'auth/email-already-in-use') {
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
-        // EXACT LOGGING AS REQUESTED
+        // EXHAUSTIVE LOGGING AS REQUESTED
         console.error('[API] Firestore transaction error:', dbError);
         
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
     }
 
   } catch (criticalError: any) {
-    // EXACT LOGGING AS REQUESTED
+    // EXHAUSTIVE LOGGING AS REQUESTED
     console.error('[API] Critical failure:', criticalError);
     console.error(criticalError.stack);
     
