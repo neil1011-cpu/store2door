@@ -81,6 +81,10 @@ export default function MigrationPage() {
       setLogs(prev => [...prev, { message: "MAILBOX COUNTER RESET TO FSTD101.", type: 'info' }]);
       
       toast({ title: "System Cleared", description: "All client registries have been purged and mailbox sequence reset." });
+      
+      // Refresh the page after a short delay to update real-time views
+      setTimeout(() => window.location.reload(), 2000);
+      
     } catch (err: any) {
       setLogs(prev => [...prev, { message: `CRITICAL SYSTEM ERROR: ${err.message}`, type: 'error' }]);
       toast({ title: 'Purge Aborted', description: err.message, variant: 'destructive' });

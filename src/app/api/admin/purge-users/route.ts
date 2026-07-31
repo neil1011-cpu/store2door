@@ -39,29 +39,31 @@ export async function POST(request: Request) {
             const userData = userDoc.data();
 
             // Skip administrators and high-level protection accounts
-            if (protectedUids.has(uid) || userData.email === 'admin@neilussolutions.com') {
+            if (protectedUids.has(uid) || userData.email === 'admin@neilussolutions.com' || userData.role === 'admin') {
                 console.log(`[PURGE] Skipping protected admin account: ${userData.email}`);
                 continue;
             }
 
             try {
+                // Deep Purge subcollections (pre-alerts, shipments, etc.)
+                // Use a standard recursive pattern for Firestore subcollections
+                const subCollections = await userDoc.ref.listCollections();
+                for (const coll of subCollections) {
+                    const subDocs = await coll.get();
+                    const batch = adminDb.batch();
+                    subDocs.forEach(sd => batch.delete(sd.ref));
+                    await batch.commit();
+                }
+
                 // Remove from Firebase Authentication
                 await adminAuth.deleteUser(uid).catch((e) => {
                     if (e.code !== 'auth/user-not-found') throw e;
                 });
 
-                // Deep Purge subcollections (pre-alerts, shipments, etc.)
-                const subCollections = await userDoc.ref.listCollections();
-                for (const coll of subCollections) {
-                    const subDocs = await coll.get();
-                    for (const subDoc of subDocs.docs) {
-                        await subDoc.ref.delete();
-                    }
-                }
-
                 // Delete the primary profile document
                 await userDoc.ref.delete();
                 deletedCount++;
+                console.log(`[PURGE] Successfully deleted user: ${userData.email} (${uid})`);
             } catch (delErr: any) {
                 console.error(`[PURGE] Failed to remove user ${uid}:`, delErr);
             }

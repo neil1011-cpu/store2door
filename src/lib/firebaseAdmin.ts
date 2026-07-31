@@ -34,11 +34,11 @@ export function cleanPayload(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
 
   // CRITICAL: Do NOT traverse internal Firestore types (sentinels)
-  // We check for common internal markers used by the Admin SDK such as _methodName or constructor name.
+  // Check for hallmarks of FieldValue objects to prevent corruption
   const isFieldValue = 
     obj.constructor?.name === 'FieldValue' || 
-    typeof obj._methodName === 'string' || 
-    (obj.prototype && obj.prototype.constructor.name === 'FieldValue');
+    typeof obj._methodName === 'string' ||
+    (obj._key && obj._key.path);
 
   if (isFieldValue) return obj;
 
