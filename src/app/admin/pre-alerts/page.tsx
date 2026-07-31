@@ -265,9 +265,9 @@ export default function PreAlertsPage() {
           <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Real-time worldwide documentation synchronization</p>
         </div>
         <div className="flex gap-2">
-            <Button onClick={fetchLogicwarePreAlerts} variant="outline" disabled={isFetchingLogicware} className="border-primary/20 font-bold">
+            <Button onClick={fetchLogicwarePreAlerts} variant="outline" disabled={isFetchingLogicware} className="font-bold border-primary/20">
                 {isFetchingLogicware ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
-                Sync External Hub
+                Sync Hub
             </Button>
             <Button variant="outline" asChild className="font-bold"><Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link></Button>
             <Dialog open={open} onOpenChange={setOpen}>

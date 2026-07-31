@@ -6,6 +6,7 @@ import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
  * @fileOverview Universal Registry Purge Protocol.
  * Aggressively removes all non-admin users and resets mailbox numbering.
  * Hardened with recursive subcollection deletion and deep logging.
+ * PROTECTS: Any account in admin_roles and admin@neilussolutions.com.
  */
 
 export async function POST(request: Request) {
@@ -44,9 +45,9 @@ export async function POST(request: Request) {
             const uid = userDoc.id;
             const userData = userDoc.data();
 
-            // Skip if admin or super admin email
+            // Skip if admin role exists, if it's the super admin email, OR if it's the current session user
             if (protectedUids.has(uid) || userData.email === SUPER_ADMIN) {
-                console.log(`[PURGE] Protecting admin account: ${userData.email} (${uid})`);
+                console.log(`[PURGE] Protecting account: ${userData.email || uid}`);
                 continue;
             }
 
@@ -66,16 +67,18 @@ export async function POST(request: Request) {
                     }
                 }
 
-                // 2. Fallback to listCollections for any unknown subcollections
-                const collections = await userDoc.ref.listCollections();
-                for (const coll of collections) {
-                    // Skip the ones we already handled
-                    if (subcollections.includes(coll.id)) continue;
-                    
-                    const docs = await coll.get();
-                    const batch = adminDb.batch();
-                    docs.forEach(d => batch.delete(d.ref));
-                    await batch.commit();
+                // 2. Discover and purge any other subcollections
+                try {
+                    const collections = await userDoc.ref.listCollections();
+                    for (const coll of collections) {
+                        if (subcollections.includes(coll.id)) continue;
+                        const docs = await coll.get();
+                        const batch = adminDb.batch();
+                        docs.forEach(d => batch.delete(d.ref));
+                        await batch.commit();
+                    }
+                } catch (e) {
+                    console.warn(`[PURGE] listCollections failed for ${uid}, continuing...`);
                 }
 
                 // 3. Delete from Firebase Authentication

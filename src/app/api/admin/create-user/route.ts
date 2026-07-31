@@ -57,7 +57,6 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
-        // EXHAUSTIVE LOGGING AS REQUESTED
         console.error('[API] Auth user create error:', authError);
         console.error(authError.stack);
         
@@ -120,7 +119,6 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
-        // EXHAUSTIVE LOGGING AS REQUESTED
         console.error('[API] Firestore transaction error:', dbError);
         console.error(dbError.stack);
         
@@ -129,7 +127,6 @@ export async function POST(request: Request) {
     }
 
   } catch (criticalError: any) {
-    // EXHAUSTIVE LOGGING AS REQUESTED
     console.error('[API CRITICAL FAILURE]');
     console.error('Error Name:', criticalError.name);
     console.error('Error Message:', criticalError.message);
