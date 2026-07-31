@@ -17,10 +17,10 @@ export async function POST(request: Request) {
         const idToken = authHeader.substring(7);
         const decodedToken = await adminAuth.verifyIdToken(idToken);
 
-        const isAdminEmail = decodedToken.email === 'admin@neilussolutions.com';
+        const SUPER_ADMIN = 'admin@neilussolutions.com';
         const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
 
-        if (!adminRoleSnap.exists && !isAdminEmail) {
+        if (!adminRoleSnap.exists && decodedToken.email !== SUPER_ADMIN) {
             return NextResponse.json({ success: false, message: 'Access Denied.' }, { status: 403 });
         }
 
@@ -31,24 +31,41 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'User ID is required.' }, { status: 400 });
         }
 
-        console.log(`[DELETE API] Initiating deep purge for: ${userId}`);
+        console.log(`[DELETE API] Initiating deep purge for UID: ${userId}`);
 
-        // 1. Recursive Subcollection Purge
         const userRef = adminDb.collection('users').doc(userId);
-        const collections = await userRef.listCollections();
         
-        for (const coll of collections) {
-            const docs = await coll.get();
-            const batch = adminDb.batch();
-            docs.forEach(d => batch.delete(d.ref));
-            await batch.commit();
-            console.log(`[DELETE API] Purged collection: ${coll.id}`);
+        // 1. Targeted Subcollection Purge (Faster than listCollections)
+        const subcollections = ['shipments', 'pre_alerts'];
+        for (const collName of subcollections) {
+            const collRef = userRef.collection(collName);
+            const docs = await collRef.get();
+            if (!docs.empty) {
+                const batch = adminDb.batch();
+                docs.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+                console.log(`[DELETE API] Purged collection: ${collName}`);
+            }
         }
 
-        // 2. Remove Profile from Firestore
+        // 2. Discover and purge any other subcollections
+        try {
+            const collections = await userRef.listCollections();
+            for (const coll of collections) {
+                if (subcollections.includes(coll.id)) continue;
+                const docs = await coll.get();
+                const batch = adminDb.batch();
+                docs.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+            }
+        } catch (e) {
+            console.warn('[DELETE API] listCollections failed, continuing...');
+        }
+
+        // 3. Remove Profile from Firestore
         await userRef.delete();
 
-        // 3. Remove from Firebase Authentication
+        // 4. Remove from Firebase Authentication
         try {
             await adminAuth.deleteUser(userId);
         } catch (authErr: any) {
@@ -57,7 +74,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 4. Cleanup Admin Role if exists
+        // 5. Cleanup Admin Role if exists
         await adminDb.collection('admin_roles').doc(userId).delete();
 
         console.log(`[DELETE API] Successfully purged user: ${userId}`);

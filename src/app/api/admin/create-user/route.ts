@@ -57,8 +57,9 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
-        // EXACT LOGGING REQUESTED BY USER
+        // EXHAUSTIVE LOGGING AS REQUESTED
         console.error('[API] Auth user create error:', authError);
+        console.error(authError.stack);
         
         if (authError.code === 'auth/email-already-in-use') {
              return NextResponse.json({ success: false, message: 'Email is already registered.' }, { status: 409 });
@@ -119,15 +120,16 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
-        // EXACT LOGGING REQUESTED BY USER
+        // EXHAUSTIVE LOGGING AS REQUESTED
         console.error('[API] Firestore transaction error:', dbError);
+        console.error(dbError.stack);
         
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database error: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (criticalError: any) {
-    // EXACT LOGGING REQUESTED BY USER
+    // EXHAUSTIVE LOGGING AS REQUESTED
     console.error('[API] Critical failure:', criticalError);
     console.error(criticalError.stack);
     
