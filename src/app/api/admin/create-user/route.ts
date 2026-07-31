@@ -4,6 +4,7 @@ import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmi
 
 /**
  * @fileOverview Robust Administrative User Creation API with exhaustive diagnostics and role support.
+ * Implements full error object and stack trace logging as requested.
  */
 
 export async function POST(request: Request) {
