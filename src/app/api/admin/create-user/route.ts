@@ -57,6 +57,7 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
+        // EXACT LOGGING REQUESTED BY USER
         console.error('[API] Auth user create error:', authError);
         
         if (authError.code === 'auth/email-already-in-use') {
@@ -118,6 +119,7 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
+        // EXACT LOGGING REQUESTED BY USER
         console.error('[API] Firestore transaction error:', dbError);
         
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
@@ -125,6 +127,7 @@ export async function POST(request: Request) {
     }
 
   } catch (criticalError: any) {
+    // EXACT LOGGING REQUESTED BY USER
     console.error('[API] Critical failure:', criticalError);
     console.error(criticalError.stack);
     

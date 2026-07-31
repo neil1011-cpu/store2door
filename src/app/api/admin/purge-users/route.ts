@@ -5,6 +5,7 @@ import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 /**
  * @fileOverview Administrative System Reset API.
  * Permanently purges all non-admin users and resets the mailbox sequence to a starting point.
+ * Hardened to ensure subcollections are also cleared.
  */
 
 export async function POST(request: Request) {
@@ -45,8 +46,8 @@ export async function POST(request: Request) {
             }
 
             try {
-                // Deep Purge subcollections (pre-alerts, shipments, etc.)
-                // Use a standard recursive pattern for Firestore subcollections
+                // Deep Purge: Firestore doesn't automatically delete subcollections. 
+                // We iterate through them to ensure a clean slate.
                 const subCollections = await userDoc.ref.listCollections();
                 for (const coll of subCollections) {
                     const subDocs = await coll.get();
@@ -57,13 +58,15 @@ export async function POST(request: Request) {
 
                 // Remove from Firebase Authentication
                 await adminAuth.deleteUser(uid).catch((e) => {
-                    if (e.code !== 'auth/user-not-found') throw e;
+                    if (e.code !== 'auth/user-not-found') {
+                        console.error(`[PURGE] Auth delete failed for ${uid}:`, e);
+                    }
                 });
 
                 // Delete the primary profile document
                 await userDoc.ref.delete();
                 deletedCount++;
-                console.log(`[PURGE] Successfully deleted user: ${userData.email} (${uid})`);
+                console.log(`[PURGE] Successfully deleted user: ${userData.email || uid}`);
             } catch (delErr: any) {
                 console.error(`[PURGE] Failed to remove user ${uid}:`, delErr);
             }
