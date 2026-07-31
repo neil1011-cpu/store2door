@@ -3,13 +3,11 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Robust Administrative User Creation API.
- * Includes exhaustive diagnostic logging with full error objects and stack traces.
+ * @fileOverview Robust Administrative User Creation API with exhaustive diagnostics.
  */
 
 export async function POST(request: Request) {
   try {
-    // 1. Authorization Check
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ success: false, message: 'Authorization required.' }, { status: 401 });
@@ -17,7 +15,6 @@ export async function POST(request: Request) {
 
     const idToken = authHeader.substring(7);
 
-    // 2. Body Parsing
     let body;
     try {
         body = await request.json();
@@ -37,7 +34,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: 'Email, First, and Last names are required.' }, { status: 400 });
     }
 
-    // 3. Admin Verification
     let decodedToken;
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -50,10 +46,9 @@ export async function POST(request: Request) {
     const isHardcodedAdmin = decodedToken.email === 'admin@neilussolutions.com';
     
     if (!adminRoleSnap.exists && !isHardcodedAdmin) {
-        return NextResponse.json({ success: false, message: 'Access Denied: Administrator privileges required.' }, { status: 403 });
+        return NextResponse.json({ success: false, message: 'Access Denied.' }, { status: 403 });
     }
 
-    // 4. Auth Account Creation
     let userRecord;
     try {
         userRecord = await adminAuth.createUser({
@@ -62,6 +57,7 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
+        // EXACT LOGGING AS REQUESTED
         console.error('[API] Auth user create error:', authError);
         
         if (authError.code === 'auth/email-already-in-use') {
@@ -70,7 +66,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: `Auth Error: ${authError.message}` }, { status: 500 });
     }
 
-    // 5. Database Setup (Atomic Transaction)
     try {
         const finalMailbox = await adminDb.runTransaction(async (transaction) => {
             let mailboxId = requestedMailbox;
@@ -124,19 +119,20 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
+        // EXACT LOGGING AS REQUESTED
         console.error('[API] Firestore transaction error:', dbError);
         
-        // Rollback Auth creation if database write fails
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database error: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (criticalError: any) {
+    // EXACT LOGGING AS REQUESTED
     console.error('[API] Critical failure:', criticalError);
     console.error(criticalError.stack);
     
     return NextResponse.json(
-      { success: false, message: 'A catastrophic internal server error occurred.' },
+      { success: false, message: criticalError.message || 'Catastrophic internal error.' },
       { status: 500 }
     );
   }

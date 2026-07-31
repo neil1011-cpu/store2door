@@ -285,6 +285,7 @@ function ImportCSVDialog() {
     const { toast } = useToast();
     const { user: currentUser } = useUser();
 
+    // Robust CSV Parsing handling quotes and commas
     const parseCSVLine = (line: string) => {
         const result = [];
         let start = 0;
@@ -315,8 +316,9 @@ function ImportCSVDialog() {
               return;
             }
             
-            // ROBUST HEADER NORMALIZATION
-            const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/gi, ''));
+            // FUZZY HEADER MAPPING
+            const rawHeaders = parseCSVLine(lines[0]);
+            const headers = rawHeaders.map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/gi, ''));
             const dataRows = lines.slice(1);
             
             setProgress({ current: 0, total: dataRows.length });
@@ -333,13 +335,15 @@ function ImportCSVDialog() {
                     if (!header || values[i] === undefined) return;
                     
                     const val = values[i];
-                    // Mapping with multiple aliases for robustness
-                    if (['firstname', 'first', 'fname'].includes(header)) uData.firstName = val;
-                    else if (['lastname', 'last', 'lname'].includes(header)) uData.lastName = val;
-                    else if (['email', 'emailaddress'].includes(header)) uData.email = val;
-                    else if (['phone', 'phonenumber', 'tel'].includes(header)) uData.phone = val;
-                    else if (['trn', 'taxid'].includes(header)) uData.trn = val;
-                    else if (['mailbox', 'mailboxnumber', 'fstdnumber', 'customercode'].some(k => header.includes(k))) uData.mailboxNumber = val;
+                    // Flexible mapping with common aliases
+                    if (['firstname', 'first', 'fname', 'name'].includes(header)) {
+                        if (!uData.firstName) uData.firstName = val;
+                    }
+                    else if (['lastname', 'last', 'lname', 'surname'].includes(header)) uData.lastName = val;
+                    else if (['email', 'emailaddress', 'useremail'].includes(header)) uData.email = val;
+                    else if (['phone', 'phonenumber', 'tel', 'mobile', 'contact'].includes(header)) uData.phone = val;
+                    else if (['trn', 'taxid', 'taxnumber'].includes(header)) uData.trn = val;
+                    else if (['mailbox', 'mailboxnumber', 'fstdnumber', 'customercode', 'code', 'mailboxid'].some(k => header.includes(k))) uData.mailboxNumber = val;
                 });
 
                 if (!uData.email || !uData.firstName) {
@@ -358,7 +362,11 @@ function ImportCSVDialog() {
                         body: JSON.stringify(uData)
                     });
                     if (res.ok) successCount++;
-                    else failCount++;
+                    else {
+                        const errText = await res.text();
+                        console.warn(`[CSV] Row failed: ${uData.email}`, errText);
+                        failCount++;
+                    }
                 } catch (err) {
                     failCount++;
                 }
@@ -366,9 +374,10 @@ function ImportCSVDialog() {
                 setProgress(prev => ({ ...prev, current: prev.current + 1 }));
             }
 
-            toast({ title: 'Migration Complete', description: `Successfully imported ${successCount} users. Errors: ${failCount}` });
+            toast({ title: 'Batch Processing Complete', description: `Added ${successCount} users. Errors: ${failCount}` });
             setIsImporting(false);
             setOpen(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
         };
 
         reader.readAsText(file);
@@ -385,7 +394,7 @@ function ImportCSVDialog() {
                     <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Bulk-import users from external systems</DialogDescription>
                 </DialogHeader>
                 <div className="p-4 bg-muted/50 rounded-xl border-2 border-dashed text-sm space-y-4">
-                    <p className="font-black uppercase flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" /> Required Schema:</p>
+                    <p className="font-black uppercase flex items-center gap-2 text-primary italic"><AlertCircle className="h-4 w-4" /> Recommended Headers:</p>
                     <code className="block p-3 bg-zinc-950 text-green-400 rounded-lg text-[10px] font-mono leading-relaxed">
                         firstName, lastName, email, phone, trn, mailboxNumber
                     </code>
@@ -394,7 +403,7 @@ function ImportCSVDialog() {
                     {isImporting ? (
                         <div className="space-y-4 text-center">
                             <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
-                            <p className="font-black italic uppercase animate-pulse">Synchronizing: {progress.current} / {progress.total}</p>
+                            <p className="font-black italic uppercase animate-pulse">Syncing Registry: {progress.current} / {progress.total}</p>
                             <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                                 <div className="h-full bg-primary transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
                             </div>
@@ -410,7 +419,7 @@ function ImportCSVDialog() {
                     )}
                 </div>
                 <DialogFooter>
-                    <DialogClose asChild><Button variant="ghost" disabled={isImporting} className="font-bold uppercase">Cancel</Button></DialogClose>
+                    <DialogClose asChild><Button variant="ghost" disabled={isImporting} className="font-bold uppercase h-12 w-full">Cancel</Button></DialogClose>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
