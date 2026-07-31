@@ -452,7 +452,7 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
                          </div>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase opacity-60 tracking-widest">Shipping & Logistics Cost (JMD $)</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Shipping & Logistics Cost (JMD $)</Label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
                             <Input type="number" placeholder="5500.00" value={cost} onChange={(e) => setCost(e.target.value)} className="pl-16 h-14 text-2xl font-black border-2 focus:border-primary shadow-inner" />

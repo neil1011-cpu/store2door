@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle, Trash2, RefreshCw } from 'lucide-react';
+import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle, Trash2, RefreshCw, CheckCircle2, Wallet, X, ChevronDown } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -44,11 +44,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export default function UsersPage() {
   const { toast } = useToast();
@@ -73,9 +75,14 @@ export default function UsersPage() {
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', phone: '', trn: '', mailboxNumber: '' });
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+
   const adminIds = useMemo(() => new Set(adminRoles?.map(role => role.id)), [adminRoles]);
 
-  const combinedUsers = useMemo(() => {
+  const filteredUsers = useMemo(() => {
       const local = (users || []).map(u => ({ ...u, source: 'firebase' as const }));
       if (!searchTerm) return local;
       const lower = searchTerm.toLowerCase();
@@ -85,6 +92,22 @@ export default function UsersPage() {
           (u.mailboxNumber || '').toLowerCase().includes(lower)
       );
   }, [users, searchTerm]);
+
+  const handleToggleSelectAll = (checked: boolean) => {
+      if (checked) {
+          const allIds = new Set(filteredUsers.map(u => u.id));
+          setSelectedIds(allIds);
+      } else {
+          setSelectedIds(new Set());
+      }
+  };
+
+  const handleToggleSelectUser = (userId: string, checked: boolean) => {
+      const next = new Set(selectedIds);
+      if (checked) next.add(userId);
+      else next.delete(userId);
+      setSelectedIds(next);
+  };
 
   const handleAddUser = async () => {
     if(!newUser.firstName || !newUser.lastName || !newUser.email) {
@@ -138,11 +161,64 @@ export default function UsersPage() {
           if (!res.ok) throw new Error(data.message || 'Deletion failed');
 
           toast({ title: "User Removed", description: "Account and profile purged from system." });
+          setSelectedIds(prev => {
+              const next = new Set(prev);
+              next.delete(userId);
+              return next;
+          });
       } catch (e: any) {
           toast({ title: "Deletion Failed", description: e.message, variant: "destructive" });
       } finally {
           setIsDeleting(null);
       }
+  };
+
+  const handleBulkDelete = async () => {
+      const ids = Array.from(selectedIds);
+      setIsBulkDeleting(true);
+      setBulkProgress({ current: 0, total: ids.length });
+
+      for (const id of ids) {
+          try {
+              if (adminIds.has(id)) {
+                  console.warn(`[BULK] Skipping protected admin: ${id}`);
+                  continue;
+              }
+              const idToken = await currentUser?.getIdToken(true);
+              await fetch('/api/admin/delete-user', {
+                  method: 'POST',
+                  headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${idToken}`
+                  },
+                  body: JSON.stringify({ userId: id })
+              });
+          } catch (err) {}
+          setBulkProgress(prev => ({ ...prev, current: prev.current + 1 }));
+      }
+
+      setIsBulkDeleting(false);
+      setSelectedIds(new Set());
+      toast({ title: "Bulk Purge Complete", description: `Processed ${ids.length} identities.` });
+  };
+
+  const handleBulkWalletAdjust = async (amount: number) => {
+      const ids = Array.from(selectedIds);
+      let successCount = 0;
+      for (const id of ids) {
+          try {
+              const userRef = doc(firestore!, 'users', id);
+              const user = users?.find(u => u.id === id);
+              if (!user) continue;
+              await updateDoc(userRef, {
+                  walletBalance: (user.walletBalance || 0) + amount,
+                  balanceUpdatedAt: serverTimestamp()
+              });
+              successCount++;
+          } catch (err) {}
+      }
+      toast({ title: "Balance Updated", description: `Adjusted credit for ${successCount} accounts.` });
+      setSelectedIds(new Set());
   };
 
   return (
@@ -204,7 +280,41 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
+      <Card className="shadow-2xl border-none overflow-hidden rounded-2xl relative">
+        {selectedIds.size > 0 && (
+            <div className="absolute top-0 left-0 w-full h-16 bg-primary z-20 flex items-center justify-between px-6 animate-in slide-in-from-top duration-300">
+                <div className="flex items-center gap-4 text-white">
+                    <Button variant="ghost" size="icon" onClick={() => setSelectedIds(new Set())} className="text-white hover:bg-white/10 rounded-full">
+                        <X className="h-5 w-5" />
+                    </Button>
+                    <span className="font-black italic uppercase text-lg tracking-tighter">{selectedIds.size} Users Selected</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <BulkAdjustBalance onAdjust={handleBulkWalletAdjust} />
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" className="font-black uppercase h-10 shadow-xl bg-red-600 hover:bg-red-700">
+                                {isBulkDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                                {isBulkDeleting ? `Purging ${bulkProgress.current}/${bulkProgress.total}` : "Purge Selected"}
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Confirm Deep Purge</AlertDialogTitle>
+                                <AlertDialogDescription className="text-[10px] font-bold uppercase tracking-widest leading-relaxed">
+                                    You are about to permanently delete {selectedIds.size} client identities. All shipping history, authentication records, and profiles will be lost forever.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel className="font-bold uppercase">Abort</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-white font-black uppercase italic h-12 shadow-lg">Confirm Deep Purge Now</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            </div>
+        )}
+
         <CardHeader className="bg-muted/10 border-b">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <CardTitle className="text-sm font-black uppercase tracking-[0.2em] italic">Authorized Personnel Ledger</CardTitle>
@@ -218,7 +328,14 @@ export default function UsersPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow className="h-12">
-                <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Identity</TableHead>
+                <TableHead className="w-[50px] pl-6">
+                    <Checkbox 
+                        checked={filteredUsers.length > 0 && selectedIds.size === filteredUsers.length} 
+                        onCheckedChange={handleToggleSelectAll}
+                        className="h-5 w-5 border-2"
+                    />
+                </TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Identity</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Global Mailbox</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Secure Contact</TableHead>
                 <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
@@ -226,10 +343,17 @@ export default function UsersPage() {
             </TableHeader>
             <TableBody>
               {isLoadingUsers ? (
-                  <TableRow><TableCell colSpan={4} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin inline-block text-primary" /></TableCell></TableRow>
-              ) : combinedUsers.map((u) => (
-                <TableRow key={u.id} className="group hover:bg-muted/30 transition-colors h-16">
+                  <TableRow><TableCell colSpan={5} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin inline-block text-primary" /></TableCell></TableRow>
+              ) : filteredUsers.map((u) => (
+                <TableRow key={u.id} className={cn("group hover:bg-muted/30 transition-colors h-16", selectedIds.has(u.id) && "bg-primary/5")}>
                   <TableCell className="pl-6">
+                      <Checkbox 
+                        checked={selectedIds.has(u.id)} 
+                        onCheckedChange={(checked) => handleToggleSelectUser(u.id, !!checked)}
+                        className="h-5 w-5 border-2"
+                      />
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-2">
                         <span className="font-black text-primary uppercase text-sm">{u.fullName}</span>
                         {adminIds.has(u.id) && <ShieldCheck className="h-4 w-4 text-primary fill-primary/10" />}
@@ -251,14 +375,14 @@ export default function UsersPage() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle className="text-center">Authorize Deletion Protocol?</AlertDialogTitle>
-                                    <AlertDialogDescription className="text-center">
+                                    <AlertDialogTitle className="text-center font-black uppercase tracking-tighter italic">Authorize Deletion Protocol?</AlertDialogTitle>
+                                    <AlertDialogDescription className="text-center text-[10px] font-bold uppercase tracking-widest">
                                         Permanently removing <strong>{u.fullName}</strong> will purge their identity from Authentication and the Master Registry. This cannot be undone.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel>Abort</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm Purge</AlertDialogAction>
+                                    <AlertDialogCancel className="font-bold uppercase">Abort</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg">Confirm Purge</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
@@ -266,8 +390,8 @@ export default function UsersPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {combinedUsers.length === 0 && !isLoadingUsers && (
-                  <TableRow><TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">No worldwide records found.</TableCell></TableRow>
+              {filteredUsers.length === 0 && !isLoadingUsers && (
+                  <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">No worldwide records found.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -275,6 +399,46 @@ export default function UsersPage() {
       </Card>
     </div>
   );
+}
+
+function BulkAdjustBalance({ onAdjust }: { onAdjust: (amount: number) => void }) {
+    const [amount, setAmount] = useState('');
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="font-black uppercase h-10 border-2 bg-white/10 text-white hover:bg-white/20 border-white/20">
+                    <Wallet className="h-4 w-4 mr-2" /> Group Credit
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Group Balance Adjustment</DialogTitle>
+                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Apply credit or debit to all selected users</DialogDescription>
+                </DialogHeader>
+                <div className="py-6 space-y-4">
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase opacity-60">Adjustment Amount (JMD $)</Label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
+                            <Input 
+                                type="number" 
+                                value={amount} 
+                                onChange={e => setAmount(e.target.value)} 
+                                placeholder="e.g. 500 or -500" 
+                                className="h-14 text-2xl font-black border-2 focus:border-primary pl-16 shadow-inner"
+                            />
+                        </div>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase text-center italic">Positive for credit, negative for debit.</p>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button onClick={() => onAdjust(parseFloat(amount))} className="w-full h-14 text-lg font-black uppercase italic shadow-xl">Apply Group Adjustment</Button>
+                    </DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 function ImportCSVDialog() {
@@ -316,7 +480,6 @@ function ImportCSVDialog() {
               return;
             }
             
-            // FUZZY HEADER MAPPING
             const rawHeaders = parseCSVLine(lines[0]);
             const headers = rawHeaders.map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/gi, ''));
             const dataRows = lines.slice(1);
@@ -335,7 +498,6 @@ function ImportCSVDialog() {
                     if (!header || values[i] === undefined) return;
                     
                     const val = values[i];
-                    // Flexible mapping with common aliases
                     if (['firstname', 'first', 'fname', 'name'].includes(header)) {
                         if (!uData.firstName) uData.firstName = val;
                     }
@@ -362,11 +524,7 @@ function ImportCSVDialog() {
                         body: JSON.stringify(uData)
                     });
                     if (res.ok) successCount++;
-                    else {
-                        const errText = await res.text();
-                        console.warn(`[CSV] Row failed: ${uData.email}`, errText);
-                        failCount++;
-                    }
+                    else failCount++;
                 } catch (err) {
                     failCount++;
                 }
