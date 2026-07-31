@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Secure User Deletion API.
- * Permanently removes a user from both Authentication and the Primary Registry.
+ * @fileOverview Hardened User Deletion API.
+ * Permanently removes a user from both Authentication and the Primary Registry, including all subcollections.
  */
 
 export async function POST(request: Request) {
@@ -21,41 +21,58 @@ export async function POST(request: Request) {
         const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
 
         if (!adminRoleSnap.exists && !isAdminEmail) {
-            return NextResponse.json({ success: false, message: 'Access Denied: Administrator privileges required.' }, { status: 403 });
+            return NextResponse.json({ success: false, message: 'Access Denied.' }, { status: 403 });
         }
 
-        const { userId } = await request.json().catch(() => ({}));
+        const body = await request.json().catch(() => ({}));
+        const { userId } = body;
+        
         if (!userId) {
-            return NextResponse.json({ success: false, message: 'User ID is required for deletion.' }, { status: 400 });
+            return NextResponse.json({ success: false, message: 'User ID is required.' }, { status: 400 });
         }
 
-        // 1. Remove from Firebase Authentication
-        try {
-            await adminAuth.deleteUser(userId);
-        } catch (authErr: any) {
-            // If user doesn't exist in Auth anymore, we continue to cleanup Firestore
-            if (authErr.code !== 'auth/user-not-found') {
-                console.error('[API] Delete Auth Error:', authErr);
-                throw authErr;
-            }
+        console.log(`[DELETE API] Initiating deep purge for: ${userId}`);
+
+        // 1. Recursive Subcollection Purge
+        const userRef = adminDb.collection('users').doc(userId);
+        const collections = await userRef.listCollections();
+        
+        for (const coll of collections) {
+            const docs = await coll.get();
+            const batch = adminDb.batch();
+            docs.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+            console.log(`[DELETE API] Purged collection: ${coll.id}`);
         }
 
         // 2. Remove Profile from Firestore
-        await adminDb.collection('users').doc(userId).delete();
+        await userRef.delete();
 
-        // 3. Optional: Remove Admin Role if exists
+        // 3. Remove from Firebase Authentication
+        try {
+            await adminAuth.deleteUser(userId);
+        } catch (authErr: any) {
+            if (authErr.code !== 'auth/user-not-found') {
+                console.error('[DELETE API] Auth error:', authErr);
+            }
+        }
+
+        // 4. Cleanup Admin Role if exists
         await adminDb.collection('admin_roles').doc(userId).delete();
+
+        console.log(`[DELETE API] Successfully purged user: ${userId}`);
 
         return NextResponse.json({ 
             success: true, 
-            message: 'User identity and registry profile permanently removed.' 
+            message: 'Account permanently removed from registry.' 
         });
 
     } catch (error: any) {
-        console.error('[API] Global Delete Error:', error);
+        console.error('[DELETE API] Fatal failure:', error);
+        console.error(error.stack);
         return NextResponse.json({ 
             success: false, 
-            message: error.message || 'Deletion protocol failed.' 
+            message: error.message || 'Deletion failed.' 
         }, { status: 500 });
     }
 }

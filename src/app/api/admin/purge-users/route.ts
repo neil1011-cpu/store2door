@@ -3,9 +3,8 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Administrative System Reset API.
- * Permanently purges all non-admin users and resets the mailbox sequence to a starting point.
- * Hardened to ensure subcollections are also cleared.
+ * @fileOverview Universal Registry Purge Protocol.
+ * Aggressively removes all non-admin users and resets mailbox numbering.
  */
 
 export async function POST(request: Request) {
@@ -18,36 +17,35 @@ export async function POST(request: Request) {
         const idToken = authHeader.substring(7);
         const decodedToken = await adminAuth.verifyIdToken(idToken);
 
-        // 1. Authorization Check (Must be a registered admin)
+        // Verify Admin Access
         const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
         const isHardcodedAdmin = decodedToken.email === 'admin@neilussolutions.com';
 
         if (!adminRoleSnap.exists && !isHardcodedAdmin) {
-            return NextResponse.json({ success: false, message: 'Access Denied: Administrator level required.' }, { status: 403 });
+            return NextResponse.json({ success: false, message: 'Unauthorized.' }, { status: 403 });
         }
 
-        // 2. Identify Protected UIDs (Current administrators who must NOT be deleted)
+        // Identify Protected UIDs
         const adminRolesSnapshot = await adminDb.collection('admin_roles').get();
         const protectedUids = new Set(adminRolesSnapshot.docs.map(doc => doc.id));
         protectedUids.add(decodedToken.uid);
 
-        // 3. Fetch all user profiles for purging
         const usersSnapshot = await adminDb.collection('users').get();
         let deletedCount = 0;
+
+        console.log(`[PURGE] Starting global sweep of ${usersSnapshot.size} records.`);
 
         for (const userDoc of usersSnapshot.docs) {
             const uid = userDoc.id;
             const userData = userDoc.data();
 
-            // Skip administrators and high-level protection accounts
-            if (protectedUids.has(uid) || userData.email === 'admin@neilussolutions.com' || userData.role === 'admin') {
-                console.log(`[PURGE] Skipping protected admin account: ${userData.email}`);
+            if (protectedUids.has(uid) || userData.email === 'admin@neilussolutions.com') {
+                console.log(`[PURGE] Protecting admin account: ${userData.email}`);
                 continue;
             }
 
             try {
-                // Deep Purge: Firestore doesn't automatically delete subcollections. 
-                // We iterate through them to ensure a clean slate.
+                // Wipe Subcollections
                 const subCollections = await userDoc.ref.listCollections();
                 for (const coll of subCollections) {
                     const subDocs = await coll.get();
@@ -56,37 +54,34 @@ export async function POST(request: Request) {
                     await batch.commit();
                 }
 
-                // Remove from Firebase Authentication
-                await adminAuth.deleteUser(uid).catch((e) => {
-                    if (e.code !== 'auth/user-not-found') {
-                        console.error(`[PURGE] Auth delete failed for ${uid}:`, e);
-                    }
-                });
+                // Delete Auth
+                await adminAuth.deleteUser(uid).catch(() => {});
 
-                // Delete the primary profile document
+                // Delete Profile
                 await userDoc.ref.delete();
                 deletedCount++;
-                console.log(`[PURGE] Successfully deleted user: ${userData.email || uid}`);
-            } catch (delErr: any) {
-                console.error(`[PURGE] Failed to remove user ${uid}:`, delErr);
+            } catch (err) {
+                console.error(`[PURGE] Error deleting ${uid}:`, err);
             }
         }
 
-        // 4. Reset mailbox counter to starting sequence (101)
+        // Reset Mailbox Counter
         await adminDb.collection('metadata').doc('mailboxCounter').set({ next: 101 }, { merge: true });
+
+        console.log(`[PURGE] Finished. Deleted ${deletedCount} users.`);
 
         return NextResponse.json({ 
             success: true, 
-            message: `System reset successful. Purged ${deletedCount} user identities.`,
+            message: `Wipe complete. Removed ${deletedCount} users.`,
             deletedCount 
         });
 
     } catch (criticalError: any) {
-        console.error('[API] Purge Protocol Failure:', criticalError);
+        console.error('[PURGE API] Catastrophic failure:', criticalError);
         console.error(criticalError.stack);
         return NextResponse.json({ 
             success: false, 
-            message: criticalError.message || 'System reset aborted due to internal error.' 
+            message: 'System reset aborted.' 
         }, { status: 500 });
     }
 }

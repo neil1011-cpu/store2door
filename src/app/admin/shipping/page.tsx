@@ -444,7 +444,7 @@ function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: (Shipment
                             <div className="aspect-[3/4] w-full rounded-2xl border-4 bg-white overflow-hidden shadow-2xl flex items-center justify-center relative">
                                 {shipment.uploadedInvoiceUrl ? (
                                     shipment.uploadedInvoiceUrl.startsWith('data:application/pdf') ? (
-                                        <iframe src={shipment.uploadedInvoiceUrl} className="w-full h-full border-none" />
+                                        <iframe src={shipment.uploadedInvoiceUrl} className="w-full h-full border-none" title="Invoice PDF" />
                                     ) : (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img src={shipment.uploadedInvoiceUrl} alt="Invoice" className="max-w-full h-full object-contain" />
