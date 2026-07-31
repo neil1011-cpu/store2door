@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
         const userRef = adminDb.collection('users').doc(userId);
         
-        // 1. Targeted Subcollection Purge (Faster than listCollections)
+        // 1. Targeted Subcollection Purge
         const subcollections = ['shipments', 'pre_alerts'];
         for (const collName of subcollections) {
             const collRef = userRef.collection(collName);

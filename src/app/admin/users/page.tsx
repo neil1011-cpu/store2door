@@ -50,7 +50,6 @@ import type { UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export default function UsersPage() {
   const { toast } = useToast();
@@ -178,6 +177,9 @@ export default function UsersPage() {
       setIsBulkDeleting(true);
       setBulkProgress({ current: 0, total: ids.length });
 
+      let successCount = 0;
+      let failCount = 0;
+
       for (const id of ids) {
           try {
               if (adminIds.has(id)) {
@@ -185,7 +187,7 @@ export default function UsersPage() {
                   continue;
               }
               const idToken = await currentUser?.getIdToken(true);
-              await fetch('/api/admin/delete-user', {
+              const res = await fetch('/api/admin/delete-user', {
                   method: 'POST',
                   headers: { 
                       'Content-Type': 'application/json',
@@ -193,13 +195,20 @@ export default function UsersPage() {
                   },
                   body: JSON.stringify({ userId: id })
               });
-          } catch (err) {}
+              if (res.ok) successCount++;
+              else failCount++;
+          } catch (err) {
+              failCount++;
+          }
           setBulkProgress(prev => ({ ...prev, current: prev.current + 1 }));
       }
 
       setIsBulkDeleting(false);
       setSelectedIds(new Set());
-      toast({ title: "Bulk Purge Complete", description: `Processed ${ids.length} identities.` });
+      toast({ 
+          title: "Bulk Purge Complete", 
+          description: `Identities cleared: ${successCount}. Failures: ${failCount}` 
+      });
   };
 
   const handleBulkWalletAdjust = async (amount: number) => {
@@ -548,7 +557,7 @@ function ImportCSVDialog() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-center">Worldwide Client Migration</DialogTitle>
+                    <DialogTitle className="uppercase italic tracking-tighter text-center text-2xl">Worldwide Client Migration</DialogTitle>
                     <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Bulk-import users from external systems</DialogDescription>
                 </DialogHeader>
                 <div className="p-4 bg-muted/50 rounded-xl border-2 border-dashed text-sm space-y-4">

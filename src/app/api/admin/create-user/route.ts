@@ -130,8 +130,10 @@ export async function POST(request: Request) {
 
   } catch (criticalError: any) {
     // EXHAUSTIVE LOGGING AS REQUESTED
-    console.error('[API] Critical failure:', criticalError);
-    console.error(criticalError.stack);
+    console.error('[API CRITICAL FAILURE]');
+    console.error('Error Name:', criticalError.name);
+    console.error('Error Message:', criticalError.message);
+    console.error('Error Stack:', criticalError.stack);
     
     return NextResponse.json(
       { success: false, message: criticalError.message || 'Catastrophic internal error.' },
