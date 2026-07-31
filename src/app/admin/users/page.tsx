@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle, Trash2, RefreshCw, CheckCircle2, Wallet, X, ChevronDown } from 'lucide-react';
+import { PlusCircle, Loader2, Eye, Search, ShieldCheck, FileSpreadsheet, AlertCircle, Trash2, RefreshCw, CheckCircle2, Wallet, X, ChevronDown, ShieldAlert } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
@@ -71,7 +72,7 @@ export default function UsersPage() {
   const [openAddUser, setOpenAddUser] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', phone: '', trn: '', mailboxNumber: '' });
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', phone: '', trn: '', mailboxNumber: '', isAdmin: false });
   const [searchTerm, setSearchTerm] = useState('');
   
   // Selection State
@@ -133,7 +134,7 @@ export default function UsersPage() {
 
         toast({ title: 'User Authorized', description: `Assigned Mailbox: ${data.mailbox}` });
         setOpenAddUser(false);
-        setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', mailboxNumber: '' });
+        setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', mailboxNumber: '', isAdmin: false });
     } catch (e: any) {
         toast({ title: 'Account Creation Failed', description: e.message, variant: 'destructive' });
     } finally {
@@ -142,6 +143,12 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+      const targetUser = users?.find(u => u.id === userId);
+      if (targetUser?.email === 'admin@neilussolutions.com') {
+          toast({ title: "Master Admin Locked", description: "This account cannot be deleted.", variant: "destructive" });
+          return;
+      }
+
       setIsDeleting(userId);
       try {
           if (!currentUser) throw new Error("Session lost.");
@@ -182,8 +189,9 @@ export default function UsersPage() {
 
       for (const id of ids) {
           try {
-              if (adminIds.has(id)) {
-                  console.warn(`[BULK] Skipping protected admin: ${id}`);
+              const target = users?.find(u => u.id === id);
+              if (target?.email === 'admin@neilussolutions.com') {
+                  console.warn(`[BULK] Skipping Master Admin: ${id}`);
                   continue;
               }
               const idToken = await currentUser?.getIdToken(true);
@@ -245,7 +253,7 @@ export default function UsersPage() {
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Manual Onboarding</DialogTitle>
+                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Administrative Onboarding</DialogTitle>
                         <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Establish new global logistics identity</DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-2 gap-4 py-4">
@@ -278,6 +286,17 @@ export default function UsersPage() {
                             <Label className="text-[10px] font-bold uppercase opacity-60">Tax ID (TRN)</Label>
                             <Input value={newUser.trn} onChange={(e) => setNewUser({...newUser, trn: e.target.value})} placeholder="9 digits" maxLength={9} className="h-11 border-2" />
                         </div>
+                        <div className="col-span-2 py-4 mt-2 border-t border-dashed">
+                            <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/10">
+                                <div className="space-y-0.5">
+                                    <Label className="text-xs font-black uppercase italic text-primary flex items-center gap-2">
+                                        <ShieldCheck className="h-4 w-4" /> Authorize as Administrator
+                                    </Label>
+                                    <p className="text-[9px] font-bold uppercase opacity-60">Grant full command center access</p>
+                                </div>
+                                <Switch checked={newUser.isAdmin} onCheckedChange={(val) => setNewUser({...newUser, isAdmin: val})} />
+                            </div>
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button onClick={handleAddUser} disabled={isSubmitting} className="w-full h-14 text-lg font-black uppercase italic shadow-xl">
@@ -309,8 +328,8 @@ export default function UsersPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Confirm Deep Purge</AlertDialogTitle>
-                                <AlertDialogDescription className="text-[10px] font-bold uppercase tracking-widest leading-relaxed">
+                                <AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter italic text-center">Confirm Deep Purge</AlertDialogTitle>
+                                <AlertDialogDescription className="text-[10px] font-bold uppercase tracking-widest leading-relaxed text-center">
                                     You are about to permanently delete {selectedIds.size} client identities. All shipping history, authentication records, and profiles will be lost forever.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
@@ -365,7 +384,7 @@ export default function UsersPage() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                         <span className="font-black text-primary uppercase text-sm">{u.fullName}</span>
-                        {adminIds.has(u.id) && <ShieldCheck className="h-4 w-4 text-primary fill-primary/10" />}
+                        {(adminIds.has(u.id) || u.email === 'admin@neilussolutions.com') && <ShieldCheck className="h-4 w-4 text-primary fill-primary/10" />}
                     </div>
                     <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{u.email}</div>
                   </TableCell>
@@ -378,7 +397,7 @@ export default function UsersPage() {
                         </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-9 text-destructive hover:text-destructive hover:bg-destructive/5 font-black uppercase text-[10px] px-2">
+                                <Button variant="ghost" size="sm" className="h-9 text-destructive hover:text-destructive hover:bg-destructive/5 font-black uppercase text-[10px] px-2" disabled={u.email === 'admin@neilussolutions.com'}>
                                     {isDeleting === u.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                 </Button>
                             </AlertDialogTrigger>

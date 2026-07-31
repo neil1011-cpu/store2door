@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -144,17 +145,17 @@ export default function SetupAdminPage() {
       <Card className="shadow-xl overflow-hidden">
         <CardHeader className="text-center bg-primary/5 pb-8">
           <ShieldCheck className="mx-auto h-12 w-12 text-primary" />
-          <CardTitle className="text-3xl mt-4">System Access Recovery</CardTitle>
+          <CardTitle className="text-3xl mt-4">Master Admin Recovery</CardTitle>
           <CardDescription>
-            Authorize administrative access and fix profile errors.
+            Establish the Master Admin (@neilussolutions.com) or promote other accounts.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
            <Alert className="mb-6 bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-900">
                 <AlertCircle className="h-4 w-4 text-blue-600" />
-                <AlertTitle>Action Required</AlertTitle>
+                <AlertTitle>Administrative Protocol</AlertTitle>
                 <AlertDescription className="text-xs">
-                    This tool will force-create your <strong>admin_roles</strong> entry and your <strong>users</strong> profile to fix login loops.
+                    This tool establishes the <strong>admin_roles</strong> entry. The email <strong>admin@neilussolutions.com</strong> is hard-protected from all purge operations.
                 </AlertDescription>
             </Alert>
 
@@ -163,17 +164,17 @@ export default function SetupAdminPage() {
                   <div className="p-4 border rounded-lg bg-muted/30 flex items-center gap-4">
                       <Fingerprint className="h-8 w-8 text-primary" />
                       <div className="overflow-hidden">
-                          <p className="text-xs font-bold uppercase text-muted-foreground">Authenticated As</p>
+                          <p className="text-xs font-bold uppercase text-muted-foreground">Current Session</p>
                           <p className="font-bold truncate">{currentUser.email}</p>
                       </div>
                   </div>
-                  <Button onClick={handleElevateCurrentSession} disabled={isElevatingSession} className="w-full h-12 font-bold" variant="secondary">
+                  <Button onClick={handleElevateCurrentSession} disabled={isElevatingSession} className="w-full h-14 font-black uppercase italic shadow-lg" variant="secondary">
                       {isElevatingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                      Authorize Current Session
+                      Elevate Current Account
                   </Button>
                   <div className="relative py-4">
                     <Separator />
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-[10px] uppercase font-bold text-muted-foreground">Or setup different credentials</span>
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-[10px] uppercase font-bold text-muted-foreground">Master Identity Setup</span>
                   </div>
               </div>
           ) : null}
@@ -185,9 +186,9 @@ export default function SetupAdminPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Admin Email</FormLabel>
+                    <FormLabel className="text-xs font-bold uppercase opacity-60">Admin Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="admin@neilussolutions.com" {...field} />
+                      <Input type="email" placeholder="admin@neilussolutions.com" {...field} className="h-12 border-2" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -198,15 +199,15 @@ export default function SetupAdminPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Secure Key</FormLabel>
+                    <FormLabel className="text-xs font-bold uppercase opacity-60">Secure Key</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
+                      <Input type="password" placeholder="••••••••" {...field} className="h-12 border-2" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" size="lg" className="w-full h-12 font-bold shadow-lg" disabled={loading}>
+              <Button type="submit" size="lg" className="w-full h-14 font-black uppercase italic shadow-xl" disabled={loading}>
                 {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Link Admin Credentials'}
               </Button>
             </form>

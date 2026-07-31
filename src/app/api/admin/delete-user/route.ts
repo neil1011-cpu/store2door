@@ -4,7 +4,7 @@ import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Hardened User Deletion API.
- * Permanently removes a user from both Authentication and the Primary Registry, including all subcollections.
+ * Permanently removes a user from Registry, protecting Master Admin identities.
  */
 
 export async function POST(request: Request) {
@@ -17,10 +17,10 @@ export async function POST(request: Request) {
         const idToken = authHeader.substring(7);
         const decodedToken = await adminAuth.verifyIdToken(idToken);
 
-        const SUPER_ADMIN = 'admin@neilussolutions.com';
+        const MASTER_ADMIN = 'admin@neilussolutions.com';
         const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
 
-        if (!adminRoleSnap.exists && decodedToken.email !== SUPER_ADMIN) {
+        if (!adminRoleSnap.exists && decodedToken.email !== MASTER_ADMIN) {
             return NextResponse.json({ success: false, message: 'Access Denied.' }, { status: 403 });
         }
 
@@ -31,11 +31,17 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'User ID is required.' }, { status: 400 });
         }
 
+        // 1. Identity Protection double-check
+        const targetUser = await adminAuth.getUser(userId).catch(() => null);
+        if (targetUser?.email === MASTER_ADMIN) {
+             return NextResponse.json({ success: false, message: 'Master Admin account is immutable.' }, { status: 403 });
+        }
+
         console.log(`[DELETE API] Initiating deep purge for UID: ${userId}`);
 
         const userRef = adminDb.collection('users').doc(userId);
         
-        // 1. Targeted Subcollection Purge
+        // 2. Targeted Subcollection Purge
         const subcollections = ['shipments', 'pre_alerts'];
         for (const collName of subcollections) {
             const collRef = userRef.collection(collName);
@@ -48,7 +54,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 2. Discover and purge any other subcollections
+        // 3. Discover and purge any other subcollections
         try {
             const collections = await userRef.listCollections();
             for (const coll of collections) {
@@ -62,10 +68,10 @@ export async function POST(request: Request) {
             console.warn('[DELETE API] listCollections failed, continuing...');
         }
 
-        // 3. Remove Profile from Firestore
+        // 4. Remove Profile from Firestore
         await userRef.delete();
 
-        // 4. Remove from Firebase Authentication
+        // 5. Remove from Firebase Authentication
         try {
             await adminAuth.deleteUser(userId);
         } catch (authErr: any) {
@@ -74,7 +80,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 5. Cleanup Admin Role if exists
+        // 6. Cleanup Admin Role if exists (Protect Master Admin check above already ensures this isn't the master)
         await adminDb.collection('admin_roles').doc(userId).delete();
 
         console.log(`[DELETE API] Successfully purged user: ${userId}`);

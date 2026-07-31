@@ -71,11 +71,11 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Reverted email fallback to admin@neilussolutions.com
-    const isHardcodedAdmin = user.email === 'admin@neilussolutions.com';
+    // Fail-Safe: admin@neilussolutions.com is the Master Admin
+    const isMasterAdmin = user.email === 'admin@neilussolutions.com';
     const hasAdminDoc = !!adminRoleDoc;
 
-    if (!isHardcodedAdmin && !hasAdminDoc && !adminError) {
+    if (!isMasterAdmin && !hasAdminDoc && !adminError) {
         toast({
           title: 'Access Denied',
           description: "Administrator privileges required. Use the recovery tool at /setup-admin if needed.",

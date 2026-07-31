@@ -4,11 +4,11 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useDoc, useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
-import { doc, collection, query, orderBy, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, query, orderBy, updateDoc, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
 import type { UserProfile, Shipment } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -49,6 +49,7 @@ export default function UserDetailsPage() {
     const { toast } = useToast();
     
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isUpdatingRole, setIsUpdatingRole] = useState(false);
 
     const userProfileRef = useMemoFirebase(() => {
         if (!firestore || !userId) return null;
@@ -56,13 +57,51 @@ export default function UserDetailsPage() {
     }, [firestore, userId]);
     const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
+    const adminRoleRef = useMemoFirebase(() => {
+        if (!firestore || !userId) return null;
+        return doc(firestore, 'admin_roles', userId);
+    }, [firestore, userId]);
+    const { data: adminRoleDoc, isLoading: isAdminCheckLoading } = useDoc<{isAdmin: boolean}>(adminRoleRef);
+
     const shipmentsQuery = useMemoFirebase(() => {
         if (!firestore || !userId) return null;
         return query(collection(firestore, 'users', userId, 'shipments'), orderBy('shippingDate', 'desc'));
     }, [firestore, userId]);
     const { data: userShipments, isLoading: isShipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
+    const isMasterAdmin = userProfile?.email === 'admin@neilussolutions.com';
+
+    const toggleAdminStatus = async () => {
+        if (isMasterAdmin) {
+            toast({ title: "Operation Denied", description: "Master Admin access cannot be modified.", variant: "destructive" });
+            return;
+        }
+        setIsUpdatingRole(true);
+        try {
+            if (adminRoleDoc) {
+                await deleteDoc(adminRoleRef!);
+                toast({ title: "Role Revoked", description: "Administrative access has been removed." });
+            } else {
+                await setDoc(adminRoleRef!, { 
+                    isAdmin: true, 
+                    email: userProfile?.email,
+                    uid: userId,
+                    updatedAt: serverTimestamp() 
+                });
+                toast({ title: "Role Granted", description: "This account now has full administrative access." });
+            }
+        } catch (e: any) {
+            toast({ title: "Role Update Failed", description: e.message, variant: "destructive" });
+        } finally {
+            setIsUpdatingRole(false);
+        }
+    };
+
     const handleDelete = async () => {
+        if (isMasterAdmin) {
+            toast({ title: "Operation Denied", description: "Master Admin account cannot be purged.", variant: "destructive" });
+            return;
+        }
         setIsDeleting(true);
         try {
             const idToken = await auth?.currentUser?.getIdToken(true);
@@ -86,7 +125,7 @@ export default function UserDetailsPage() {
         }
     };
 
-    if (isProfileLoading || isShipmentsLoading) {
+    if (isProfileLoading || isShipmentsLoading || isAdminCheckLoading) {
         return <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
     
@@ -124,7 +163,7 @@ export default function UserDetailsPage() {
                                 <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${userProfile.fullName}`} />
                                 <AvatarFallback>{userProfile.fullName.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            <CardTitle className="text-2xl pt-4 font-black italic uppercase tracking-tighter">{userProfile.fullName}</CardTitle>
+                            <CardTitle className="text-2xl pt-4 font-black italic uppercase tracking-tighter text-center">{userProfile.fullName}</CardTitle>
                             <CardDescription className="font-bold text-[10px] uppercase tracking-widest">Mailbox: {userProfile.mailboxNumber}</CardDescription>
                         </CardHeader>
                         <CardContent className="text-sm space-y-4 pt-6">
@@ -158,6 +197,30 @@ export default function UserDetailsPage() {
                         </CardContent>
                     </Card>
 
+                    <Card className={cn("border-2", adminRoleDoc ? "border-primary/40 bg-primary/5" : "border-dashed opacity-80")}>
+                        <CardHeader className="pb-4">
+                            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                                <ShieldCheck className="h-4 w-4 text-primary" /> Administrative Access
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <p className="text-[10px] font-medium leading-relaxed uppercase tracking-tight opacity-60">
+                                {adminRoleDoc 
+                                    ? "This account has full access to the Admin Command Center including finance and user management." 
+                                    : "Granting administrative access allows this user to manage manifests, users, and financial records."}
+                            </p>
+                            <Button 
+                                onClick={toggleAdminStatus} 
+                                disabled={isUpdatingRole || isMasterAdmin} 
+                                variant={adminRoleDoc ? "destructive" : "default"}
+                                className="w-full font-black uppercase italic text-[10px] h-11 shadow-lg"
+                            >
+                                {isUpdatingRole ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : (adminRoleDoc ? <ShieldAlert className="h-4 w-4 mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />)}
+                                {isMasterAdmin ? "Master Admin Locked" : (adminRoleDoc ? "Revoke Admin Privileges" : "Authorize Administrator")}
+                            </Button>
+                        </CardContent>
+                    </Card>
+
                     <Card>
                         <CardHeader className="bg-muted/10">
                             <CardTitle className="text-sm font-bold uppercase opacity-60">Security & Maintenance</CardTitle>
@@ -166,21 +229,21 @@ export default function UserDetailsPage() {
                             <ResetPasswordDialog userId={userProfile.id} userName={userProfile.fullName} />
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/5 font-bold">
+                                    <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/5 font-bold" disabled={isMasterAdmin}>
                                         {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                                         Purge Customer Record
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
-                                        <AlertDialogTitle>Initiate Irreversible Purge?</AlertDialogTitle>
-                                        <AlertDialogDescription>
+                                        <AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter italic text-center">Initiate Irreversible Purge?</AlertDialogTitle>
+                                        <AlertDialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">
                                             This will delete <strong>{userProfile.fullName}</strong> from Authentication and all Registry tables. All history will be lost.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
-                                        <AlertDialogCancel>Abort</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Authorize Purge</AlertDialogAction>
+                                        <AlertDialogCancel className="font-bold uppercase">Abort</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg">Authorize Purge</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -282,15 +345,15 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-xl">Reset Access Key</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">Authorize new secure credentials</DialogDescription>
+                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Authorize New Credentials</DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">Security protocol for {userName}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                    <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">New Secure Key</Label><Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="h-11 border-2" /></div>
-                    <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Confirm Key</Label><Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="h-11 border-2" /></div>
+                    <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">New Secure Key</Label><Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="h-12 border-2" /></div>
+                    <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Confirm Key</Label><Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="h-12 border-2" /></div>
                 </div>
                 <DialogFooter>
-                    <Button onClick={handleResetPassword} disabled={isResetting} className="w-full h-12 font-black uppercase italic shadow-lg">{isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Reset"}</Button>
+                    <Button onClick={handleResetPassword} disabled={isResetting} className="w-full h-14 font-black uppercase italic shadow-xl">{isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Reset"}</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -326,8 +389,8 @@ function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: str
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-xl">Adjust Wallet Balance</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">Modify available credit for {userName}</DialogDescription>
+                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Adjust Wallet Balance</DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">Modify available credit for {userName}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-4">
                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 text-center">
@@ -338,11 +401,11 @@ function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: str
                         <Label className="text-[10px] font-bold uppercase opacity-60">Set New Balance (JMD $)</Label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
-                            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="pl-16 h-12 text-lg font-black border-2" />
+                            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="pl-16 h-14 text-2xl font-black border-2" />
                         </div>
                     </div>
                 </div>
-                <DialogFooter><Button onClick={handleAdjustBalance} disabled={isUpdating} className="w-full h-12 font-black uppercase italic shadow-lg">{isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Adjustment"}</Button></DialogFooter>
+                <DialogFooter><Button onClick={handleAdjustBalance} disabled={isUpdating} className="w-full h-14 font-black uppercase italic shadow-xl">{isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Adjustment"}</Button></DialogFooter>
             </DialogContent>
         </Dialog>
     );

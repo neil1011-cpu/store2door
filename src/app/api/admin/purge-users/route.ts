@@ -4,9 +4,7 @@ import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Universal Registry Purge Protocol.
- * Aggressively removes all non-admin users and resets mailbox numbering.
- * Hardened with recursive subcollection deletion and deep logging.
- * PROTECTS: Any account in admin_roles and admin@neilussolutions.com.
+ * Aggressively removes all non-admin users and protects Master Admin @neilussolutions.com.
  */
 
 export async function POST(request: Request) {
@@ -19,13 +17,13 @@ export async function POST(request: Request) {
         const idToken = authHeader.substring(7);
         const decodedToken = await adminAuth.verifyIdToken(idToken);
 
-        const SUPER_ADMIN = 'admin@neilussolutions.com';
+        const MASTER_ADMIN = 'admin@neilussolutions.com';
 
         // Verify Admin Access
         const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
-        const isSuperAdmin = decodedToken.email === SUPER_ADMIN;
+        const isMaster = decodedToken.email === MASTER_ADMIN;
 
-        if (!adminRoleSnap.exists && !isSuperAdmin) {
+        if (!adminRoleSnap.exists && !isMaster) {
             return NextResponse.json({ success: false, message: 'Unauthorized.' }, { status: 403 });
         }
 
@@ -45,8 +43,8 @@ export async function POST(request: Request) {
             const uid = userDoc.id;
             const userData = userDoc.data();
 
-            // Skip if admin role exists, if it's the super admin email, OR if it's the current session user
-            if (protectedUids.has(uid) || userData.email === SUPER_ADMIN) {
+            // Skip if admin role exists, if it's the master admin email, OR if it's the current session user
+            if (protectedUids.has(uid) || userData.email === MASTER_ADMIN) {
                 console.log(`[PURGE] Protecting account: ${userData.email || uid}`);
                 continue;
             }
@@ -54,7 +52,7 @@ export async function POST(request: Request) {
             console.log(`[PURGE] Wiping data for user: ${userData.email || 'N/A'} (${uid})`);
 
             try {
-                // 1. Wipe Specific Known Subcollections to prevent timeouts
+                // 1. Wipe Specific Known Subcollections
                 const subcollections = ['pre_alerts', 'shipments'];
                 for (const collName of subcollections) {
                     const collRef = userDoc.ref.collection(collName);
@@ -85,6 +83,7 @@ export async function POST(request: Request) {
                 await adminAuth.deleteUser(uid).catch((authErr: any) => {
                     if (authErr.code !== 'auth/user-not-found') {
                         console.error(`[PURGE] Auth deletion failed for ${uid}:`, authErr);
+                        console.error(authErr.stack);
                     }
                 });
 
@@ -92,8 +91,9 @@ export async function POST(request: Request) {
                 await userDoc.ref.delete();
                 deletedCount++;
                 
-            } catch (err) {
+            } catch (err: any) {
                 console.error(`[PURGE] Failed to fully remove user ${uid}:`, err);
+                console.error(err.stack);
             }
         }
 

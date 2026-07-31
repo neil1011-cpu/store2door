@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Robust Administrative User Creation API with exhaustive diagnostics and mailbox override support.
+ * @fileOverview Robust Administrative User Creation API with exhaustive diagnostics and role support.
  */
 
 export async function POST(request: Request) {
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     const trn = String(body.trn || 'N/A').trim();
     const defaultPassword = String(body.defaultPassword || 'User@1234');
     const requestedMailbox = body.mailboxNumber ? String(body.mailboxNumber).trim().toUpperCase() : null;
+    const isNewAdmin = !!body.isAdmin;
 
     if (!email || !firstName || !lastName) {
         return NextResponse.json({ success: false, message: 'Email, First, and Last names are required.' }, { status: 400 });
@@ -43,9 +44,9 @@ export async function POST(request: Request) {
     }
     
     const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
-    const isHardcodedAdmin = decodedToken.email === 'admin@neilussolutions.com';
+    const isMasterAdmin = decodedToken.email === 'admin@neilussolutions.com';
     
-    if (!adminRoleSnap.exists && !isHardcodedAdmin) {
+    if (!adminRoleSnap.exists && !isMasterAdmin) {
         return NextResponse.json({ success: false, message: 'Access Denied.' }, { status: 403 });
     }
 
@@ -109,6 +110,17 @@ export async function POST(request: Request) {
             });
 
             transaction.set(userProfileRef, profileData, { merge: true });
+
+            if (isNewAdmin) {
+                const adminRoleRef = adminDb.collection('admin_roles').doc(userRecord.uid);
+                transaction.set(adminRoleRef, {
+                    isAdmin: true,
+                    email: email,
+                    uid: userRecord.uid,
+                    createdAt: adminField.serverTimestamp()
+                });
+            }
+
             return mailboxId;
         });
 
