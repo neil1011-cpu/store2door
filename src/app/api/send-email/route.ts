@@ -1,8 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import { adminDb } from '@/lib/firebaseAdmin';
-import { serverTimestamp } from 'firebase-admin/firestore';
+import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Standardized Email API with Dynamic SMTP support.
@@ -30,7 +29,7 @@ export async function POST(request: Request) {
                 body: emailBody || '(No Body)',
                 status,
                 error: error || null,
-                sentAt: serverTimestamp(),
+                sentAt: adminField.serverTimestamp(),
             });
         } catch (dbError) {
             console.error("[EMAIL LOG ERROR]:", dbError);

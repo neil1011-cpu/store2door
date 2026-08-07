@@ -1,8 +1,7 @@
 
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
-import { serverTimestamp } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Secure administrative password reset endpoint.
@@ -76,7 +75,7 @@ export async function POST(request: Request) {
         // 4. Force User into Change Password Flow on next login
         await adminDb.collection('users').doc(userId).update({
             needsPasswordReset: true,
-            updatedAt: serverTimestamp()
+            updatedAt: adminField.serverTimestamp()
         }).catch(err => {
             console.warn('[API] Warning: Failed to set needsPasswordReset flag in Firestore:', err);
         });
@@ -99,7 +98,7 @@ export async function POST(request: Request) {
                     body: emailBody,
                     status,
                     error: error || null,
-                    sentAt: serverTimestamp(),
+                    sentAt: adminField.serverTimestamp(),
                 });
             } catch (dbError) {
                 console.error("[EMAIL LOG ERROR]:", dbError);

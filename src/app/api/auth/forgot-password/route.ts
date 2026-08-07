@@ -1,8 +1,7 @@
 
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
-import { serverTimestamp } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Branded Password Reset API.
@@ -52,7 +51,7 @@ export async function POST(request: Request) {
                     body: emailBody,
                     status,
                     error: error || null,
-                    sentAt: serverTimestamp(),
+                    sentAt: adminField.serverTimestamp(),
                 });
             } catch (dbError) {
                 console.error("[EMAIL LOG ERROR]:", dbError);
