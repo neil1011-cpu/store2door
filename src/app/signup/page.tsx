@@ -18,7 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
@@ -35,6 +35,7 @@ export default function SignUpPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const auth = useAuth();
   const firestore = useFirestore();
 
@@ -53,13 +54,13 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      const userCred = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const userCred = await createUserWithEmailAndPassword(auth!, values.email, values.password);
       const user = userCred.user;
 
       await user.getIdToken(true);
 
-      const mailbox = await runTransaction(firestore, async (tx) => {
-        const ref = doc(firestore, "metadata", "mailboxCounter");
+      const mailbox = await runTransaction(firestore!, async (tx) => {
+        const ref = doc(firestore!, "metadata", "mailboxCounter");
         const snap = await tx.get(ref);
 
         if (!snap.exists()) {
@@ -81,7 +82,7 @@ export default function SignUpPage() {
           zip: '33311-4224',
       };
       
-      await setDoc(doc(firestore, 'users', user.uid), {
+      await setDoc(doc(firestore!, 'users', user.uid), {
         id: user.uid,
         fullName: values.fullName,
         email: values.email,
@@ -146,7 +147,31 @@ export default function SignUpPage() {
                 <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
               )}/>
               <FormField control={form.control} name="password" render={({ field }) => (
-                <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input type={showPassword ? "text" : "password"} {...field} />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="sr-only">
+                            {showPassword ? "Hide password" : "Show password"}
+                          </span>
+                        </Button>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
               )}/>
               <FormField control={form.control} name="phone" render={({ field }) => (
                 <FormItem><FormLabel>Phone</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>

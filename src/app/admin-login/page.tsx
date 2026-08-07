@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Loader2, ShieldCheck, Truck } from 'lucide-react';
+import { Loader2, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -36,6 +36,7 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const auth = useAuth();
   const firestore = useFirestore();
 
@@ -47,16 +48,16 @@ export default function AdminLoginPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth, values.email, values.password);
+      const cred = await signInWithEmailAndPassword(auth!, values.email, values.password);
       
-      const adminSnap = await getDoc(doc(firestore, 'admin_roles', cred.user.uid));
+      const adminSnap = await getDoc(doc(firestore!, 'admin_roles', cred.user.uid));
       // Reverted domain fallback
       const isDomainAdmin = values.email === 'admin@neilussolutions.com';
       
       if (adminSnap.exists() || isDomainAdmin) {
         setShowWelcome(true);
       } else {
-        await signOut(auth);
+        await signOut(auth!);
         toast({ 
             title: 'Access Denied', 
             description: 'This account does not have administrator privileges in the database.', 
@@ -114,7 +115,25 @@ export default function AdminLoginPage() {
                 <FormItem>
                     <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Secure Key</FormLabel>
                     <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} className="h-12 border-2 focus:border-primary" />
+                      <div className="relative">
+                        <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} className="h-12 border-2 focus:border-primary" />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="sr-only">
+                            {showPassword ? "Hide password" : "Show password"}
+                          </span>
+                        </Button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                 </FormItem>
