@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye, CheckCircle2, AlertCircle, ShieldAlert, Weight, DollarSign } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -15,10 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link';
 import type { Shipment, PreAlert, UserProfile, LineItem } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, collectionGroup, query, serverTimestamp, doc, addDoc, writeBatch, orderBy } from 'firebase/firestore';
+import { collection, collectionGroup, query, serverTimestamp, doc, addDoc, writeBatch, orderBy, getDoc, increment } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { cn } from '@/lib/utils';
+import { cn, calculateShippingCost } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const getStatusVariant = (status: string) => {
@@ -78,7 +78,7 @@ const generateInvoiceHtml = (invoiceData: {
 export default function PreAlertsPage() {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
-  const [newAlert, setNewAlert] = useState({ customerId: '', trackingNumber: '', contents: '' });
+  const [newAlert, setNewAlert] = useState({ customerId: '', trackingNumber: '', contents: '', weight: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingLogicware, setIsFetchingLogicware] = useState(false);
   const [logicwarePreAlerts, setLogicwarePreAlerts] = useState<PreAlert[]>([]);
@@ -124,6 +124,7 @@ export default function PreAlertsPage() {
             customerName: s.shipperName || s.customer_name || s.shipper?.name || 'Logicware Client',
             customerId: s.shipperId || s.customer_id || '',
             contents: s.contents || s.description || s.item_description || 'Incoming Package',
+            weight: Number(s.weight || 0),
             status: 'Pending', 
             submissionDate: s.createdAt || s.created_at || new Date().toISOString(),
             invoiceHtml: '',
@@ -170,6 +171,7 @@ export default function PreAlertsPage() {
       customerId: selectedUser.id,
       trackingNumber: newAlert.trackingNumber.toUpperCase(),
       contents: newAlert.contents,
+      weight: parseFloat(newAlert.weight) || 0,
       status: 'Pending' as const,
       submissionDate: serverTimestamp(),
       invoiceHtml: '', uploadedInvoiceUrl: '', 
@@ -178,7 +180,7 @@ export default function PreAlertsPage() {
       .then(() => {
         toast({ title: 'Pre-Alert Created' });
         setOpen(false);
-        setNewAlert({ customerId: '', trackingNumber: '', contents: '' });
+        setNewAlert({ customerId: '', trackingNumber: '', contents: '', weight: '' });
       })
       .catch(error => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -190,19 +192,21 @@ export default function PreAlertsPage() {
       .finally(() => setIsSubmitting(false));
   };
   
-  const handleShipmentCreated = async (preAlert: PreAlert, cost: number) => {
+  const handleShipmentCreated = async (preAlert: PreAlert, weight: number, cost: number) => {
     const batch = writeBatch(firestore);
     const invoiceId = `INV-${Date.now()}`;
     const invoiceHtml = generateInvoiceHtml({
       invoiceId, customerName: preAlert.customerName, invoiceDate: new Date(),
-      lineItems: [{ description: preAlert.contents, quantity: 1, price: cost }], totalAmount: cost,
+      lineItems: [{ description: `${preAlert.contents} (${weight} lbs)`, quantity: 1, price: cost }], totalAmount: cost,
     });
     
+    // 1. Create Invoice
     batch.set(doc(firestore, 'invoices', invoiceId), {
         invoiceId, customerId: preAlert.customerId, customerName: preAlert.customerName,
         date: serverTimestamp(), amount: cost, status: 'Unpaid', invoiceUrl: invoiceHtml,
     });
 
+    // 2. Create Shipment
     batch.set(doc(collection(firestore, 'users', preAlert.customerId, 'shipments')), {
         customerId: preAlert.customerId, 
         trackingNumber: preAlert.trackingNumber.toUpperCase(), 
@@ -214,36 +218,47 @@ export default function PreAlertsPage() {
         invoiceId, 
         invoiceUrl: invoiceHtml, 
         uploadedInvoiceUrl: preAlert.uploadedInvoiceUrl || '', 
-        weight: 0,
+        weight,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     });
     
+    // 3. Mark Pre-Alert as Processed
     if (!preAlert.isLogicware) {
         batch.update(doc(firestore, 'users', preAlert.customerId, 'pre_alerts', preAlert.id), { status: 'Processed' });
     }
 
-    // Record the processing event in logs
+    // 4. DEBIT USER WALLET (Represented as debt/negative balance if unpaid)
+    // NOTE: If your system uses positive balance as debt, change this to positive. 
+    // Standard courier apps subtract from credit or add to debt.
+    batch.update(doc(firestore, 'users', preAlert.customerId), {
+        walletBalance: increment(-cost)
+    });
+
+    // 5. Record Activity
     await fetch('/api/log-activity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             type: 'pre_alert_processed',
-            description: `Admin processed Pre-Alert ${preAlert.trackingNumber} for ${preAlert.customerName}.`,
+            description: `Intake complete for ${preAlert.trackingNumber}. Weight: ${weight} lbs. Cost: JMD $${cost.toFixed(2)}.`,
             userId: 'admin',
             userName: 'System Admin',
-            metadata: { trackingNumber: preAlert.trackingNumber, cost }
+            metadata: { trackingNumber: preAlert.trackingNumber, cost, weight, customerId: preAlert.customerId }
         })
     });
 
     batch.commit()
       .then(() => {
-          toast({ title: "Shipment Created", description: "Package moved to shipping ledger." });
+          toast({ title: "Shipment Secured", description: `JMD $${cost.toFixed(2)} debited from customer wallet.` });
           if (preAlert.isLogicware) {
               setLogicwarePreAlerts(prev => prev.filter(p => p.id !== preAlert.id));
           }
       })
-      .catch(() => toast({ title: "Error creating shipment", variant: "destructive" }));
+      .catch((e) => {
+          console.error("[PRE-ALERT PROCESSING ERROR]", e);
+          toast({ title: "Processing Failure", description: "Failed to update financial registry.", variant: "destructive" });
+      });
   }
 
   if (isLoadingUsers || (isLoadingPreAlerts && !firebaseError)) {
@@ -285,6 +300,7 @@ export default function PreAlertsPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Tracking #</Label><Input value={newAlert.trackingNumber} onChange={(e) => setNewAlert({...newAlert, trackingNumber: e.target.value})} className="col-span-3 h-11 font-mono uppercase" /></div>
                 <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Contents</Label><Input value={newAlert.contents} onChange={(e) => setNewAlert({...newAlert, contents: e.target.value})} className="col-span-3 h-11" /></div>
+                <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Weight</Label><Input type="number" placeholder="LBS" value={newAlert.weight} onChange={(e) => setNewAlert({...newAlert, weight: e.target.value})} className="col-span-3 h-11" /></div>
                 </div>
                 <DialogFooter><Button onClick={handleCreateAlert} disabled={isSubmitting} className="w-full h-11 font-bold uppercase tracking-tight">{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Alert"}</Button></DialogFooter>
             </DialogContent>
@@ -316,7 +332,7 @@ export default function PreAlertsPage() {
                 <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Status</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Customer</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Tracking #</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest">Contents</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Weight</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Invoice</TableHead>
                 <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
               </TableRow>
@@ -336,7 +352,9 @@ export default function PreAlertsPage() {
                         </div>
                     </TableCell>
                     <TableCell className="font-mono font-black text-primary uppercase text-sm tracking-tighter">{alert.trackingNumber}</TableCell>
-                    <TableCell className="text-[11px] max-w-[200px] truncate font-medium opacity-70 uppercase">{alert.contents}</TableCell>
+                    <TableCell>
+                        <span className="font-bold text-xs uppercase tracking-tighter">{alert.weight || 0} LBS</span>
+                    </TableCell>
                     <TableCell>
                         {alert.uploadedInvoiceUrl ? (
                             <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter shadow-inner">
@@ -432,9 +450,22 @@ function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
   );
 }
 
-function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAlert, onShipmentCreated: (p: PreAlert, cost: number) => void }) {
+function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAlert, onShipmentCreated: (p: PreAlert, weight: number, cost: number) => void }) {
     const [open, setOpen] = useState(false);
+    const [weight, setWeight] = useState(preAlert.weight?.toString() || '');
     const [cost, setCost] = useState('');
+    const [isCalculating, setIsCalculating] = useState(false);
+
+    // Auto-calculate cost when weight changes
+    useEffect(() => {
+        if (weight && !isNaN(parseFloat(weight))) {
+            setIsCalculating(true);
+            const calculated = calculateShippingCost(parseFloat(weight));
+            setCost(calculated.toString());
+            setIsCalculating(false);
+        }
+    }, [weight]);
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button variant="secondary" size="sm" className="h-9 font-black uppercase italic text-[10px] px-6" disabled={preAlert.status === 'Processed'}>Process</Button></DialogTrigger>
@@ -451,18 +482,35 @@ function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAl
                             <p className="font-mono font-black text-xl text-primary">{preAlert.trackingNumber}</p>
                          </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Shipping & Logistics Cost (JMD $)</Label>
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
-                            <Input type="number" placeholder="5500.00" value={cost} onChange={(e) => setCost(e.target.value)} className="pl-16 h-14 text-2xl font-black border-2 focus:border-primary shadow-inner" />
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Verified Weight (LBS)</Label>
+                            <div className="relative">
+                                <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
+                                <Input type="number" placeholder="0.00" value={weight} onChange={(e) => setWeight(e.target.value)} className="pl-10 h-14 text-xl font-black border-2" />
+                            </div>
                         </div>
-                        <p className="text-[9px] font-bold text-muted-foreground uppercase text-center mt-2">Cost will be added to the customer's unpaid balance</p>
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Logistics Cost (JMD $)</Label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
+                                <Input type="number" placeholder="0.00" value={cost} onChange={(e) => setCost(e.target.value)} className="pl-16 h-14 text-xl font-black border-2 focus:border-primary" />
+                                {isCalculating && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3">
+                        <DollarSign className="h-5 w-5 text-amber-600 shrink-0" />
+                        <p className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
+                            Authorizing this intake will instantly debit **JMD ${parseFloat(cost || '0').toLocaleString()}** from the customer's wallet balance.
+                        </p>
                     </div>
                 </div>
                 <DialogFooter className="gap-2">
                     <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
-                    <Button onClick={() => { onShipmentCreated(preAlert, parseFloat(cost)); setOpen(false); }} className="flex-1 h-12 font-black uppercase tracking-tight italic shadow-xl">Finalize Intake & Log</Button>
+                    <Button onClick={() => { onShipmentCreated(preAlert, parseFloat(weight), parseFloat(cost)); setOpen(false); }} className="flex-1 h-12 font-black uppercase tracking-tight italic shadow-xl">Finalize Intake & Log</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

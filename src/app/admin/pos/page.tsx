@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -41,7 +42,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, where, doc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, where, doc, updateDoc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import type { UserProfile, Invoice } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -188,6 +189,11 @@ export default function POSPage() {
                 invoiceIds: Array.from(selectedInvoices)
             });
 
+            // UPDATE USER WALLET: Payment adds back to the balance (reducing debt)
+            batch.update(doc(firestore, 'users', selectedUser.id), {
+                walletBalance: increment(finalAmount)
+            });
+
             await batch.commit();
             
             // Set Receipt Snapshot for printing
@@ -200,7 +206,7 @@ export default function POSPage() {
             });
 
             setCheckoutComplete(true);
-            toast({ title: "Payment Processed!", description: `JMD $${finalAmount.toLocaleString()} recorded in Finance.` });
+            toast({ title: "Payment Processed!", description: `JMD $${finalAmount.toLocaleString()} credited to customer wallet.` });
             
             // Log Activity for Audit Trail
             await fetch('/api/log-activity', {
@@ -387,6 +393,10 @@ export default function POSPage() {
                                         <div>
                                             <p className="text-4xl font-black italic uppercase tracking-tighter">{selectedUser.fullName}</p>
                                             <p className="font-bold opacity-80 uppercase tracking-widest text-[10px] mt-1">Mailbox: {selectedUser.mailboxNumber} • {selectedUser.email}</p>
+                                            <div className="mt-2 inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-lg border border-white/20">
+                                                <Wallet className="h-3.5 w-3.5" />
+                                                <span className="text-xs font-bold">Wallet: JMD ${(selectedUser.walletBalance || 0).toLocaleString()}</span>
+                                            </div>
                                         </div>
                                     </div>
                                     <Button variant="ghost" onClick={() => setSelectedUser(null)} className="text-white hover:bg-white/10 h-14 w-14 rounded-full shrink-0">
@@ -594,7 +604,7 @@ export default function POSPage() {
                             </div>
                             <div>
                                 <p className="text-3xl font-black italic uppercase tracking-tighter">Payment Complete</p>
-                                <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Transaction Secured & Logged in Finance</p>
+                                <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Transaction Secured & Wallet Credited</p>
                             </div>
                             <Separator className="bg-muted" />
                             <div className="grid grid-cols-2 gap-4">

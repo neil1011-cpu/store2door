@@ -131,6 +131,7 @@ export type PreAlert = {
   customerId: string;
   trackingNumber: string;
   contents: string;
+  weight?: number;
   status: 'Pending' | 'Processed';
   submissionDate: Timestamp | any;
   invoiceHtml: string; // The generated HTML invoice for viewing

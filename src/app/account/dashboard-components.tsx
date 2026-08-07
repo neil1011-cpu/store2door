@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -15,7 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
+import { cn, calculateShippingCost } from '@/lib/utils';
 import type { UserProfile, Shipment, PreAlert, ShipmentStatus, DropoffAddress, PickupPerson } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useStorage } from '@/firebase';
 import { collection, query, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
@@ -336,6 +337,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
     const { toast } = useToast();
     const [trackingNumber, setTrackingNumber] = useState(prefilledTrackingNumber || '');
     const [contents, setContents] = useState('');
+    const [weight, setWeight] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -371,6 +373,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 customerId,
                 trackingNumber: finalTracking,
                 contents,
+                weight: parseFloat(weight) || 0,
                 status: 'Pending',
                 submissionDate: serverTimestamp(),
                 uploadedInvoiceUrl: downloadUrl,
@@ -385,7 +388,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                     description: `User ${customerName} uploaded a new pre-alert for ${finalTracking}.`,
                     userId: customerId,
                     userName: customerName,
-                    metadata: { trackingNumber: finalTracking, contents, fileUrl: downloadUrl }
+                    metadata: { trackingNumber: finalTracking, contents, weight, fileUrl: downloadUrl }
                 })
             });
 
@@ -396,7 +399,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 body: JSON.stringify({
                   to: 'admin@neilussolutions.com',
                   subject: `New Pre-Alert Received: ${finalTracking}`,
-                  body: `A new pre-alert has been submitted by ${customerName}.\n\nTracking Number: ${finalTracking}\nContents: ${contents}\n\nPlease check the admin panel to acknowledge and process this shipment.`,
+                  body: `A new pre-alert has been submitted by ${customerName}.\n\nTracking Number: ${finalTracking}\nContents: ${contents}\nEstimated Weight: ${weight} lbs\n\nPlease check the admin panel to acknowledge and process this shipment.`,
                   recipientName: 'FSTD Admin'
                 }),
               });
@@ -405,6 +408,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             toast({ title: "Pre-Alert Submitted", description: "Our warehouse team has been notified of your incoming package." });
             setTrackingNumber('');
             setContents('');
+            setWeight('');
             setSelectedFile(null);
             onSuccess?.();
         } catch (error: any) {
@@ -440,6 +444,20 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             </div>
 
             <div className="space-y-2">
+                <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">Estimated Weight (LBS) - Optional</Label>
+                <div className="relative">
+                    <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                        type="number"
+                        placeholder="0.00" 
+                        value={weight} 
+                        onChange={e => setWeight(e.target.value)}
+                        className="h-12 border-2 text-base pl-10"
+                    />
+                </div>
+            </div>
+
+            <div className="space-y-2">
                 <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">Upload Invoice (Limit: 500MB)</Label>
                 <div className="border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center bg-muted/20 relative group hover:bg-muted/30 transition-colors">
                     <input 
@@ -464,6 +482,14 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                             </div>
                         </div>
                     )}
+                </div>
+            </div>
+
+            <div className="p-4 bg-primary/5 rounded-xl border border-dashed flex gap-4">
+                <Info className="h-5 w-5 text-primary shrink-0" />
+                <div>
+                    <p className="text-[11px] font-bold uppercase leading-tight">Landed Cost Sync</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">Entering the weight helps us calculate your estimated shipping costs immediately upon arrival.</p>
                 </div>
             </div>
 
@@ -676,14 +702,11 @@ export function CustomsCalculatorTab() {
     const DE_MINIMIS_THRESHOLD = 100;
     const INSURANCE_RATE = 0.015;
     const SCF_RATE = 0.003;
-    const pricingTiers: Record<number, number> = { 1: 750, 2: 1200, 3: 1650, 4: 2100, 5: 2550, 10: 4850, 30: 12250 };
 
     const handleCalculate = () => {
         const itemPrice = parseFloat(price) || 0;
-        const w = Math.ceil(parseFloat(weight) || 0);
-        let freightJmd = w > 0 ? (pricingTiers[w] || 4850 + (w - 10) * 450) : 0;
-        if (w > 30) freightJmd = 12250 + (w - 30) * 400;
-        
+        const w = parseFloat(weight) || 0;
+        const freightJmd = calculateShippingCost(w);
         const freightUsd = freightJmd / USD_TO_JMD_RATE;
         
         if (itemPrice <= DE_MINIMIS_THRESHOLD) {

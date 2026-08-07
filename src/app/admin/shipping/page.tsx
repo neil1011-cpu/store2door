@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, ArrowLeft, Edit, Loader2, Search, CheckCircle2, AlertCircle, Zap, RefreshCw, Eye, Info, Package, FileText, Download, ShieldAlert, History } from 'lucide-react';
+import { Mail, ArrowLeft, Edit, Loader2, Search, CheckCircle2, AlertCircle, Zap, RefreshCw, Eye, Info, Package, FileText, Download, ShieldAlert, History, Weight, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -17,8 +17,8 @@ import Link from 'next/link';
 import type { Shipment, UserProfile, ShipmentStatus } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, collectionGroup, query, doc, updateDoc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { cn } from '@/lib/utils';
+import { collection, collectionGroup, query, doc, updateDoc, serverTimestamp, orderBy, increment, writeBatch } from 'firebase/firestore';
+import { cn, calculateShippingCost } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const getStatusVariant = (status: ShipmentStatus | string | undefined) => {
@@ -151,42 +151,62 @@ export default function ShippingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleUpdateStatus = async (shipment: Shipment & { user?: Partial<UserProfile> }, newStatus: string) => {
+  const handleUpdateShipment = async (shipment: Shipment & { user?: Partial<UserProfile> }, updates: { status?: string, cost?: number, weight?: number }) => {
       try {
           const docRef = doc(firestore, 'users', shipment.customerId, 'shipments', shipment.id);
-          await updateDoc(docRef, {
-              status: newStatus,
-              updatedAt: serverTimestamp()
-          });
+          const batch = writeBatch(firestore);
 
-          // 1. Log Activity
+          const finalUpdates: any = {
+              ...updates,
+              updatedAt: serverTimestamp()
+          };
+
+          // If cost changed, adjust wallet balance
+          if (updates.cost !== undefined && updates.cost !== shipment.cost) {
+              const diff = shipment.cost! - updates.cost; // If new cost is higher, diff is negative
+              batch.update(doc(firestore, 'users', shipment.customerId), {
+                  walletBalance: increment(diff)
+              });
+              
+              // Also update linked invoice if exists
+              if (shipment.invoiceId) {
+                  batch.update(doc(firestore, 'invoices', shipment.invoiceId), {
+                      amount: updates.cost
+                  });
+              }
+          }
+
+          batch.update(docRef, finalUpdates);
+
+          // Log Activity
           await fetch('/api/log-activity', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                  type: 'shipment_status_update',
-                  description: `Shipment ${shipment.trackingNumber} status updated to "${newStatus}" for ${shipment.user?.fullName || 'Customer'}.`,
+                  type: 'shipment_update',
+                  description: `Shipment ${shipment.trackingNumber} updated. Status: ${updates.status || shipment.status}, Cost: JMD $${(updates.cost || shipment.cost)?.toFixed(2)}`,
                   userId: 'admin',
                   userName: 'System Admin',
-                  metadata: { trackingNumber: shipment.trackingNumber, newStatus }
+                  metadata: { trackingNumber: shipment.trackingNumber, ...updates }
               })
           });
 
-          // 2. Notify Customer via Email
-          if (shipment.user?.email) {
+          // Notify Customer via Email if status changed
+          if (updates.status && updates.status !== shipment.status && shipment.user?.email) {
               await fetch('/api/send-email', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                       to: shipment.user.email,
                       subject: `Status Update: Package ${shipment.trackingNumber}`,
-                      body: `Hi ${shipment.user.fullName || 'Valued Customer'},\n\nYour package with tracking number ${shipment.trackingNumber} has been updated.\n\nNew Status: ${newStatus}\n\nYou can track the live progress of your shipment in your account dashboard.\n\nThank you for shipping with FromStore2Door!`,
+                      body: `Hi ${shipment.user.fullName || 'Valued Customer'},\n\nYour package with tracking number ${shipment.trackingNumber} has been updated.\n\nNew Status: ${updates.status}\n\nYou can track the live progress of your shipment in your account dashboard.\n\nThank you for shipping with FromStore2Door!`,
                       recipientName: shipment.user.fullName
                   })
               });
           }
 
-          toast({ title: "Status Synchronized", description: `Shipment updated to ${newStatus} and customer notified.` });
+          await batch.commit();
+          toast({ title: "Registry Updated", description: "Shipment details and user wallet synchronized." });
           setEditingShipment(null);
       } catch (err: any) {
           toast({ title: "Update Failed", description: err.message, variant: "destructive" });
@@ -251,8 +271,8 @@ export default function ShippingPage() {
                         <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Source</TableHead>
                         <TableHead className="text-[10px] font-black uppercase tracking-widest">Tracking ID</TableHead>
                         <TableHead className="text-[10px] font-black uppercase tracking-widest">Customer</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase tracking-widest">Cost (JMD)</TableHead>
                         <TableHead className="text-[10px] font-black uppercase tracking-widest">Status</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest">Invoice</TableHead>
                         <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -268,16 +288,10 @@ export default function ShippingPage() {
                     <TableCell className="font-bold text-[11px] uppercase tracking-tighter">
                         {(shipment as any).user?.fullName || shipment.shipperName || 'N/A'}
                     </TableCell>
-                    <TableCell><Badge variant={getStatusVariant(shipment.status)} className="px-3 py-1 text-[9px] font-black uppercase italic tracking-widest border-2">{shipment.status || 'Pending'}</Badge></TableCell>
-                    <TableCell>
-                        {shipment.uploadedInvoiceUrl ? (
-                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 font-bold text-[9px] flex items-center gap-1 uppercase tracking-tighter shadow-inner">
-                                <FileText className="h-3 w-3" /> Ready
-                            </Badge>
-                        ) : (
-                            <span className="text-[9px] text-muted-foreground font-bold uppercase opacity-30">Missing</span>
-                        )}
+                    <TableCell className="font-black text-xs">
+                        JMD ${shipment.cost?.toFixed(2) || '0.00'}
                     </TableCell>
+                    <TableCell><Badge variant={getStatusVariant(shipment.status)} className="px-3 py-1 text-[9px] font-black uppercase italic tracking-widest border-2">{shipment.status || 'Pending'}</Badge></TableCell>
                     <TableCell className="text-right pr-6">
                         <div className="flex justify-end gap-2">
                             {!shipment.isLogicware && (
@@ -308,52 +322,100 @@ export default function ShippingPage() {
       </Card>
 
       <ShipmentDetailsDialog shipment={viewingShipment} onOpenChange={(open) => !open && setViewingShipment(null)} />
-      
-      {/* Status Update Dialog */}
-      <Dialog open={!!editingShipment} onOpenChange={(open) => !open && setEditingShipment(null)}>
-          <DialogContent className="sm:max-w-md">
+      <EditShipmentDialog shipment={editingShipment} onSave={handleUpdateShipment} onOpenChange={(open) => !open && setEditingShipment(null)} />
+    </div>
+  );
+}
+
+function EditShipmentDialog({ shipment, onSave, onOpenChange }: { shipment: (Shipment & { user?: Partial<UserProfile> }) | null, onSave: (s: any, updates: any) => Promise<void>, onOpenChange: (open: boolean) => void }) {
+    const [status, setStatus] = useState(shipment?.status || '');
+    const [weight, setWeight] = useState(shipment?.weight?.toString() || '');
+    const [cost, setCost] = useState(shipment?.cost?.toString() || '');
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (shipment) {
+            setStatus(shipment.status);
+            setWeight(shipment.weight?.toString() || '');
+            setCost(shipment.cost?.toString() || '');
+        }
+    }, [shipment]);
+
+    // Recalculate cost when weight changes manually in edit
+    const handleWeightChange = (val: string) => {
+        setWeight(val);
+        if (val && !isNaN(parseFloat(val))) {
+            setCost(calculateShippingCost(parseFloat(val)).toString());
+        }
+    };
+
+    const handleConfirm = async () => {
+        if (!shipment) return;
+        setIsSaving(true);
+        await onSave(shipment, {
+            status,
+            weight: parseFloat(weight) || 0,
+            cost: parseFloat(cost) || 0
+        });
+        setIsSaving(false);
+    };
+
+    return (
+        <Dialog open={!!shipment} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Modify Package Status</DialogTitle>
-                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Update transit state and notify customer</DialogDescription>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Modify Package Data</DialogTitle>
+                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Adjust transit state and financial metrics</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-6">
                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 space-y-1">
                         <p className="text-[10px] font-bold uppercase opacity-60">Package Reference</p>
-                        <p className="font-mono font-black text-lg text-primary">{editingShipment?.trackingNumber}</p>
-                        <p className="text-[9px] font-bold uppercase text-muted-foreground">{editingShipment?.user?.fullName}</p>
+                        <p className="font-mono font-black text-lg text-primary">{shipment?.trackingNumber}</p>
                     </div>
+
                     <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">New Logistics Status</Label>
-                        <Select 
-                            onValueChange={(val) => editingShipment && handleUpdateStatus(editingShipment, val)}
-                            defaultValue={editingShipment?.status}
-                        >
-                            <SelectTrigger className="h-12 border-2 text-sm font-bold uppercase italic focus:border-primary">
-                                <SelectValue placeholder="Select New Status" />
-                            </SelectTrigger>
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Logistics Status</Label>
+                        <Select onValueChange={setStatus} value={status}>
+                            <SelectTrigger className="h-12 border-2 text-sm font-bold uppercase italic"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                {OFFICIAL_STATUSES.map(status => (
-                                    <SelectItem key={status} value={status} className="font-bold uppercase text-xs italic">
-                                        {status}
-                                    </SelectItem>
-                                ))}
+                                {OFFICIAL_STATUSES.map(s => <SelectItem key={s} value={s} className="font-bold uppercase text-xs italic">{s}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3">
-                        <Mail className="h-5 w-5 text-amber-600 shrink-0" />
-                        <p className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
-                            Confirming the status update will automatically dispatch an official notification email to the customer.
-                        </p>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Weight (LBS)</Label>
+                            <div className="relative">
+                                <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
+                                <Input type="number" value={weight} onChange={(e) => handleWeightChange(e.target.value)} className="pl-10 h-12 text-lg font-black border-2" />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Cost (JMD $)</Label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
+                                <Input type="number" value={cost} onChange={(e) => setCost(e.target.value)} className="pl-16 h-12 text-lg font-black border-2" />
+                            </div>
+                        </div>
                     </div>
+
+                    <Alert className="bg-blue-50 border-blue-100">
+                        <Info className="h-4 w-4 text-blue-600" />
+                        <AlertDescription className="text-[10px] font-bold text-blue-800 uppercase leading-relaxed">
+                            Changes to the cost will automatically update the customer's wallet balance and linked invoice.
+                        </AlertDescription>
+                    </Alert>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="gap-2">
                     <DialogClose asChild><Button variant="ghost" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+                    <Button onClick={handleConfirm} disabled={isSaving} className="flex-1 h-12 font-black uppercase italic tracking-tight shadow-xl">
+                        {isSaving ? <Loader2 className="animate-spin h-5 w-5" /> : "Save Changes"}
+                    </Button>
                 </DialogFooter>
-          </DialogContent>
-      </Dialog>
-    </div>
-  );
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 function ShipmentDetailsDialog({ shipment, onOpenChange }: { shipment: (Shipment & { user?: Partial<UserProfile> }) | null, onOpenChange: (open: boolean) => void }) {
