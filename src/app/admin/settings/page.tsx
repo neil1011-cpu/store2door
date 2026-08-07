@@ -14,6 +14,7 @@ import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
 import { logicwareMeta } from '@/lib/logicware';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -347,14 +348,14 @@ export default function SettingsPage() {
                                 className="h-12 border-2 font-mono"
                                 />
                                 <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setLogicwareApi(prev => ({ ...prev, isVisible: !prev.isVisible }))}>
-                                    {logicwareApi.isVisible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                    {logicwareApi.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </Button>
                             </div>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-4">
                             <Button onClick={handleSaveLogicwareKey} disabled={isSavingKey} className="h-14 font-black uppercase italic shadow-lg">
-                                {isSavingKey ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
+                                {isSavingKey ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <Save className="mr-2 h-6 w-6" />}
                                 Secure Key
                             </Button>
                             <Button 
