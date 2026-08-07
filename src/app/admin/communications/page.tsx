@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -33,9 +34,7 @@ type SentEmail = {
     subject: string;
     body: string;
     status?: 'sent' | 'simulated' | 'failed';
-    sentAt: {
-      toDate: () => Date;
-    };
+    sentAt: any; // Using any to handle both Timestamps and Dates safely
 };
 
 export default function CommunicationsPage() {
@@ -141,6 +140,18 @@ export default function CommunicationsPage() {
              toast({ title: 'Transmission Error', description: error.message, variant: 'destructive' });
         } finally {
             setIsComposing(false);
+        }
+    }
+
+    const formatSentDate = (sentAt: any) => {
+        if (!sentAt) return 'Pending...';
+        try {
+            if (sentAt.toDate && typeof sentAt.toDate === 'function') {
+                return sentAt.toDate().toLocaleString();
+            }
+            return new Date(sentAt).toLocaleString();
+        } catch (e) {
+            return 'Date Error';
         }
     }
 
@@ -261,7 +272,7 @@ export default function CommunicationsPage() {
                                     </TableCell>
                                     <TableCell>
                                         <span className="font-bold text-xs uppercase italic tracking-tight line-clamp-1">{email.subject}</span>
-                                        <span className="text-[9px] font-bold opacity-40 block">{email.sentAt ? email.sentAt.toDate().toLocaleString() : 'N/A'}</span>
+                                        <span className="text-[9px] font-bold opacity-40 block">{formatSentDate(email.sentAt)}</span>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant={email.status === 'sent' ? 'default' : email.status === 'simulated' ? 'secondary' : 'destructive'} className="uppercase text-[9px] font-black italic tracking-widest border-2">
@@ -313,7 +324,7 @@ export default function CommunicationsPage() {
                                 </div>
                                 <div className="space-y-1 sm:text-right">
                                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Dispatch Timestamp</Label>
-                                    <p className="text-xs font-bold">{viewingEmail?.sentAt?.toDate().toLocaleString()}</p>
+                                    <p className="text-xs font-bold">{formatSentDate(viewingEmail?.sentAt)}</p>
                                     <Badge variant={viewingEmail?.status === 'sent' ? 'default' : 'secondary'} className="text-[9px] font-black uppercase">
                                         Status: {viewingEmail?.status}
                                     </Badge>

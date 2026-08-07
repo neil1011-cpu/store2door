@@ -62,6 +62,10 @@ service cloud.firestore {
        allow write: if isAdmin();
     }
 
+    match /sent_emails/{id} {
+       allow read, write, list: if isAdmin();
+    }
+
     match /admin_roles/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == "admin@neilussolutions.com");
