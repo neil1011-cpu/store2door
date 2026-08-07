@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
@@ -234,7 +233,7 @@ export default function UsersPage() {
               successCount++;
           } catch (err) {}
       }
-      toast({ title: "Balance Updated", description: `Adjusted credit for ${successCount} accounts.` });
+      toast({ title: "Balance Updated", description: `Adjusted balance for ${successCount} accounts.` });
       setSelectedIds(new Set());
   };
 

@@ -151,7 +151,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                                 <div className="bg-primary/5 border-2 border-primary/10 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[180px] sm:max-w-none">
                                     <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
                                     <div className="flex flex-col min-w-0">
-                                        <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-muted-foreground leading-none">Wallet</span>
+                                        <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-muted-foreground leading-none">Account Balance</span>
                                         <span className="text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate">JMD ${(userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>

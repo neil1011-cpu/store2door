@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -38,7 +37,8 @@ import {
   Trash2,
   FileText,
   Edit3,
-  FileDown
+  FileDown,
+  Wallet
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -189,7 +189,7 @@ export default function POSPage() {
                 invoiceIds: Array.from(selectedInvoices)
             });
 
-            // UPDATE USER WALLET: Payment adds back to the balance (reducing debt)
+            // UPDATE USER ACCOUNT BALANCE: Payment adds back to the balance (reducing debt)
             batch.update(doc(firestore, 'users', selectedUser.id), {
                 walletBalance: increment(finalAmount)
             });
@@ -206,7 +206,7 @@ export default function POSPage() {
             });
 
             setCheckoutComplete(true);
-            toast({ title: "Payment Processed!", description: `JMD $${finalAmount.toLocaleString()} credited to customer wallet.` });
+            toast({ title: "Payment Processed!", description: `JMD $${finalAmount.toLocaleString()} credited to customer balance.` });
             
             // Log Activity for Audit Trail
             await fetch('/api/log-activity', {
@@ -395,7 +395,7 @@ export default function POSPage() {
                                             <p className="font-bold opacity-80 uppercase tracking-widest text-[10px] mt-1">Mailbox: {selectedUser.mailboxNumber} • {selectedUser.email}</p>
                                             <div className="mt-2 inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-lg border border-white/20">
                                                 <Wallet className="h-3.5 w-3.5" />
-                                                <span className="text-xs font-bold">Wallet: JMD ${(selectedUser.walletBalance || 0).toLocaleString()}</span>
+                                                <span className="text-xs font-bold">Balance: JMD ${(selectedUser.walletBalance || 0).toLocaleString()}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -604,7 +604,7 @@ export default function POSPage() {
                             </div>
                             <div>
                                 <p className="text-3xl font-black italic uppercase tracking-tighter">Payment Complete</p>
-                                <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Transaction Secured & Wallet Credited</p>
+                                <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Transaction Secured & Account Credited</p>
                             </div>
                             <Separator className="bg-muted" />
                             <div className="grid grid-cols-2 gap-4">

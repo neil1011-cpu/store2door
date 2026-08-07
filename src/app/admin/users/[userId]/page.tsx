@@ -185,12 +185,12 @@ export default function UserDetailsPage() {
                     <Card className="border-primary/20 shadow-md">
                         <CardHeader className="bg-primary/5 pb-4">
                             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                                <Wallet className="h-4 w-4 text-primary" /> Wallet Management
+                                <Wallet className="h-4 w-4 text-primary" /> Account Balance Management
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-6">
                             <div className="text-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Available Credit</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Current Balance</p>
                                 <p className="text-4xl font-black italic tracking-tighter text-primary">JMD ${ (userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 }) }</p>
                             </div>
                             <AdjustBalanceDialog userId={userProfile.id} userName={userProfile.fullName} currentBalance={userProfile.walletBalance || 0} />
@@ -385,11 +385,11 @@ function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: str
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" className="w-full font-bold border-2"><PlusCircle className="mr-2 h-4 w-4 text-primary" /> Adjust Wallet Balance</Button>
+                <Button variant="outline" className="w-full font-bold border-2"><PlusCircle className="mr-2 h-4 w-4 text-primary" /> Adjust Account Balance</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Adjust Wallet Balance</DialogTitle>
+                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Adjust Account Balance</DialogTitle>
                     <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">Modify available credit for {userName}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-4">
@@ -408,5 +408,4 @@ function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: str
                 <DialogFooter><Button onClick={handleAdjustBalance} disabled={isUpdating} className="w-full h-14 font-black uppercase italic shadow-xl">{isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Adjustment"}</Button></DialogFooter>
             </DialogContent>
         </Dialog>
-    );
 }
