@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
@@ -5,7 +6,7 @@ import { serverTimestamp } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Secure administrative password reset endpoint.
- * Now includes automated email notification to the customer.
+ * Includes automated email notification and enforces the needsPasswordReset flag.
  */
 
 async function getSafeBody(request: Request) {
@@ -23,50 +24,71 @@ export async function POST(request: Request) {
         const body = await getSafeBody(request);
         const { userId, newPassword } = body;
 
-        const authorization = request.headers.get('Authorization');
-        if (!authorization?.startsWith('Bearer ')) {
-            return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return NextResponse.json({ message: 'Authorization required.' }, { status: 401 });
         }
-        const idToken = authorization.split('Bearer ')[1];
+        const idToken = authHeader.substring(7);
 
-        const decodedToken = await adminAuth.verifyIdToken(idToken);
+        // 1. Verify Administrative Credentials
+        let decodedToken;
+        try {
+            decodedToken = await adminAuth.verifyIdToken(idToken);
+        } catch (tokenErr: any) {
+            console.error('[API] Token verification failed:', tokenErr);
+            return NextResponse.json({ message: 'Session expired or invalid.' }, { status: 401 });
+        }
+
         const adminUid = decodedToken.uid;
-
         const isAdminEmail = decodedToken.email === 'admin@neilussolutions.com';
         const adminRoleDoc = await adminDb.collection('admin_roles').doc(adminUid).get();
         
         if (!adminRoleDoc.exists && !isAdminEmail) {
-            return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+            return NextResponse.json({ message: 'Access Denied.' }, { status: 403 });
         }
         
         if (!userId || !newPassword || newPassword.length < 6) {
-            return NextResponse.json({ message: 'Invalid payload' }, { status: 400 });
+            return NextResponse.json({ message: 'Invalid payload. Password must be 6+ chars.' }, { status: 400 });
         }
 
-        // 1. Get User details for the email
-        const userRecord = await adminAuth.getUser(userId);
+        // 2. Fetch User Identity for correspondence
+        let userRecord;
+        try {
+            userRecord = await adminAuth.getUser(userId);
+        } catch (fetchErr: any) {
+            return NextResponse.json({ message: 'User not found in authentication registry.' }, { status: 404 });
+        }
+
         const userProfileSnap = await adminDb.collection('users').doc(userId).get();
         const userProfile = userProfileSnap.exists ? userProfileSnap.data() : null;
         const recipientName = userProfile?.fullName || userRecord.displayName || 'Valued Customer';
         const recipientEmail = userRecord.email;
 
         if (!recipientEmail) {
-             return NextResponse.json({ message: 'User email not found in registry.' }, { status: 404 });
+             return NextResponse.json({ message: 'User email not found.' }, { status: 404 });
         }
 
-        // 2. Update the password in Firebase Auth
+        // 3. Update Firebase Auth Credentials
         await adminAuth.updateUser(userId, {
             password: newPassword,
         });
 
-        // 3. Prepare Notification Email
+        // 4. Force User into Change Password Flow on next login
+        await adminDb.collection('users').doc(userId).update({
+            needsPasswordReset: true,
+            updatedAt: serverTimestamp()
+        }).catch(err => {
+            console.warn('[API] Warning: Failed to set needsPasswordReset flag in Firestore:', err);
+        });
+
+        // 5. Dispatch Notification Email
         const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
         const senderIdentity = SMTP_USER || 'admin@neilussolutions.com';
         const SENDER_DISPLAY_NAME = "FromStore2Door Global";
         const SENDER_EMAIL_FORMAT = `"${SENDER_DISPLAY_NAME}" <${senderIdentity}>`;
 
         const subject = 'Your Secure Access Key Has Been Updated';
-        const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key for the FromStore2Door platform.\n\nYour new access credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nFor your security, please sign in at your earliest convenience and update this password in your profile settings.\n\nThank you for shipping with us!`;
+        const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key for the FromStore2Door platform.\n\nYour new access credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nFor your security, please sign in at your earliest convenience. You will be prompted to update this password in your profile settings upon logging in.\n\nThank you for shipping with us!`;
 
         const logEmail = async (status: 'sent' | 'simulated' | 'failed', error?: string) => {
             try {
@@ -86,11 +108,11 @@ export async function POST(request: Request) {
 
         const isPlaceholder = !SMTP_PASS || SMTP_PASS.includes('xxxx');
         if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || isPlaceholder) {
-            console.warn("[RESET PASSWORD] SMTP not configured. Simulating dispatch.");
+            console.warn("[RESET PASSWORD] SMTP not configured. Simulation mode engaged.");
             await logEmail('simulated');
             return NextResponse.json({ 
                 success: true, 
-                message: 'Password updated. Delivery simulated in history ledger.',
+                message: 'Password updated. Email delivery simulated (check history).',
                 simulated: true 
             });
         }
@@ -131,14 +153,21 @@ export async function POST(request: Request) {
             await logEmail('sent');
         } catch (mailErr: any) {
             console.error('[RESET PASSWORD MAIL ERROR]:', mailErr);
+            console.error(mailErr.stack);
             await logEmail('failed', mailErr.message);
-            // We still return success: true because the password WAS updated in Auth
+            // We return success: true because the password WAS updated in Auth registry
+            return NextResponse.json({ 
+                success: true, 
+                message: 'Password updated but email delivery failed. Please notify the user manually.',
+                emailError: mailErr.message 
+            });
         }
 
         return NextResponse.json({ success: true, message: 'Password updated and notification dispatched.' });
 
     } catch (error: any) {
-        console.error('Reset Password Error:', error);
-        return NextResponse.json({ success: false, message: error.message || 'Internal error' }, { status: 500 });
+        console.error('[API FATAL] Reset Password Failure:', error);
+        console.error(error.stack);
+        return NextResponse.json({ success: false, message: error.message || 'Internal server error.' }, { status: 500 });
     }
 }

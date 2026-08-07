@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -327,7 +328,22 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
             const result = await response.json();
             if (!response.ok) throw new Error(result.message || "Reset protocol failed.");
 
-            toast({ title: "Identity Secured", description: `New secure key active for ${userName}.` });
+            if (result.simulated) {
+                toast({ 
+                    title: "Simulation Alert", 
+                    description: "Password updated, but email delivery was simulated. Please provide the key manually.",
+                    variant: "default"
+                });
+            } else if (result.emailError) {
+                toast({ 
+                    title: "Partial Success", 
+                    description: "Password updated, but notification failed. Please notify the user manually.",
+                    variant: "destructive"
+                });
+            } else {
+                toast({ title: "Identity Secured", description: `New secure key active for ${userName}. Notification dispatched.` });
+            }
+            
             setOpen(false);
         } catch (error: any) {
             toast({ title: "Reset Failed", description: error.message, variant: "destructive" });
