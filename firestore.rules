@@ -71,8 +71,9 @@ service cloud.firestore {
       allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == "admin@neilussolutions.com");
     }
 
+    // Tightened: Only admins can access system metadata (SMTP, API keys, etc.)
     match /metadata/{id} {
-      allow read, write: if isAdmin() || isSignedIn();
+      allow read, write: if isAdmin();
     }
 
     match /system_logs/{id} {
