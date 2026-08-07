@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer';
 
 /**
  * @fileOverview Branded Password Reset API.
- * Generates a secure Firebase reset link and dispatches it via the custom SMTP server.
+ * Includes diagnostics to identify why Simulation Mode is triggered in production.
  */
 
 export async function POST(request: Request) {
@@ -25,22 +25,17 @@ export async function POST(request: Request) {
 
         const targetEmail = String(email).trim().toLowerCase();
 
-        // 1. Check if user exists (Security best practice: always report success to public, but log internally)
         let userRecord;
         try {
             userRecord = await adminAuth.getUserByEmail(targetEmail);
         } catch (err: any) {
-            console.warn(`[FORGOT PASSWORD] Reset requested for non-existent email: ${targetEmail}`);
             return NextResponse.json({ success: true, message: 'If an account exists, a reset link has been dispatched.' });
         }
 
-        // 2. Generate Reset Link
         const resetLink = await adminAuth.generatePasswordResetLink(targetEmail);
-
-        // 3. Prepare Email Meta
         const recipientName = userRecord.displayName || 'Valued Customer';
         const subject = 'Reset Your FromStore2Door Access Key';
-        const emailBody = `Hi ${recipientName},\n\nWe received a request to reset your password for your FromStore2Door account.\n\nYou can reset your access key by clicking the secure link below:\n\n${resetLink}\n\nThis link will expire for your security. If you did not request this change, you can safely ignore this email.\n\nHappy Shipping!`;
+        const emailBody = `Hi ${recipientName},\n\nWe received a request to reset your password for your FromStore2Door account.\n\nYou can reset your access key by clicking the secure link below:\n\n${resetLink}\n\nHappy Shipping!`;
 
         const logEmail = async (status: 'sent' | 'simulated' | 'failed', error?: string) => {
             try {
@@ -58,16 +53,19 @@ export async function POST(request: Request) {
             }
         };
 
-        // 4. Dispatch via SMTP
         const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-        const isPlaceholder = !SMTP_PASS || SMTP_PASS.includes('xxxx');
+        const missingKeys = [];
+        if (!SMTP_HOST) missingKeys.push('SMTP_HOST');
+        if (!SMTP_PORT) missingKeys.push('SMTP_PORT');
+        if (!SMTP_USER) missingKeys.push('SMTP_USER');
+        if (!SMTP_PASS || SMTP_PASS.includes('xxxx')) missingKeys.push('SMTP_PASS (or placeholder)');
 
-        if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || isPlaceholder) {
-            console.warn("[FORGOT PASSWORD] SMTP not configured. Simulation mode engaged.");
+        if (missingKeys.length > 0) {
+            console.warn(`[FORGOT PASSWORD] Simulation active. Missing: ${missingKeys.join(', ')}`);
             await logEmail('simulated');
             return NextResponse.json({ 
                 success: true, 
-                message: 'Reset link generated (Simulation Mode). check history.',
+                message: `Reset link generated (Simulation). Missing: ${missingKeys.join(', ')}`,
                 simulated: true 
             });
         }
@@ -93,12 +91,10 @@ export async function POST(request: Request) {
                         <div style="text-align: center; margin: 30px 0;">
                             <a href="${resetLink}" style="background-color: #000; color: #fff; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; text-transform: uppercase; font-size: 14px; display: inline-block;">Authorize Reset Now</a>
                         </div>
-                        <p style="font-size: 12px; color: #777;">If the button above does not work, copy and paste this URL into your browser:</p>
                         <p style="font-size: 11px; word-break: break-all; color: #0d6efd;">${resetLink}</p>
                     </div>
                     <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; font-size: 0.9em; color: #777;">
                         <p>Best regards,<br><b>The FromStore2Door Global Logistics Team</b></p>
-                        <p style="font-size: 0.8em; margin-top: 20px; opacity: 0.6;">This link will expire for your security. If you did not request this reset, please ignore this email.</p>
                     </div>
                 </div>
             `;
@@ -116,14 +112,12 @@ export async function POST(request: Request) {
 
         } catch (mailErr: any) {
             console.error('[FORGOT PASSWORD MAIL ERROR]:', mailErr);
-            console.error(mailErr.stack);
             await logEmail('failed', mailErr.message);
-            return NextResponse.json({ success: false, message: 'Transmission failed. Contact support.' }, { status: 500 });
+            return NextResponse.json({ success: false, message: 'Transmission failed.' }, { status: 500 });
         }
 
     } catch (criticalError: any) {
         console.error('[API CRITICAL FAILURE] Forgot Password:', criticalError);
-        console.error(criticalError.stack);
         return NextResponse.json({ success: false, message: 'Internal server error.' }, { status: 500 });
     }
 }

@@ -5,8 +5,7 @@ import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Standardized Email API with Dynamic SMTP support.
- * Optimized for resilience and clear diagnostic feedback.
- * Uses admin@neilussolutions.com as the primary logistics sender.
+ * Includes detailed environment diagnostics to debug Simulation Mode in live environments.
  */
 
 export async function POST(request: Request) {
@@ -36,21 +35,26 @@ export async function POST(request: Request) {
         }
     };
 
-    // Official Identity: Defaults to the configured SMTP user
-    const senderIdentity = SMTP_USER || 'admin@neilussolutions.com';
-    const SENDER_DISPLAY_NAME = "FromStore2Door Global";
-    const SENDER_EMAIL_FORMAT = `"${SENDER_DISPLAY_NAME}" <${senderIdentity}>`;
+    // Diagnostics for Simulation Mode
+    const missingKeys = [];
+    if (!SMTP_HOST) missingKeys.push('SMTP_HOST');
+    if (!SMTP_PORT) missingKeys.push('SMTP_PORT');
+    if (!SMTP_USER) missingKeys.push('SMTP_USER');
+    if (!SMTP_PASS || SMTP_PASS.includes('xxxx')) missingKeys.push('SMTP_PASS (or using placeholder)');
 
-    // 1. Simulation Check: If config is missing or using placeholder, log as simulation
-    const isPlaceholder = !SMTP_PASS || SMTP_PASS.includes('xxxx');
-    if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || isPlaceholder) {
-        console.warn("[EMAIL] SMTP configuration is incomplete or using placeholders. Simulation mode engaged.");
+    if (missingKeys.length > 0) {
+        console.warn(`[EMAIL] Simulation Mode engaged. Missing/Placeholder keys: ${missingKeys.join(', ')}`);
         await logEmail('simulated');
         return NextResponse.json({ 
-            message: 'Email Simulation Active: SMTP environment variables are not configured with a valid password.',
+            message: `Simulation Active. Missing: ${missingKeys.join(', ')}. Set these in your hosting environment variables.`,
             simulated: true 
         }, { status: 200 });
     }
+
+    // Official Identity
+    const senderIdentity = SMTP_USER;
+    const SENDER_DISPLAY_NAME = "FromStore2Door Global";
+    const SENDER_EMAIL_FORMAT = `"${SENDER_DISPLAY_NAME}" <${senderIdentity}>`;
 
     try {
         if (!to || !subject || !emailBody) {
@@ -73,16 +77,12 @@ export async function POST(request: Request) {
             </div>
         `;
 
-        // 2. Transporter Configuration with SSL/TLS hardening
         const transporter = nodemailer.createTransport({
             host: SMTP_HOST,
             port: Number(SMTP_PORT),
-            secure: Number(SMTP_PORT) === 465, // True for SSL port 465
+            secure: Number(SMTP_PORT) === 465,
             auth: { user: SMTP_USER, pass: SMTP_PASS },
-            tls: {
-                // Compatibility layer for workstation and cloud environments
-                rejectUnauthorized: false
-            }
+            tls: { rejectUnauthorized: false }
         });
 
         const mailOptions: nodemailer.SendMailOptions = {
@@ -100,21 +100,14 @@ export async function POST(request: Request) {
             mailOptions.to = to;
         }
 
-        // 3. Dispatch and Record
         await transporter.sendMail(mailOptions);
         await logEmail('sent');
 
-        return NextResponse.json({ 
-            success: true, 
-            message: 'Email delivered successfully via SMTP.' 
-        });
+        return NextResponse.json({ success: true, message: 'Email delivered successfully.' });
 
     } catch (error: any) {
         console.error('[SMTP TRANSMISSION FAILURE]:', error);
         await logEmail('failed', error.message);
-        return NextResponse.json({ 
-            message: `SMTP Transmission Failed: ${error.message}`, 
-            error: error.message 
-        }, { status: 500 });
+        return NextResponse.json({ message: `SMTP Failed: ${error.message}` }, { status: 500 });
     }
 }

@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer';
 
 /**
  * @fileOverview Secure administrative password reset endpoint.
- * Includes automated email notification and enforces the needsPasswordReset flag.
+ * Includes detailed diagnostics to detect why delivery is simulated in live environments.
  */
 
 async function getSafeBody(request: Request) {
@@ -82,10 +82,6 @@ export async function POST(request: Request) {
 
         // 5. Dispatch Notification Email
         const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-        const senderIdentity = SMTP_USER || 'admin@neilussolutions.com';
-        const SENDER_DISPLAY_NAME = "FromStore2Door Global";
-        const SENDER_EMAIL_FORMAT = `"${SENDER_DISPLAY_NAME}" <${senderIdentity}>`;
-
         const subject = 'Your Secure Access Key Has Been Updated';
         const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key for the FromStore2Door platform.\n\nYour new access credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nFor your security, please sign in at your earliest convenience. You will be prompted to update this password in your profile settings upon logging in.\n\nThank you for shipping with us!`;
 
@@ -105,13 +101,19 @@ export async function POST(request: Request) {
             }
         };
 
-        const isPlaceholder = !SMTP_PASS || SMTP_PASS.includes('xxxx');
-        if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || isPlaceholder) {
-            console.warn("[RESET PASSWORD] SMTP not configured. Simulation mode engaged.");
+        // Diagnostics for Simulation Mode
+        const missingKeys = [];
+        if (!SMTP_HOST) missingKeys.push('SMTP_HOST');
+        if (!SMTP_PORT) missingKeys.push('SMTP_PORT');
+        if (!SMTP_USER) missingKeys.push('SMTP_USER');
+        if (!SMTP_PASS || SMTP_PASS.includes('xxxx')) missingKeys.push('SMTP_PASS (or placeholder)');
+
+        if (missingKeys.length > 0) {
+            console.warn(`[RESET PASSWORD] Simulation active. Missing: ${missingKeys.join(', ')}`);
             await logEmail('simulated');
             return NextResponse.json({ 
                 success: true, 
-                message: 'Password updated. Email delivery simulated (check history).',
+                message: `Password updated. Email simulated due to missing: ${missingKeys.join(', ')}`,
                 simulated: true 
             });
         }
@@ -136,13 +138,13 @@ export async function POST(request: Request) {
                     </div>
                     <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; font-size: 0.9em; color: #777;">
                         <p>Best regards,<br><b>The FromStore2Door Global Logistics Team</b></p>
-                        <p style="font-size: 0.8em; margin-top: 20px; opacity: 0.6;">This is an automated system notification regarding your security credentials. Please do not reply.</p>
+                        <p style="font-size: 0.8em; margin-top: 20px; opacity: 0.6;">This is an automated system notification regarding your security credentials.</p>
                     </div>
                 </div>
             `;
 
             await transporter.sendMail({
-                from: SENDER_EMAIL_FORMAT,
+                from: `"FromStore2Door Global" <${SMTP_USER}>`,
                 to: recipientEmail,
                 subject: subject,
                 html: fullBodyHtml,
@@ -150,23 +152,19 @@ export async function POST(request: Request) {
             });
 
             await logEmail('sent');
+            return NextResponse.json({ success: true, message: 'Password updated and notification dispatched.' });
         } catch (mailErr: any) {
             console.error('[RESET PASSWORD MAIL ERROR]:', mailErr);
-            console.error(mailErr.stack);
             await logEmail('failed', mailErr.message);
-            // We return success: true because the password WAS updated in Auth registry
             return NextResponse.json({ 
                 success: true, 
-                message: 'Password updated but email delivery failed. Please notify the user manually.',
+                message: 'Password updated but email failed. Notify user manually.',
                 emailError: mailErr.message 
             });
         }
 
-        return NextResponse.json({ success: true, message: 'Password updated and notification dispatched.' });
-
     } catch (error: any) {
         console.error('[API FATAL] Reset Password Failure:', error);
-        console.error(error.stack);
         return NextResponse.json({ success: false, message: error.message || 'Internal server error.' }, { status: 500 });
     }
 }
