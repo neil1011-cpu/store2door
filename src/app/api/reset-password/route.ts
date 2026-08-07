@@ -1,11 +1,9 @@
-
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Secure administrative password reset endpoint.
- * Includes detailed diagnostics to detect why delivery is simulated in live environments.
+ * @fileOverview Secure administrative password reset endpoint with SMTP fallback.
  */
 
 async function getSafeBody(request: Request) {
@@ -29,12 +27,10 @@ export async function POST(request: Request) {
         }
         const idToken = authHeader.substring(7);
 
-        // 1. Verify Administrative Credentials
         let decodedToken;
         try {
             decodedToken = await adminAuth.verifyIdToken(idToken);
         } catch (tokenErr: any) {
-            console.error('[API] Token verification failed:', tokenErr);
             return NextResponse.json({ message: 'Session expired or invalid.' }, { status: 401 });
         }
 
@@ -50,12 +46,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Invalid payload. Password must be 6+ chars.' }, { status: 400 });
         }
 
-        // 2. Fetch User Identity for correspondence
         let userRecord;
         try {
             userRecord = await adminAuth.getUser(userId);
         } catch (fetchErr: any) {
-            return NextResponse.json({ message: 'User not found in authentication registry.' }, { status: 404 });
+            return NextResponse.json({ message: 'User not found.' }, { status: 404 });
         }
 
         const userProfileSnap = await adminDb.collection('users').doc(userId).get();
@@ -67,104 +62,63 @@ export async function POST(request: Request) {
              return NextResponse.json({ message: 'User email not found.' }, { status: 404 });
         }
 
-        // 3. Update Firebase Auth Credentials
-        await adminAuth.updateUser(userId, {
-            password: newPassword,
-        });
+        await adminAuth.updateUser(userId, { password: newPassword });
 
-        // 4. Force User into Change Password Flow on next login
         await adminDb.collection('users').doc(userId).update({
             needsPasswordReset: true,
             updatedAt: adminField.serverTimestamp()
-        }).catch(err => {
-            console.warn('[API] Warning: Failed to set needsPasswordReset flag in Firestore:', err);
-        });
+        }).catch(() => {});
 
-        // 5. Dispatch Notification Email
-        const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+        // Resolve Credentials (ENV -> Firestore)
+        let host = process.env.SMTP_HOST;
+        let port = process.env.SMTP_PORT;
+        let user = process.env.SMTP_USER;
+        let pass = process.env.SMTP_PASS;
+
+        if (!host || !port || !user || !pass || pass.includes('xxxx')) {
+            const configSnap = await adminDb.collection('metadata').doc('email_config').get();
+            if (configSnap.exists) {
+                const data = configSnap.data();
+                host = data?.host || host;
+                port = data?.port || port;
+                user = data?.user || user;
+                pass = data?.pass || pass;
+            }
+        }
+
         const subject = 'Your Secure Access Key Has Been Updated';
-        const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key for the FromStore2Door platform.\n\nYour new access credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nFor your security, please sign in at your earliest convenience. You will be prompted to update this password in your profile settings upon logging in.\n\nThank you for shipping with us!`;
+        const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key.\n\nYour new credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nPlease sign in to update your password.`;
 
         const logEmail = async (status: 'sent' | 'simulated' | 'failed', error?: string) => {
-            try {
-                await adminDb.collection('sent_emails').add({
-                    recipientName,
-                    recipientEmail,
-                    subject,
-                    body: emailBody,
-                    status,
-                    error: error || null,
-                    sentAt: adminField.serverTimestamp(),
-                });
-            } catch (dbError) {
-                console.error("[EMAIL LOG ERROR]:", dbError);
-            }
+            await adminDb.collection('sent_emails').add({
+                recipientName, recipientEmail, subject, body: emailBody, status, error: error || null, sentAt: adminField.serverTimestamp(),
+            }).catch(() => {});
         };
 
-        // Diagnostics for Simulation Mode
-        const missingKeys = [];
-        if (!SMTP_HOST) missingKeys.push('SMTP_HOST');
-        if (!SMTP_PORT) missingKeys.push('SMTP_PORT');
-        if (!SMTP_USER) missingKeys.push('SMTP_USER');
-        if (!SMTP_PASS || SMTP_PASS.includes('xxxx')) missingKeys.push('SMTP_PASS (or placeholder)');
-
-        if (missingKeys.length > 0) {
-            console.warn(`[RESET PASSWORD] Simulation active. Missing: ${missingKeys.join(', ')}`);
+        if (!host || !port || !user || !pass || pass.includes('xxxx')) {
             await logEmail('simulated');
-            return NextResponse.json({ 
-                success: true, 
-                message: `Password updated. Email simulated due to missing: ${missingKeys.join(', ')}`,
-                simulated: true 
-            });
+            return NextResponse.json({ success: true, simulated: true });
         }
 
         try {
             const transporter = nodemailer.createTransport({
-                host: SMTP_HOST,
-                port: Number(SMTP_PORT),
-                secure: Number(SMTP_PORT) === 465,
-                auth: { user: SMTP_USER, pass: SMTP_PASS },
-                tls: { rejectUnauthorized: false }
+                host: host, port: Number(port), secure: Number(port) === 465,
+                auth: { user: user, pass: pass }, tls: { rejectUnauthorized: false }
             });
 
-            const fullBodyHtml = `
-                <div style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <h2 style="color: #000; font-weight: 900; letter-spacing: -1px; font-style: italic; margin: 0;">FROMSTORE2DOOR</h2>
-                        <p style="font-size: 10px; color: #777; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;">Worldwide Logistics OS</p>
-                    </div>
-                    <div style="padding: 20px 0; border-top: 2px solid #000;">
-                        ${emailBody.replace(/\n/g, "<br>")}
-                    </div>
-                    <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; font-size: 0.9em; color: #777;">
-                        <p>Best regards,<br><b>The FromStore2Door Global Logistics Team</b></p>
-                        <p style="font-size: 0.8em; margin-top: 20px; opacity: 0.6;">This is an automated system notification regarding your security credentials.</p>
-                    </div>
-                </div>
-            `;
-
             await transporter.sendMail({
-                from: `"FromStore2Door Global" <${SMTP_USER}>`,
-                to: recipientEmail,
-                subject: subject,
-                html: fullBodyHtml,
-                text: emailBody,
+                from: `"FromStore2Door Global" <${user}>`,
+                to: recipientEmail, subject: subject, text: emailBody,
             });
 
             await logEmail('sent');
-            return NextResponse.json({ success: true, message: 'Password updated and notification dispatched.' });
+            return NextResponse.json({ success: true });
         } catch (mailErr: any) {
-            console.error('[RESET PASSWORD MAIL ERROR]:', mailErr);
             await logEmail('failed', mailErr.message);
-            return NextResponse.json({ 
-                success: true, 
-                message: 'Password updated but email failed. Notify user manually.',
-                emailError: mailErr.message 
-            });
+            return NextResponse.json({ success: true, emailError: mailErr.message });
         }
 
     } catch (error: any) {
-        console.error('[API FATAL] Reset Password Failure:', error);
-        return NextResponse.json({ success: false, message: error.message || 'Internal server error.' }, { status: 500 });
+        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
     }
 }

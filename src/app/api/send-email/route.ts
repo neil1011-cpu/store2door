@@ -1,15 +1,12 @@
-
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Standardized Email API with Dynamic SMTP support.
- * Includes detailed environment diagnostics to debug Simulation Mode in live environments.
+ * @fileOverview Standardized Email API with Firestore Fallback for SMTP credentials.
  */
 
 export async function POST(request: Request) {
-    const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
     let body;
     try {
         body = await request.json();
@@ -35,26 +32,43 @@ export async function POST(request: Request) {
         }
     };
 
-    // Diagnostics for Simulation Mode
+    // 1. Resolve Credentials (ENV -> Firestore Metadata)
+    let host = process.env.SMTP_HOST;
+    let port = process.env.SMTP_PORT;
+    let user = process.env.SMTP_USER;
+    let pass = process.env.SMTP_PASS;
+
+    const isEnvValid = host && port && user && pass && !pass.includes('xxxx');
+
+    if (!isEnvValid) {
+        try {
+            const configSnap = await adminDb.collection('metadata').doc('email_config').get();
+            if (configSnap.exists) {
+                const data = configSnap.data();
+                host = data?.host || host;
+                port = data?.port || port;
+                user = data?.user || user;
+                pass = data?.pass || pass;
+            }
+        } catch (dbErr) {
+            console.error('[API] Error fetching SMTP config from Firestore:', dbErr);
+        }
+    }
+
     const missingKeys = [];
-    if (!SMTP_HOST) missingKeys.push('SMTP_HOST');
-    if (!SMTP_PORT) missingKeys.push('SMTP_PORT');
-    if (!SMTP_USER) missingKeys.push('SMTP_USER');
-    if (!SMTP_PASS || SMTP_PASS.includes('xxxx')) missingKeys.push('SMTP_PASS (or using placeholder)');
+    if (!host) missingKeys.push('host');
+    if (!port) missingKeys.push('port');
+    if (!user) missingKeys.push('user');
+    if (!pass || pass.includes('xxxx')) missingKeys.push('pass');
 
     if (missingKeys.length > 0) {
-        console.warn(`[EMAIL] Simulation Mode engaged. Missing/Placeholder keys: ${missingKeys.join(', ')}`);
+        console.warn(`[EMAIL] Simulation Mode. Missing: ${missingKeys.join(', ')}`);
         await logEmail('simulated');
         return NextResponse.json({ 
-            message: `Simulation Active. Missing: ${missingKeys.join(', ')}. Set these in your hosting environment variables.`,
+            message: `Simulation Active. Configure SMTP in Settings. Missing: ${missingKeys.join(', ')}`,
             simulated: true 
         }, { status: 200 });
     }
-
-    // Official Identity
-    const senderIdentity = SMTP_USER;
-    const SENDER_DISPLAY_NAME = "FromStore2Door Global";
-    const SENDER_EMAIL_FORMAT = `"${SENDER_DISPLAY_NAME}" <${senderIdentity}>`;
 
     try {
         if (!to || !subject || !emailBody) {
@@ -72,33 +86,27 @@ export async function POST(request: Request) {
                 </div>
                 <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; font-size: 0.9em; color: #777;">
                     <p>Best regards,<br><b>The FromStore2Door Global Logistics Team</b></p>
-                    <p style="font-size: 0.8em; margin-top: 20px; opacity: 0.6;">This is an automated system notification. Please do not reply directly to this dispatch.</p>
+                    <p style="font-size: 0.8em; margin-top: 20px; opacity: 0.6;">This is an automated system notification. Please do not reply directly.</p>
                 </div>
             </div>
         `;
 
         const transporter = nodemailer.createTransport({
-            host: SMTP_HOST,
-            port: Number(SMTP_PORT),
-            secure: Number(SMTP_PORT) === 465,
-            auth: { user: SMTP_USER, pass: SMTP_PASS },
+            host: host,
+            port: Number(port),
+            secure: Number(port) === 465,
+            auth: { user: user, pass: pass },
             tls: { rejectUnauthorized: false }
         });
 
         const mailOptions: nodemailer.SendMailOptions = {
-            from: SENDER_EMAIL_FORMAT,
-            replyTo: senderIdentity,
+            from: `"${recipientName || 'FromStore2Door'}" <${user}>`,
+            to: Array.isArray(to) ? undefined : to,
+            bcc: Array.isArray(to) ? to : undefined,
             subject: subject,
             html: fullBodyHtml,
             text: emailBody,
         };
-
-        if (Array.isArray(to)) {
-            mailOptions.to = `"${SENDER_DISPLAY_NAME} Clients" <${senderIdentity}>`;
-            mailOptions.bcc = to;
-        } else {
-            mailOptions.to = to;
-        }
 
         await transporter.sendMail(mailOptions);
         await logEmail('sent');
