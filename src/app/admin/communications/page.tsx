@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Send, History, PlusCircle, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, History, PlusCircle, AlertCircle, CheckCircle2, Eye, FileText, Mail, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,6 +22,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
 type SentEmail = {
@@ -45,6 +47,8 @@ export default function CommunicationsPage() {
     const [composeSubject, setComposeSubject] = useState('');
     const [composeBody, setComposeBody] = useState('');
     const [isComposing, setIsComposing] = useState(false);
+    
+    const [viewingEmail, setViewingEmail] = useState<SentEmail | null>(null);
     
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
@@ -235,7 +239,7 @@ export default function CommunicationsPage() {
                             <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Recipient</TableHead>
                             <TableHead className="text-[10px] font-black uppercase tracking-widest">Subject Header</TableHead>
                             <TableHead className="text-[10px] font-black uppercase tracking-widest">System Status</TableHead>
-                            <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Dispatch Date</TableHead>
+                            <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -257,6 +261,7 @@ export default function CommunicationsPage() {
                                     </TableCell>
                                     <TableCell>
                                         <span className="font-bold text-xs uppercase italic tracking-tight line-clamp-1">{email.subject}</span>
+                                        <span className="text-[9px] font-bold opacity-40 block">{email.sentAt ? email.sentAt.toDate().toLocaleString() : 'N/A'}</span>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant={email.status === 'sent' ? 'default' : email.status === 'simulated' ? 'secondary' : 'destructive'} className="uppercase text-[9px] font-black italic tracking-widest border-2">
@@ -265,8 +270,10 @@ export default function CommunicationsPage() {
                                             {email.status || 'Sent'}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="text-right pr-6 text-xs font-medium opacity-60">
-                                        {email.sentAt ? email.sentAt.toDate().toLocaleString() : 'N/A'}
+                                    <TableCell className="text-right pr-6">
+                                        <Button variant="outline" size="sm" onClick={() => setViewingEmail(email)} className="h-9 font-black border-2 uppercase tracking-tighter text-[10px]">
+                                            <Eye className="h-3.5 w-3.5 mr-2" /> Preview
+                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -281,6 +288,72 @@ export default function CommunicationsPage() {
                 </Table>
             </CardContent>
         </Card>
+
+        {/* Message Preview Dialog */}
+        <Dialog open={!!viewingEmail} onOpenChange={(open) => !open && setViewingEmail(null)}>
+            <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
+                <DialogHeader>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3 justify-center">
+                        <Mail className="h-8 w-8 text-primary" /> Official Dispatch Preview
+                    </DialogTitle>
+                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Complete correspondence audit record</DialogDescription>
+                </DialogHeader>
+                
+                <div className="flex-1 overflow-hidden py-6 space-y-6">
+                    <Card className="bg-muted/30 border-none shadow-inner rounded-2xl overflow-hidden">
+                        <CardContent className="pt-6 space-y-4">
+                            <div className="flex flex-col sm:flex-row justify-between gap-4">
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Recipient</Label>
+                                    <div className="flex items-center gap-2">
+                                        <User className="h-4 w-4 text-primary" />
+                                        <p className="text-sm font-black uppercase">{viewingEmail?.recipientName}</p>
+                                    </div>
+                                    <p className="text-[11px] font-mono opacity-60 ml-6">{viewingEmail?.recipientEmail}</p>
+                                </div>
+                                <div className="space-y-1 sm:text-right">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Dispatch Timestamp</Label>
+                                    <p className="text-xs font-bold">{viewingEmail?.sentAt?.toDate().toLocaleString()}</p>
+                                    <Badge variant={viewingEmail?.status === 'sent' ? 'default' : 'secondary'} className="text-[9px] font-black uppercase">
+                                        Status: {viewingEmail?.status}
+                                    </Badge>
+                                </div>
+                            </div>
+                            
+                            <Separator className="opacity-10" />
+                            
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Subject Header</Label>
+                                <div className="p-3 bg-background rounded-xl border font-bold text-sm italic tracking-tight">
+                                    {viewingEmail?.subject}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-2">Message Body</Label>
+                        <Card className="border-2 shadow-sm rounded-2xl overflow-hidden">
+                            <ScrollArea className="h-[300px] w-full p-6">
+                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                    <div className="whitespace-pre-wrap font-medium text-sm leading-relaxed text-foreground/80">
+                                        {viewingEmail?.body}
+                                    </div>
+                                </div>
+                            </ScrollArea>
+                        </Card>
+                    </div>
+                </div>
+
+                <DialogFooter className="border-t pt-6">
+                    <DialogClose asChild>
+                        <Button variant="outline" className="w-full sm:w-auto h-12 font-black uppercase tracking-widest text-[11px] border-2">
+                            Close Audit View
+                        </Button>
+                    </DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }
