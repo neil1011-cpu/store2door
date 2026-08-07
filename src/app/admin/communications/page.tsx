@@ -10,18 +10,29 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Send, History, PlusCircle, AlertCircle, CheckCircle2, Eye, FileText, Mail, User } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, History, PlusCircle, AlertCircle, CheckCircle2, Eye, FileText, Mail, User, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UserProfile } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -48,6 +59,7 @@ export default function CommunicationsPage() {
     const [isComposing, setIsComposing] = useState(false);
     
     const [viewingEmail, setViewingEmail] = useState<SentEmail | null>(null);
+    const [isDeleting, setIsDeleting] = useState<string | null>(null);
     
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
@@ -140,6 +152,19 @@ export default function CommunicationsPage() {
              toast({ title: 'Transmission Error', description: error.message, variant: 'destructive' });
         } finally {
             setIsComposing(false);
+        }
+    }
+
+    const handleDeleteEmail = async (emailId: string) => {
+        if (!firestore) return;
+        setIsDeleting(emailId);
+        try {
+            await deleteDoc(doc(firestore, 'sent_emails', emailId));
+            toast({ title: 'Record Removed', description: 'The dispatch record has been purged from history.' });
+        } catch (error: any) {
+            toast({ title: 'Deletion Failed', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsDeleting(null);
         }
     }
 
@@ -282,9 +307,30 @@ export default function CommunicationsPage() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right pr-6">
-                                        <Button variant="outline" size="sm" onClick={() => setViewingEmail(email)} className="h-9 font-black border-2 uppercase tracking-tighter text-[10px]">
-                                            <Eye className="h-3.5 w-3.5 mr-2" /> Preview
-                                        </Button>
+                                        <div className="flex justify-end gap-2">
+                                            <Button variant="outline" size="sm" onClick={() => setViewingEmail(email)} className="h-9 font-black border-2 uppercase tracking-tighter text-[10px]">
+                                                <Eye className="h-3.5 w-3.5 mr-2" /> Preview
+                                            </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="h-9 text-destructive hover:text-destructive hover:bg-destructive/5 px-2">
+                                                        {isDeleting === email.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle className="font-black uppercase italic tracking-tight">Purge Dispatch Record?</AlertDialogTitle>
+                                                        <AlertDialogDescription className="text-[10px] font-bold uppercase tracking-widest">
+                                                            This will permanently remove the audit record for this email to <strong>{email.recipientName}</strong>. This action is irreversible.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel className="font-bold uppercase h-12">Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteEmail(email.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg">Confirm Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))
