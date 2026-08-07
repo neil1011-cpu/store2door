@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy, Zap, UserPlus, Phone, User, X, Mail } from 'lucide-react';
+import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy, Zap, UserPlus, Phone, User, X, Mail, Wallet } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -104,77 +103,98 @@ export function DashboardTab({ details }: { details: UserProfile }) {
     }
   };
 
-  return (
-    <Card className="border-none shadow-none sm:border sm:shadow-sm">
-      <CardHeader className="px-4 sm:px-6">
-        <CardTitle>Dashboard</CardTitle>
-        <CardDescription>A quick overview of your account.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6 px-4 sm:px-6">
-        <Card className="border-primary/10 overflow-hidden shadow-md">
-            <CardHeader className="bg-muted/30 pb-3">
-                <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                    <Package className="h-5 w-5 text-primary" /> Latest Shipment Status
-                </CardTitle>
-            </CardHeader>
-            {(isLoadingShipments || !isMounted) ? (
-              <CardContent className="pt-6">
-                <div className="flex justify-center items-center h-24">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div>
-              </CardContent>
-            ) : recentShipment ? (
-            <CardContent className="space-y-4 pt-6">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-muted/20 p-3 sm:p-4 rounded-lg gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-primary/10 p-2 rounded-full shrink-0">
-                            {getStatusIcon(recentShipment.status)}
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tracking Number</p>
-                            <p className="font-mono font-bold text-base sm:text-lg truncate">{recentShipment.trackingNumber || 'N/A'}</p>
-                        </div>
-                    </div>
-                    <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 pt-2 sm:pt-0 border-t sm:border-0">
-                        <Badge variant={getStatusVariant(recentShipment.status)} className="px-4 py-1">
-                            {recentShipment.status || 'Pending'}
-                        </Badge>
-                        {recentShipment.isLogicware && (
-                            <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-600 border-blue-200">
-                                <Zap className="h-2 w-2 mr-1" /> External Hub
-                            </Badge>
-                        )}
-                    </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-1">
-                        <span className="text-muted-foreground block text-[10px] sm:text-xs uppercase font-semibold">Contents</span>
-                        <span className="font-medium text-foreground">{recentShipment.contents || recentShipment.description || 'N/A'}</span>
-                    </div>
-                    <div className="space-y-1">
-                        <span className="text-muted-foreground block text-[10px] sm:text-xs uppercase font-semibold">Last Update</span>
-                        <span className="font-medium text-foreground">
-                            {formatDate(recentShipment.shippingDate || recentShipment.createdAt)}
-                        </span>
-                    </div>
-                </div>
+  const currentBalance = details.walletBalance || 0;
 
-                <Button variant="outline" className="w-full h-11 sm:h-10" asChild>
-                    <Link href="/account/packages">View All Packages</Link>
-                </Button>
-            </CardContent>
-             ) : (
+  return (
+    <div className="grid grid-cols-1 gap-6">
+      {/* Real-time Account Balance Summary */}
+      <Card className="border-none shadow-md overflow-hidden bg-primary text-primary-foreground">
+        <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Real-Time Account Standing</p>
+                    <p className="text-3xl font-black italic tracking-tighter">
+                        JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </p>
+                </div>
+                <div className="bg-white/10 p-3 rounded-2xl">
+                    <Wallet className="h-8 w-8" />
+                </div>
+            </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-none shadow-none sm:border sm:shadow-sm">
+        <CardHeader className="px-4 sm:px-6">
+            <CardTitle>Activity Overview</CardTitle>
+            <CardDescription>Most recent transit updates and status alerts.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6 px-4 sm:px-6">
+            <Card className="border-primary/10 overflow-hidden shadow-md">
+                <CardHeader className="bg-muted/30 pb-3">
+                    <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                        <Package className="h-5 w-5 text-primary" /> Latest Shipment Status
+                    </CardTitle>
+                </CardHeader>
+                {(isLoadingShipments || !isMounted) ? (
                 <CardContent className="pt-6">
-                    <div className="text-center py-10 space-y-3">
-                         <Package className="h-12 w-12 text-muted-foreground/30 mx-auto" />
-                         <p className="text-muted-foreground italic text-sm">You have no active shipments at the moment.</p>
+                    <div className="flex justify-center items-center h-24">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
                 </CardContent>
-             )}
-        </Card>
-      </CardContent>
-    </Card>
+                ) : recentShipment ? (
+                <CardContent className="space-y-4 pt-6">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-muted/20 p-3 sm:p-4 rounded-lg gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-primary/10 p-2 rounded-full shrink-0">
+                                {getStatusIcon(recentShipment.status)}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tracking Number</p>
+                                <p className="font-mono font-bold text-base sm:text-lg truncate">{recentShipment.trackingNumber || 'N/A'}</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 pt-2 sm:pt-0 border-t sm:border-0">
+                            <Badge variant={getStatusVariant(recentShipment.status)} className="px-4 py-1">
+                                {recentShipment.status || 'Pending'}
+                            </Badge>
+                            {recentShipment.isLogicware && (
+                                <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-600 border-blue-200">
+                                    <Zap className="h-2 w-2 mr-1" /> External Hub
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div className="space-y-1">
+                            <span className="text-muted-foreground block text-[10px] sm:text-xs uppercase font-semibold">Contents</span>
+                            <span className="font-medium text-foreground">{recentShipment.contents || recentShipment.description || 'N/A'}</span>
+                        </div>
+                        <div className="space-y-1">
+                            <span className="text-muted-foreground block text-[10px] sm:text-xs uppercase font-semibold">Last Update</span>
+                            <span className="font-medium text-foreground">
+                                {formatDate(recentShipment.shippingDate || recentShipment.createdAt)}
+                            </span>
+                        </div>
+                    </div>
+
+                    <Button variant="outline" className="w-full h-11 sm:h-10" asChild>
+                        <Link href="/account/packages">View All Packages</Link>
+                    </Button>
+                </CardContent>
+                ) : (
+                    <CardContent className="pt-6">
+                        <div className="text-center py-10 space-y-3">
+                            <Package className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+                            <p className="text-muted-foreground italic text-sm">You have no active shipments at the moment.</p>
+                        </div>
+                    </CardContent>
+                )}
+            </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

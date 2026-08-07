@@ -3,15 +3,16 @@
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, ArrowRight } from 'lucide-react';
+import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, ArrowRight, Wallet, ArrowUpRight, TrendingDown } from 'lucide-react';
 import { DashboardTab } from './dashboard-components';
 import { useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAccountProfile } from './layout';
 import { useState, useEffect } from 'react';
+import { Separator } from '@/components/ui/separator';
 
 const featureCards = [
     {
@@ -80,6 +81,9 @@ export default function AccountPage() {
 
     if (!userProfile) return null;
 
+    const currentBalance = userProfile.walletBalance || 0;
+    const isNegative = currentBalance < 0;
+
     return (
         <div className="container mx-auto px-4 md:px-6 pb-20">
             <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -92,6 +96,52 @@ export default function AccountPage() {
                         <LogOut className="mr-2 h-4 w-4" /> Sign Out
                     </Button>
                 </div>
+            </div>
+
+            {/* Prominent Account Balance Section */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                <Card className={cn("md:col-span-2 border-none shadow-2xl overflow-hidden rounded-3xl relative", isNegative ? "bg-red-600 text-white" : "bg-zinc-950 text-white")}>
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none" />
+                    <CardHeader className="relative z-10 pb-2">
+                        <CardTitle className="text-xs font-black uppercase tracking-[0.3em] opacity-60 flex items-center gap-2">
+                            <Wallet className="h-4 w-4" /> Current Account Balance
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="relative z-10 py-6 sm:py-10">
+                        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+                            <div className="space-y-1">
+                                <span className="text-6xl sm:text-7xl font-black italic tracking-tighter">
+                                    JMD ${Math.abs(currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                                <p className="text-sm font-bold uppercase tracking-widest opacity-80 flex items-center gap-2">
+                                    {isNegative ? (
+                                        <><TrendingDown className="h-4 w-4" /> Outstanding Logistics Debt</>
+                                    ) : (
+                                        <><ArrowUpRight className="h-4 w-4" /> Available Shipping Credit</>
+                                    )}
+                                </p>
+                            </div>
+                            <Button variant="secondary" size="lg" className="h-16 px-8 text-lg font-black uppercase italic shadow-xl bg-white text-black hover:bg-white/90 shrink-0">
+                                <ArrowRight className="mr-2 h-5 w-5" /> Make Payment
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+                
+                <Card className="border-none shadow-xl rounded-3xl bg-primary text-primary-foreground hidden md:flex flex-col justify-center p-8 overflow-hidden relative">
+                    <div className="absolute -bottom-10 -right-10 opacity-10 transform rotate-12">
+                        <Package size={200} />
+                    </div>
+                    <div className="relative z-10 space-y-4">
+                        <h3 className="text-xl font-black uppercase italic tracking-tighter">Ready to ship?</h3>
+                        <p className="text-xs font-bold uppercase tracking-widest opacity-70 leading-relaxed">
+                            Ensure your account balance is clear to expedite customs clearance and local delivery.
+                        </p>
+                        <Button variant="outline" className="w-full h-12 font-black uppercase italic border-white/20 hover:bg-white/10 text-white" asChild>
+                            <Link href="/account/pre-alert">Submit Pre-Alert</Link>
+                        </Button>
+                    </div>
+                </Card>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-12">
