@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -424,4 +423,5 @@ function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: str
                 <DialogFooter><Button onClick={handleAdjustBalance} disabled={isUpdating} className="w-full h-14 font-black uppercase italic shadow-xl">{isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Adjustment"}</Button></DialogFooter>
             </DialogContent>
         </Dialog>
+    );
 }
