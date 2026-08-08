@@ -17,9 +17,11 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn, calculateShippingCost } from '@/lib/utils';
 import type { UserProfile, Shipment, PreAlert, ShipmentStatus, DropoffAddress, PickupPerson } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, useStorage } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useStorage, useUser } from '@/firebase';
 import { collection, query, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 const getStatusVariant = (status: ShipmentStatus | string | undefined) => {
@@ -107,23 +109,6 @@ export function DashboardTab({ details }: { details: UserProfile }) {
 
   return (
     <div className="grid grid-cols-1 gap-6">
-      {/* Real-time Account Balance Summary */}
-      <Card className="border-none shadow-md overflow-hidden bg-primary text-primary-foreground">
-        <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Real-Time Account Standing</p>
-                    <p className="text-3xl font-black italic tracking-tighter">
-                        JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </p>
-                </div>
-                <div className="bg-white/10 p-3 rounded-2xl">
-                    <Wallet className="h-8 w-8" />
-                </div>
-            </div>
-        </CardContent>
-      </Card>
-
       <Card className="border-none shadow-none sm:border sm:shadow-sm">
         <CardHeader className="px-4 sm:px-6">
             <CardTitle>Activity Overview</CardTitle>
@@ -352,6 +337,7 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
 }
 
 export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber, onSuccess }: { customerId: string, customerName: string, prefilledTrackingNumber?: string, onSuccess?: () => void }) {
+    const { user } = useUser();
     const firestore = useFirestore();
     const storage = useStorage();
     const { toast } = useToast();
@@ -374,6 +360,16 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (!user || !storage || !firestore) {
+            toast({ 
+                title: "System Initializing", 
+                description: "Waiting for secure connection to worldwide storage. Please try again in a few seconds.", 
+                variant: "destructive" 
+            });
+            return;
+        }
+
         if (!trackingNumber || !contents || !selectedFile) {
             toast({ title: "Missing Fields", description: "Tracking #, contents, and invoice are required.", variant: "destructive" });
             return;
@@ -382,48 +378,58 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         setIsSubmitting(true);
         try {
             const finalTracking = trackingNumber.toUpperCase();
-            const storagePath = `invoices/${customerId}/${Date.now()}_${selectedFile.name}`;
+            
+            // 1. Storage Upload (Must await to get the URL)
+            const storagePath = `invoices/${user.uid}/${Date.now()}_${selectedFile.name}`;
             const storageRef = ref(storage, storagePath);
             await uploadBytes(storageRef, selectedFile);
             const downloadUrl = await getDownloadURL(storageRef);
 
-            const preAlertsCollection = collection(firestore, 'users', customerId, 'pre_alerts');
-            await addDoc(preAlertsCollection, {
+            // 2. Firestore Document (Non-blocking)
+            const alertData = {
                 customerName,
-                customerId,
+                customerId: user.uid,
                 trackingNumber: finalTracking,
                 contents,
                 weight: parseFloat(weight) || 0,
-                status: 'Pending',
+                status: 'Pending' as const,
                 submissionDate: serverTimestamp(),
                 uploadedInvoiceUrl: downloadUrl,
                 invoiceHtml: ''
+            };
+
+            const preAlertsCollection = collection(firestore, 'users', user.uid, 'pre_alerts');
+            addDoc(preAlertsCollection, alertData).catch(async (serverError) => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: `users/${user.uid}/pre_alerts`,
+                    operation: 'create',
+                    requestResourceData: alertData
+                }));
             });
 
-            await fetch('/api/log-activity', {
+            // 3. System Logging & Notifications
+            fetch('/api/log-activity', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'pre_alert_upload',
                     description: `User ${customerName} uploaded a new pre-alert for ${finalTracking}.`,
-                    userId: customerId,
+                    userId: user.uid,
                     userName: customerName,
                     metadata: { trackingNumber: finalTracking, contents, weight, fileUrl: downloadUrl }
                 })
             });
 
-            try {
-              await fetch('/api/send-email', {
+            fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  to: 'admin@neilussolutions.com',
-                  subject: `New Pre-Alert Received: ${finalTracking}`,
-                  body: `A new pre-alert has been submitted by ${customerName}.\n\nTracking Number: ${finalTracking}\nContents: ${contents}\nEstimated Weight: ${weight} lbs\n\nPlease check the admin panel to acknowledge and process this shipment.`,
-                  recipientName: 'FSTD Admin'
+                    to: 'admin@neilussolutions.com',
+                    subject: `New Pre-Alert Received: ${finalTracking}`,
+                    body: `A new pre-alert has been submitted by ${customerName}.\n\nTracking Number: ${finalTracking}\nContents: ${contents}\nEstimated Weight: ${weight} lbs\n\nPlease check the admin panel to acknowledge and process this shipment.`,
+                    recipientName: 'FSTD Admin'
                 }),
-              });
-            } catch (emailErr) {}
+            });
 
             toast({ title: "Pre-Alert Submitted", description: "Our warehouse team has been notified of your incoming package." });
             setTrackingNumber('');
@@ -432,7 +438,12 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             setSelectedFile(null);
             onSuccess?.();
         } catch (error: any) {
-            toast({ title: "Submission Failed", description: error.message, variant: "destructive" });
+            console.error("[PRE-ALERT UPLOAD ERROR]", error);
+            toast({ 
+                title: "Upload Interrupted", 
+                description: "We were unable to secure your documentation. Please check your internet connection and try again.", 
+                variant: "destructive" 
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -531,36 +542,60 @@ export function AccountTab({ details }: { details: UserProfile }) {
     
     const [newPerson, setNewPerson] = useState({ name: '', idNumber: '' });
 
-    const handleUpdateProfile = async () => {
+    const handleUpdateProfile = () => {
+        if (!firestore) return;
         setIsSaving(true);
-        try {
-            await updateDoc(doc(firestore, 'users', details.id), { phone, trn });
-            toast({ title: "Profile Secured", description: "Your contact details have been updated." });
-        } catch (e: any) {
-            toast({ title: "Save Failed", description: e.message, variant: 'destructive' });
-        } finally {
-            setIsSaving(false);
-        }
+        const updates = { phone, trn };
+        const userDocRef = doc(firestore, 'users', details.id);
+        
+        updateDoc(userDocRef, updates)
+            .then(() => {
+                toast({ title: "Profile Secured", description: "Your contact details have been updated." });
+                setIsSaving(false);
+            })
+            .catch(async (error) => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: userDocRef.path,
+                    operation: 'update',
+                    requestResourceData: updates
+                }));
+                setIsSaving(false);
+            });
     };
 
-    const handleAddPickup = async () => {
-        if (!newPerson.name || !newPerson.idNumber) return;
-        try {
-            const person: PickupPerson = { id: `p-${Date.now()}`, ...newPerson };
-            await updateDoc(doc(firestore, 'users', details.id), {
-                pickupPersonnel: arrayUnion(person)
-            });
+    const handleAddPickup = () => {
+        if (!newPerson.name || !newPerson.idNumber || !firestore) return;
+        const person: PickupPerson = { id: `p-${Date.now()}`, ...newPerson };
+        const userDocRef = doc(firestore, 'users', details.id);
+        
+        updateDoc(userDocRef, {
+            pickupPersonnel: arrayUnion(person)
+        })
+        .then(() => {
             setNewPerson({ name: '', idNumber: '' });
             toast({ title: "Personnel Added" });
-        } catch (e: any) {}
+        })
+        .catch(async (error) => {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'update',
+                requestResourceData: { pickupPersonnel: person }
+            }));
+        });
     };
 
-    const handleRemovePickup = async (person: PickupPerson) => {
-        try {
-            await updateDoc(doc(firestore, 'users', details.id), {
-                pickupPersonnel: arrayRemove(person)
-            });
-        } catch (e) {}
+    const handleRemovePickup = (person: PickupPerson) => {
+        if (!firestore) return;
+        const userDocRef = doc(firestore, 'users', details.id);
+        updateDoc(userDocRef, {
+            pickupPersonnel: arrayRemove(person)
+        }).catch(async (error) => {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'update',
+                requestResourceData: { pickupPersonnel: person }
+            }));
+        });
     };
 
     return (
