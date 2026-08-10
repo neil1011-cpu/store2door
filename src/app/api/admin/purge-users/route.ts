@@ -1,6 +1,5 @@
-
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Universal Registry Purge Protocol.
@@ -8,13 +7,15 @@ import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
  */
 
 export async function POST(request: Request) {
+    console.log('[API: SYSTEM-PURGE] Request initiated.');
+    
     try {
         const authHeader = request.headers.get('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return NextResponse.json({ success: false, message: 'Authorization required.' }, { status: 401 });
         }
 
-        const idToken = authHeader.substring(7);
+        const idToken = authHeader.split(' ')[1];
         const decodedToken = await adminAuth.verifyIdToken(idToken);
 
         const MASTER_ADMIN = 'admin@neilussolutions.com';
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
         const isMaster = decodedToken.email === MASTER_ADMIN;
 
         if (!adminRoleSnap.exists && !isMaster) {
-            return NextResponse.json({ success: false, message: 'Unauthorized.' }, { status: 403 });
+            return NextResponse.json({ success: false, message: 'Unauthorized: Administrative privileges required.' }, { status: 403 });
         }
 
         console.log(`[PURGE] Starting global sweep initiated by ${decodedToken.email}`);
@@ -49,8 +50,6 @@ export async function POST(request: Request) {
                 continue;
             }
 
-            console.log(`[PURGE] Wiping data for user: ${userData.email || 'N/A'} (${uid})`);
-
             try {
                 // 1. Wipe Specific Known Subcollections
                 const subcollections = ['pre_alerts', 'shipments'];
@@ -61,43 +60,26 @@ export async function POST(request: Request) {
                         const batch = adminDb.batch();
                         subDocs.forEach(sd => batch.delete(sd.ref));
                         await batch.commit();
-                        console.log(`[PURGE] Deleted subcollection: ${collName} for ${uid}`);
                     }
                 }
 
-                // 2. Discover and purge any other subcollections
-                try {
-                    const collections = await userDoc.ref.listCollections();
-                    for (const coll of collections) {
-                        if (subcollections.includes(coll.id)) continue;
-                        const docs = await coll.get();
-                        const batch = adminDb.batch();
-                        docs.forEach(d => batch.delete(d.ref));
-                        await batch.commit();
-                    }
-                } catch (e) {
-                    console.warn(`[PURGE] listCollections failed for ${uid}, continuing...`);
-                }
-
-                // 3. Delete from Firebase Authentication
+                // 2. Delete from Firebase Authentication
                 await adminAuth.deleteUser(uid).catch((authErr: any) => {
                     if (authErr.code !== 'auth/user-not-found') {
-                        console.error(`[PURGE] Auth deletion failed for ${uid}:`, authErr);
-                        console.error(authErr.stack);
+                        console.error(`[PURGE] Auth deletion failed for ${uid}:`, authErr.message);
                     }
                 });
 
-                // 4. Delete the primary profile document
+                // 3. Delete the primary profile document
                 await userDoc.ref.delete();
                 deletedCount++;
                 
             } catch (err: any) {
-                console.error(`[PURGE] Failed to fully remove user ${uid}:`, err);
-                console.error(err.stack);
+                console.error(`[PURGE] Failed to fully remove user ${uid}:`, err.message);
             }
         }
 
-        // 5. Reset Mailbox Counter to 101
+        // 4. Reset Mailbox Counter to 101
         await adminDb.collection('metadata').doc('mailboxCounter').set({ next: 101 }, { merge: true });
 
         console.log(`[PURGE] Reset protocol complete. Total clients removed: ${deletedCount}`);
@@ -109,11 +91,10 @@ export async function POST(request: Request) {
         });
 
     } catch (criticalError: any) {
-        console.error('[PURGE API] Fatal internal failure:', criticalError);
-        console.error(criticalError.stack);
+        console.error('[PURGE API FATAL EXCEPTION]:', criticalError.message, criticalError.stack);
         return NextResponse.json({ 
             success: false, 
-            message: 'System reset aborted due to server error. Check logs.' 
+            message: 'System reset aborted due to server exception: ' + criticalError.message 
         }, { status: 500 });
     }
 }

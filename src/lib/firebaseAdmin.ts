@@ -1,10 +1,11 @@
-import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Hardened Firebase Admin SDK initialization.
  * Optimized for stable performance in Next.js 15 and workstation environments.
+ * Uses hardcoded project ID as a final fallback to ensure reliability in live environments.
  */
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || 'swiftroute-3230b';
@@ -15,7 +16,7 @@ function getAdminApp(): App {
     return apps[0];
   }
   
-  // Initialize with the detected Project ID
+  // Initialize with the detected or hardcoded Project ID
   return initializeApp({
     projectId: PROJECT_ID,
   });
@@ -52,10 +53,15 @@ export function cleanPayload(obj: any): any {
 
   // CRITICAL: Identify if this is a plain object or a class/sentinel
   // Plain objects have Object.prototype or null as their prototype.
-  const proto = Object.getPrototypeOf(obj);
-  if (proto !== null && proto !== Object.prototype) {
-    // This is an internal type (like FieldValue or DocumentReference), return as-is
-    return obj;
+  try {
+      const proto = Object.getPrototypeOf(obj);
+      if (proto !== null && proto !== Object.prototype) {
+        // This is an internal type (like FieldValue or DocumentReference), return as-is
+        return obj;
+      }
+  } catch (e) {
+      // If prototype check fails, assume it's an internal complex object and return
+      return obj;
   }
 
   // Handle Plain Objects

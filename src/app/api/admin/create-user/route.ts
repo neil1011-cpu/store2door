@@ -2,14 +2,17 @@ import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Robust Administrative User Creation API with exhaustive diagnostics and role support.
- * Refined to provide descriptive error messages instead of generic 500 responses.
+ * @fileOverview Robust Administrative User Creation API.
+ * Provides exhaustive diagnostics and descriptive error messages for absolute transparency.
  */
 
 export async function POST(request: Request) {
+  console.log('[API: CREATE-USER] New request received.');
+  
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.warn('[CREATE USER] Missing or malformed Authorization header.');
       return NextResponse.json({ success: false, message: 'Administrative authorization session required.' }, { status: 401 });
     }
 
@@ -22,23 +25,20 @@ export async function POST(request: Request) {
     try {
         body = await request.json();
     } catch (e) {
+        console.error('[CREATE USER] Failed to parse JSON body.');
         return NextResponse.json({ success: false, message: 'Malformed JSON payload.' }, { status: 400 });
     }
 
-    const firstName = String(body?.firstName || '').trim();
-    const lastName = String(body?.lastName || '').trim();
-    const email = String(body?.email || '').trim().toLowerCase();
-    const phone = String(body?.phone || 'N/A').trim();
-    const trn = String(body?.trn || 'N/A').trim();
-    const defaultPassword = String(body?.defaultPassword || 'User@1234');
-    const requestedMailbox = body?.mailboxNumber ? String(body.mailboxNumber).trim().toUpperCase() : null;
-    const isNewAdmin = !!(body?.isAdmin);
+    const { firstName, lastName, email, phone, trn, isAdmin } = body;
+    const defaultPassword = body.defaultPassword || 'User@1234';
+    const requestedMailbox = body.mailboxNumber ? String(body.mailboxNumber).trim().toUpperCase() : null;
 
     if (!email || !firstName || !lastName) {
         return NextResponse.json({ success: false, message: 'Required fields: Email, First Name, Last Name.' }, { status: 400 });
     }
 
     // 1. Verify Administrative Authority
+    console.log('[CREATE USER] Verifying identity token...');
     let decodedToken;
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -47,18 +47,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Session validation failed: ' + tokenErr.message }, { status: 401 });
     }
     
+    console.log('[CREATE USER] Checking administrative role for:', decodedToken.email);
     const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
     const isMasterAdmin = decodedToken.email === 'admin@neilussolutions.com';
     
     if (!adminRoleSnap.exists && !isMasterAdmin) {
+        console.warn('[CREATE USER] Access Denied for UID:', decodedToken.uid);
         return NextResponse.json({ success: false, message: 'Access Denied: You do not have permission to create users.' }, { status: 403 });
     }
 
     // 2. Create Authentication Identity
+    console.log('[CREATE USER] Creating Firebase Auth user:', email);
     let userRecord;
     try {
         userRecord = await adminAuth.createUser({
-            email: email,
+            email: email.trim().toLowerCase(),
             password: defaultPassword,
             displayName: `${firstName} ${lastName}`.trim(),
         });
@@ -72,6 +75,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Establish Registry Record and Mailbox via Transaction
+    console.log('[CREATE USER] Initiating database registry transaction...');
     try {
         const finalMailbox = await adminDb.runTransaction(async (transaction) => {
             let mailboxId = requestedMailbox;
@@ -96,9 +100,9 @@ export async function POST(request: Request) {
                 fullName: `${firstName} ${lastName}`.trim(),
                 firstName: firstName,
                 lastName: lastName,
-                email: email,
-                phone: phone,
-                trn: trn,
+                email: email.trim().toLowerCase(),
+                phone: phone || 'N/A',
+                trn: trn || 'N/A',
                 mailboxNumber: mailboxId,
                 address: {
                     address1: '3507 NW 19th ST',
@@ -116,11 +120,11 @@ export async function POST(request: Request) {
 
             transaction.set(userProfileRef, profileData, { merge: true });
 
-            if (isNewAdmin) {
+            if (isAdmin) {
                 const adminRoleRef = adminDb.collection('admin_roles').doc(userRecord.uid);
                 transaction.set(adminRoleRef, {
                     isAdmin: true,
-                    email: email,
+                    email: email.trim().toLowerCase(),
                     uid: userRecord.uid,
                     createdAt: adminField.serverTimestamp()
                 });
@@ -130,13 +134,14 @@ export async function POST(request: Request) {
         });
 
         // 4. Record Administrative Action in Logs
+        console.log('[CREATE USER] Success! Logging action.');
         await adminDb.collection('system_logs').add({
             type: 'user_creation',
             description: `Admin created user ${email} (${finalMailbox}).`,
             userId: decodedToken.uid,
             userName: decodedToken.name || decodedToken.email,
             timestamp: adminField.serverTimestamp(),
-            metadata: { mailbox: finalMailbox, isNewAdmin }
+            metadata: { mailbox: finalMailbox, isNewAdmin: !!isAdmin }
         }).catch(e => console.warn('[LOGS] Failed to record user creation:', e.message));
 
         return NextResponse.json({
@@ -154,7 +159,7 @@ export async function POST(request: Request) {
     }
 
   } catch (criticalError: any) {
-    console.error('[CREATE USER CRITICAL]:', criticalError.message, criticalError.stack);
+    console.error('[CREATE USER FATAL EXCEPTION]:', criticalError.message, criticalError.stack);
     return NextResponse.json(
       { success: false, message: 'System Exception: ' + criticalError.message },
       { status: 500 }
