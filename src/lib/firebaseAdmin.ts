@@ -8,7 +8,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
  * Optimized for stable performance in Next.js 15 and workstation environments.
  */
 
-const PROJECT_ID = 'swiftroute-3230b';
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || 'swiftroute-3230b';
 
 function getAdminApp(): App {
   if (getApps().length > 0) {
@@ -28,22 +28,10 @@ export const adminField = FieldValue;
 
 /**
  * Robust utility to recursively strip undefined values and ensure non-null types.
- * Prevents Firestore "payload argument" errors while preserving internal sentinels.
+ * Prevents Firestore "payload argument" errors by identifying plain objects vs sentinels.
  */
 export function cleanPayload(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
-
-  // CRITICAL: Do NOT traverse internal Firestore types (sentinels)
-  // We check for common FieldValue patterns or constructor names
-  const constructorName = obj.constructor?.name;
-  const isFieldValue = 
-    constructorName === 'FieldValue' || 
-    constructorName === 'FieldValueImpl' ||
-    constructorName === 'f' ||
-    (typeof obj._methodName === 'string') ||
-    (obj._key && obj._key.path);
-
-  if (isFieldValue) return obj;
 
   // Handle Dates
   if (obj instanceof Date) return obj;
@@ -51,6 +39,14 @@ export function cleanPayload(obj: any): any {
   // Handle Arrays
   if (Array.isArray(obj)) {
     return obj.map(v => cleanPayload(v)).filter(v => v !== undefined);
+  }
+
+  // CRITICAL: Identify if this is a plain object or a class/sentinel
+  // Plain objects have Object.prototype or null as their prototype.
+  const proto = Object.getPrototypeOf(obj);
+  if (proto !== null && proto !== Object.prototype) {
+    // This is an internal type (like FieldValue or DocumentReference), return as-is
+    return obj;
   }
 
   // Handle Plain Objects

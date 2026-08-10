@@ -11,10 +11,13 @@ export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ success: false, message: 'Authorization required.' }, { status: 401 });
+      return NextResponse.json({ success: false, message: 'Authorization session required.' }, { status: 401 });
     }
 
-    const idToken = authHeader.substring(7);
+    const idToken = authHeader.split(' ')[1];
+    if (!idToken) {
+      return NextResponse.json({ success: false, message: 'Invalid Authorization format.' }, { status: 401 });
+    }
 
     let body;
     try {
@@ -40,15 +43,15 @@ export async function POST(request: Request) {
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
     } catch (tokenErr: any) {
-      console.error('[API] Token verification failed:', tokenErr);
-      return NextResponse.json({ success: false, message: 'Session expired or invalid.' }, { status: 401 });
+      console.error('[API] Token verification failed:', tokenErr.message);
+      return NextResponse.json({ success: false, message: 'Administrative session expired. Please sign in again.' }, { status: 401 });
     }
     
     const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
     const isMasterAdmin = decodedToken.email === 'admin@neilussolutions.com';
     
     if (!adminRoleSnap.exists && !isMasterAdmin) {
-        return NextResponse.json({ success: false, message: 'Access Denied.' }, { status: 403 });
+        return NextResponse.json({ success: false, message: 'Access Denied: Administrative privileges required.' }, { status: 403 });
     }
 
     let userRecord;
@@ -59,13 +62,12 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
-        console.error('[API] Auth user create error:', authError);
-        console.error(authError.stack);
+        console.error('[API] Auth user create error:', authError.code, authError.message);
         
         if (authError.code === 'auth/email-already-in-use') {
-             return NextResponse.json({ success: false, message: 'Email is already registered.' }, { status: 409 });
+             return NextResponse.json({ success: false, message: 'This email is already registered in the worldwide system.' }, { status: 409 });
         }
-        return NextResponse.json({ success: false, message: `Auth Error: ${authError.message}` }, { status: 500 });
+        return NextResponse.json({ success: false, message: `System Error: ${authError.message}` }, { status: 500 });
     }
 
     try {
@@ -132,21 +134,17 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
-        console.error('[API] Firestore transaction error:', dbError);
-        console.error(dbError.stack);
+        console.error('[API] Firestore transaction error:', dbError.message);
         
+        // Cleanup Auth User if DB creation fails
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
-        return NextResponse.json({ success: false, message: `Database error: ${dbError.message}` }, { status: 500 });
+        return NextResponse.json({ success: false, message: `Database synchronization error: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (criticalError: any) {
-    console.error('[API CRITICAL FAILURE]');
-    console.error('Error Name:', criticalError.name);
-    console.error('Error Message:', criticalError.message);
-    console.error('Error Stack:', criticalError.stack);
-    
+    console.error('[API CRITICAL FAILURE]:', criticalError.message);
     return NextResponse.json(
-      { success: false, message: criticalError.message || 'Catastrophic internal error.' },
+      { success: false, message: 'A catastrophic internal error occurred. Please check system logs.' },
       { status: 500 }
     );
   }
