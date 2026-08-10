@@ -1,5 +1,4 @@
-
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
@@ -11,16 +10,26 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || 'swiftroute-3230b';
 
 function getAdminApp(): App {
-  if (getApps().length > 0) {
-    return getApps()[0];
+  const apps = getApps();
+  if (apps.length > 0) {
+    return apps[0];
   }
+  
+  // Initialize with the detected Project ID
   return initializeApp({
     projectId: PROJECT_ID,
   });
 }
 
-// Initialize app once at module level
-const app = getAdminApp();
+// Initialize app once at module level with safety checks
+let app: App;
+try {
+  app = getAdminApp();
+} catch (e: any) {
+  console.error('[ADMIN SDK] Initialization Error:', e.message);
+  // Fallback initialization if first attempt fails
+  app = initializeApp({ projectId: PROJECT_ID }, 'fallback');
+}
 
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
