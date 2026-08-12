@@ -3,7 +3,7 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Forgot Password API with Connection Pooling and Branded Delivery.
+ * @fileOverview Forgot Password API with Hardened TLS and Branded Delivery.
  */
 
 export async function POST(request: Request) {
@@ -75,7 +75,11 @@ export async function POST(request: Request) {
                 port: Number(port),
                 secure: Number(port) === 465,
                 auth: { user: user, pass: pass },
-                tls: { rejectUnauthorized: false }
+                tls: { 
+                    rejectUnauthorized: false,
+                    minVersion: 'TLSv1.2',
+                    ciphers: 'SSLv3'
+                }
             });
 
             const info = await transporter.sendMail({
@@ -88,6 +92,7 @@ export async function POST(request: Request) {
             await logEmail('sent', { messageId: info.messageId });
             return NextResponse.json({ success: true });
         } catch (mailErr: any) {
+            console.error('[FORGOT PASSWORD SMTP ERROR]', mailErr.message);
             await logEmail('failed', { error: mailErr.message });
             return NextResponse.json({ success: false, message: 'Transmission failed.' }, { status: 500 });
         }

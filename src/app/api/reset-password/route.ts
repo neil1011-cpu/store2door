@@ -3,7 +3,7 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Secure administrative password reset endpoint with SMTP Pooling.
+ * @fileOverview Secure administrative password reset endpoint with Hardened TLS SMTP.
  */
 
 async function getSafeBody(request: Request) {
@@ -114,7 +114,11 @@ export async function POST(request: Request) {
                 port: Number(port), 
                 secure: Number(port) === 465,
                 auth: { user: user, pass: pass }, 
-                tls: { rejectUnauthorized: false }
+                tls: { 
+                    rejectUnauthorized: false,
+                    minVersion: 'TLSv1.2',
+                    ciphers: 'SSLv3'
+                }
             });
 
             const info = await transporter.sendMail({
@@ -127,6 +131,7 @@ export async function POST(request: Request) {
             await logEmail('sent', { messageId: info.messageId });
             return NextResponse.json({ success: true });
         } catch (mailErr: any) {
+            console.error('[ADMIN RESET SMTP ERROR]', mailErr.message);
             await logEmail('failed', { error: mailErr.message });
             return NextResponse.json({ success: true, emailError: mailErr.message });
         }

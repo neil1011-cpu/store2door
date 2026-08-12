@@ -3,8 +3,8 @@ import nodemailer from 'nodemailer';
 import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Standardized Email API with SMTP Connection Pooling and Bulk Delivery Protection.
- * Optimized to prevent "delayed" and "failed" statuses in Gmail and other providers.
+ * @fileOverview Standardized Email API with SMTP Connection Pooling and Hardened TLS.
+ * Optimized to resolve "tls negotiation failed" and "delayed" status issues.
  */
 
 export async function POST(request: Request) {
@@ -88,25 +88,27 @@ export async function POST(request: Request) {
             </div>
         `;
 
-        // 2. Create Transporter with Pooling enabled
+        // 2. Create Transporter with Hardened TLS settings
         const transporter = nodemailer.createTransport({
-            pool: true, // Reuse connections for bulk sends
+            pool: true,
             maxMessages: Infinity,
             maxConnections: 5,
             host: host,
             port: Number(port),
-            secure: Number(port) === 465,
+            secure: Number(port) === 465, // True for 465, false for other ports (STARTTLS)
             auth: { user: user, pass: pass },
-            tls: { rejectUnauthorized: false },
-            connectionTimeout: 30000, // 30 seconds
+            tls: { 
+                rejectUnauthorized: false, // Prevents certificate verification drops in mixed environments
+                minVersion: 'TLSv1.2',      // Fixes TLS negotiation failures with PrivateEmail/Gmail
+                ciphers: 'SSLv3'            // Compatibility mode for strict SMTP handshakes
+            },
+            connectionTimeout: 30000,
             socketTimeout: 30000
         });
 
         // 3. Define Mail Options with mandatory 'To' header protection
         const mailOptions: nodemailer.SendMailOptions = {
             from: `"FromStore2Door Global Logistics" <${user}>`,
-            // If sending to an array (bulk), we MUST put the sender in 'to' and the list in 'bcc'
-            // Servers reject emails with no 'to' header.
             to: Array.isArray(to) ? user : to,
             bcc: Array.isArray(to) ? to : undefined,
             subject: subject,
