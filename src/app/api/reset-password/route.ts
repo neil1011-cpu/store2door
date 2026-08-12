@@ -3,7 +3,7 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Secure administrative password reset endpoint with SMTP fallback.
+ * @fileOverview Secure administrative password reset endpoint with SMTP Pooling.
  */
 
 async function getSafeBody(request: Request) {
@@ -87,11 +87,18 @@ export async function POST(request: Request) {
         }
 
         const subject = 'Your Secure Access Key Has Been Updated';
-        const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key.\n\nYour new credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nPlease sign in to update your password.`;
+        const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key for the FromStore2Door platform.\n\nYour new credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nPlease sign in to update your profile.`;
 
-        const logEmail = async (status: 'sent' | 'simulated' | 'failed', error?: string) => {
+        const logEmail = async (status: 'sent' | 'simulated' | 'failed', metadata?: any) => {
             await adminDb.collection('sent_emails').add({
-                recipientName, recipientEmail, subject, body: emailBody, status, error: error || null, sentAt: adminField.serverTimestamp(),
+                recipientName, 
+                recipientEmail, 
+                subject, 
+                body: emailBody, 
+                status, 
+                messageId: metadata?.messageId || null,
+                error: metadata?.error || null, 
+                sentAt: adminField.serverTimestamp(),
             }).catch(() => {});
         };
 
@@ -102,19 +109,25 @@ export async function POST(request: Request) {
 
         try {
             const transporter = nodemailer.createTransport({
-                host: host, port: Number(port), secure: Number(port) === 465,
-                auth: { user: user, pass: pass }, tls: { rejectUnauthorized: false }
+                pool: true,
+                host: host, 
+                port: Number(port), 
+                secure: Number(port) === 465,
+                auth: { user: user, pass: pass }, 
+                tls: { rejectUnauthorized: false }
             });
 
-            await transporter.sendMail({
-                from: `"FromStore2Door Global" <${user}>`,
-                to: recipientEmail, subject: subject, text: emailBody,
+            const info = await transporter.sendMail({
+                from: `"FromStore2Door Global Logistics" <${user}>`,
+                to: recipientEmail, 
+                subject: subject, 
+                text: emailBody,
             });
 
-            await logEmail('sent');
+            await logEmail('sent', { messageId: info.messageId });
             return NextResponse.json({ success: true });
         } catch (mailErr: any) {
-            await logEmail('failed', mailErr.message);
+            await logEmail('failed', { error: mailErr.message });
             return NextResponse.json({ success: true, emailError: mailErr.message });
         }
 

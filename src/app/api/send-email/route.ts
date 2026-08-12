@@ -3,7 +3,8 @@ import nodemailer from 'nodemailer';
 import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Standardized Email API with Firestore Fallback for SMTP credentials.
+ * @fileOverview Standardized Email API with SMTP Connection Pooling and Bulk Delivery Protection.
+ * Optimized to prevent "delayed" and "failed" statuses in Gmail and other providers.
  */
 
 export async function POST(request: Request) {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
 
     const { to, subject, body: emailBody, recipientName } = body;
 
-    const logEmail = async (status: 'sent' | 'simulated' | 'failed', error?: string) => {
+    const logEmail = async (status: 'sent' | 'simulated' | 'failed', metadata?: any) => {
         try {
             await adminDb.collection('sent_emails').add({
                 recipientName: recipientName || (Array.isArray(to) ? `Multiple (${to.length})` : to),
@@ -24,7 +25,9 @@ export async function POST(request: Request) {
                 subject: subject || '(No Subject)',
                 body: emailBody || '(No Body)',
                 status,
-                error: error || null,
+                smtpResponse: metadata?.response || null,
+                messageId: metadata?.messageId || null,
+                error: metadata?.error || null,
                 sentAt: adminField.serverTimestamp(),
             });
         } catch (dbError) {
@@ -55,17 +58,11 @@ export async function POST(request: Request) {
         }
     }
 
-    const missingKeys = [];
-    if (!host) missingKeys.push('host');
-    if (!port) missingKeys.push('port');
-    if (!user) missingKeys.push('user');
-    if (!pass || pass.includes('xxxx')) missingKeys.push('pass');
-
-    if (missingKeys.length > 0) {
-        console.warn(`[EMAIL] Simulation Mode. Missing: ${missingKeys.join(', ')}`);
+    if (!host || !port || !user || !pass || pass.includes('xxxx')) {
+        console.warn(`[EMAIL] Simulation Mode. SMTP Configuration Incomplete.`);
         await logEmail('simulated');
         return NextResponse.json({ 
-            message: `Simulation Active. Configure SMTP in Settings. Missing: ${missingKeys.join(', ')}`,
+            message: `Simulation Active. Configure SMTP in Settings.`,
             simulated: true 
         }, { status: 200 });
     }
@@ -91,31 +88,45 @@ export async function POST(request: Request) {
             </div>
         `;
 
+        // 2. Create Transporter with Pooling enabled
         const transporter = nodemailer.createTransport({
+            pool: true, // Reuse connections for bulk sends
+            maxMessages: Infinity,
+            maxConnections: 5,
             host: host,
             port: Number(port),
             secure: Number(port) === 465,
             auth: { user: user, pass: pass },
-            tls: { rejectUnauthorized: false }
+            tls: { rejectUnauthorized: false },
+            connectionTimeout: 30000, // 30 seconds
+            socketTimeout: 30000
         });
 
+        // 3. Define Mail Options with mandatory 'To' header protection
         const mailOptions: nodemailer.SendMailOptions = {
-            from: `"${recipientName || 'FromStore2Door'}" <${user}>`,
-            to: Array.isArray(to) ? undefined : to,
+            from: `"FromStore2Door Global Logistics" <${user}>`,
+            // If sending to an array (bulk), we MUST put the sender in 'to' and the list in 'bcc'
+            // Servers reject emails with no 'to' header.
+            to: Array.isArray(to) ? user : to,
             bcc: Array.isArray(to) ? to : undefined,
             subject: subject,
             html: fullBodyHtml,
             text: emailBody,
         };
 
-        await transporter.sendMail(mailOptions);
-        await logEmail('sent');
+        const info = await transporter.sendMail(mailOptions);
+        console.log('[SMTP SUCCESS]', info.messageId);
+        
+        await logEmail('sent', { 
+            messageId: info.messageId, 
+            response: info.response 
+        });
 
         return NextResponse.json({ success: true, message: 'Email delivered successfully.' });
 
     } catch (error: any) {
         console.error('[SMTP TRANSMISSION FAILURE]:', error);
-        await logEmail('failed', error.message);
+        await logEmail('failed', { error: error.message });
         return NextResponse.json({ message: `SMTP Failed: ${error.message}` }, { status: 500 });
     }
 }

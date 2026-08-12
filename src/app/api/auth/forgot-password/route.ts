@@ -3,7 +3,7 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Forgot Password API with Firestore SMTP fallback.
+ * @fileOverview Forgot Password API with Connection Pooling and Branded Delivery.
  */
 
 export async function POST(request: Request) {
@@ -24,21 +24,29 @@ export async function POST(request: Request) {
         try {
             userRecord = await adminAuth.getUserByEmail(targetEmail);
         } catch (err: any) {
+            // Security: Don't reveal if account exists or not
             return NextResponse.json({ success: true, message: 'Instructions dispatched if account exists.' });
         }
 
         const resetLink = await adminAuth.generatePasswordResetLink(targetEmail);
         const recipientName = userRecord.displayName || 'Valued Customer';
         const subject = 'Reset Your FromStore2Door Access Key';
-        const emailBody = `Hi ${recipientName},\n\nYou can reset your access key using the link below:\n\n${resetLink}`;
+        const emailBody = `Hi ${recipientName},\n\nYou have requested a secure link to reset your logistics platform access key. Please click the link below to define your new password:\n\n${resetLink}\n\nIf you did not request this, you can safely ignore this email.`;
 
-        const logEmail = async (status: 'sent' | 'simulated' | 'failed', error?: string) => {
+        const logEmail = async (status: 'sent' | 'simulated' | 'failed', metadata?: any) => {
             await adminDb.collection('sent_emails').add({
-                recipientName, recipientEmail: targetEmail, subject, body: emailBody, status, error: error || null, sentAt: adminField.serverTimestamp(),
+                recipientName,
+                recipientEmail: targetEmail,
+                subject,
+                body: emailBody,
+                status,
+                messageId: metadata?.messageId || null,
+                error: metadata?.error || null,
+                sentAt: adminField.serverTimestamp(),
             }).catch(() => {});
         };
 
-        // Resolve SMTP
+        // Resolve Credentials
         let host = process.env.SMTP_HOST;
         let port = process.env.SMTP_PORT;
         let user = process.env.SMTP_USER;
@@ -62,19 +70,25 @@ export async function POST(request: Request) {
 
         try {
             const transporter = nodemailer.createTransport({
-                host: host, port: Number(port), secure: Number(port) === 465,
-                auth: { user: user, pass: pass }, tls: { rejectUnauthorized: false }
+                pool: true,
+                host: host,
+                port: Number(port),
+                secure: Number(port) === 465,
+                auth: { user: user, pass: pass },
+                tls: { rejectUnauthorized: false }
             });
 
-            await transporter.sendMail({
-                from: `"FromStore2Door" <${user}>`,
-                to: targetEmail, subject: subject, text: emailBody,
+            const info = await transporter.sendMail({
+                from: `"FromStore2Door Global Logistics" <${user}>`,
+                to: targetEmail,
+                subject: subject,
+                text: emailBody,
             });
 
-            await logEmail('sent');
+            await logEmail('sent', { messageId: info.messageId });
             return NextResponse.json({ success: true });
         } catch (mailErr: any) {
-            await logEmail('failed', mailErr.message);
+            await logEmail('failed', { error: mailErr.message });
             return NextResponse.json({ success: false, message: 'Transmission failed.' }, { status: 500 });
         }
 
