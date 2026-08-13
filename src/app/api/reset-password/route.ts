@@ -3,8 +3,8 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Secure administrative password reset endpoint with Hardened TLS SMTP.
- * Optimized for serverless environments with pool: false to prevent API hangs.
+ * @fileOverview Secure administrative password reset endpoint with Non-Blocking SMTP.
+ * Prioritizes the security update and handles email dispatch as a non-fatal task.
  */
 
 async function getSafeBody(request: Request) {
@@ -65,15 +65,17 @@ export async function POST(request: Request) {
              return NextResponse.json({ message: 'User email not found in authentication record.' }, { status: 404 });
         }
 
-        console.log(`[RESET PASSWORD] Updating credentials for: ${recipientEmail}`);
+        // 1. PERFORM SECURITY UPDATE IMMEDIATELY
+        console.log(`[RESET PASSWORD] Updating credentials in Auth: ${recipientEmail}`);
         await adminAuth.updateUser(userId, { password: newPassword });
 
+        console.log(`[RESET PASSWORD] Flagging profile for reset in Firestore: ${userId}`);
         await adminDb.collection('users').doc(userId).update({
             needsPasswordReset: true,
             updatedAt: adminField.serverTimestamp()
         }).catch((e) => console.warn('[RESET PASSWORD] Profile flag update failed:', e.message));
 
-        // Resolve Credentials (ENV -> Firestore)
+        // 2. ATTEMPT EMAIL NOTIFICATION (Non-Fatal)
         let host = process.env.SMTP_HOST;
         let port = process.env.SMTP_PORT;
         let user = process.env.SMTP_USER;
@@ -93,7 +95,7 @@ export async function POST(request: Request) {
         const subject = 'Your Secure Access Key Has Been Updated';
         const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key for the FromStore2Door platform.\n\nYour new credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nPlease sign in to update your profile.\n\nThank you for shipping with us!`;
 
-        const logEmail = async (status: 'sent' | 'simulated' | 'failed', metadata?: any) => {
+        const logEmail = async (status: 'sent' | 'simulated' | 'failed' | 'timeout', metadata?: any) => {
             await adminDb.collection('sent_emails').add({
                 recipientName, 
                 recipientEmail, 
@@ -107,47 +109,53 @@ export async function POST(request: Request) {
         };
 
         if (!host || !port || !user || !pass || pass.includes('xxxx')) {
-            console.warn('[RESET PASSWORD] SMTP Configuration incomplete. Sending simulated notification.');
+            console.warn('[RESET PASSWORD] SMTP Configuration incomplete. Logging simulation.');
             await logEmail('simulated');
             return NextResponse.json({ success: true, simulated: true });
         }
 
+        // Dispatch Email with internal timeout
         try {
-            console.log('[RESET PASSWORD] Initiating SMTP connection...');
-            // Aggressive timeouts to prevent server hanging
             const transporter = nodemailer.createTransport({
                 pool: false,
                 host: host, 
                 port: Number(port), 
                 secure: Number(port) === 465,
                 auth: { user: user, pass: pass }, 
-                tls: { 
-                    rejectUnauthorized: false,
-                    minVersion: 'TLSv1.2'
-                },
-                connectionTimeout: 15000,
-                socketTimeout: 15000,
-                greetingTimeout: 10000
+                tls: { rejectUnauthorized: false },
+                connectionTimeout: 8000, // Strict 8s for handshake
+                socketTimeout: 8000,
+                greetingTimeout: 5000
             });
 
-            const info = await transporter.sendMail({
+            // We don't await this fully if it's too slow, but for reset we want to try
+            const mailPromise = transporter.sendMail({
                 from: `"FromStore2Door Global Logistics" <${user}>`,
                 to: recipientEmail, 
                 subject: subject, 
                 text: emailBody,
             });
 
+            // Race against a 10s timeout to prevent API hang
+            const info = await Promise.race([
+                mailPromise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP_TIMEOUT')), 10000))
+            ]) as any;
+
             console.log('[RESET PASSWORD] Dispatch Success:', info.messageId);
             await logEmail('sent', { messageId: info.messageId });
             return NextResponse.json({ success: true });
+
         } catch (mailErr: any) {
             console.error('[ADMIN RESET SMTP ERROR]:', mailErr.message);
-            await logEmail('failed', { error: mailErr.message });
+            const status = mailErr.message === 'SMTP_TIMEOUT' ? 'timeout' : 'failed';
+            await logEmail(status, { error: mailErr.message });
+            // STILL RETURN SUCCESS because the password WAS updated
             return NextResponse.json({ success: true, emailError: mailErr.message });
         }
 
     } catch (error: any) {
-        console.error('[RESET PASSWORD FATAL EXCEPTION]:', error.message, error.stack);
+        console.error('[RESET PASSWORD FATAL EXCEPTION]:', error.message);
         return NextResponse.json({ success: false, message: 'System Exception: ' + error.message }, { status: 500 });
     }
 }

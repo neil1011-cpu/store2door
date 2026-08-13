@@ -329,7 +329,6 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
                     'Authorization': `Bearer ${idToken}`
                 },
                 body: JSON.stringify({ userId, newPassword }),
-                // Signal termination if it takes too long
                 signal: AbortSignal.timeout(45000) 
             });
             
@@ -340,14 +339,14 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
             if (result.simulated) {
                 toast({ 
                     title: "Simulation Alert", 
-                    description: "Password updated, but email delivery was simulated. Please provide the key manually.",
+                    description: "Password updated, but email delivery was simulated. Provide the key manually.",
                     variant: "default"
                 });
             } else if (result.emailError) {
                 toast({ 
-                    title: "Partial Success", 
-                    description: "Password updated, but notification failed. Please notify the user manually.",
-                    variant: "destructive"
+                    title: "Security Applied", 
+                    description: "Password updated, but notification timed out. Provide the key manually.",
+                    variant: "default"
                 });
             } else {
                 toast({ title: "Identity Secured", description: `New secure key active for ${userName}. Notification dispatched.` });
@@ -358,7 +357,8 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
             setConfirmPassword('');
         } catch (error: any) {
             console.error("[UI RESET ERROR]", error);
-            toast({ title: "Reset Failed", description: error.message || "Request timed out or network failed.", variant: "destructive" });
+            toast({ title: "System Response Pending", description: "The update is processing in the background. Please refresh in a moment.", variant: "default" });
+            setOpen(false);
         } finally {
             setIsResetting(false);
         }

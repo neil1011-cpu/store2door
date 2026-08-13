@@ -3,8 +3,8 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Forgot Password API with Hardened TLS and timeouts.
- * Optimized for reliability in serverless environments.
+ * @fileOverview Forgot Password API with Non-Blocking SMTP.
+ * Optimized for reliability by capping email dispatch time.
  */
 
 export async function POST(request: Request) {
@@ -26,8 +26,8 @@ export async function POST(request: Request) {
         try {
             userRecord = await adminAuth.getUserByEmail(targetEmail);
         } catch (err: any) {
-            console.log(`[FORGOT PASSWORD] Email not found in registry: ${targetEmail}`);
-            return NextResponse.json({ success: true, message: 'Instructions dispatched if an account exists for this email.' });
+            // Standard security practice: Don't reveal if account exists
+            return NextResponse.json({ success: true, message: 'Instructions dispatched if an account exists.' });
         }
 
         const resetLink = await adminAuth.generatePasswordResetLink(targetEmail);
@@ -35,15 +35,13 @@ export async function POST(request: Request) {
         const subject = 'Reset Your FromStore2Door Access Key';
         const emailBody = `Hi ${recipientName},\n\nYou have requested a secure link to reset your logistics platform access key. Please click the link below to define your new password:\n\n${resetLink}\n\nIf you did not request this, you can safely ignore this email.\n\nBest regards,\nThe FromStore2Door Team`;
 
-        const logEmail = async (status: 'sent' | 'simulated' | 'failed', metadata?: any) => {
+        const logEmail = async (status: 'sent' | 'simulated' | 'failed' | 'timeout') => {
             await adminDb.collection('sent_emails').add({
                 recipientName,
                 recipientEmail: targetEmail,
                 subject,
                 body: emailBody,
                 status,
-                messageId: metadata?.messageId || null,
-                error: metadata?.error || null,
                 sentAt: adminField.serverTimestamp(),
             }).catch(() => {});
         };
@@ -66,46 +64,46 @@ export async function POST(request: Request) {
         }
 
         if (!host || !port || !user || !pass || pass.includes('xxxx')) {
-            console.warn('[FORGOT PASSWORD] Simulation mode active. No SMTP credentials detected.');
             await logEmail('simulated');
             return NextResponse.json({ success: true, simulated: true });
         }
 
         try {
-            console.log('[FORGOT PASSWORD] Establishing secure SMTP connection...');
             const transporter = nodemailer.createTransport({
                 pool: false,
                 host: host,
                 port: Number(port),
                 secure: Number(port) === 465,
                 auth: { user: user, pass: pass },
-                tls: { 
-                    rejectUnauthorized: false,
-                    minVersion: 'TLSv1.2'
-                },
-                connectionTimeout: 15000,
-                socketTimeout: 15000,
-                greetingTimeout: 10000
+                tls: { rejectUnauthorized: false },
+                connectionTimeout: 10000,
+                socketTimeout: 10000
             });
 
-            const info = await transporter.sendMail({
+            const mailPromise = transporter.sendMail({
                 from: `"FromStore2Door Global Logistics" <${user}>`,
                 to: targetEmail,
                 subject: subject,
                 text: emailBody,
             });
 
-            console.log('[FORGOT PASSWORD] Reset link dispatched:', info.messageId);
-            await logEmail('sent', { messageId: info.messageId });
+            await Promise.race([
+                mailPromise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP_TIMEOUT')), 12000))
+            ]);
+
+            await logEmail('sent');
             return NextResponse.json({ success: true });
         } catch (mailErr: any) {
             console.error('[FORGOT PASSWORD SMTP ERROR]:', mailErr.message);
-            await logEmail('failed', { error: mailErr.message });
-            return NextResponse.json({ success: false, message: 'Transmission failed: ' + mailErr.message }, { status: 500 });
+            const status = mailErr.message === 'SMTP_TIMEOUT' ? 'timeout' : 'failed';
+            await logEmail(status);
+            // Return success anyway to not leak info
+            return NextResponse.json({ success: true });
         }
 
     } catch (criticalError: any) {
-        console.error('[FORGOT PASSWORD FATAL EXCEPTION]:', criticalError.message, criticalError.stack);
+        console.error('[FORGOT PASSWORD FATAL EXCEPTION]:', criticalError.message);
         return NextResponse.json({ success: false, message: 'Internal Server Exception' }, { status: 500 });
     }
 }
