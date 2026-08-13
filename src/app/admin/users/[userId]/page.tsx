@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDoc, useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { doc, collection, query, orderBy, updateDoc, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
 import type { UserProfile, Shipment } from '@/lib/types';
@@ -318,6 +318,8 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
         }
 
         setIsResetting(true);
+        console.log(`[UI] Initiating reset for ${userName}...`);
+        
         try {
             const idToken = await auth.currentUser.getIdToken(true);
             const response = await fetch('/api/reset-password', {
@@ -327,8 +329,12 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
                     'Authorization': `Bearer ${idToken}`
                 },
                 body: JSON.stringify({ userId, newPassword }),
+                // Signal termination if it takes too long
+                signal: AbortSignal.timeout(45000) 
             });
-            const result = await response.json();
+            
+            const result = await response.json().catch(() => ({ message: "Server returned malformed response." }));
+            
             if (!response.ok) throw new Error(result.message || "Reset protocol failed.");
 
             if (result.simulated) {
@@ -351,7 +357,8 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
             setNewPassword('');
             setConfirmPassword('');
         } catch (error: any) {
-            toast({ title: "Reset Failed", description: error.message, variant: "destructive" });
+            console.error("[UI RESET ERROR]", error);
+            toast({ title: "Reset Failed", description: error.message || "Request timed out or network failed.", variant: "destructive" });
         } finally {
             setIsResetting(false);
         }
@@ -430,7 +437,7 @@ function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: str
                 </div>
                 <DialogFooter>
                     <Button onClick={handleAdjustBalance} disabled={isUpdating} className="w-full h-14 font-black uppercase italic shadow-xl">
-                        {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Adjustment"}
+                        {isUpdating ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : "Authorize Adjustment"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

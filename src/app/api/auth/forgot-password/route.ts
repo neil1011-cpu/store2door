@@ -3,7 +3,8 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Forgot Password API with Hardened TLS, Connection Pooling, and timeouts.
+ * @fileOverview Forgot Password API with Hardened TLS and timeouts.
+ * Optimized for reliability in serverless environments.
  */
 
 export async function POST(request: Request) {
@@ -26,7 +27,6 @@ export async function POST(request: Request) {
             userRecord = await adminAuth.getUserByEmail(targetEmail);
         } catch (err: any) {
             console.log(`[FORGOT PASSWORD] Email not found in registry: ${targetEmail}`);
-            // Security Best Practice: Don't reveal if account exists
             return NextResponse.json({ success: true, message: 'Instructions dispatched if an account exists for this email.' });
         }
 
@@ -72,20 +72,19 @@ export async function POST(request: Request) {
         }
 
         try {
-            console.log('[FORGOT PASSWORD] Establishing secure SMTP pooled connection...');
+            console.log('[FORGOT PASSWORD] Establishing secure SMTP connection...');
             const transporter = nodemailer.createTransport({
-                pool: true,
+                pool: false,
                 host: host,
                 port: Number(port),
                 secure: Number(port) === 465,
                 auth: { user: user, pass: pass },
                 tls: { 
                     rejectUnauthorized: false,
-                    minVersion: 'TLSv1.2',
-                    ciphers: 'SSLv3'
+                    minVersion: 'TLSv1.2'
                 },
-                connectionTimeout: 30000,
-                socketTimeout: 30000
+                connectionTimeout: 15000,
+                socketTimeout: 15000
             });
 
             const info = await transporter.sendMail({

@@ -3,8 +3,8 @@ import nodemailer from 'nodemailer';
 import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Standardized Email API with SMTP Connection Pooling and Hardened TLS.
- * Optimized to resolve "tls negotiation failed" and "delayed" status issues.
+ * @fileOverview Standardized Email API with SMTP Single Connection and Hardened TLS.
+ * Optimized for serverless environments to prevent connection hangs.
  */
 
 export async function POST(request: Request) {
@@ -88,25 +88,22 @@ export async function POST(request: Request) {
             </div>
         `;
 
-        // 2. Create Transporter with Hardened TLS settings
+        // 2. Create Transporter (Pool: false for serverless stability)
         const transporter = nodemailer.createTransport({
-            pool: true,
-            maxMessages: Infinity,
-            maxConnections: 5,
+            pool: false,
             host: host,
             port: Number(port),
-            secure: Number(port) === 465, // True for 465, false for other ports (STARTTLS)
+            secure: Number(port) === 465,
             auth: { user: user, pass: pass },
             tls: { 
-                rejectUnauthorized: false, // Prevents certificate verification drops in mixed environments
-                minVersion: 'TLSv1.2',      // Fixes TLS negotiation failures with PrivateEmail/Gmail
-                ciphers: 'SSLv3'            // Compatibility mode for strict SMTP handshakes
+                rejectUnauthorized: false,
+                minVersion: 'TLSv1.2'
             },
-            connectionTimeout: 30000,
-            socketTimeout: 30000
+            connectionTimeout: 15000,
+            socketTimeout: 15000
         });
 
-        // 3. Define Mail Options with mandatory 'To' header protection
+        // 3. Define Mail Options
         const mailOptions: nodemailer.SendMailOptions = {
             from: `"FromStore2Door Global Logistics" <${user}>`,
             to: Array.isArray(to) ? user : to,

@@ -3,7 +3,8 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Secure administrative password reset endpoint with Hardened TLS SMTP and Connection Pooling.
+ * @fileOverview Secure administrative password reset endpoint with Hardened TLS SMTP.
+ * Optimized for serverless environments with pool: false to prevent API hangs.
  */
 
 async function getSafeBody(request: Request) {
@@ -112,20 +113,20 @@ export async function POST(request: Request) {
         }
 
         try {
-            console.log('[RESET PASSWORD] Initiating SMTP connection pool...');
+            console.log('[RESET PASSWORD] Initiating SMTP connection...');
+            // Pool: false is more stable for serverless resets to prevent hangs
             const transporter = nodemailer.createTransport({
-                pool: true,
+                pool: false,
                 host: host, 
                 port: Number(port), 
                 secure: Number(port) === 465,
                 auth: { user: user, pass: pass }, 
                 tls: { 
                     rejectUnauthorized: false,
-                    minVersion: 'TLSv1.2',
-                    ciphers: 'SSLv3'
+                    minVersion: 'TLSv1.2'
                 },
-                connectionTimeout: 30000,
-                socketTimeout: 30000
+                connectionTimeout: 15000,
+                socketTimeout: 15000
             });
 
             const info = await transporter.sendMail({
