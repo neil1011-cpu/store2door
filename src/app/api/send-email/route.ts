@@ -3,9 +3,15 @@ import nodemailer from 'nodemailer';
 import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Standardized Email API with Connection Stabilization.
- * Optimized for serverless environments to prevent connection hangs.
+ * @fileOverview Standardized Email API with Automatic Hyperlinking.
+ * Optimized for serverless environments with non-blocking dispatch and HTML formatting.
  */
+
+// Helper to convert plain text URLs to clickable links
+function linkify(text: string) {
+    const urlPattern = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+    return text.replace(urlPattern, '<a href="$1" style="color: #0d6efd; text-decoration: underline;">$1</a>');
+}
 
 export async function POST(request: Request) {
     let body;
@@ -35,7 +41,6 @@ export async function POST(request: Request) {
         }
     };
 
-    // Resolve Credentials (ENV -> Firestore Metadata)
     let host = process.env.SMTP_HOST;
     let port = process.env.SMTP_PORT;
     let user = process.env.SMTP_USER;
@@ -68,44 +73,46 @@ export async function POST(request: Request) {
                     <h2 style="color: #000; font-weight: 900; letter-spacing: -1px; font-style: italic; margin: 0;">FROMSTORE2DOOR</h2>
                 </div>
                 <div style="padding: 20px 0; border-top: 2px solid #000;">
-                    ${emailBody.replace(/\n/g, "<br>")}
+                    ${linkify(emailBody.replace(/\n/g, "<br>"))}
                 </div>
             </div>
         `;
 
-        const transporter = nodemailer.createTransport({
-            pool: false,
-            host: host,
-            port: Number(port),
-            secure: Number(port) === 465,
-            auth: { user: user, pass: pass },
-            tls: { rejectUnauthorized: false },
-            connectionTimeout: 10000,
-            socketTimeout: 10000
-        });
+        // FIRE AND FORGET DISPATCH
+        const dispatch = async () => {
+            try {
+                const transporter = nodemailer.createTransport({
+                    pool: false,
+                    host: host,
+                    port: Number(port),
+                    secure: Number(port) === 465,
+                    auth: { user: user, pass: pass },
+                    tls: { minVersion: 'TLSv1.2', rejectUnauthorized: false },
+                    connectionTimeout: 10000,
+                    socketTimeout: 10000
+                });
 
-        // For Bulk sends, ensure a TO header is present to satisfy mail servers
-        const mailPromise = transporter.sendMail({
-            from: `"FromStore2Door Global Logistics" <${user}>`,
-            to: Array.isArray(to) ? user : to,
-            bcc: Array.isArray(to) ? to : undefined,
-            subject: subject,
-            html: fullBodyHtml,
-            text: emailBody,
-        });
+                const info = await transporter.sendMail({
+                    from: `"FromStore2Door Global Logistics" <${user}>`,
+                    to: Array.isArray(to) ? user : to,
+                    bcc: Array.isArray(to) ? to : undefined,
+                    subject: subject,
+                    html: fullBodyHtml,
+                    text: emailBody,
+                });
+                await logEmail('sent', { messageId: info.messageId, response: info.response });
+            } catch (err: any) {
+                console.error('[SEND-EMAIL BACKGROUND ERROR]:', err.message);
+                await logEmail('failed', { error: err.message });
+            }
+        };
 
-        const info = await Promise.race([
-            mailPromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP_TIMEOUT')), 15000))
-        ]) as any;
+        dispatch();
 
-        await logEmail('sent', { messageId: info.messageId, response: info.response });
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, message: 'Dispatch initiated.' });
 
     } catch (error: any) {
         console.error('[SMTP TRANSMISSION FAILURE]:', error.message);
-        const status = error.message === 'SMTP_TIMEOUT' ? 'timeout' : 'failed';
-        await logEmail(status, { error: error.message });
         return NextResponse.json({ message: `SMTP Error: ${error.message}` }, { status: 500 });
     }
 }

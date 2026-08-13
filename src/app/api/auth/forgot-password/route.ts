@@ -3,8 +3,8 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Forgot Password API with Non-Blocking SMTP.
- * Optimized for reliability by capping email dispatch time.
+ * @fileOverview Forgot Password API with Non-Blocking Dispatch.
+ * Returns success to the user immediately after generating the secure link.
  */
 
 export async function POST(request: Request) {
@@ -26,7 +26,6 @@ export async function POST(request: Request) {
         try {
             userRecord = await adminAuth.getUserByEmail(targetEmail);
         } catch (err: any) {
-            // Standard security practice: Don't reveal if account exists
             return NextResponse.json({ success: true, message: 'Instructions dispatched if an account exists.' });
         }
 
@@ -46,7 +45,6 @@ export async function POST(request: Request) {
             }).catch(() => {});
         };
 
-        // Resolve Credentials
         let host = process.env.SMTP_HOST;
         let port = process.env.SMTP_PORT;
         let user = process.env.SMTP_USER;
@@ -68,39 +66,43 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, simulated: true });
         }
 
-        try {
-            const transporter = nodemailer.createTransport({
-                pool: false,
-                host: host,
-                port: Number(port),
-                secure: Number(port) === 465,
-                auth: { user: user, pass: pass },
-                tls: { rejectUnauthorized: false },
-                connectionTimeout: 10000,
-                socketTimeout: 10000
-            });
+        // BACKGROUND DISPATCH: Return 200 immediately
+        const dispatch = async () => {
+            try {
+                const transporter = nodemailer.createTransport({
+                    pool: false,
+                    host: host,
+                    port: Number(port),
+                    secure: Number(port) === 465,
+                    auth: { user: user, pass: pass },
+                    tls: { minVersion: 'TLSv1.2', rejectUnauthorized: false },
+                    connectionTimeout: 10000,
+                    socketTimeout: 10000
+                });
 
-            const mailPromise = transporter.sendMail({
-                from: `"FromStore2Door Global Logistics" <${user}>`,
-                to: targetEmail,
-                subject: subject,
-                text: emailBody,
-            });
+                await transporter.sendMail({
+                    from: `"FromStore2Door Global Logistics" <${user}>`,
+                    to: targetEmail,
+                    subject: subject,
+                    text: emailBody,
+                    html: `<div style="font-family:sans-serif;padding:20px;border:1px solid #eee;border-radius:10px;">
+                        <h2 style="color:#0d6efd;font-style:italic;">FROMSTORE2DOOR</h2>
+                        <p>Hi ${recipientName},</p>
+                        <p>Click the button below to reset your access key. This link is valid for 1 hour.</p>
+                        <div style="margin:30px 0;"><a href="${resetLink}" style="background:#0d6efd;color:white;padding:15px 30px;text-decoration:none;border-radius:5px;font-weight:bold;">Set New Password</a></div>
+                        <p style="font-size:12px;color:#888;">Link: ${resetLink}</p>
+                    </div>`
+                });
+                await logEmail('sent');
+            } catch (err) {
+                console.error('[FORGOT BACKGROUND ERROR]:', err);
+                await logEmail('failed');
+            }
+        };
 
-            await Promise.race([
-                mailPromise,
-                new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP_TIMEOUT')), 12000))
-            ]);
+        dispatch();
 
-            await logEmail('sent');
-            return NextResponse.json({ success: true });
-        } catch (mailErr: any) {
-            console.error('[FORGOT PASSWORD SMTP ERROR]:', mailErr.message);
-            const status = mailErr.message === 'SMTP_TIMEOUT' ? 'timeout' : 'failed';
-            await logEmail(status);
-            // Return success anyway to not leak info
-            return NextResponse.json({ success: true });
-        }
+        return NextResponse.json({ success: true, message: 'Reset protocol initiated.' });
 
     } catch (criticalError: any) {
         console.error('[FORGOT PASSWORD FATAL EXCEPTION]:', criticalError.message);

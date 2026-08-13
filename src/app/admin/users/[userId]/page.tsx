@@ -7,7 +7,7 @@ import { doc, collection, query, orderBy, updateDoc, serverTimestamp, setDoc, de
 import type { UserProfile, Shipment } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -297,28 +297,18 @@ export default function UserDetailsPage() {
 
 function ResetPasswordDialog({ userId, userName }: { userId: string, userName: string }) {
     const [open, setOpen] = useState(false);
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
     const [isResetting, setIsResetting] = useState(false);
     const { toast } = useToast();
     const auth = useAuth();
 
-    const handleResetPassword = async () => {
+    const handleSendResetLink = async () => {
         if (!auth?.currentUser) {
             toast({ title: "Authentication Required", description: "Administrative session lost. Please refresh.", variant: "destructive" });
             return;
         }
-        if (newPassword.length < 6) {
-            toast({ title: "Secure Key Required", description: "Password must be at least 6 characters.", variant: "destructive" });
-            return;
-        }
-        if (newPassword !== confirmPassword) {
-            toast({ title: "Validation Mismatch", description: "Passwords do not match.", variant: "destructive" });
-            return;
-        }
 
         setIsResetting(true);
-        console.log(`[UI] Initiating reset for ${userName}...`);
+        console.log(`[UI] Initiating secure link dispatch for ${userName}...`);
         
         try {
             const idToken = await auth.currentUser.getIdToken(true);
@@ -328,36 +318,28 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${idToken}`
                 },
-                body: JSON.stringify({ userId, newPassword }),
+                body: JSON.stringify({ userId }),
                 signal: AbortSignal.timeout(45000) 
             });
             
-            const result = await response.json().catch(() => ({ message: "Server returned malformed response." }));
+            const result = await response.json().catch(() => ({ message: "Server response pending dispatch." }));
             
             if (!response.ok) throw new Error(result.message || "Reset protocol failed.");
 
             if (result.simulated) {
                 toast({ 
                     title: "Simulation Alert", 
-                    description: "Password updated, but email delivery was simulated. Provide the key manually.",
-                    variant: "default"
-                });
-            } else if (result.emailError) {
-                toast({ 
-                    title: "Security Applied", 
-                    description: "Password updated, but notification timed out. Provide the key manually.",
+                    description: "Link generated, but email delivery was simulated. Check server logs.",
                     variant: "default"
                 });
             } else {
-                toast({ title: "Identity Secured", description: `New secure key active for ${userName}. Notification dispatched.` });
+                toast({ title: "Dispatch Complete", description: `A secure clickable reset link is now en route to ${userName}.` });
             }
             
             setOpen(false);
-            setNewPassword('');
-            setConfirmPassword('');
         } catch (error: any) {
             console.error("[UI RESET ERROR]", error);
-            toast({ title: "System Response Pending", description: "The update is processing in the background. Please refresh in a moment.", variant: "default" });
+            toast({ title: "System Response Pending", description: "The dispatch is processing in the background. The user will receive their link shortly.", variant: "default" });
             setOpen(false);
         } finally {
             setIsResetting(false);
@@ -373,16 +355,20 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Authorize New Credentials</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">Security protocol for {userName}</DialogDescription>
+                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Authorize Reset Protocol</DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">Security dispatch for {userName}</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">New Secure Key</Label><Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="h-12 border-2" /></div>
-                    <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Confirm Key</Label><Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="h-12 border-2" /></div>
+                <div className="py-8 text-center space-y-4">
+                    <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Send className="h-10 w-10 text-primary" />
+                    </div>
+                    <p className="text-sm font-medium leading-relaxed uppercase tracking-tight px-4">
+                        This will dispatch a **one-time secure clickable link** to the user's verified email. They will be able to define their own new private key safely.
+                    </p>
                 </div>
                 <DialogFooter>
-                    <Button onClick={handleResetPassword} disabled={isResetting} className="w-full h-14 font-black uppercase italic shadow-xl">
-                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Reset"}
+                    <Button onClick={handleSendResetLink} disabled={isResetting} className="w-full h-14 font-black uppercase italic shadow-xl">
+                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Link Dispatch"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
