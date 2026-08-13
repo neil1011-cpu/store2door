@@ -126,7 +126,7 @@ export default function UserDetailsPage() {
     };
 
     if (isProfileLoading || isShipmentsLoading || isAdminCheckLoading) {
-        return <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+        return <div className="flex h-screen items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
     }
     
     if (!userProfile) {
@@ -164,7 +164,7 @@ export default function UserDetailsPage() {
                                 <AvatarFallback>{userProfile.fullName.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <CardTitle className="text-2xl pt-4 font-black italic uppercase tracking-tighter text-center">{userProfile.fullName}</CardTitle>
-                            <CardDescription className="font-bold text-[10px] uppercase tracking-widest">Mailbox: {userProfile.mailboxNumber}</CardDescription>
+                            <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Mailbox: {userProfile.mailboxNumber}</CardDescription>
                         </CardHeader>
                         <CardContent className="text-sm space-y-4 pt-6">
                              <div className="flex items-center gap-3">
@@ -304,6 +304,10 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
     const auth = useAuth();
 
     const handleResetPassword = async () => {
+        if (!auth?.currentUser) {
+            toast({ title: "Authentication Required", description: "Administrative session lost. Please refresh.", variant: "destructive" });
+            return;
+        }
         if (newPassword.length < 6) {
             toast({ title: "Secure Key Required", description: "Password must be at least 6 characters.", variant: "destructive" });
             return;
@@ -315,7 +319,7 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
 
         setIsResetting(true);
         try {
-            const idToken = await auth?.currentUser?.getIdToken(true);
+            const idToken = await auth.currentUser.getIdToken(true);
             const response = await fetch('/api/reset-password', {
                 method: 'POST',
                 headers: {
@@ -344,6 +348,8 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
             }
             
             setOpen(false);
+            setNewPassword('');
+            setConfirmPassword('');
         } catch (error: any) {
             toast({ title: "Reset Failed", description: error.message, variant: "destructive" });
         } finally {
@@ -368,7 +374,9 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
                     <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Confirm Key</Label><Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="h-12 border-2" /></div>
                 </div>
                 <DialogFooter>
-                    <Button onClick={handleResetPassword} disabled={isResetting} className="w-full h-14 font-black uppercase italic shadow-xl">{isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Reset"}</Button>
+                    <Button onClick={handleResetPassword} disabled={isResetting} className="w-full h-14 font-black uppercase italic shadow-xl">
+                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Reset"}
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -386,7 +394,7 @@ function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: str
         setIsUpdating(true);
         try {
             const newBalance = parseFloat(amount);
-            if (isNaN(newBalance)) throw new Error("Invalid amount.");
+            if (isNaN(newBalance)) throw new Error("Invalid amount format detected.");
             await updateDoc(doc(firestore!, 'users', userId), { walletBalance: newBalance, balanceUpdatedAt: serverTimestamp() });
             toast({ title: "Credit Adjusted", description: `New balance for ${userName}: JMD $${newBalance.toLocaleString()}` });
             setOpen(false);
@@ -420,7 +428,11 @@ function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: str
                         </div>
                     </div>
                 </div>
-                <DialogFooter><Button onClick={handleAdjustBalance} disabled={isUpdating} className="w-full h-14 font-black uppercase italic shadow-xl">{isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Adjustment"}</Button></DialogFooter>
+                <DialogFooter>
+                    <Button onClick={handleAdjustBalance} disabled={isUpdating} className="w-full h-14 font-black uppercase italic shadow-xl">
+                        {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Adjustment"}
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

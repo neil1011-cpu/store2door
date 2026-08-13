@@ -13,10 +13,11 @@ const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT
 function getAdminApp(): App {
   const apps = getApps();
   if (apps.length > 0) {
+    console.log('[ADMIN SDK] Reusing existing application instance.');
     return apps[0];
   }
   
-  // Initialize with the detected or hardcoded Project ID
+  console.log('[ADMIN SDK] Initializing new application instance for:', PROJECT_ID);
   return initializeApp({
     projectId: PROJECT_ID,
   });

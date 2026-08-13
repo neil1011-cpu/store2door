@@ -3,7 +3,7 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Secure administrative password reset endpoint with Hardened TLS SMTP.
+ * @fileOverview Secure administrative password reset endpoint with Hardened TLS SMTP and Connection Pooling.
  */
 
 async function getSafeBody(request: Request) {
@@ -17,13 +17,14 @@ async function getSafeBody(request: Request) {
 }
 
 export async function POST(request: Request) {
+    console.log('[API: RESET-PASSWORD] Request initiated.');
     try {
         const body = await getSafeBody(request);
         const { userId, newPassword } = body;
 
         const authHeader = request.headers.get('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json({ message: 'Authorization required.' }, { status: 401 });
+            return NextResponse.json({ message: 'Administrative authorization required.' }, { status: 401 });
         }
         const idToken = authHeader.substring(7);
 
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
         try {
             decodedToken = await adminAuth.verifyIdToken(idToken);
         } catch (tokenErr: any) {
+            console.error('[RESET PASSWORD] Token verification failed:', tokenErr.message);
             return NextResponse.json({ message: 'Session expired or invalid.' }, { status: 401 });
         }
 
@@ -39,18 +41,18 @@ export async function POST(request: Request) {
         const adminRoleDoc = await adminDb.collection('admin_roles').doc(adminUid).get();
         
         if (!adminRoleDoc.exists && !isAdminEmail) {
-            return NextResponse.json({ message: 'Access Denied.' }, { status: 403 });
+            return NextResponse.json({ message: 'Access Denied: Administrative authority required.' }, { status: 403 });
         }
         
         if (!userId || !newPassword || newPassword.length < 6) {
-            return NextResponse.json({ message: 'Invalid payload. Password must be 6+ chars.' }, { status: 400 });
+            return NextResponse.json({ message: 'Invalid payload. Password must be at least 6 characters.' }, { status: 400 });
         }
 
         let userRecord;
         try {
             userRecord = await adminAuth.getUser(userId);
         } catch (fetchErr: any) {
-            return NextResponse.json({ message: 'User not found.' }, { status: 404 });
+            return NextResponse.json({ message: 'Target user not found in identity registry.' }, { status: 404 });
         }
 
         const userProfileSnap = await adminDb.collection('users').doc(userId).get();
@@ -59,15 +61,16 @@ export async function POST(request: Request) {
         const recipientEmail = userRecord.email;
 
         if (!recipientEmail) {
-             return NextResponse.json({ message: 'User email not found.' }, { status: 404 });
+             return NextResponse.json({ message: 'User email not found in authentication record.' }, { status: 404 });
         }
 
+        console.log(`[RESET PASSWORD] Updating credentials for: ${recipientEmail}`);
         await adminAuth.updateUser(userId, { password: newPassword });
 
         await adminDb.collection('users').doc(userId).update({
             needsPasswordReset: true,
             updatedAt: adminField.serverTimestamp()
-        }).catch(() => {});
+        }).catch((e) => console.warn('[RESET PASSWORD] Profile flag update failed:', e.message));
 
         // Resolve Credentials (ENV -> Firestore)
         let host = process.env.SMTP_HOST;
@@ -87,7 +90,7 @@ export async function POST(request: Request) {
         }
 
         const subject = 'Your Secure Access Key Has Been Updated';
-        const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key for the FromStore2Door platform.\n\nYour new credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nPlease sign in to update your profile.`;
+        const emailBody = `Hi ${recipientName},\n\nYour administrator has updated your secure access key for the FromStore2Door platform.\n\nYour new credentials are:\nEmail: ${recipientEmail}\nNew Password: ${newPassword}\n\nPlease sign in to update your profile.\n\nThank you for shipping with us!`;
 
         const logEmail = async (status: 'sent' | 'simulated' | 'failed', metadata?: any) => {
             await adminDb.collection('sent_emails').add({
@@ -103,11 +106,13 @@ export async function POST(request: Request) {
         };
 
         if (!host || !port || !user || !pass || pass.includes('xxxx')) {
+            console.warn('[RESET PASSWORD] SMTP Configuration incomplete. Sending simulated notification.');
             await logEmail('simulated');
             return NextResponse.json({ success: true, simulated: true });
         }
 
         try {
+            console.log('[RESET PASSWORD] Initiating SMTP connection pool...');
             const transporter = nodemailer.createTransport({
                 pool: true,
                 host: host, 
@@ -118,7 +123,9 @@ export async function POST(request: Request) {
                     rejectUnauthorized: false,
                     minVersion: 'TLSv1.2',
                     ciphers: 'SSLv3'
-                }
+                },
+                connectionTimeout: 30000,
+                socketTimeout: 30000
             });
 
             const info = await transporter.sendMail({
@@ -128,15 +135,17 @@ export async function POST(request: Request) {
                 text: emailBody,
             });
 
+            console.log('[RESET PASSWORD] Dispatch Success:', info.messageId);
             await logEmail('sent', { messageId: info.messageId });
             return NextResponse.json({ success: true });
         } catch (mailErr: any) {
-            console.error('[ADMIN RESET SMTP ERROR]', mailErr.message);
+            console.error('[ADMIN RESET SMTP ERROR]:', mailErr.message);
             await logEmail('failed', { error: mailErr.message });
             return NextResponse.json({ success: true, emailError: mailErr.message });
         }
 
     } catch (error: any) {
-        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+        console.error('[RESET PASSWORD FATAL EXCEPTION]:', error.message, error.stack);
+        return NextResponse.json({ success: false, message: 'System Exception: ' + error.message }, { status: 500 });
     }
 }
