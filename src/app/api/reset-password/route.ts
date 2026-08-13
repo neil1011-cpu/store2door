@@ -114,7 +114,7 @@ export async function POST(request: Request) {
 
         try {
             console.log('[RESET PASSWORD] Initiating SMTP connection...');
-            // Pool: false is more stable for serverless resets to prevent hangs
+            // Aggressive timeouts to prevent server hanging
             const transporter = nodemailer.createTransport({
                 pool: false,
                 host: host, 
@@ -126,7 +126,8 @@ export async function POST(request: Request) {
                     minVersion: 'TLSv1.2'
                 },
                 connectionTimeout: 15000,
-                socketTimeout: 15000
+                socketTimeout: 15000,
+                greetingTimeout: 10000
             });
 
             const info = await transporter.sendMail({

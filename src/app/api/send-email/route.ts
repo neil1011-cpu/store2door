@@ -100,7 +100,8 @@ export async function POST(request: Request) {
                 minVersion: 'TLSv1.2'
             },
             connectionTimeout: 15000,
-            socketTimeout: 15000
+            socketTimeout: 15000,
+            greetingTimeout: 10000
         });
 
         // 3. Define Mail Options
