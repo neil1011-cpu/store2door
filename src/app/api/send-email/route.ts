@@ -3,14 +3,13 @@ import nodemailer from 'nodemailer';
 import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Standardized Email API with Automatic Hyperlinking.
- * Optimized for serverless environments with non-blocking dispatch and HTML formatting.
+ * @fileOverview Standardized Email API with Mandatory Await for Serverless Stability.
+ * Ensures the process doesn't terminate before the SMTP provider acknowledges receipt.
  */
 
-// Helper to convert plain text URLs to clickable links
 function linkify(text: string) {
     const urlPattern = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
-    return text.replace(urlPattern, '<a href="$1" style="color: #0d6efd; text-decoration: underline;">$1</a>');
+    return text.replace(urlPattern, '<a href="$1" style="#0d6efd; text-decoration: underline;">$1</a>');
 }
 
 export async function POST(request: Request) {
@@ -42,7 +41,7 @@ export async function POST(request: Request) {
     };
 
     let host = process.env.SMTP_HOST;
-    let port = process.env.SMTP_PORT;
+    let port = process.env.SMTP_PORT || '465';
     let user = process.env.SMTP_USER;
     let pass = process.env.SMTP_PASS;
 
@@ -59,7 +58,7 @@ export async function POST(request: Request) {
 
     if (!host || !port || !user || !pass || pass.includes('xxxx')) {
         await logEmail('simulated');
-        return NextResponse.json({ message: `Simulation Active.`, simulated: true }, { status: 200 });
+        return NextResponse.json({ message: `Simulation Active. No SMTP keys found.`, simulated: true }, { status: 200 });
     }
 
     try {
@@ -78,41 +77,36 @@ export async function POST(request: Request) {
             </div>
         `;
 
-        // FIRE AND FORGET DISPATCH
-        const dispatch = async () => {
-            try {
-                const transporter = nodemailer.createTransport({
-                    pool: false,
-                    host: host,
-                    port: Number(port),
-                    secure: Number(port) === 465,
-                    auth: { user: user, pass: pass },
-                    tls: { minVersion: 'TLSv1.2', rejectUnauthorized: false },
-                    connectionTimeout: 10000,
-                    socketTimeout: 10000
-                });
+        // CRITICAL: We must AWAIT this call in serverless environments or the process dies before sending.
+        const transporter = nodemailer.createTransport({
+            host: host,
+            port: Number(port),
+            secure: Number(port) === 465,
+            auth: { user: user, pass: pass },
+            tls: { 
+                rejectUnauthorized: false,
+                minVersion: 'TLSv1.2'
+            },
+            connectionTimeout: 15000,
+            socketTimeout: 15000,
+            greetingTimeout: 10000
+        });
 
-                const info = await transporter.sendMail({
-                    from: `"FromStore2Door Global Logistics" <${user}>`,
-                    to: Array.isArray(to) ? user : to,
-                    bcc: Array.isArray(to) ? to : undefined,
-                    subject: subject,
-                    html: fullBodyHtml,
-                    text: emailBody,
-                });
-                await logEmail('sent', { messageId: info.messageId, response: info.response });
-            } catch (err: any) {
-                console.error('[SEND-EMAIL BACKGROUND ERROR]:', err.message);
-                await logEmail('failed', { error: err.message });
-            }
-        };
+        const info = await transporter.sendMail({
+            from: `"FromStore2Door Global Logistics" <${user}>`,
+            to: Array.isArray(to) ? user : to,
+            bcc: Array.isArray(to) ? to : undefined,
+            subject: subject,
+            html: fullBodyHtml,
+            text: emailBody,
+        });
 
-        dispatch();
-
-        return NextResponse.json({ success: true, message: 'Dispatch initiated.' });
+        await logEmail('sent', { messageId: info.messageId, response: info.response });
+        return NextResponse.json({ success: true, message: 'Email delivered successfully.' });
 
     } catch (error: any) {
         console.error('[SMTP TRANSMISSION FAILURE]:', error.message);
+        await logEmail('failed', { error: error.message });
         return NextResponse.json({ message: `SMTP Error: ${error.message}` }, { status: 500 });
     }
 }
