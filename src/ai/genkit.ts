@@ -1,20 +1,17 @@
 
+import { genkit, z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
+
 /**
- * @fileOverview Genkit AI Initialization (Stubbed for Manual Operation Mode)
+ * @fileOverview Official Genkit AI Initialization for FromStore2Door OS.
+ * Provides a global 'ai' instance for GenAI flows and document analysis.
  */
 
-export const ai = {
-  defineFlow: (cfg: any, handler: any) => handler,
-  definePrompt: (cfg: any) => async (input: any) => ({ output: null }),
-  defineTool: (cfg: any, handler: any) => handler,
-  generate: async (cfg: any) => ({ text: '', output: null, media: null }),
-};
+export const ai = genkit({
+  plugins: [
+    googleAI(), // Add your provider plugin here
+  ],
+  model: googleAI.model('gemini-2.5-flash'), // Default high-performance model
+});
 
-export const z = {
-  object: (obj: any) => ({ describe: (s: string) => ({ infer: {} as any }) }),
-  string: () => ({ describe: (s: string) => ({}) }),
-  number: () => ({ describe: (s: string) => ({}) }),
-  boolean: () => ({ describe: (s: string) => ({}) }),
-  any: () => ({}),
-  infer: {} as any,
-};
+export { z };

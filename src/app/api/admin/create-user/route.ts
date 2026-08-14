@@ -1,9 +1,10 @@
+
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Robust Administrative User Creation API.
- * Provides exhaustive diagnostics and descriptive error messages for absolute transparency.
+ * Handles duplicate checks, mailbox assignment, and administrative role granting.
  */
 
 export async function POST(request: Request) {
@@ -38,7 +39,6 @@ export async function POST(request: Request) {
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
     } catch (tokenErr: any) {
-      console.error('[CREATE USER] Token verification failed:', tokenErr.message);
       return NextResponse.json({ success: false, message: 'Session validation failed: ' + tokenErr.message }, { status: 401 });
     }
     

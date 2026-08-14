@@ -1,10 +1,11 @@
+
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Secure administrative password reset endpoint.
- * Prioritizes Environment Variables to avoid frequent Google Cloud Resource prompts.
+ * @fileOverview Standardized secure administrative password reset endpoint.
+ * Optimized for serverless environments with strict SMTP timeouts and identity alignment.
  */
 
 async function getSafeBody(request: Request) {
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return NextResponse.json({ message: 'Administrative authorization required.' }, { status: 401 });
         }
-        const idToken = authHeader.substring(7);
+        const idToken = authHeader.split(' ')[1];
 
         let decodedToken;
         try {
@@ -60,20 +61,18 @@ export async function POST(request: Request) {
         // 1. GENERATE SECURE RESET LINK
         const resetLink = await adminAuth.generatePasswordResetLink(recipientEmail);
 
-        // 2. FLAG PROFILE
+        // 2. FLAG PROFILE FOR SECURITY RESET SCREEN
         await adminDb.collection('users').doc(userId).update({
             needsPasswordReset: true,
             updatedAt: adminField.serverTimestamp()
         });
 
-        // 3. RESOLVE CREDENTIALS
-        // Stage 1: Load from Environment Variables (Primary to avoid DB hits)
+        // 3. RESOLVE SMTP CREDENTIALS
         let host = process.env.SMTP_HOST;
         let port = process.env.SMTP_PORT || '465';
         let user = process.env.SMTP_USER;
         let pass = process.env.SMTP_PASS;
 
-        // Stage 2: Fallback to Firestore Metadata only if ENV vars are missing
         if (!host || !user || !pass) {
             try {
                 const configSnap = await adminDb.collection('metadata').doc('email_config').get();
@@ -97,7 +96,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, simulated: true, message: 'Simulated reset link generation.' });
         }
 
-        // 4. AWAIT SMTP DISPATCH
+        // 4. AWAIT SMTP DISPATCH WITH TIMEOUT
         try {
             const transporter = nodemailer.createTransport({
                 host: host, 
@@ -121,11 +120,13 @@ export async function POST(request: Request) {
                 text: emailBody,
                 html: `
                     <div style="font-family:sans-serif;padding:20px;border:1px solid #eee;border-radius:10px;max-width:600px;margin:auto;">
-                        <h2 style="color:#000;font-weight:900;font-style:italic;">FROMSTORE2DOOR</h2>
+                        <div style="text-align:center;margin-bottom:20px;">
+                            <h2 style="color:#000;font-weight:900;font-style:italic;margin:0;">FROMSTORE2DOOR</h2>
+                        </div>
                         <p>Hi ${recipientName},</p>
                         <p>Your administrator has initiated a security update. Click the button below to set your new access key:</p>
                         <div style="margin:30px 0;text-align:center;">
-                            <a href="${resetLink}" style="background:#0d6efd;color:white;padding:15px 30px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block;">Reset Access Key</a>
+                            <a href="${resetLink}" style="background:#000;color:white;padding:15px 30px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block;text-transform:uppercase;letter-spacing:1px;">Reset Access Key</a>
                         </div>
                         <p style="font-size:12px;color:#888;">If the button doesn't work, copy and paste this link: <br><a href="${resetLink}">${resetLink}</a></p>
                     </div>`
