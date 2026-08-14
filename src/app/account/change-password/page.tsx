@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldAlert, Loader2, CheckCircle2, Lock } from 'lucide-react';
+import { ShieldAlert, Loader2, CheckCircle2, Lock, RefreshCcw } from 'lucide-react';
 import { useAuth, useFirestore } from '@/firebase';
 import { updatePassword } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -17,14 +17,14 @@ export default function ChangePasswordPage() {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
-    const { auth } = useAuth();
+    const auth = useAuth();
     const firestore = useFirestore();
     const { toast } = useToast();
     const router = useRouter();
     const profile = useAccountProfile();
 
     const handleUpdate = async () => {
-        if (newPassword.length < 8) {
+        if (!newPassword || newPassword.length < 8) {
             toast({ title: "Secure Entry Required", description: "Password must be at least 8 characters for worldwide safety.", variant: "destructive" });
             return;
         }
@@ -36,7 +36,7 @@ export default function ChangePasswordPage() {
         setIsUpdating(true);
         try {
             const user = auth?.currentUser;
-            if (!user || !profile) throw new Error("Authentication session lost.");
+            if (!user || !profile || !firestore) throw new Error("Authentication session or database link lost. Please refresh.");
 
             await updatePassword(user, newPassword);
             
@@ -48,11 +48,32 @@ export default function ChangePasswordPage() {
             toast({ title: "Identity Secured", description: "Your new credentials are now active." });
             router.push('/account');
         } catch (error: any) {
+            console.error("[SECURITY RESET ERROR]", error);
             toast({ 
                 title: "Security Update Failed", 
                 description: error.message.includes('recent-login') ? "For security, please sign out and sign back in before changing your password." : error.message, 
                 variant: "destructive" 
             });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleSyncOnly = async () => {
+        setIsUpdating(true);
+        try {
+            const user = auth?.currentUser;
+            if (!user || !firestore) throw new Error("Authentication session lost. Please sign in again.");
+            
+            await updateDoc(doc(firestore, 'users', user.uid), {
+                needsPasswordReset: false
+            });
+
+            toast({ title: "Identity Synchronized", description: "Your account security status has been updated." });
+            router.push('/account');
+        } catch (error: any) {
+            console.error("[SECURITY SYNC ERROR]", error);
+            toast({ title: "Sync Failed", description: error.message, variant: "destructive" });
         } finally {
             setIsUpdating(false);
         }
@@ -74,7 +95,7 @@ export default function ChangePasswordPage() {
                     <div className="p-4 bg-muted/50 rounded-xl border border-dashed flex gap-4">
                         <ShieldAlert className="h-5 w-5 text-primary shrink-0" />
                         <p className="text-[11px] font-bold leading-relaxed uppercase tracking-tight">
-                            Your account is using a temporary system-generated password. For your worldwide shipping security, you must define a new private key.
+                            Your account is using a temporary system-generated password or has been flagged for a reset. For your worldwide shipping security, you must define or verify your secure key.
                         </p>
                     </div>
 
@@ -101,10 +122,23 @@ export default function ChangePasswordPage() {
                         </div>
                     </div>
                 </CardContent>
-                <CardFooter className="pb-8">
+                <CardFooter className="flex flex-col gap-3 pb-8">
                     <Button onClick={handleUpdate} disabled={isUpdating} className="w-full h-14 text-lg font-black uppercase italic shadow-xl">
                         {isUpdating ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <CheckCircle2 className="mr-2 h-6 w-6" />}
                         Finalize Security Setup
+                    </Button>
+
+                    <div className="relative w-full py-2">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground font-bold text-[9px]">Or if already reset via email</span>
+                        </div>
+                    </div>
+
+                    <Button onClick={handleSyncOnly} variant="outline" disabled={isUpdating} className="w-full h-12 font-bold uppercase text-[10px] border-2">
+                        <RefreshCcw className="mr-2 h-4 w-4" /> Synchronize Current Key
                     </Button>
                 </CardFooter>
             </Card>
