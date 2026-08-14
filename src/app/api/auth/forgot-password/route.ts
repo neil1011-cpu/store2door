@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer';
 
 /**
  * @fileOverview Forgot Password API with Hardened TLS and Identity Alignment.
+ * Prioritizes Environment Variables to avoid frequent Google Cloud Resource prompts.
  */
 
 export async function POST(request: Request) {
@@ -18,7 +19,6 @@ export async function POST(request: Request) {
         try {
             userRecord = await adminAuth.getUserByEmail(targetEmail);
         } catch (err: any) {
-            // Security best practice: Don't reveal if email exists
             return NextResponse.json({ success: true, message: 'Instructions dispatched if an account exists.' });
         }
 
@@ -27,21 +27,25 @@ export async function POST(request: Request) {
         const subject = 'Reset Your FromStore2Door Access Key';
         const emailBody = `Hi ${recipientName},\n\nYou have requested a secure link to reset your logistics platform access key. Please click the link below to define your new password:\n\n${resetLink}\n\nIf you did not request this, you can safely ignore this email.\n\nBest regards,\nThe FromStore2Door Team`;
 
+        // Stage 1: Load from Environment Variables (Primary to avoid DB hits)
         let host = process.env.SMTP_HOST;
         let port = process.env.SMTP_PORT || '465';
         let user = process.env.SMTP_USER;
         let pass = process.env.SMTP_PASS;
 
-        try {
-            const configSnap = await adminDb.collection('metadata').doc('email_config').get();
-            if (configSnap.exists) {
-                const data = configSnap.data();
-                host = data?.host || host;
-                port = data?.port || port;
-                user = data?.user || user;
-                pass = data?.pass || pass;
-            }
-        } catch (e) {}
+        // Stage 2: Fallback to Firestore Metadata only if ENV vars are missing
+        if (!host || !user || !pass) {
+            try {
+                const configSnap = await adminDb.collection('metadata').doc('email_config').get();
+                if (configSnap.exists) {
+                    const data = configSnap.data();
+                    host = data?.host || host;
+                    port = data?.port || port;
+                    user = data?.user || user;
+                    pass = data?.pass || pass;
+                }
+            } catch (e) {}
+        }
 
         if (!host || !port || !user || !pass || pass.includes('xxxx')) {
             await adminDb.collection('sent_emails').add({

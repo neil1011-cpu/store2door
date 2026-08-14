@@ -4,7 +4,7 @@ import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Standardized Email API with Hardened TLS and Identity Alignment.
- * Ensures the 'from' address exactly matches the SMTP user to satisfy strict provider requirements.
+ * Prioritizes Environment Variables to avoid frequent Google Cloud Resource prompts.
  */
 
 function linkify(text: string) {
@@ -40,28 +40,32 @@ export async function POST(request: Request) {
         }
     };
 
+    // Stage 1: Load from Environment Variables (Primary to avoid DB hits)
     let host = process.env.SMTP_HOST;
     let port = process.env.SMTP_PORT || '465';
     let user = process.env.SMTP_USER;
     let pass = process.env.SMTP_PASS;
 
-    // Load from Firestore Metadata as primary source for live management
-    try {
-        const configSnap = await adminDb.collection('metadata').doc('email_config').get();
-        if (configSnap.exists) {
-            const data = configSnap.data();
-            host = data?.host || host;
-            port = data?.port || port;
-            user = data?.user || user;
-            pass = data?.pass || pass;
+    // Stage 2: Fallback to Firestore Metadata only if ENV vars are missing
+    // This logic prevents the "Grant Access to Google Cloud" prompt for users with .env files
+    if (!host || !user || !pass) {
+        try {
+            const configSnap = await adminDb.collection('metadata').doc('email_config').get();
+            if (configSnap.exists) {
+                const data = configSnap.data();
+                host = data?.host || host;
+                port = data?.port || port;
+                user = data?.user || user;
+                pass = data?.pass || pass;
+            }
+        } catch (e) {
+            console.warn('[EMAIL API] Firestore Metadata fetch failed.');
         }
-    } catch (e) {
-        console.warn('[EMAIL API] Metadata fetch failed, falling back to ENV.');
     }
 
     if (!host || !port || !user || !pass || pass.includes('xxxx')) {
         await logEmail('simulated');
-        return NextResponse.json({ message: `Simulation Active. No SMTP keys found.`, simulated: true }, { status: 200 });
+        return NextResponse.json({ message: `Simulation Active. No SMTP keys detected in system.`, simulated: true }, { status: 200 });
     }
 
     try {
@@ -80,11 +84,10 @@ export async function POST(request: Request) {
             </div>
         `;
 
-        // CRITICAL: Single-connection dispatch with explicit TLS compatibility
         const transporter = nodemailer.createTransport({
             host: host,
             port: Number(port),
-            secure: Number(port) === 465, // True for 465, false for 587
+            secure: Number(port) === 465,
             auth: { user: user, pass: pass },
             tls: { 
                 rejectUnauthorized: false,
@@ -96,6 +99,7 @@ export async function POST(request: Request) {
             greetingTimeout: 10000
         });
 
+        // Use the SMTP user as the 'from' address to satisfy strict provider requirements
         const info = await transporter.sendMail({
             from: `"FromStore2Door Global Logistics" <${user}>`,
             to: Array.isArray(to) ? user : to,

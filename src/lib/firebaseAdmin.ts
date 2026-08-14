@@ -1,4 +1,4 @@
-import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
@@ -10,6 +10,13 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || 'swiftroute-3230b';
 
+/**
+ * Note for Developers:
+ * To avoid the "Grant access to Google Cloud resources" prompts in Studio/Local environments,
+ * you should provide a service account JSON file and initialize with:
+ * initializeApp({ credential: cert(serviceAccountJson), projectId: PROJECT_ID });
+ */
+
 function getAdminApp(): App {
   const apps = getApps();
   if (apps.length > 0) {
@@ -17,10 +24,6 @@ function getAdminApp(): App {
   }
   
   console.log('[ADMIN SDK] Initializing new application instance for:', PROJECT_ID);
-  
-  // In development/Studio, the Admin SDK relies on Application Default Credentials (ADC).
-  // If you are prompted constantly to "Grant Access", consider adding a service account JSON:
-  // initializeApp({ credential: cert(serviceAccount), projectId: PROJECT_ID });
   
   return initializeApp({
     projectId: PROJECT_ID,

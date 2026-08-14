@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 
 /**
  * @fileOverview Secure administrative password reset endpoint.
- * Generates a secure Firebase Reset Link and awaits SMTP delivery for serverless stability.
+ * Prioritizes Environment Variables to avoid frequent Google Cloud Resource prompts.
  */
 
 async function getSafeBody(request: Request) {
@@ -67,21 +67,25 @@ export async function POST(request: Request) {
         });
 
         // 3. RESOLVE CREDENTIALS
+        // Stage 1: Load from Environment Variables (Primary to avoid DB hits)
         let host = process.env.SMTP_HOST;
         let port = process.env.SMTP_PORT || '465';
         let user = process.env.SMTP_USER;
         let pass = process.env.SMTP_PASS;
 
-        try {
-            const configSnap = await adminDb.collection('metadata').doc('email_config').get();
-            if (configSnap.exists) {
-                const data = configSnap.data();
-                host = data?.host || host;
-                port = data?.port || port;
-                user = data?.user || user;
-                pass = data?.pass || pass;
-            }
-        } catch (e) {}
+        // Stage 2: Fallback to Firestore Metadata only if ENV vars are missing
+        if (!host || !user || !pass) {
+            try {
+                const configSnap = await adminDb.collection('metadata').doc('email_config').get();
+                if (configSnap.exists) {
+                    const data = configSnap.data();
+                    host = data?.host || host;
+                    port = data?.port || port;
+                    user = data?.user || user;
+                    pass = data?.pass || pass;
+                }
+            } catch (e) {}
+        }
 
         const subject = 'Action Required: Reset Your Logistics Access Key';
         const emailBody = `Hi ${recipientName},\n\nYour administrator has initiated a security update for your FromStore2Door account. Please click the link below to set your new secure access key:\n\n${resetLink}\n\nThis link will expire for your protection.\n\nThank you for shipping with us!`;
