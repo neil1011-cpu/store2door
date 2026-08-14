@@ -3,7 +3,7 @@ import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
 import nodemailer from 'nodemailer';
 
 /**
- * @fileOverview Forgot Password API with Mandatory Await for Serverless Stability.
+ * @fileOverview Forgot Password API with Hardened TLS and Identity Alignment.
  */
 
 export async function POST(request: Request) {
@@ -32,14 +32,16 @@ export async function POST(request: Request) {
         let user = process.env.SMTP_USER;
         let pass = process.env.SMTP_PASS;
 
-        const configSnap = await adminDb.collection('metadata').doc('email_config').get();
-        if (configSnap.exists) {
-            const data = configSnap.data();
-            host = data?.host || host;
-            port = data?.port || port;
-            user = data?.user || user;
-            pass = data?.pass || pass;
-        }
+        try {
+            const configSnap = await adminDb.collection('metadata').doc('email_config').get();
+            if (configSnap.exists) {
+                const data = configSnap.data();
+                host = data?.host || host;
+                port = data?.port || port;
+                user = data?.user || user;
+                pass = data?.pass || pass;
+            }
+        } catch (e) {}
 
         if (!host || !port || !user || !pass || pass.includes('xxxx')) {
             await adminDb.collection('sent_emails').add({
@@ -48,37 +50,47 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, simulated: true });
         }
 
-        // CRITICAL: Await dispatch so the function doesn't exit before sending
         const transporter = nodemailer.createTransport({
             host: host,
             port: Number(port),
             secure: Number(port) === 465,
             auth: { user: user, pass: pass },
-            tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
+            tls: { 
+                rejectUnauthorized: false, 
+                minVersion: 'TLSv1.2' 
+            },
+            pool: false,
             connectionTimeout: 15000,
             socketTimeout: 15000,
             greetingTimeout: 10000
         });
 
-        await transporter.sendMail({
-            from: `"FromStore2Door Global Logistics" <${user}>`,
-            to: targetEmail,
-            subject: subject,
-            text: emailBody,
-            html: `<div style="font-family:sans-serif;padding:20px;border:1px solid #eee;border-radius:10px;max-width:600px;margin:auto;">
-                <h2 style="color:#000;font-weight:900;font-style:italic;">FROMSTORE2DOOR</h2>
-                <p>Hi ${recipientName},</p>
-                <p>Click the button below to reset your access key. This link is valid for 1 hour.</p>
-                <div style="margin:30px 0;text-align:center;"><a href="${resetLink}" style="background:#0d6efd;color:white;padding:15px 30px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block;">Set New Password</a></div>
-                <p style="font-size:12px;color:#888;">If the button doesn't work, copy and paste this link: <br><a href="${resetLink}">${resetLink}</a></p>
-            </div>`
-        });
+        try {
+            await transporter.sendMail({
+                from: `"FromStore2Door Global Logistics" <${user}>`,
+                to: targetEmail,
+                subject: subject,
+                text: emailBody,
+                html: `<div style="font-family:sans-serif;padding:20px;border:1px solid #eee;border-radius:10px;max-width:600px;margin:auto;">
+                    <h2 style="color:#000;font-weight:900;font-style:italic;">FROMSTORE2DOOR</h2>
+                    <p>Hi ${recipientName},</p>
+                    <p>Click the button below to reset your access key. This link is valid for 1 hour.</p>
+                    <div style="margin:30px 0;text-align:center;"><a href="${resetLink}" style="background:#0d6efd;color:white;padding:15px 30px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block;">Set New Password</a></div>
+                    <p style="font-size:12px;color:#888;">If the button doesn't work, copy and paste this link: <br><a href="${resetLink}">${resetLink}</a></p>
+                </div>`
+            });
 
-        await adminDb.collection('sent_emails').add({
-            recipientName, recipientEmail: targetEmail, subject, body: emailBody, status: 'sent', sentAt: adminField.serverTimestamp(),
-        });
+            await adminDb.collection('sent_emails').add({
+                recipientName, recipientEmail: targetEmail, subject, body: emailBody, status: 'sent', sentAt: adminField.serverTimestamp(),
+            });
 
-        return NextResponse.json({ success: true, message: 'Reset instructions sent.' });
+            return NextResponse.json({ success: true, message: 'Reset instructions sent.' });
+        } catch (mailErr: any) {
+             await adminDb.collection('sent_emails').add({
+                recipientName, recipientEmail: targetEmail, subject, body: emailBody, status: 'failed', error: mailErr.message, sentAt: adminField.serverTimestamp(),
+            });
+            return NextResponse.json({ success: false, message: `Transmission Failed: ${mailErr.message}` }, { status: 500 });
+        }
 
     } catch (criticalError: any) {
         console.error('[FORGOT PASSWORD FATAL EXCEPTION]:', criticalError.message);

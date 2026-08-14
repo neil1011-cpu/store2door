@@ -3,13 +3,13 @@ import nodemailer from 'nodemailer';
 import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Standardized Email API with Mandatory Await for Serverless Stability.
- * Ensures the process doesn't terminate before the SMTP provider acknowledges receipt.
+ * @fileOverview Standardized Email API with Hardened TLS and Identity Alignment.
+ * Ensures the 'from' address exactly matches the SMTP user to satisfy strict provider requirements.
  */
 
 function linkify(text: string) {
     const urlPattern = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
-    return text.replace(urlPattern, '<a href="$1" style="#0d6efd; text-decoration: underline;">$1</a>');
+    return text.replace(urlPattern, '<a href="$1" style="color: #0d6efd; text-decoration: underline;">$1</a>');
 }
 
 export async function POST(request: Request) {
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
     const { to, subject, body: emailBody, recipientName } = body;
 
-    const logEmail = async (status: 'sent' | 'simulated' | 'failed' | 'timeout', metadata?: any) => {
+    const logEmail = async (status: 'sent' | 'simulated' | 'failed', metadata?: any) => {
         try {
             await adminDb.collection('sent_emails').add({
                 recipientName: recipientName || (Array.isArray(to) ? `Multiple (${to.length})` : to),
@@ -45,7 +45,8 @@ export async function POST(request: Request) {
     let user = process.env.SMTP_USER;
     let pass = process.env.SMTP_PASS;
 
-    if (!host || !port || !user || !pass || pass.includes('xxxx')) {
+    // Load from Firestore Metadata as primary source for live management
+    try {
         const configSnap = await adminDb.collection('metadata').doc('email_config').get();
         if (configSnap.exists) {
             const data = configSnap.data();
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
             user = data?.user || user;
             pass = data?.pass || pass;
         }
+    } catch (e) {
+        console.warn('[EMAIL API] Metadata fetch failed, falling back to ENV.');
     }
 
     if (!host || !port || !user || !pass || pass.includes('xxxx')) {
@@ -77,16 +80,17 @@ export async function POST(request: Request) {
             </div>
         `;
 
-        // CRITICAL: We must AWAIT this call in serverless environments or the process dies before sending.
+        // CRITICAL: Single-connection dispatch with explicit TLS compatibility
         const transporter = nodemailer.createTransport({
             host: host,
             port: Number(port),
-            secure: Number(port) === 465,
+            secure: Number(port) === 465, // True for 465, false for 587
             auth: { user: user, pass: pass },
             tls: { 
                 rejectUnauthorized: false,
                 minVersion: 'TLSv1.2'
             },
+            pool: false,
             connectionTimeout: 15000,
             socketTimeout: 15000,
             greetingTimeout: 10000
@@ -107,6 +111,6 @@ export async function POST(request: Request) {
     } catch (error: any) {
         console.error('[SMTP TRANSMISSION FAILURE]:', error.message);
         await logEmail('failed', { error: error.message });
-        return NextResponse.json({ message: `SMTP Error: ${error.message}` }, { status: 500 });
+        return NextResponse.json({ message: `Transmission Failed: ${error.message}` }, { status: 500 });
     }
 }

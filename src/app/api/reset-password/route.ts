@@ -73,14 +73,16 @@ export async function POST(request: Request) {
         let user = process.env.SMTP_USER;
         let pass = process.env.SMTP_PASS;
 
-        const configSnap = await adminDb.collection('metadata').doc('email_config').get();
-        if (configSnap.exists) {
-            const data = configSnap.data();
-            host = data?.host || host;
-            port = data?.port || port;
-            user = data?.user || user;
-            pass = data?.pass || pass;
-        }
+        try {
+            const configSnap = await adminDb.collection('metadata').doc('email_config').get();
+            if (configSnap.exists) {
+                const data = configSnap.data();
+                host = data?.host || host;
+                port = data?.port || port;
+                user = data?.user || user;
+                pass = data?.pass || pass;
+            }
+        } catch (e) {}
 
         const subject = 'Action Required: Reset Your Logistics Access Key';
         const emailBody = `Hi ${recipientName},\n\nYour administrator has initiated a security update for your FromStore2Door account. Please click the link below to set your new secure access key:\n\n${resetLink}\n\nThis link will expire for your protection.\n\nThank you for shipping with us!`;
@@ -92,14 +94,18 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, simulated: true, message: 'Simulated reset link generation.' });
         }
 
-        // 4. AWAIT SMTP DISPATCH (Mandatory for serverless stability)
+        // 4. AWAIT SMTP DISPATCH
         try {
             const transporter = nodemailer.createTransport({
                 host: host, 
                 port: Number(port), 
                 secure: Number(port) === 465,
                 auth: { user: user, pass: pass }, 
-                tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
+                tls: { 
+                    rejectUnauthorized: false, 
+                    minVersion: 'TLSv1.2' 
+                },
+                pool: false,
                 connectionTimeout: 15000,
                 socketTimeout: 15000,
                 greetingTimeout: 10000
@@ -132,7 +138,7 @@ export async function POST(request: Request) {
             await adminDb.collection('sent_emails').add({
                 recipientName, recipientEmail, subject, body: emailBody, status: 'failed', error: mailErr.message, sentAt: adminField.serverTimestamp(),
             });
-            return NextResponse.json({ success: true, message: 'Reset authorized in database but email failed: ' + mailErr.message });
+            return NextResponse.json({ success: false, message: `Transmission Failed: ${mailErr.message}` }, { status: 500 });
         }
 
     } catch (error: any) {
