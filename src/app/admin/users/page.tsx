@@ -142,6 +142,11 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+      if (userId === currentUser?.uid) {
+          toast({ title: "Self-Purge Prohibited", description: "You cannot remove your own account while logged in.", variant: "destructive" });
+          return;
+      }
+      
       const targetUser = users?.find(u => u.id === userId);
       if (targetUser?.email === 'admin@neilussolutions.com') {
           toast({ title: "Master Admin Locked", description: "This account cannot be deleted.", variant: "destructive" });
@@ -188,11 +193,10 @@ export default function UsersPage() {
 
       for (const id of ids) {
           try {
+              if (id === currentUser?.uid) continue;
               const target = users?.find(u => u.id === id);
-              if (target?.email === 'admin@neilussolutions.com') {
-                  console.warn(`[BULK] Skipping Master Admin: ${id}`);
-                  continue;
-              }
+              if (target?.email === 'admin@neilussolutions.com') continue;
+              
               const idToken = await currentUser?.getIdToken(true);
               const res = await fetch('/api/admin/delete-user', {
                   method: 'POST',
@@ -396,7 +400,7 @@ export default function UsersPage() {
                         </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-9 text-destructive hover:text-destructive hover:bg-destructive/5 font-black uppercase text-[10px] px-2" disabled={u.email === 'admin@neilussolutions.com'}>
+                                <Button variant="ghost" size="sm" className="h-9 text-destructive hover:text-destructive hover:bg-destructive/5 font-black uppercase text-[10px] px-2" disabled={u.email === 'admin@neilussolutions.com' || u.id === currentUser?.uid}>
                                     {isDeleting === u.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                 </Button>
                             </AlertDialogTrigger>

@@ -93,8 +93,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   const recentShipment = shipments?.[0] || logicwarePackage;
 
   const formatDate = (date: any) => {
-    if (!date) return 'N/A';
-    if (!isMounted) return '...'; 
+    if (!date || !isMounted) return '...'; 
     try {
         if (date.toDate && typeof date.toDate === 'function') {
             return date.toDate().toLocaleString();
@@ -104,8 +103,6 @@ export function DashboardTab({ details }: { details: UserProfile }) {
         return 'N/A';
     }
   };
-
-  const currentBalance = details.walletBalance || 0;
 
   return (
     <div className="grid grid-cols-1 gap-6">

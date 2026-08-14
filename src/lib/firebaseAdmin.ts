@@ -3,19 +3,11 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Hardened Firebase Admin SDK initialization.
- * Optimized for stable performance in Next.js 15 and workstation environments.
- * Uses hardcoded project ID as a final fallback to ensure reliability in live environments.
+ * @fileOverview Proactively hardened Firebase Admin SDK initialization.
+ * Optimized for stable performance across all Next.js 15 environments.
  */
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || 'swiftroute-3230b';
-
-/**
- * Note for Developers:
- * To avoid the "Grant access to Google Cloud resources" prompts in Studio/Local environments,
- * you should provide a service account JSON file and initialize with:
- * initializeApp({ credential: cert(serviceAccountJson), projectId: PROJECT_ID });
- */
 
 function getAdminApp(): App {
   const apps = getApps();
@@ -23,7 +15,7 @@ function getAdminApp(): App {
     return apps[0];
   }
   
-  console.log('[ADMIN SDK] Initializing new application instance for:', PROJECT_ID);
+  console.log('[ADMIN SDK] Initializing primary application instance for:', PROJECT_ID);
   
   return initializeApp({
     projectId: PROJECT_ID,
@@ -36,7 +28,6 @@ try {
   app = getAdminApp();
 } catch (e: any) {
   console.error('[ADMIN SDK] Initialization Error:', e.message);
-  // Fallback initialization if first attempt fails
   app = initializeApp({ projectId: PROJECT_ID }, 'fallback-' + Date.now());
 }
 
@@ -59,11 +50,10 @@ export function cleanPayload(obj: any): any {
     return obj.map(v => cleanPayload(v)).filter(v => v !== undefined);
   }
 
-  // CRITICAL: Identify if this is a plain object or a class/sentinel
+  // Identify if this is a plain object or a Firestore sentinel (like FieldValue)
   try {
       const proto = Object.getPrototypeOf(obj);
       if (proto !== null && proto !== Object.prototype) {
-        // This is an internal type (like FieldValue or DocumentReference), return as-is
         return obj;
       }
   } catch (e) {
