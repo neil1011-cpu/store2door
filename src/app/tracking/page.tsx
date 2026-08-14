@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -27,6 +28,8 @@ export default function TrackingPage() {
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isMounted || !firestore) return;
+    
     const tid = trackingNumber.trim().toUpperCase();
     if (!tid) return;
 
@@ -46,7 +49,7 @@ export default function TrackingPage() {
             const data = snapshot.docs[0].data() as Shipment;
             setShipment({ ...data, id: snapshot.docs[0].id, source: 'Internal' });
         } else {
-            const key = typeof window !== 'undefined' ? localStorage.getItem('LOGICWARE_API_KEY') : null;
+            const key = localStorage.getItem('LOGICWARE_API_KEY');
             if (key) {
                 const lwRes = await fetch('/api/admin/logicware-shipments', {
                     method: 'POST',
@@ -78,11 +81,10 @@ export default function TrackingPage() {
   }
 
   const formatTimestamp = (ts: any) => {
-    if (!ts) return 'N/A';
-    if (!isMounted) return '...'; 
+    if (!ts || !isMounted) return 'N/A';
     try {
         if (typeof ts === 'string') return new Date(ts).toLocaleDateString();
-        if (typeof ts.toDate === 'function') return ts.toDate().toLocaleDateString();
+        if (ts.toDate && typeof ts.toDate === 'function') return ts.toDate().toLocaleDateString();
         return new Date(ts).toLocaleDateString();
     } catch (e) {
         return 'N/A';
@@ -131,7 +133,7 @@ export default function TrackingPage() {
             </Alert>
           )}
 
-          {shipment && (
+          {shipment && isMounted && (
             <Card className="shadow-xl border-t-4 border-primary animate-in zoom-in-95 duration-300">
               <CardHeader className="bg-muted/30">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

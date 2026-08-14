@@ -10,6 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const GenerateCustomsFormInputSchema = z.object({
   trackingNumber: z.string().describe('The tracking number for the shipment, in JMXXX format.'),
@@ -18,7 +19,7 @@ const GenerateCustomsFormInputSchema = z.object({
   invoiceDataUri: z
     .string()
     .describe(
-      'The commercial invoice for the shipment, as a data URI that must include a MIME type and use Base64 encoding.'
+      "A photo of a commercial invoice, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
 });
 export type GenerateCustomsFormInput = z.infer<typeof GenerateCustomsFormInputSchema>;

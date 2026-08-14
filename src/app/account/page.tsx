@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRouter } from 'next/navigation';
@@ -56,15 +57,17 @@ export default function AccountPage() {
     const { toast } = useToast();
     const auth = useAuth();
     const userProfile = useAccountProfile();
-    const [year, setYear] = useState<number | null>(null);
+    const [mounted, setMounted] = useState(false);
+    const [year, setYear] = useState<number>(2024);
 
     useEffect(() => {
+        setMounted(true);
         setYear(new Date().getFullYear());
     }, []);
 
     const handleSignOut = async () => {
         try {
-            await signOut(auth);
+            await signOut(auth!);
             toast({
                 title: 'Signed Out',
                 description: 'You have been successfully signed out.',
@@ -78,7 +81,7 @@ export default function AccountPage() {
         }
     };
 
-    if (!userProfile) return null;
+    if (!userProfile || !mounted) return null;
 
     return (
         <div className="container mx-auto px-4 md:px-6 pb-20">
@@ -124,7 +127,7 @@ export default function AccountPage() {
             </div>
 
             <div className="mt-16 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-8 opacity-40">
-                <p>&copy; {year || '...'} FromStore2Door Global Logistics. Portmore, Jamaica.</p>
+                <p>&copy; {year} FromStore2Door Global Logistics. Portmore, Jamaica.</p>
             </div>
         </div>
     );

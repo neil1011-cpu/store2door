@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -28,28 +29,12 @@ const features = [
   },
 ];
 
-const testimonials = [
-    {
-        name: "David Chen",
-        role: "Small Business Owner",
-        review: "FromStore2Door has been a game-changer. Their worldwide reach and transparent JMD pricing have saved my import business thousands."
-    },
-    {
-        name: "Maria Garcia",
-        role: "Global Shopper",
-        review: "I shop from Europe and Asia regularly. This service makes getting those packages to Jamaica completely stress-free!"
-    },
-     {
-        name: "James Smith",
-        role: "Personal Importer",
-        review: "The new tracking and landed cost calculator make this the most professional courier service I've ever used."
-    }
-]
-
 export default function HomePage() {
-  const [year, setYear] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [year, setYear] = useState<number>(2024);
 
   useEffect(() => {
+    setMounted(true);
     setYear(new Date().getFullYear());
   }, []);
 
@@ -81,10 +66,10 @@ export default function HomePage() {
                 Connecting the world to your doorstep. We provide a premium, reliable, and affordable shipping experience for every global import need.
               </p>
               <div className="pt-6 flex flex-col sm:flex-row gap-4 justify-center">
-                <Button size="lg" className="h-16 px-10 text-lg font-black uppercase tracking-tight shadow-2xl" asChild>
+                <Button size="lg" className="h-16 px-10 text-lg font-black uppercase italic tracking-tight shadow-2xl" asChild>
                   <Link href="/signup">Open FREE Account <ArrowRight className="ml-2 h-6 w-6" /></Link>
                 </Button>
-                <Button size="lg" variant="secondary" className="h-16 px-10 text-lg font-black backdrop-blur-md bg-white/90" asChild>
+                <Button size="lg" variant="secondary" className="h-16 px-10 text-lg font-black italic backdrop-blur-md bg-white/90" asChild>
                   <Link href="/tracking">Track Worldwide</Link>
                 </Button>
               </div>
@@ -95,11 +80,11 @@ export default function HomePage() {
       {/* Global Reach Stats */}
       <section className="py-12 bg-primary text-primary-foreground border-y border-white/10">
         <div className="container mx-auto px-4 md:px-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center uppercase tracking-tighter">
-                <div><p className="text-4xl font-black">100%</p><p className="text-[10px] opacity-60 font-bold">Safe Arrival</p></div>
-                <div><p className="text-4xl font-black">24/7</p><p className="text-[10px] opacity-60 font-bold">Global Tracking</p></div>
-                <div><p className="text-4xl font-black">0</p><p className="text-[10px] opacity-60 font-bold">Signup Fees</p></div>
-                <div><p className="text-4xl font-black">JAM</p><p className="text-[10px] opacity-60 font-bold">Local Support</p></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center uppercase tracking-tighter italic">
+                <div><p className="text-4xl font-black">100%</p><p className="text-[10px] opacity-60 font-bold tracking-widest">Safe Arrival</p></div>
+                <div><p className="text-4xl font-black">24/7</p><p className="text-[10px] opacity-60 font-bold tracking-widest">Global Tracking</p></div>
+                <div><p className="text-4xl font-black">0</p><p className="text-[10px] opacity-60 font-bold tracking-widest">Signup Fees</p></div>
+                <div><p className="text-4xl font-black">JAM</p><p className="text-[10px] opacity-60 font-bold tracking-widest">Local Support</p></div>
             </div>
         </div>
       </section>
@@ -110,7 +95,7 @@ export default function HomePage() {
           <div className="text-center mb-20 space-y-4">
             <h2 className="text-4xl font-black tracking-tighter uppercase italic">Worldwide Delivery Made Simple</h2>
             <div className="h-1.5 w-24 bg-primary mx-auto rounded-full" />
-            <p className="text-muted-foreground max-w-lg mx-auto">Get your international packages to Jamaica in three professional steps.</p>
+            <p className="text-muted-foreground max-w-lg mx-auto font-medium uppercase text-[10px] tracking-widest">Get your international packages to Jamaica in three professional steps.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-16 text-center max-w-6xl mx-auto">
               {[
@@ -123,7 +108,7 @@ export default function HomePage() {
                         {step.s}
                     </div>
                     <h3 className="text-2xl font-black uppercase tracking-tight italic">{step.t}</h3>
-                    <p className="text-muted-foreground text-sm leading-relaxed px-4">{step.d}</p>
+                    <p className="text-muted-foreground text-sm leading-relaxed px-4 font-medium">{step.d}</p>
                 </div>
               ))}
           </div>
@@ -140,8 +125,8 @@ export default function HomePage() {
                 <Link href="/contact" className="hover:text-primary transition-colors">Contact</Link>
                 <Link href="/tracking" className="hover:text-primary transition-colors">Global Tracking</Link>
             </div>
-            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-8">
-                &copy; {year || '...'} FromStore2Door Global Logistics. Portmore, Jamaica.
+            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-8 opacity-60">
+                &copy; {mounted ? year : '2024'} FromStore2Door Global Logistics. Portmore, Jamaica.
             </p>
          </div>
       </footer>
