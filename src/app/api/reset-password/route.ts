@@ -18,7 +18,6 @@ async function getSafeBody(request: Request) {
 }
 
 export async function POST(request: Request) {
-    console.log('[API: RESET-PASSWORD] Request initiated.');
     try {
         const body = await getSafeBody(request);
         const { userId } = body;

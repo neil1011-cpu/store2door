@@ -7,12 +7,9 @@ import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmi
  */
 
 export async function POST(request: Request) {
-  console.log('[API: CREATE-USER] New request received.');
-  
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.warn('[CREATE USER] Missing or malformed Authorization header.');
       return NextResponse.json({ success: false, message: 'Administrative authorization session required.' }, { status: 401 });
     }
 
@@ -25,7 +22,6 @@ export async function POST(request: Request) {
     try {
         body = await request.json();
     } catch (e) {
-        console.error('[CREATE USER] Failed to parse JSON body.');
         return NextResponse.json({ success: false, message: 'Malformed JSON payload.' }, { status: 400 });
     }
 
@@ -38,7 +34,6 @@ export async function POST(request: Request) {
     }
 
     // 1. Verify Administrative Authority
-    console.log('[CREATE USER] Verifying identity token...');
     let decodedToken;
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -47,17 +42,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Session validation failed: ' + tokenErr.message }, { status: 401 });
     }
     
-    console.log('[CREATE USER] Checking administrative role for:', decodedToken.email);
     const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
     const isMasterAdmin = decodedToken.email === 'admin@neilussolutions.com';
     
     if (!adminRoleSnap.exists && !isMasterAdmin) {
-        console.warn('[CREATE USER] Access Denied for UID:', decodedToken.uid);
         return NextResponse.json({ success: false, message: 'Access Denied: You do not have permission to create users.' }, { status: 403 });
     }
 
     // 2. Create Authentication Identity
-    console.log('[CREATE USER] Creating Firebase Auth user:', email);
     let userRecord;
     try {
         userRecord = await adminAuth.createUser({
@@ -66,8 +58,6 @@ export async function POST(request: Request) {
             displayName: `${firstName} ${lastName}`.trim(),
         });
     } catch (authError: any) {
-        console.error('[CREATE USER] Auth creation error:', authError.code, authError.message);
-        
         if (authError.code === 'auth/email-already-in-use') {
              return NextResponse.json({ success: false, message: 'This email is already associated with an account.' }, { status: 409 });
         }
@@ -75,7 +65,6 @@ export async function POST(request: Request) {
     }
 
     // 3. Establish Registry Record and Mailbox via Transaction
-    console.log('[CREATE USER] Initiating database registry transaction...');
     try {
         const finalMailbox = await adminDb.runTransaction(async (transaction) => {
             let mailboxId = requestedMailbox;
@@ -134,7 +123,6 @@ export async function POST(request: Request) {
         });
 
         // 4. Record Administrative Action in Logs
-        console.log('[CREATE USER] Success! Logging action.');
         await adminDb.collection('system_logs').add({
             type: 'user_creation',
             description: `Admin created user ${email} (${finalMailbox}).`,
@@ -142,7 +130,7 @@ export async function POST(request: Request) {
             userName: decodedToken.name || decodedToken.email,
             timestamp: adminField.serverTimestamp(),
             metadata: { mailbox: finalMailbox, isNewAdmin: !!isAdmin }
-        }).catch(e => console.warn('[LOGS] Failed to record user creation:', e.message));
+        });
 
         return NextResponse.json({
             success: true,
@@ -152,14 +140,12 @@ export async function POST(request: Request) {
         
     } catch (dbError: any) {
         console.error('[CREATE USER] Firestore transaction error:', dbError.message);
-        
-        // Cleanup Auth User if DB creation fails to prevent orphaned auth accounts
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database Registry Error: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (criticalError: any) {
-    console.error('[CREATE USER FATAL EXCEPTION]:', criticalError.message, criticalError.stack);
+    console.error('[CREATE USER FATAL EXCEPTION]:', criticalError.message);
     return NextResponse.json(
       { success: false, message: 'System Exception: ' + criticalError.message },
       { status: 500 }

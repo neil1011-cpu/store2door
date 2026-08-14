@@ -1,4 +1,4 @@
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
@@ -13,11 +13,15 @@ const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT
 function getAdminApp(): App {
   const apps = getApps();
   if (apps.length > 0) {
-    console.log('[ADMIN SDK] Reusing existing application instance.');
     return apps[0];
   }
   
   console.log('[ADMIN SDK] Initializing new application instance for:', PROJECT_ID);
+  
+  // In development/Studio, the Admin SDK relies on Application Default Credentials (ADC).
+  // If you are prompted constantly to "Grant Access", consider adding a service account JSON:
+  // initializeApp({ credential: cert(serviceAccount), projectId: PROJECT_ID });
+  
   return initializeApp({
     projectId: PROJECT_ID,
   });
@@ -30,7 +34,7 @@ try {
 } catch (e: any) {
   console.error('[ADMIN SDK] Initialization Error:', e.message);
   // Fallback initialization if first attempt fails
-  app = initializeApp({ projectId: PROJECT_ID }, 'fallback');
+  app = initializeApp({ projectId: PROJECT_ID }, 'fallback-' + Date.now());
 }
 
 export const adminAuth = getAuth(app);
@@ -53,7 +57,6 @@ export function cleanPayload(obj: any): any {
   }
 
   // CRITICAL: Identify if this is a plain object or a class/sentinel
-  // Plain objects have Object.prototype or null as their prototype.
   try {
       const proto = Object.getPrototypeOf(obj);
       if (proto !== null && proto !== Object.prototype) {
@@ -61,7 +64,6 @@ export function cleanPayload(obj: any): any {
         return obj;
       }
   } catch (e) {
-      // If prototype check fails, assume it's an internal complex object and return
       return obj;
   }
 
@@ -70,7 +72,6 @@ export function cleanPayload(obj: any): any {
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
       const value = obj[key];
-      // Only include defined values to prevent "payload argument" errors
       if (value !== undefined) {
         result[key] = cleanPayload(value);
       }
