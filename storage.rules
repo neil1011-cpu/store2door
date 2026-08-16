@@ -3,21 +3,27 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Explicit rule for the invoices directory
-    // We use {userId} to capture the folder name and {allPaths=**} for recursive access
-    match /invoices/{userId}/{allPaths=**} {
-      
-      // 1. Authenticated Owners: Absolute full access to their own subdirectory
+    // USER UPLOAD ACCESS
+    // This match covers the files inside a user's directory.
+    match /invoices/{userId}/{fileName} {
       allow read, write, list: if request.auth != null && request.auth.uid == userId;
-      
-      // 2. Administrative Read: For customs review and warehouse processing
+    }
+    
+    // Recursive match for metadata and nested folder operations
+    match /invoices/{userId}/{allPaths=**} {
+      allow read, write, list: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ADMINISTRATIVE ACCESS
+    // Admins need to see everything in the /invoices folder to process customs forms.
+    match /invoices/{allPaths=**} {
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
     
-    // Fallback: Deny all other unauthorized access
+    // Default Deny
     match /{allPaths=**} {
       allow read, write: if false;
     }

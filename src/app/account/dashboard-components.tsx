@@ -353,8 +353,8 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 500 * 1024 * 1024) {
-                toast({ title: "File Too Large", description: "The maximum upload size is 500MB.", variant: "destructive" });
+            if (file.size > 50 * 1024 * 1024) {
+                toast({ title: "File Too Large", description: "The maximum upload size is 50MB.", variant: "destructive" });
                 return;
             }
             setSelectedFile(file);
@@ -366,45 +366,30 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         
         const currentUser = auth?.currentUser;
         if (!user || !currentUser || !storage || !firestore) {
-            toast({ 
-                title: "Security Link Initializing", 
-                description: "Establishing secure connection. Please try again in a few seconds.", 
-                variant: "destructive" 
-            });
+            toast({ title: "System Readying...", description: "Establishing connection. Please try again.", variant: "destructive" });
             return;
         }
 
         if (!trackingNumber || !contents || !selectedFile) {
-            toast({ title: "Missing Fields", description: "Tracking #, contents, and invoice are required.", variant: "destructive" });
+            toast({ title: "Missing Information", description: "Please complete all required fields.", variant: "destructive" });
             return;
         }
 
         setIsSubmitting(true);
         try {
-            // CRITICAL: Refresh identity token milleseconds before upload to sync Storage and Auth
+            // Ensure auth token is fresh
             await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // Path structure is absolutely locked to /invoices/{uid}/{filename}
-            const sanitizedFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-            const storagePath = `invoices/${currentUid}/${Date.now()}_${sanitizedFileName}`;
+            // Simplified Path: invoices/{uid}/{timestamp}_{filename}
+            const storagePath = `invoices/${currentUid}/${Date.now()}_${selectedFile.name.replace(/\s+/g, '_')}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE] Initiating Secure Transfer to: ${storagePath}`);
+            console.log(`[STORAGE] Uploading to: ${storagePath}`);
             
-            let uploadResult;
-            try {
-                // Perform the upload using standardized SDK method
-                uploadResult = await uploadBytes(storageRef, selectedFile);
-            } catch (storageErr: any) {
-                console.error("[STORAGE CLOUD ERROR]", storageErr);
-                if (storageErr.code === 'storage/unauthorized') {
-                    throw new Error("Cloud Authorization Denied. This usually happens if your session is stale. Please refresh the page and try again immediately.");
-                }
-                throw new Error(`Transmission Interrupted: ${storageErr.message}`);
-            }
-
+            // Direct upload without metadata bloat
+            const uploadResult = await uploadBytes(storageRef, selectedFile);
             const downloadUrl = await getDownloadURL(storageRef);
 
             const alertData = {
@@ -422,32 +407,18 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             const preAlertsCollection = collection(firestore, 'users', currentUid, 'pre_alerts');
             await addDoc(preAlertsCollection, alertData);
 
-            // Dispatch Activity Log
-            fetch('/api/log-activity', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'pre_alert_upload',
-                    description: `User ${customerName} uploaded documentation for ${finalTracking}.`,
-                    userId: currentUid,
-                    userName: customerName,
-                    metadata: { trackingNumber: finalTracking, contents, weight, fileUrl: downloadUrl }
-                })
-            });
-
-            toast({ title: "Documentation Secured", description: "Your pre-alert has been queued for warehouse intake." });
+            toast({ title: "Pre-Alert Secured", description: "Your documentation has been received and queued for review." });
             setTrackingNumber('');
             setContents('');
             setWeight('');
             setSelectedFile(null);
             onSuccess?.();
         } catch (error: any) {
-            console.error("[PRE-ALERT FATAL ERROR]", error);
-            toast({ 
-                title: "Upload Interrupted", 
-                description: error.message || "We were unable to secure your documentation. Please verify your connection and try again.", 
-                variant: "destructive" 
-            });
+            console.error("[PRE-ALERT ERROR]", error);
+            const msg = error.code === 'storage/unauthorized' 
+                ? "Security rules denied access. Please refresh the page and try again." 
+                : (error.message || "An error occurred during upload.");
+            toast({ title: "Upload Failed", description: msg, variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }
@@ -462,12 +433,12 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                         placeholder="e.g. 1Z9999W..." 
                         value={trackingNumber} 
                         onChange={e => setTrackingNumber(e.target.value)}
-                        className="flex h-12 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                        className="flex h-12 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono uppercase"
                         required
                     />
                 </div>
                 <div className="space-y-2">
-                    <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">What's inside?</Label>
+                    <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">Package Contents</Label>
                     <Input 
                         placeholder="e.g. Shoes, Electronics" 
                         value={contents} 
@@ -479,7 +450,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             </div>
 
             <div className="space-y-2">
-                <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">Estimated Weight (LBS) - Optional</Label>
+                <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">Estimated Weight (LBS)</Label>
                 <div className="relative">
                     <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input 
@@ -493,7 +464,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             </div>
 
             <div className="space-y-2">
-                <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">Upload Invoice (Limit: 500MB)</Label>
+                <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">Upload Commercial Invoice</Label>
                 <div className="border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center bg-muted/20 relative group hover:bg-muted/30 transition-colors">
                     <input 
                         type="file" 
@@ -506,7 +477,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                         <div className="space-y-3">
                             <UploadCloud className="h-12 w-12 mx-auto text-primary opacity-40 group-hover:scale-110 transition-transform" />
                             <p className="text-sm font-black uppercase tracking-widest">Select Invoice File</p>
-                            <p className="text-[10px] text-muted-foreground">PDF or Image up to 500MB</p>
+                            <p className="text-[10px] text-muted-foreground">PDF or Image up to 50MB</p>
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center gap-3 text-green-600 font-bold uppercase text-xs">
@@ -523,8 +494,8 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             <div className="p-4 bg-primary/5 rounded-xl border border-dashed flex gap-4">
                 <Info className="h-5 w-5 text-primary shrink-0" />
                 <div>
-                    <p className="text-[11px] font-bold uppercase leading-tight">Identity-Locked Transmission</p>
-                    <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">Your documentation is secured in a private cloud directory tied directly to your UID.</p>
+                    <p className="text-[11px] font-bold uppercase leading-tight">Identity Verification Active</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">Your documentation is secured in a directory tied to your unique identity.</p>
                 </div>
             </div>
 
