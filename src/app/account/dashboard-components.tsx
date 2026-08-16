@@ -756,7 +756,7 @@ export function CustomsCalculatorTab() {
         const freightJmd = calculateShippingCost(w);
         const freightUsd = freightJmd / USD_TO_JMD_RATE;
         
-        if (itemPrice <= DE_MINIMis_THRESHOLD) {
+        if (itemPrice <= DE_MINIMIS_THRESHOLD) {
             setCalculation({ freight: freightUsd, importDuty: 0, scf: 0, caf: 0, customsTotal: 0, total: freightUsd, isDutyFree: true, calculated: true });
             return;
         }

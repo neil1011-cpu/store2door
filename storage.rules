@@ -3,18 +3,22 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // UNIVERSAL INVOICE PERMISSIONS
-    // Explicitly allow users to read and write to their own folder.
-    // Explicitly allow administrators to read for customs processing.
+    // INVOICE STORAGE PROTOCOL
+    // Explicitly allow users to manage their own personal documentation folder.
+    // Explicitly allow verified administrators to review documents for customs clearance.
+    
     match /invoices/{userId}/{fileName} {
+      // User Permission: Owner can read and write their own files.
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Admin Permission: Authorized administrators can read user invoices for processing.
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
-    
-    // Default Deny-All for anything outside authorized paths
+
+    // Default Security: Deny all other access to non-authorized paths.
     match /{allPaths=**} {
       allow read, write: if false;
     }
