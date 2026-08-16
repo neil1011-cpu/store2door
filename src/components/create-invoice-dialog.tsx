@@ -20,7 +20,7 @@ import { Trash2, PlusCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Invoice, UserProfile, LineItem } from '@/lib/types';
 import { useFirestore } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, writeBatch, increment } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -158,13 +158,11 @@ export function CreateInvoiceDialog({
   // Effect to reset state when dialog closes or preselected user changes
   useEffect(() => {
     if (!open) {
-        // Reset form when dialog is closed
         setCustomerId(preselectedUser?.id || '');
         setInvoiceDate(new Date().toISOString().split('T')[0]);
         setLineItems(initialLineItems);
         setIsGenerating(false);
     } else {
-        // When dialog opens, ensure preselected user is set
         setCustomerId(preselectedUser?.id || '');
     }
 }, [open, preselectedUser]);
@@ -187,7 +185,7 @@ export function CreateInvoiceDialog({
 
   const handleGenerateInvoice = async () => {
     const selectedUser = users.find(u => u.id === customerId);
-    if (!selectedUser || lineItems.some(item => !item.description || item.price <= 0)) {
+    if (!selectedUser || !firestore || lineItems.some(item => !item.description || item.price <= 0)) {
       toast({ title: 'Missing Fields', description: 'Please select a customer and fill in all line item details.', variant: 'destructive' });
       return;
     }
@@ -215,29 +213,39 @@ export function CreateInvoiceDialog({
         amount: totalAmount,
         status: 'Unpaid' as 'Unpaid',
         lineItems,
-        invoiceUrl: html, // Save the generated HTML to Firestore
+        invoiceUrl: html,
       };
 
+      const batch = writeBatch(firestore);
       const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
-      await setDoc(invoiceDocRef, newInvoiceData);
+      const userProfileRef = doc(firestore, 'users', selectedUser.id);
 
-      toast({ title: 'Invoice Generated', description: `Invoice ${invoiceId} has been created and saved.` });
+      // 1. Set Invoice
+      batch.set(invoiceDocRef, newInvoiceData);
+
+      // 2. Debit User Wallet (Represent debt as negative)
+      batch.update(userProfileRef, {
+        walletBalance: increment(-totalAmount),
+        updatedAt: serverTimestamp()
+      });
+
+      await batch.commit();
+
+      toast({ title: 'Invoice Generated', description: `Invoice ${invoiceId} created and account debited JMD $${totalAmount.toFixed(2)}.` });
       
-      // The onInvoiceCreated callback is used to notify the parent (finance page)
-      // that a new invoice exists so it can refresh its list.
       onInvoiceCreated({ ...newInvoiceData, id: invoiceId, date: new Date() });
-      onOpenChange(false); // Close dialog
+      onOpenChange(false);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Invoice Generation Error:", error);
-       if ((error as Error).message.includes('permission-denied')) {
+       if (error.message?.includes('permission-denied')) {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `invoices/INV-${Date.now()}`, // Approximate path
+                path: `invoices/INV-${Date.now()}`,
                 operation: 'create',
                 requestResourceData: { customerId, amount: calculateTotal() },
             }));
         } else {
-            toast({ title: 'Invoice Generation Failed', description: (error as Error).message, variant: 'destructive' });
+            toast({ title: 'Invoice Generation Failed', description: error.message, variant: 'destructive' });
         }
     } finally {
       setIsGenerating(false);
@@ -295,10 +303,10 @@ export function CreateInvoiceDialog({
                 </div>
             </ScrollArea>
             <DialogFooter>
-                <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                <DialogClose asChild><Button variant="outline" disabled={isGenerating}>Cancel</Button></DialogClose>
                 <Button type="submit" onClick={handleGenerateInvoice} disabled={isGenerating}>
-                    {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isGenerating ? 'Generating...' : 'Generate Invoice'}
+                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                    {isGenerating ? 'Generating...' : 'Finalize & Debit Account'}
                 </Button>
             </DialogFooter>
         </DialogContent>

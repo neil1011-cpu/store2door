@@ -41,7 +41,8 @@ import {
   Wallet,
   AlertCircle,
   TrendingDown,
-  TrendingUp
+  TrendingUp,
+  History
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -66,8 +67,7 @@ import html2canvas from 'html2canvas';
 
 /**
  * @fileOverview POS System with integrated PDF Receipt Generation and Finance linking.
- * Includes Manual Amount Override and optimized PDF export for thermal printing.
- * Enhanced to show detailed item descriptions and prominent account balances.
+ * Fixed wallet balance synchronization and added total outstanding transparency.
  */
 
 export default function POSPage() {
@@ -125,26 +125,31 @@ export default function POSPage() {
         ).slice(0, 5);
     }, [users, searchTerm]);
 
-    const calculatedTotal = useMemo(() => {
+    const calculatedSelectedTotal = useMemo(() => {
         if (!userInvoices) return 0;
         return userInvoices
             .filter(inv => selectedInvoices.has(inv.id))
             .reduce((sum, inv) => sum + inv.amount, 0);
     }, [userInvoices, selectedInvoices]);
 
+    const totalOutstandingInvoices = useMemo(() => {
+        if (!userInvoices) return 0;
+        return userInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    }, [userInvoices]);
+
     const finalAmount = useMemo(() => {
         if (useManualAmount) {
             return parseFloat(manualAmount) || 0;
         }
-        return calculatedTotal;
-    }, [useManualAmount, manualAmount, calculatedTotal]);
+        return calculatedSelectedTotal;
+    }, [useManualAmount, manualAmount, calculatedSelectedTotal]);
 
     // Update manual amount input when selection changes if manual mode is off
     useEffect(() => {
         if (!useManualAmount) {
-            setManualAmount(calculatedTotal.toString());
+            setManualAmount(calculatedSelectedTotal.toString());
         }
-    }, [calculatedTotal, useManualAmount]);
+    }, [calculatedSelectedTotal, useManualAmount]);
 
     const handleSelectUser = (user: UserProfile) => {
         setSelectedUser(user);
@@ -161,7 +166,7 @@ export default function POSPage() {
     };
 
     const handleProcessPayment = async () => {
-        if (!selectedUser || selectedInvoices.size === 0 || !firestore) return;
+        if (!selectedUser || !firestore) return;
         
         setIsProcessing(true);
         const batch = writeBatch(firestore);
@@ -169,7 +174,7 @@ export default function POSPage() {
         try {
             const itemsToSnap: Invoice[] = userInvoices?.filter(inv => selectedInvoices.has(inv.id)) || [];
 
-            // Update Invoices
+            // 1. Update Selected Invoices
             selectedInvoices.forEach(id => {
                 const invRef = doc(firestore, 'invoices', id);
                 batch.update(invRef, { 
@@ -180,7 +185,7 @@ export default function POSPage() {
                 });
             });
 
-            // Log Transaction
+            // 2. Log Finance Transaction
             const transactionRef = doc(collection(firestore, 'transactions'));
             batch.set(transactionRef, {
                 type: 'revenue',
@@ -193,14 +198,15 @@ export default function POSPage() {
                 invoiceIds: Array.from(selectedInvoices)
             });
 
-            // UPDATE USER ACCOUNT BALANCE: Payment adds back to the balance (reducing debt)
+            // 3. CREDIT USER WALLET: Payment reduces debt (adds to balance)
             batch.update(doc(firestore, 'users', selectedUser.id), {
-                walletBalance: increment(finalAmount)
+                walletBalance: increment(finalAmount),
+                updatedAt: serverTimestamp()
             });
 
             await batch.commit();
             
-            // Set Receipt Snapshot for printing
+            // 4. Set Receipt Snapshot for printing
             setReceiptData({
                 customer: selectedUser,
                 items: itemsToSnap,
@@ -210,24 +216,24 @@ export default function POSPage() {
             });
 
             setCheckoutComplete(true);
-            toast({ title: "Payment Processed!", description: `JMD $${finalAmount.toLocaleString()} credited to customer balance.` });
+            toast({ title: "Payment Secured", description: `JMD $${finalAmount.toLocaleString()} credited to client ledger.` });
             
-            // Log Activity for Audit Trail
-            await fetch('/api/log-activity', {
+            // 5. System Activity Log
+            fetch('/api/log-activity', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'pos_payment',
-                    description: `POS checkout completed for ${selectedUser.fullName}. Final Amount: JMD $${finalAmount.toFixed(2)}`,
+                    description: `POS Checkout: ${selectedUser.fullName}. Amount: JMD $${finalAmount.toFixed(2)} via ${paymentMethod}.`,
                     userId: 'admin',
                     userName: 'System Admin',
                     metadata: { customerId: selectedUser.id, amount: finalAmount, method: paymentMethod, overridden: useManualAmount }
                 })
             });
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Checkout Error:", error);
-            toast({ title: "Checkout Failed", variant: "destructive" });
+            toast({ title: "Checkout Aborted", description: error.message, variant: "destructive" });
         } finally {
             setIsProcessing(false);
         }
@@ -247,23 +253,17 @@ export default function POSPage() {
             });
             
             const imgData = canvas.toDataURL('image/png');
-            
             const pdfWidth = 80;
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            
-            const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: [pdfWidth, pdfHeight]
-            });
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfWidth, pdfHeight] });
             
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
             pdf.save(`Receipt-${receiptData.customer.mailboxNumber}-${Date.now()}.pdf`);
             
-            toast({ title: "PDF Receipt Generated", description: "The receipt has been converted and saved." });
+            toast({ title: "Receipt Document Generated" });
         } catch (error) {
-            console.error("PDF Generation Error:", error);
-            toast({ title: "PDF Conversion Failed", variant: "destructive" });
+            console.error("PDF Error:", error);
+            toast({ title: "Document Conversion Failed", variant: "destructive" });
         } finally {
             setIsGeneratingPdf(false);
         }
@@ -284,7 +284,7 @@ export default function POSPage() {
 
     return (
         <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-            {/* Hidden Receipt Template for PDF Capture */}
+            {/* Thermal Receipt Capture Template */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
                     <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
@@ -294,15 +294,12 @@ export default function POSPage() {
                             <p className="text-xs">Lauderdale Lake, FL, 33311-4224</p>
                             <p className="text-xs font-bold mt-2">info@fromstore2door.com</p>
                         </div>
-
                         <div className="space-y-2 text-xs mb-6">
                             <div className="flex justify-between"><span>DATE:</span> <span>{receiptData.date.toLocaleString()}</span></div>
                             <div className="flex justify-between"><span>CUSTOMER:</span> <span className="font-bold">{receiptData.customer.fullName}</span></div>
                             <div className="flex justify-between"><span>MAILBOX:</span> <span className="font-bold">{receiptData.customer.mailboxNumber}</span></div>
                         </div>
-
                         <Separator className="border-black border-dashed my-4" />
-
                         <div className="space-y-3 text-xs">
                             <div className="grid grid-cols-4 font-black border-b border-black pb-2">
                                 <span className="col-span-2 text-left">DESCRIPTION</span>
@@ -311,15 +308,13 @@ export default function POSPage() {
                             </div>
                             {receiptData.items.map(item => (
                                 <div key={item.id} className="grid grid-cols-4 py-1">
-                                    <span className="col-span-2 text-left truncate">{item.lineItems?.[0]?.description || 'Shipment Service'}</span>
+                                    <span className="col-span-2 text-left truncate">{item.lineItems?.[0]?.description || 'Logistics Service'}</span>
                                     <span className="text-right">1</span>
                                     <span className="text-right">${item.amount.toFixed(2)}</span>
                                 </div>
                             ))}
                         </div>
-
                         <Separator className="border-black border-dashed my-6" />
-
                         <div className="space-y-2">
                             <div className="flex justify-between text-xl font-black">
                                 <span>TOTAL PAID:</span>
@@ -330,10 +325,9 @@ export default function POSPage() {
                                 <span>{receiptData.method}</span>
                             </div>
                         </div>
-
                         <div className="text-center mt-12 pt-8 border-t border-dashed border-black">
                             <p className="text-xs font-black italic uppercase">*** THANK YOU FOR SHIPPING ***</p>
-                            <p className="text-[10px] mt-2 opacity-60">System Receipt Generated by FSTD OS</p>
+                            <p className="text-[10px] mt-2 opacity-60">FSTD OS Transaction Receipt</p>
                         </div>
                     </div>
                 )}
@@ -344,20 +338,19 @@ export default function POSPage() {
                     <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
                         <ShoppingCart className="h-8 w-8" /> POS Checkout System
                     </h1>
-                    <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Branch Intake & Payment Center</p>
+                    <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Universal Financial Gateway</p>
                 </div>
                 <Button variant="outline" onClick={resetPOS} className="font-bold border-2">
-                    <Trash2 className="mr-2 h-4 w-4" /> Reset Station
+                    <Trash2 className="mr-2 h-4 w-4" /> Clear Station
                 </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-8 space-y-6">
-                    {/* Customer Lookup with Detailed Balance */}
                     <Card className="border-none shadow-xl">
                         <CardHeader className="bg-muted/10 pb-4">
                             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                                <User className="h-4 w-4 text-primary" /> 1. Identify Customer
+                                <User className="h-4 w-4 text-primary" /> 1. Identify Client Identity
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-6">
@@ -371,17 +364,10 @@ export default function POSPage() {
                                         onChange={e => setSearchTerm(e.target.value)}
                                     />
                                     {filteredUsers.length > 0 && (
-                                        <div className="absolute w-full mt-2 bg-background border-2 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                                        <div className="absolute w-full mt-2 bg-background border-2 rounded-xl shadow-2xl z-50 overflow-hidden">
                                             {filteredUsers.map(u => (
-                                                <div 
-                                                    key={u.id} 
-                                                    onClick={() => handleSelectUser(u)}
-                                                    className="p-4 hover:bg-primary/5 cursor-pointer flex items-center justify-between border-b last:border-0"
-                                                >
-                                                    <div>
-                                                        <p className="font-black text-primary uppercase">{u.fullName}</p>
-                                                        <p className="text-xs font-bold text-muted-foreground">{u.email}</p>
-                                                    </div>
+                                                <div key={u.id} onClick={() => handleSelectUser(u)} className="p-4 hover:bg-primary/5 cursor-pointer flex items-center justify-between border-b last:border-0">
+                                                    <div><p className="font-black text-primary uppercase">{u.fullName}</p><p className="text-xs font-bold text-muted-foreground">{u.email}</p></div>
                                                     <Badge className="h-8 px-4 text-sm font-black italic tracking-tighter uppercase">{u.mailboxNumber}</Badge>
                                                 </div>
                                             ))}
@@ -389,111 +375,76 @@ export default function POSPage() {
                                     )}
                                 </div>
                             ) : (
-                                <div className={cn(
-                                    "flex flex-col md:flex-row items-center justify-between p-8 rounded-2xl shadow-inner group transition-all duration-500",
-                                    isIndebted ? "bg-red-500 text-white" : "bg-primary text-primary-foreground"
-                                )}>
-                                    <div className="flex items-center gap-6 mb-4 md:mb-0">
-                                        <div className="bg-white/20 p-5 rounded-full shadow-lg">
-                                            <User className="h-10 w-10" />
-                                        </div>
+                                <div className={cn("p-8 rounded-2xl shadow-inner flex flex-col md:flex-row items-center justify-between gap-6 transition-all duration-500", isIndebted ? "bg-red-500 text-white" : "bg-primary text-primary-foreground")}>
+                                    <div className="flex items-center gap-6">
+                                        <div className="bg-white/20 p-5 rounded-full shadow-lg"><User className="h-10 w-10" /></div>
                                         <div>
-                                            <div className="flex items-center gap-3">
-                                                <p className="text-4xl font-black italic uppercase tracking-tighter">{selectedUser.fullName}</p>
-                                                <Badge className="bg-white/20 text-white border-white/40 uppercase text-[10px] font-black italic">{selectedUser.mailboxNumber}</Badge>
-                                            </div>
+                                            <div className="flex items-center gap-3"><p className="text-4xl font-black italic uppercase tracking-tighter">{selectedUser.fullName}</p><Badge className="bg-white/20 text-white border-white/40 uppercase text-[10px] font-black italic">{selectedUser.mailboxNumber}</Badge></div>
                                             <p className="font-bold opacity-80 uppercase tracking-widest text-[10px] mt-1">{selectedUser.email}</p>
                                         </div>
                                     </div>
-                                    
-                                    <div className="flex items-center gap-6">
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Current Account Standing</p>
-                                            <div className="flex items-center justify-end gap-3 mt-1">
-                                                {isIndebted ? (
-                                                    <AlertCircle className="h-8 w-8 text-white animate-pulse" />
-                                                ) : (
-                                                    <TrendingUp className="h-8 w-8 text-white" />
-                                                )}
-                                                <span className="text-5xl font-black italic tracking-tighter">JMD ${userBalance.toLocaleString()}</span>
-                                            </div>
-                                            {isIndebted && <p className="text-[10px] font-black uppercase italic mt-1 text-white/80">*** Outstanding Balance Due ***</p>}
+                                    <div className="grid grid-cols-2 gap-8 text-right">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase opacity-60">Calculated Debt</p>
+                                            <p className="text-2xl font-black italic tracking-tighter">JMD ${totalOutstandingInvoices.toLocaleString()}</p>
                                         </div>
-                                        <Button variant="ghost" onClick={() => setSelectedUser(null)} className="text-white hover:bg-white/10 h-14 w-14 rounded-full shrink-0">
-                                            <X className="h-8 w-8" />
-                                        </Button>
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase opacity-60">Wallet Balance</p>
+                                            <div className="flex items-center justify-end gap-2">
+                                                {isIndebted ? <TrendingDown className="h-5 w-5 animate-pulse" /> : <TrendingUp className="h-5 w-5" />}
+                                                <span className="text-4xl font-black italic tracking-tighter">JMD ${userBalance.toLocaleString()}</span>
+                                            </div>
+                                        </div>
                                     </div>
+                                    <Button variant="ghost" onClick={() => setSelectedUser(null)} className="text-white hover:bg-white/10 h-12 w-12 rounded-full"><X className="h-6 w-6" /></Button>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
 
-                    {/* Unpaid Items Table with Shipment Descriptions */}
                     <Card className="border-none shadow-xl overflow-hidden min-h-[400px]">
                         <CardHeader className="bg-muted/10 pb-4">
                             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                                <Package className="h-4 w-4 text-primary" /> 2. Select Items for Payment
+                                <Package className="h-4 w-4 text-primary" /> 2. Process Pending Registry Items
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             {isLoadingInvoices ? (
                                 <div className="h-64 flex flex-col items-center justify-center gap-4 text-muted-foreground">
                                     <Loader2 className="h-10 w-10 animate-spin opacity-20" />
-                                    <p className="text-xs font-bold uppercase tracking-widest">Scanning Network Records...</p>
+                                    <p className="text-xs font-bold uppercase tracking-widest">Scanning Ledger...</p>
                                 </div>
                             ) : !selectedUser ? (
                                 <div className="h-64 flex flex-col items-center justify-center text-muted-foreground opacity-30 italic">
                                     <Search className="h-12 w-12 mb-2" />
-                                    <p>Select a customer to view pending items.</p>
+                                    <p>Select a customer to load unpaid items.</p>
                                 </div>
                             ) : (userInvoices?.length || 0) === 0 ? (
                                 <div className="h-64 flex flex-col items-center justify-center gap-4 text-center p-8">
-                                    <div className="bg-green-100 p-6 rounded-full">
-                                        <CheckCircle2 className="h-12 w-12 text-green-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-2xl font-black italic uppercase tracking-tighter">Account Clear</p>
-                                        <p className="text-muted-foreground text-sm font-medium">This customer has no outstanding balances.</p>
-                                    </div>
+                                    <div className="bg-green-100 p-6 rounded-full"><CheckCircle2 className="h-12 w-12 text-green-600" /></div>
+                                    <div><p className="text-2xl font-black italic uppercase tracking-tighter">Identity Clean</p><p className="text-muted-foreground text-sm font-medium">No outstanding registry items detected.</p></div>
                                 </div>
                             ) : (
                                 <Table>
                                     <TableHeader className="bg-muted/50">
                                         <TableRow>
                                             <TableHead className="w-[50px] pl-6"></TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase">Invoice / Reference</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase">Service Description</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase">Date Logged</TableHead>
-                                            <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Amount (JMD)</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Reference</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Line Item Memo</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
+                                            <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Total</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {userInvoices?.map((inv) => (
-                                            <TableRow 
-                                                key={inv.id} 
-                                                className={cn("hover:bg-primary/5 cursor-pointer h-20 transition-colors", selectedInvoices.has(inv.id) && "bg-primary/10")}
-                                                onClick={() => toggleInvoice(inv.id)}
-                                            >
-                                                <TableCell className="pl-6">
-                                                    <Checkbox 
-                                                        checked={selectedInvoices.has(inv.id)} 
-                                                        onCheckedChange={() => toggleInvoice(inv.id)}
-                                                        className="h-6 w-6 border-2"
-                                                    />
-                                                </TableCell>
+                                            <TableRow key={inv.id} className={cn("hover:bg-primary/5 cursor-pointer h-20 transition-colors", selectedInvoices.has(inv.id) && "bg-primary/10")} onClick={() => toggleInvoice(inv.id)}>
+                                                <TableCell className="pl-6"><Checkbox checked={selectedInvoices.has(inv.id)} onCheckedChange={() => toggleInvoice(inv.id)} className="h-6 w-6 border-2" /></TableCell>
                                                 <TableCell className="font-mono font-black text-primary uppercase text-sm">{inv.invoiceId}</TableCell>
                                                 <TableCell>
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold text-xs uppercase italic">{inv.lineItems?.[0]?.description || 'Logistics Service'}</span>
-                                                        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Qty: {inv.lineItems?.[0]?.quantity || 1}</span>
-                                                    </div>
+                                                    <div className="flex flex-col"><span className="font-bold text-xs uppercase italic">{inv.lineItems?.[0]?.description || 'Shipment Service'}</span><span className="text-[10px] text-muted-foreground uppercase tracking-widest">Qty: {inv.lineItems?.[0]?.quantity || 1}</span></div>
                                                 </TableCell>
-                                                <TableCell className="text-xs font-bold opacity-60">
-                                                    {inv.date?.toDate ? inv.date.toDate().toLocaleDateString() : 'N/A'}
-                                                </TableCell>
-                                                <TableCell className="text-right pr-6 font-black text-xl tracking-tighter">
-                                                    JMD ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                </TableCell>
+                                                <TableCell className="text-xs font-bold opacity-60">{inv.date?.toDate ? inv.date.toDate().toLocaleDateString() : 'N/A'}</TableCell>
+                                                <TableCell className="text-right pr-6 font-black text-xl tracking-tighter">JMD ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -503,116 +454,60 @@ export default function POSPage() {
                     </Card>
                 </div>
 
-                {/* Right Column: Checkout Summary with Balance Impact */}
                 <div className="lg:col-span-4 space-y-6">
                     <Card className="border-none shadow-2xl bg-zinc-950 text-zinc-100 sticky top-24 overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-primary animate-pulse" />
                         <CardHeader className="pb-8">
-                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Cart Overview</CardTitle>
+                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Checkout Terminal</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-8">
                             <div className="space-y-4">
-                                <div className="flex justify-between items-center text-sm font-bold uppercase tracking-widest opacity-60">
-                                    <span>Selected Items</span>
-                                    <span>{selectedInvoices.size}</span>
-                                </div>
+                                <div className="flex justify-between items-center text-sm font-bold uppercase tracking-widest opacity-60"><span>Items Selected</span><span>{selectedInvoices.size}</span></div>
                                 <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                                     {userInvoices?.filter(i => selectedInvoices.has(i.id)).map(i => (
-                                        <div key={i.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10 group">
-                                            <div className="text-[10px] font-mono font-bold text-primary truncate max-w-[150px]">
-                                                {i.lineItems?.[0]?.description || i.invoiceId}
-                                            </div>
+                                        <div key={i.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
+                                            <div className="text-[10px] font-mono font-bold text-primary truncate max-w-[150px]">{i.lineItems?.[0]?.description || i.invoiceId}</div>
                                             <div className="text-sm font-black italic">${i.amount.toLocaleString()}</div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
-
                             <Separator className="bg-white/10" />
-
                             {selectedUser && (
                                 <div className="bg-primary/10 p-4 rounded-xl border border-primary/20 space-y-3">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-primary text-center">Ledger Impact Preview</p>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-bold opacity-60 uppercase">Account Debt</span>
-                                        <span className={cn("text-sm font-black", isIndebted ? "text-red-400" : "text-green-400")}>
-                                            JMD ${userBalance.toLocaleString()}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-bold opacity-60 uppercase">Incoming Payment</span>
-                                        <span className="text-sm font-black text-blue-400">+ JMD ${finalAmount.toLocaleString()}</span>
-                                    </div>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-primary text-center">Projected Ledger State</p>
+                                    <div className="flex justify-between items-center"><span className="text-[10px] font-bold opacity-60 uppercase">Stored Balance</span><span className={cn("text-sm font-black", isIndebted ? "text-red-400" : "text-green-400")}>JMD ${userBalance.toLocaleString()}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-[10px] font-bold opacity-60 uppercase">Tendered Funds</span><span className="text-sm font-black text-blue-400">+ JMD ${finalAmount.toLocaleString()}</span></div>
                                     <Separator className="opacity-10" />
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-bold uppercase">New Balance</span>
-                                        <span className="text-lg font-black italic tracking-tighter">
-                                            JMD ${(userBalance + finalAmount).toLocaleString()}
-                                        </span>
-                                    </div>
+                                    <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase">New Net Standing</span><span className="text-lg font-black italic tracking-tighter">JMD ${(userBalance + finalAmount).toLocaleString()}</span></div>
                                 </div>
                             )}
-
                             <div className="space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="manual-override" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2 cursor-pointer">
-                                        <Edit3 className="h-3 w-3" /> Manual Amount Override
-                                    </Label>
-                                    <Switch id="manual-override" checked={useManualAmount} onCheckedChange={setUseManualAmount} />
-                                </div>
-
+                                <div className="flex items-center justify-between"><Label htmlFor="manual-override" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2 cursor-pointer"><Edit3 className="h-3 w-3" /> Overridden Total</Label><Switch id="manual-override" checked={useManualAmount} onCheckedChange={setUseManualAmount} /></div>
                                 <div className="text-center space-y-2 py-4">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Grand Total Due</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Authorized Grand Total</p>
                                     {useManualAmount ? (
-                                        <div className="relative max-w-[200px] mx-auto">
-                                            <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xl font-bold text-primary opacity-50">JMD $</span>
-                                            <Input 
-                                                type="number" 
-                                                value={manualAmount}
-                                                onChange={e => setManualAmount(e.target.value)}
-                                                className="bg-transparent border-b-2 border-primary border-t-0 border-x-0 rounded-none h-16 text-4xl font-black italic text-center focus-visible:ring-0 px-10"
-                                                placeholder="0.00"
-                                            />
-                                        </div>
+                                        <div className="relative max-w-[200px] mx-auto"><span className="absolute left-0 top-1/2 -translate-y-1/2 text-xl font-bold text-primary opacity-50">JMD $</span><Input type="number" value={manualAmount} onChange={e => setManualAmount(e.target.value)} className="bg-transparent border-b-2 border-primary border-t-0 border-x-0 rounded-none h-16 text-4xl font-black italic text-center focus-visible:ring-0 px-10" placeholder="0.00" /></div>
                                     ) : (
-                                        <div className="flex items-center justify-center gap-2">
-                                            <span className="text-2xl font-bold opacity-30 text-primary">JMD</span>
-                                            <span className="text-6xl font-black italic tracking-tighter text-white">${calculatedTotal.toLocaleString()}</span>
-                                        </div>
+                                        <div className="flex items-center justify-center gap-2"><span className="text-2xl font-bold opacity-30 text-primary">JMD</span><span className="text-6xl font-black italic tracking-tighter text-white">${calculatedSelectedTotal.toLocaleString()}</span></div>
                                     )}
                                 </div>
                             </div>
-
                             <div className="space-y-4 pt-4 border-t border-white/10">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Method of Payment</Label>
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Form of Tender</Label>
                                 <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-3 gap-2">
-                                    <Label className={cn("flex flex-col items-center justify-center p-3 rounded-xl border-2 border-white/10 cursor-pointer hover:bg-white/5 transition-all", paymentMethod === 'Cash' && "border-primary bg-primary/10 text-primary")}>
-                                        <Banknote className="h-6 w-6 mb-1" />
-                                        <span className="text-[9px] font-black uppercase italic">Cash</span>
-                                        <RadioGroupItem value="Cash" className="sr-only" />
-                                    </Label>
-                                    <Label className={cn("flex flex-col items-center justify-center p-3 rounded-xl border-2 border-white/10 cursor-pointer hover:bg-white/5 transition-all", paymentMethod === 'Card' && "border-primary bg-primary/10 text-primary")}>
-                                        <CreditCard className="h-6 w-6 mb-1" />
-                                        <span className="text-[9px] font-black uppercase italic">Card</span>
-                                        <RadioGroupItem value="Card" className="sr-only" />
-                                    </Label>
-                                    <Label className={cn("flex flex-col items-center justify-center p-3 rounded-xl border-2 border-white/10 cursor-pointer hover:bg-white/5 transition-all", paymentMethod === 'Transfer' && "border-primary bg-primary/10 text-primary")}>
-                                        <Building2 className="h-6 w-6 mb-1" />
-                                        <span className="text-[9px] font-black uppercase italic">Wire</span>
-                                        <RadioGroupItem value="Transfer" className="sr-only" />
-                                    </Label>
+                                    {['Cash', 'Card', 'Transfer'].map(m => (
+                                        <Label key={m} className={cn("flex flex-col items-center justify-center p-3 rounded-xl border-2 border-white/10 cursor-pointer hover:bg-white/5 transition-all", paymentMethod === m && "border-primary bg-primary/10 text-primary")}>
+                                            {m === 'Cash' ? <Banknote className="h-6 w-6 mb-1" /> : m === 'Card' ? <CreditCard className="h-6 w-6 mb-1" /> : <Building2 className="h-6 w-6 mb-1" />}
+                                            <span className="text-[9px] font-black uppercase italic">{m}</span><RadioGroupItem value={m} className="sr-only" />
+                                        </Label>
+                                    ))}
                                 </RadioGroup>
                             </div>
                         </CardContent>
                         <CardFooter className="pt-4 pb-8">
-                            <Button 
-                                onClick={() => setIsCheckoutOpen(true)} 
-                                disabled={selectedInvoices.size === 0 || (useManualAmount && !manualAmount)} 
-                                className="w-full h-20 text-2xl font-black italic uppercase tracking-tighter shadow-2xl group overflow-hidden"
-                            >
-                                <span className="relative z-10 flex items-center gap-3">
-                                    Finalize Checkout <ShoppingCart className="h-8 w-8 group-hover:translate-x-2 transition-transform" />
-                                </span>
+                            <Button onClick={() => setIsCheckoutOpen(true)} disabled={selectedInvoices.size === 0 || (useManualAmount && !manualAmount)} className="w-full h-20 text-2xl font-black italic uppercase tracking-tighter shadow-2xl group overflow-hidden">
+                                <span className="relative z-10 flex items-center gap-3">Finalize Checkout <ShoppingCart className="h-8 w-8 group-hover:translate-x-2 transition-transform" /></span>
                             </Button>
                         </CardFooter>
                     </Card>
@@ -623,66 +518,31 @@ export default function POSPage() {
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Transaction Confirmation</DialogTitle>
-                        <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Authorized Administrative Processing</DialogDescription>
+                        <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Authorized Administrative Terminal</DialogDescription>
                     </DialogHeader>
-
                     {!checkoutComplete ? (
                         <div className="space-y-6 py-6">
                             <div className="p-6 rounded-2xl bg-muted/30 border-2 border-dashed flex flex-col items-center gap-4 text-center">
                                 <DollarSign className="h-12 w-12 text-primary animate-bounce" />
-                                {finalAmount > 0 ? (
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Confirm Receipt of Funds</p>
-                                        <p className="text-4xl font-black tracking-tighter">JMD ${finalAmount.toLocaleString()}</p>
-                                        <p className="text-[11px] font-bold text-primary mt-2">VIA {paymentMethod.toUpperCase()}</p>
-                                        {useManualAmount && (
-                                            <Badge variant="destructive" className="mt-2 uppercase text-[8px]">Manual Overridden Amount</Badge>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <p className="text-sm font-bold text-destructive italic">Cart is empty.</p>
-                                )}
+                                <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Confirm Receipt of Funds</p><p className="text-4xl font-black tracking-tighter">JMD ${finalAmount.toLocaleString()}</p><p className="text-[11px] font-bold text-primary mt-2 uppercase">VIA {paymentMethod}</p></div>
                             </div>
-                            <div className="bg-primary/5 p-4 rounded-xl space-y-1">
-                                <p className="text-[10px] font-black uppercase opacity-60">Impacted Account</p>
-                                <p className="font-bold text-lg">{selectedUser?.fullName}</p>
-                                <p className="text-xs font-mono opacity-60">Items Selected: {selectedInvoices.size}</p>
-                            </div>
+                            <div className="bg-primary/5 p-4 rounded-xl space-y-1"><p className="text-[10px] font-black uppercase opacity-60">Account Impacted</p><p className="font-bold text-lg">{selectedUser?.fullName}</p><p className="text-xs font-mono opacity-60">Registry Items: {selectedInvoices.size}</p></div>
                         </div>
                     ) : (
                         <div className="space-y-6 py-8 text-center animate-in zoom-in-95">
-                            <div className="bg-green-500 h-24 w-24 rounded-full flex items-center justify-center mx-auto shadow-xl shadow-green-500/20">
-                                <CheckCircle2 className="h-16 w-12 text-white" />
-                            </div>
-                            <div>
-                                <p className="text-3xl font-black italic uppercase tracking-tighter">Payment Complete</p>
-                                <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Transaction Secured & Account Credited</p>
-                            </div>
+                            <div className="bg-green-500 h-24 w-24 rounded-full flex items-center justify-center mx-auto shadow-xl shadow-green-500/20"><CheckCircle2 className="h-16 w-12 text-white" /></div>
+                            <div><p className="text-3xl font-black italic uppercase tracking-tighter">Registry Cleared</p><p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Funds Received & Account Credited</p></div>
                             <Separator className="bg-muted" />
                             <div className="grid grid-cols-2 gap-4">
-                                <Button className="h-14 font-black uppercase tracking-tight" onClick={handlePrintReceipt} disabled={isGeneratingPdf}>
-                                    {isGeneratingPdf ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileDown className="mr-2 h-5 w-5" />}
-                                    Receipt PDF
-                                </Button>
-                                <Button variant="outline" className="h-14 font-black border-2 uppercase tracking-tight" onClick={resetPOS}>
-                                    New Customer
-                                </Button>
+                                <Button className="h-14 font-black uppercase tracking-tight" onClick={handlePrintReceipt} disabled={isGeneratingPdf}>{isGeneratingPdf ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileDown className="mr-2 h-5 w-5" />} Receipt PDF</Button>
+                                <Button variant="outline" className="h-14 font-black border-2 uppercase tracking-tight" onClick={resetPOS}>Next Client</Button>
                             </div>
                         </div>
                     )}
-
                     {!checkoutComplete && (
                         <DialogFooter className="flex-col sm:flex-row gap-2">
-                            <DialogClose asChild>
-                                <Button variant="ghost" className="font-bold uppercase h-12">Cancel</Button>
-                            </DialogClose>
-                            <Button 
-                                onClick={handleProcessPayment} 
-                                disabled={isProcessing || finalAmount <= 0} 
-                                className="flex-1 h-12 font-black uppercase italic tracking-tight"
-                            >
-                                {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Authorize Payment Now"}
-                            </Button>
+                            <DialogClose asChild><Button variant="ghost" className="font-bold uppercase h-12">Abort</Button></DialogClose>
+                            <Button onClick={handleProcessPayment} disabled={isProcessing || finalAmount <= 0} className="flex-1 h-12 font-black uppercase italic tracking-tight">{isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Authorize Settlement"}</Button>
                         </DialogFooter>
                     )}
                 </DialogContent>

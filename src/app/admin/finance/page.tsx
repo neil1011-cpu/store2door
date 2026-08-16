@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -41,7 +40,7 @@ import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import type { Invoice, Shipment, UserProfile, Transaction } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, setDoc, updateDoc, addDoc, where, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, doc, setDoc, updateDoc, addDoc, where, writeBatch, increment } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { CreateInvoiceDialog } from '@/components/create-invoice-dialog';
@@ -133,7 +132,6 @@ export default function FinancePage() {
 
   const loading = isUserLoading || isLoadingUsers || isLoadingInvoices || isLoadingTransactions;
 
-  // LINKED FINANCE CALCULATIONS: Source of truth for revenue is the transactions collection.
   const financeSummary = useMemo(() => {
     const revenueTransactions = transactions?.filter(t => t.type === 'revenue') || [];
     const expenseTransactions = transactions?.filter(t => t.type === 'expense') || [];
@@ -185,12 +183,13 @@ export default function FinancePage() {
   }
 
   const handleUpdateInvoiceStatus = async (inv: Invoice, status: 'Paid' | 'Unpaid') => {
+    if (!firestore) return;
     const batch = writeBatch(firestore);
-    const invoiceDocRef = doc(firestore, 'invoices', inv.invoiceId);
+    const invoiceDocRef = doc(firestore, 'invoices', inv.id);
+    const userProfileRef = doc(firestore, 'users', inv.customerId);
     
     batch.update(invoiceDocRef, { status });
 
-    // If marking as Paid, create a linked revenue transaction to update Finance automatically
     if (status === 'Paid') {
         const transactionRef = doc(collection(firestore, 'transactions'));
         batch.set(transactionRef, {
@@ -203,13 +202,28 @@ export default function FinancePage() {
             customerId: inv.customerId,
             invoiceIds: [inv.invoiceId]
         });
+
+        // Credit User Wallet (reduce debt)
+        batch.update(userProfileRef, {
+            walletBalance: increment(inv.amount),
+            updatedAt: serverTimestamp()
+        });
+    } else if (status === 'Unpaid') {
+        // Debit User Wallet (increase debt) if it was previously paid
+        // We only do this if it's changing FROM Paid TO Unpaid
+        if (inv.status === 'Paid') {
+            batch.update(userProfileRef, {
+                walletBalance: increment(-inv.amount),
+                updatedAt: serverTimestamp()
+            });
+        }
     }
 
     try {
         await batch.commit();
         toast({
             title: "Invoice Status Updated",
-            description: `Invoice ${inv.invoiceId} marked as ${status} and logged in Finance.`
+            description: `Invoice ${inv.invoiceId} marked as ${status} and wallet synchronized.`
         });
     } catch (error) {
          errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -231,7 +245,7 @@ export default function FinancePage() {
     }
     setIsAddingTransaction(true);
 
-    const transactionCollectionRef = collection(firestore, 'transactions');
+    const transactionCollectionRef = collection(firestore!, 'transactions');
     const transactionToAdd = {
         ...newTransaction,
         source: 'Manual Entry',
