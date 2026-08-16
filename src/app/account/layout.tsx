@@ -10,11 +10,12 @@ import { Button } from '@/components/ui/button';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
-import { Wallet, Menu } from 'lucide-react';
+import { Wallet, Menu, CreditCard, TrendingDown, TrendingUp } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 // Create a context to share the user profile data with child pages
 const UserProfileContext = createContext<UserProfile | null>(null);
@@ -64,7 +65,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (userProfile && userProfile.address?.address1 !== '3507 NW 19th ST' && isMounted) {
             const mailbox = userProfile.mailboxNumber || 'HUB';
-            updateDoc(doc(firestore, 'users', userProfile.id), {
+            updateDoc(doc(firestore!, 'users', userProfile.id), {
                 address: {
                     address1: '3507 NW 19th ST',
                     address2: `${mailbox}-FSTD`,
@@ -101,11 +102,13 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     }
 
     const isSecurityPage = pathname === '/account/change-password';
+    const walletBalance = userProfile.walletBalance || 0;
+    const isIndebted = walletBalance < 0;
 
     return (
         <UserProfileContext.Provider value={userProfile}>
             <div className="min-h-screen bg-muted/20">
-                {/* User Account Sub-Header with Balance */}
+                {/* User Account Sub-Header with Real-time Balance */}
                 <div className="bg-background border-b shadow-sm sticky top-0 z-40 print:hidden">
                     <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 md:gap-4 shrink-0">
@@ -148,11 +151,24 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                         
                         <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end overflow-hidden">
                             {!isSecurityPage && (
-                                <div className="bg-primary/5 border-2 border-primary/10 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[180px] sm:max-w-none">
-                                    <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+                                <div className={cn(
+                                    "border-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[200px] sm:max-w-none transition-colors",
+                                    isIndebted ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/10"
+                                )}>
+                                    {isIndebted ? <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600 shrink-0" /> : <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />}
                                     <div className="flex flex-col min-w-0">
-                                        <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-muted-foreground leading-none">Account Balance</span>
-                                        <span className="text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate">JMD ${(userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className={cn(
+                                            "text-[7px] sm:text-[8px] font-black uppercase tracking-widest leading-none",
+                                            isIndebted ? "text-red-700" : "text-muted-foreground"
+                                        )}>
+                                            {isIndebted ? 'Outstanding Dues' : 'Account Credit'}
+                                        </span>
+                                        <span className={cn(
+                                            "text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate",
+                                            isIndebted ? "text-red-600" : "text-foreground"
+                                        )}>
+                                            JMD ${Math.abs(walletBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </span>
                                     </div>
                                 </div>
                             )}
