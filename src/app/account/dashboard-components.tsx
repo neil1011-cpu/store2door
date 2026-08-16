@@ -364,13 +364,11 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        // 1. Session and Ready Check
-        // CRITICAL: Always pull UID from the current authenticated instance to ensure rules match
         const currentUser = auth?.currentUser;
         if (!user || !currentUser || !storage || !firestore) {
             toast({ 
                 title: "Security Link Initializing", 
-                description: "Waiting for secure connection to worldwide storage. Please try again in a few seconds.", 
+                description: "Establishing secure connection. Please try again in a few seconds.", 
                 variant: "destructive" 
             });
             return;
@@ -383,19 +381,17 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // 2. Identity Synchronization
-            // Refresh token to ensure authorization rules have the latest session data
+            // Ensure security rules see the most recent identity token
             await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // 3. Storage Upload
             // Path structure MUST be: invoices/{userId}/{fileName} to match security rules
             const sanitizedFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
             const storagePath = `invoices/${currentUid}/${Date.now()}_${sanitizedFileName}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE] Uploading to path: ${storagePath} for UID: ${currentUid}`);
+            console.log(`[STORAGE] Uploading to: ${storagePath} for user: ${currentUid}`);
             
             let uploadResult;
             try {
@@ -403,14 +399,13 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             } catch (storageErr: any) {
                 console.error("[STORAGE UPLOAD ERROR]", storageErr);
                 if (storageErr.code === 'storage/unauthorized') {
-                    throw new Error("Security Access Denied: Verify Storage Rules have been correctly published for the 'invoices' folder.");
+                    throw new Error("Cloud Authorization Denied. Please ensure your session is active or contact support if the problem persists.");
                 }
                 throw new Error(`Upload Failed: ${storageErr.message}`);
             }
 
             const downloadUrl = await getDownloadURL(storageRef);
 
-            // 4. Firestore Document
             const alertData = {
                 customerName,
                 customerId: currentUid,
@@ -426,7 +421,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             const preAlertsCollection = collection(firestore, 'users', currentUid, 'pre_alerts');
             await addDoc(preAlertsCollection, alertData);
 
-            // 5. Audit Trail
+            // Audit Trail
             fetch('/api/log-activity', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -532,10 +527,10 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 </div>
             </div>
 
-            <Button type="submit" disabled={isSubmitting} className="w-full h-14 text-lg font-black uppercase italic shadow-xl rounded-xl">
-                {isSubmitting ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <Zap className="mr-2 h-6 w-6" />}
+            <button type="submit" disabled={isSubmitting} className="w-full h-14 bg-primary text-primary-foreground flex items-center justify-center gap-2 text-lg font-black uppercase italic shadow-xl rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity">
+                {isSubmitting ? <Loader2 className="h-6 w-6 animate-spin" /> : <Zap className="h-6 w-6" />}
                 Authorize Pre-Alert
-            </Button>
+            </button>
         </form>
     );
 }
