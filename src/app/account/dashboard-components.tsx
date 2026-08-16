@@ -365,7 +365,8 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         e.preventDefault();
         
         // 1. Session and Ready Check
-        if (!user || !auth?.currentUser || !storage || !firestore) {
+        const currentUser = auth?.currentUser;
+        if (!user || !currentUser || !storage || !firestore) {
             toast({ 
                 title: "Security Link Initializing", 
                 description: "Waiting for secure connection to worldwide storage. Please try again in a few seconds.", 
@@ -381,15 +382,17 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            const currentUid = auth.currentUser.uid;
+            const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
             // 2. Storage Upload
             // Ensure we use the exact UID from the current session to match rules
-            const storagePath = `invoices/${currentUid}/${Date.now()}_${selectedFile.name}`;
+            // Path structure must be: invoices/{userId}/{fileName}
+            const storagePath = `invoices/${currentUid}/${Date.now()}_${selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE] Uploading as UID: ${currentUid} to path: ${storagePath}`);
+            console.log(`[STORAGE] Initiating upload to bucket: ${storage.app.options.storageBucket}`);
+            console.log(`[STORAGE] Target path: ${storagePath} (Authenticated UID: ${currentUid})`);
             
             let uploadResult;
             try {
@@ -397,9 +400,9 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             } catch (storageErr: any) {
                 console.error("[STORAGE UPLOAD ERROR]", storageErr);
                 if (storageErr.code === 'storage/unauthorized') {
-                    throw new Error("Security Access Denied: Your account does not have permission to write to this project's storage bucket. Please ensure Storage Rules are deployed.");
+                    throw new Error("Security Access Denied: Your account does not have permission to write to this storage folder. Please ensure Storage Rules are fully deployed in the Firebase Console.");
                 }
-                throw storageErr;
+                throw new Error(`Upload Failed: ${storageErr.message}`);
             }
 
             const downloadUrl = await getDownloadURL(storageRef);
@@ -418,13 +421,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             };
 
             const preAlertsCollection = collection(firestore, 'users', currentUid, 'pre_alerts');
-            addDoc(preAlertsCollection, alertData).catch(async (serverError) => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: `users/${currentUid}/pre_alerts`,
-                    operation: 'create',
-                    requestResourceData: alertData
-                }));
-            });
+            await addDoc(preAlertsCollection, alertData);
 
             // 4. Activity Logs & Notifications
             fetch('/api/log-activity', {
