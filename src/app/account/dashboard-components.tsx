@@ -381,26 +381,26 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // MANDATORY: Refresh security token to prevent 'storage/unauthorized' from cloud metadata checks
-            // This ensures the Storage server has the absolute latest identity data.
+            // CRITICAL: Refresh identity token milleseconds before upload to sync Storage and Auth
             await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // Path structure MUST be: invoices/{userId}/{fileName} to match security rules
+            // Path structure is absolutely locked to /invoices/{uid}/{filename}
             const sanitizedFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
             const storagePath = `invoices/${currentUid}/${Date.now()}_${sanitizedFileName}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE] Authorized Transfer to: ${storagePath} for identity: ${currentUid}`);
+            console.log(`[STORAGE] Initiating Secure Transfer to: ${storagePath}`);
             
             let uploadResult;
             try {
+                // Perform the upload using standardized SDK method
                 uploadResult = await uploadBytes(storageRef, selectedFile);
             } catch (storageErr: any) {
                 console.error("[STORAGE CLOUD ERROR]", storageErr);
                 if (storageErr.code === 'storage/unauthorized') {
-                    throw new Error("Cloud Authorization Pending. In some environments, rules can take up to 60 seconds to propagate globally. Your identity is verified. Please try one final time in 30 seconds.");
+                    throw new Error("Cloud Authorization Denied. This usually happens if your session is stale. Please refresh the page and try again immediately.");
                 }
                 throw new Error(`Transmission Interrupted: ${storageErr.message}`);
             }
@@ -422,7 +422,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             const preAlertsCollection = collection(firestore, 'users', currentUid, 'pre_alerts');
             await addDoc(preAlertsCollection, alertData);
 
-            // Audit Trail
+            // Dispatch Activity Log
             fetch('/api/log-activity', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -444,7 +444,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         } catch (error: any) {
             console.error("[PRE-ALERT FATAL ERROR]", error);
             toast({ 
-                title: "Identity Verified", 
+                title: "Upload Interrupted", 
                 description: error.message || "We were unable to secure your documentation. Please verify your connection and try again.", 
                 variant: "destructive" 
             });
@@ -661,7 +661,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
             <div className="space-y-6">
                 <Card className="rounded-2xl shadow-sm overflow-hidden">
                     <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/20 py-4">
-                        <CardTitle className="text-xs font-bold uppercase opacity-60 tracking-widest">Authorized Pickup</CardTitle>
+                        <CardTitle className="text-xs font-bold uppercase tracking-widest">Authorized Pickup</CardTitle>
                         <Dialog>
                             <DialogTrigger asChild><Button size="sm" variant="ghost" className="h-9 px-4 text-primary font-black uppercase text-[10px]"><PlusCircle className="h-4 w-4 mr-1.5" /> Add New</Button></DialogTrigger>
                             <DialogContent className="w-[95vw] rounded-2xl">
