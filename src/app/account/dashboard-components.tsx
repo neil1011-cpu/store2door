@@ -377,20 +377,27 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // HIGH-PRIORITY PROTOCOL: Force identity refresh before transfer
+            // CRITICAL SYNC: Ensure cloud auth is absolute before transmission
             await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // Consistently formatted absolute path
-            const storagePath = `invoices/${currentUid}/${Date.now()}_${selectedFile.name.replace(/\s+/g, '_')}`;
+            // Unambiguous absolute path for storage.rules alignment
+            const storagePath = `invoices/${currentUid}/${Date.now()}_document`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE UPLOAD] Target: ${storagePath} | UID: ${currentUid}`);
+            console.log(`[SECURE UPLOAD] Targeting: ${storagePath} | Identity: ${currentUid}`);
             
-            // Direct upload with explicit MIME type metadata to satisfy cloud security checks
-            const metadata = { contentType: selectedFile.type };
-            const uploadResult = await uploadBytes(storageRef, selectedFile, metadata);
+            // Authorize upload with explicit MIME type metadata
+            const metadata = { 
+                contentType: selectedFile.type,
+                customMetadata: {
+                    'tracking': finalTracking,
+                    'owner': currentUid
+                }
+            };
+
+            await uploadBytes(storageRef, selectedFile, metadata);
             const downloadUrl = await getDownloadURL(storageRef);
 
             const alertData = {
@@ -415,13 +422,11 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             setSelectedFile(null);
             onSuccess?.();
         } catch (error: any) {
-            console.error("[PRE-ALERT STORAGE ERROR]", error);
+            console.error("[STORAGE EXCEPTION]", error);
             let msg = error.message || "An error occurred during upload.";
             
             if (error.code === 'storage/unauthorized') {
-                msg = "Cloud authentication denied. This is usually due to a temporary rules propagation delay. Please wait 60 seconds and try again.";
-            } else if (error.code === 'storage/retry-limit-exceeded') {
-                msg = "Connection interrupted. Please check your network and try again.";
+                msg = "Cloud authentication was denied. We've refreshed your security token; please attempt the upload once more now.";
             }
             
             toast({ title: "Upload Interrupted", description: msg, variant: "destructive" });

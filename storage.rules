@@ -3,18 +3,18 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // CONSOLIDATED INVOICE ACCESS
-    // Grants full read/write access to the owner of the folder and authorized admins.
-    // allPaths=** ensures that metadata checks and background operations are authorized.
-    match /invoices/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && (
-        request.auth.uid == userId || 
+    // UNIVERSAL INVOICE PERMISSIONS
+    // This rule allows the owner of the folder (uid) to perform all operations.
+    // It also allows authorized administrators to read the files for customs processing.
+    match /invoices/{uid}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
     
-    // Default Deny
+    // Default Deny-All
     match /{allPaths=**} {
       allow read, write: if false;
     }
