@@ -5,12 +5,12 @@ service firebase.storage {
     // Standard rule for user-uploaded invoices and documentation
     match /invoices/{userId}/{allPaths=**} {
       // 1. Owners can read and write to their own isolated folder
-      // The {userId} in the path must match the UID of the authenticated user
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // We allow 'list' as well to prevent SDK-level permission errors during metadata checks
+      allow read, write, list: if request.auth != null && request.auth.uid == userId;
       
       // 2. Administrators can read all invoices for processing and customs clearance
       // We authorize access if the user is the master admin or has an admin_roles document
-      allow read: if request.auth != null && (
+      allow read, list: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );

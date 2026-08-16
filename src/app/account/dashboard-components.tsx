@@ -365,6 +365,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         e.preventDefault();
         
         // 1. Session and Ready Check
+        // CRITICAL: Always pull UID from the current authenticated instance to ensure rules match
         const currentUser = auth?.currentUser;
         if (!user || !currentUser || !storage || !firestore) {
             toast({ 
@@ -382,17 +383,19 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
+            // 2. Identity Synchronization
+            // Refresh token to ensure authorization rules have the latest session data
+            await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // 2. Storage Upload
-            // Ensure we use the exact UID from the current session to match rules
-            // Path structure must be: invoices/{userId}/{fileName}
-            const storagePath = `invoices/${currentUid}/${Date.now()}_${selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+            // 3. Storage Upload
+            // Path structure MUST be: invoices/{userId}/{fileName} to match security rules
+            const sanitizedFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const storagePath = `invoices/${currentUid}/${Date.now()}_${sanitizedFileName}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE] Initiating upload to bucket: ${storage.app.options.storageBucket}`);
-            console.log(`[STORAGE] Target path: ${storagePath} (Authenticated UID: ${currentUid})`);
+            console.log(`[STORAGE] Uploading to path: ${storagePath} for UID: ${currentUid}`);
             
             let uploadResult;
             try {
@@ -400,14 +403,14 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             } catch (storageErr: any) {
                 console.error("[STORAGE UPLOAD ERROR]", storageErr);
                 if (storageErr.code === 'storage/unauthorized') {
-                    throw new Error("Security Access Denied: Your account does not have permission to write to this storage folder. Please ensure Storage Rules are fully deployed in the Firebase Console.");
+                    throw new Error("Security Access Denied: Verify Storage Rules have been correctly published for the 'invoices' folder.");
                 }
                 throw new Error(`Upload Failed: ${storageErr.message}`);
             }
 
             const downloadUrl = await getDownloadURL(storageRef);
 
-            // 3. Firestore Document (Non-blocking)
+            // 4. Firestore Document
             const alertData = {
                 customerName,
                 customerId: currentUid,
@@ -423,7 +426,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             const preAlertsCollection = collection(firestore, 'users', currentUid, 'pre_alerts');
             await addDoc(preAlertsCollection, alertData);
 
-            // 4. Activity Logs & Notifications
+            // 5. Audit Trail
             fetch('/api/log-activity', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -436,18 +439,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 })
             });
 
-            fetch('/api/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    to: 'admin@neilussolutions.com',
-                    subject: `New Pre-Alert Received: ${finalTracking}`,
-                    body: `A new pre-alert has been submitted by ${customerName}.\n\nTracking Number: ${finalTracking}\nContents: ${contents}\nEstimated Weight: ${weight} lbs\n\nPlease check the admin panel to acknowledge and process this shipment.`,
-                    recipientName: 'FSTD Admin'
-                }),
-            });
-
-            toast({ title: "Pre-Alert Submitted", description: "Our warehouse team has been notified of your incoming package." });
+            toast({ title: "Pre-Alert Submitted", description: "Your documentation has been secured for processing." });
             setTrackingNumber('');
             setContents('');
             setWeight('');
@@ -457,7 +449,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             console.error("[PRE-ALERT UPLOAD ERROR]", error);
             toast({ 
                 title: "Upload Interrupted", 
-                description: error.message || "We were unable to secure your documentation. Please verify your internet connection.", 
+                description: error.message || "We were unable to secure your documentation. Please verify your connection.", 
                 variant: "destructive" 
             });
         } finally {
