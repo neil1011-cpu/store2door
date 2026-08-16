@@ -2,20 +2,19 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Explicit rule for user-uploaded invoices and documentation
-    match /invoices/{userId}/{allPaths=**} {
-      // 1. Owners can read and write to their own isolated folder
-      // We use 'allow write' which covers create, update, and delete
+    // Isolated folder for user documentation
+    match /invoices/{userId}/{path=**} {
+      // Owners can manage their own documents
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
-      // 2. Administrators can read all invoices for processing
+      // Administrators can review documentation for customs processing
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
     
-    // Global Fallback: Deny all other access by default
+    // Global Fallback
     match /{allPaths=**} {
       allow read, write: if false;
     }

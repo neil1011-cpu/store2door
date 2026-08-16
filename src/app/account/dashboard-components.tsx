@@ -381,7 +381,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // CRITICAL: Force token refresh to ensure Storage rules recognize the session
+            // MANDATORY: Refresh security token to prevent 'storage/unauthorized' from cloud metadata checks
             await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
@@ -391,17 +391,17 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             const storagePath = `invoices/${currentUid}/${Date.now()}_${sanitizedFileName}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE] Uploading to: ${storagePath} for user: ${currentUid}`);
+            console.log(`[STORAGE] Uploading to: ${storagePath} for identity: ${currentUid}`);
             
             let uploadResult;
             try {
                 uploadResult = await uploadBytes(storageRef, selectedFile);
             } catch (storageErr: any) {
-                console.error("[STORAGE UPLOAD ERROR]", storageErr);
+                console.error("[STORAGE CLOUD ERROR]", storageErr);
                 if (storageErr.code === 'storage/unauthorized') {
-                    throw new Error("Cloud Authorization Denied. Please ensure your session is active or contact support if the problem persists.");
+                    throw new Error("Cloud Authorization Denied. This usually occurs if the security rules are propagating or your session has timed out. Please try again in 30 seconds.");
                 }
-                throw new Error(`Upload Failed: ${storageErr.message}`);
+                throw new Error(`Transmission Interrupted: ${storageErr.message}`);
             }
 
             const downloadUrl = await getDownloadURL(storageRef);
@@ -427,24 +427,24 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'pre_alert_upload',
-                    description: `User ${customerName} uploaded a new pre-alert for ${finalTracking}.`,
+                    description: `User ${customerName} uploaded documentation for ${finalTracking}.`,
                     userId: currentUid,
                     userName: customerName,
                     metadata: { trackingNumber: finalTracking, contents, weight, fileUrl: downloadUrl }
                 })
             });
 
-            toast({ title: "Pre-Alert Submitted", description: "Your documentation has been secured for processing." });
+            toast({ title: "Documentation Secured", description: "Your pre-alert has been queued for warehouse intake." });
             setTrackingNumber('');
             setContents('');
             setWeight('');
             setSelectedFile(null);
             onSuccess?.();
         } catch (error: any) {
-            console.error("[PRE-ALERT UPLOAD ERROR]", error);
+            console.error("[PRE-ALERT FATAL ERROR]", error);
             toast({ 
-                title: "Upload Interrupted", 
-                description: error.message || "We were unable to secure your documentation. Please verify your connection.", 
+                title: "Transfer Interrupted", 
+                description: error.message || "We were unable to secure your documentation. Please verify your connection and try again.", 
                 variant: "destructive" 
             });
         } finally {
