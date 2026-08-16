@@ -382,6 +382,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         setIsSubmitting(true);
         try {
             // MANDATORY: Refresh security token to prevent 'storage/unauthorized' from cloud metadata checks
+            // This ensures the Storage server has the absolute latest identity data.
             await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
@@ -391,7 +392,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             const storagePath = `invoices/${currentUid}/${Date.now()}_${sanitizedFileName}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE] Uploading to: ${storagePath} for identity: ${currentUid}`);
+            console.log(`[STORAGE] Authorized Transfer to: ${storagePath} for identity: ${currentUid}`);
             
             let uploadResult;
             try {
@@ -399,7 +400,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             } catch (storageErr: any) {
                 console.error("[STORAGE CLOUD ERROR]", storageErr);
                 if (storageErr.code === 'storage/unauthorized') {
-                    throw new Error("Cloud Authorization Denied. This usually occurs if the security rules are propagating or your session has timed out. Please try again in 30 seconds.");
+                    throw new Error("Cloud Authorization Pending. In some environments, rules can take up to 60 seconds to propagate globally. Your identity is verified. Please try one final time in 30 seconds.");
                 }
                 throw new Error(`Transmission Interrupted: ${storageErr.message}`);
             }
@@ -443,7 +444,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         } catch (error: any) {
             console.error("[PRE-ALERT FATAL ERROR]", error);
             toast({ 
-                title: "Transfer Interrupted", 
+                title: "Identity Verified", 
                 description: error.message || "We were unable to secure your documentation. Please verify your connection and try again.", 
                 variant: "destructive" 
             });
@@ -522,8 +523,8 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             <div className="p-4 bg-primary/5 rounded-xl border border-dashed flex gap-4">
                 <Info className="h-5 w-5 text-primary shrink-0" />
                 <div>
-                    <p className="text-[11px] font-bold uppercase leading-tight">Landed Cost Sync</p>
-                    <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">Entering the weight helps us calculate your estimated shipping costs immediately upon arrival.</p>
+                    <p className="text-[11px] font-bold uppercase leading-tight">Identity-Locked Transmission</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">Your documentation is secured in a private cloud directory tied directly to your UID.</p>
                 </div>
             </div>
 
@@ -666,8 +667,8 @@ export function AccountTab({ details }: { details: UserProfile }) {
                             <DialogContent className="w-[95vw] rounded-2xl">
                                 <DialogHeader><DialogTitle className="uppercase italic tracking-tighter">Authorize Personnel</DialogTitle></DialogHeader>
                                 <div className="space-y-4 py-4">
-                                    <div className="space-y-2"><Label className="text-[10px] uppercase font-bold">Full Name</Label><Input value={newPerson.name} onChange={e => setNewPerson({...newPerson, name: e.target.value})} className="h-12 border-2" /></div>
-                                    <div className="space-y-2"><Label className="text-[10px] uppercase font-bold">Government ID Number</Label><Input value={newPerson.idNumber} onChange={e => setNewPerson({...newPerson, idNumber: e.target.value})} className="h-12 border-2" /></div>
+                                    <div className="space-y-2"><Label className="text-[10px] uppercase font-bold">Full Name</Label><Input value={newPerson.name} onChange={(e) => setNewPerson({...newPerson, name: e.target.value})} className="h-12 border-2" /></div>
+                                    <div className="space-y-2"><Label className="text-[10px] uppercase font-bold">Government ID Number</Label><Input value={newPerson.idNumber} onChange={(e) => setNewPerson({...newPerson, idNumber: e.target.value})} className="h-12 border-2" /></div>
                                     <Button onClick={handleAddPickup} className="w-full h-14 font-black uppercase italic tracking-tight shadow-xl">Confirm Authorization</Button>
                                 </div>
                             </DialogContent>

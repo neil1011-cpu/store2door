@@ -3,18 +3,20 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     // Isolated folder for user documentation
-    match /invoices/{userId}/{path=**} {
-      // Owners can manage their own documents
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // We use {uid} to explicitly bind the folder name to the Auth UID
+    match /invoices/{uid}/{allPaths=**} {
+      // Owners can manage their own documents (read, write, list)
+      allow read, write: if request.auth != null && request.auth.uid == uid;
       
       // Administrators can review documentation for customs processing
+      // We check for the specific master admin email or the admin_roles entry in Firestore
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
     
-    // Global Fallback
+    // Global Fallback - Deny everything else
     match /{allPaths=**} {
       allow read, write: if false;
     }
