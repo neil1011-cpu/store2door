@@ -3,21 +3,12 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // USER UPLOAD ACCESS
-    // This match covers the files inside a user's directory.
-    match /invoices/{userId}/{fileName} {
-      allow read, write, list: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Recursive match for metadata and nested folder operations
+    // CONSOLIDATED INVOICE ACCESS
+    // Grants full read/write access to the owner of the folder and authorized admins.
+    // allPaths=** ensures that metadata checks and background operations are authorized.
     match /invoices/{userId}/{allPaths=**} {
-      allow read, write, list: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // ADMINISTRATIVE ACCESS
-    // Admins need to see everything in the /invoices folder to process customs forms.
-    match /invoices/{allPaths=**} {
-      allow read: if request.auth != null && (
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId || 
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );

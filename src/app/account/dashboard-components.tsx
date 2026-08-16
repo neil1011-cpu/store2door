@@ -377,19 +377,20 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // Ensure auth token is fresh
+            // HIGH-PRIORITY PROTOCOL: Force identity refresh before transfer
             await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // Simplified Path: invoices/{uid}/{timestamp}_{filename}
+            // Consistently formatted absolute path
             const storagePath = `invoices/${currentUid}/${Date.now()}_${selectedFile.name.replace(/\s+/g, '_')}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE] Uploading to: ${storagePath}`);
+            console.log(`[STORAGE UPLOAD] Target: ${storagePath} | UID: ${currentUid}`);
             
-            // Direct upload without metadata bloat
-            const uploadResult = await uploadBytes(storageRef, selectedFile);
+            // Direct upload with explicit MIME type metadata to satisfy cloud security checks
+            const metadata = { contentType: selectedFile.type };
+            const uploadResult = await uploadBytes(storageRef, selectedFile, metadata);
             const downloadUrl = await getDownloadURL(storageRef);
 
             const alertData = {
@@ -414,11 +415,16 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             setSelectedFile(null);
             onSuccess?.();
         } catch (error: any) {
-            console.error("[PRE-ALERT ERROR]", error);
-            const msg = error.code === 'storage/unauthorized' 
-                ? "Security rules denied access. Please refresh the page and try again." 
-                : (error.message || "An error occurred during upload.");
-            toast({ title: "Upload Failed", description: msg, variant: "destructive" });
+            console.error("[PRE-ALERT STORAGE ERROR]", error);
+            let msg = error.message || "An error occurred during upload.";
+            
+            if (error.code === 'storage/unauthorized') {
+                msg = "Cloud authentication denied. This is usually due to a temporary rules propagation delay. Please wait 60 seconds and try again.";
+            } else if (error.code === 'storage/retry-limit-exceeded') {
+                msg = "Connection interrupted. Please check your network and try again.";
+            }
+            
+            toast({ title: "Upload Interrupted", description: msg, variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }
@@ -813,3 +819,4 @@ export function CustomsCalculatorTab() {
         </div>
     );
 }
+
