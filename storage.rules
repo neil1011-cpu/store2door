@@ -4,17 +4,17 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     // UNIVERSAL INVOICE PERMISSIONS
-    // This rule allows the owner of the folder (uid) to perform all operations.
-    // It also allows authorized administrators to read the files for customs processing.
-    match /invoices/{uid}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    // Explicitly allow users to read and write to their own folder.
+    // Explicitly allow administrators to read for customs processing.
+    match /invoices/{userId}/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
     
-    // Default Deny-All
+    // Default Deny-All for anything outside authorized paths
     match /{allPaths=**} {
       allow read, write: if false;
     }

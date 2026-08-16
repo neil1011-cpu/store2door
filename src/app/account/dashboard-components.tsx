@@ -377,16 +377,16 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // CRITICAL SYNC: Ensure cloud auth is absolute before transmission
+            // FORCE TOKEN REFRESH to prevent cloud auth expiration
             await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // Unambiguous absolute path for storage.rules alignment
-            const storagePath = `invoices/${currentUid}/${Date.now()}_document`;
-            const storageRef = ref(storage, storagePath);
+            // Clean simple filename for rules matching invoices/{userId}/{fileName}
+            const fileName = `${Date.now()}_invoice`;
+            const storageRef = ref(storage, `invoices/${currentUid}/${fileName}`);
             
-            console.log(`[SECURE UPLOAD] Targeting: ${storagePath} | Identity: ${currentUid}`);
+            console.log(`[SECURE UPLOAD] Path: invoices/${currentUid}/${fileName} | Identity: ${currentUid}`);
             
             // Authorize upload with explicit MIME type metadata
             const metadata = { 
@@ -426,7 +426,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             let msg = error.message || "An error occurred during upload.";
             
             if (error.code === 'storage/unauthorized') {
-                msg = "Cloud authentication was denied. We've refreshed your security token; please attempt the upload once more now.";
+                msg = "Permission denied. Cloud storage rules may still be propagating or your session has expired. Please wait 30 seconds and retry.";
             }
             
             toast({ title: "Upload Interrupted", description: msg, variant: "destructive" });
@@ -756,7 +756,7 @@ export function CustomsCalculatorTab() {
         const freightJmd = calculateShippingCost(w);
         const freightUsd = freightJmd / USD_TO_JMD_RATE;
         
-        if (itemPrice <= DE_MINIMIS_THRESHOLD) {
+        if (itemPrice <= DE_MINIMis_THRESHOLD) {
             setCalculation({ freight: freightUsd, importDuty: 0, scf: 0, caf: 0, customsTotal: 0, total: freightUsd, isDutyFree: true, calculated: true });
             return;
         }
@@ -824,4 +824,3 @@ export function CustomsCalculatorTab() {
         </div>
     );
 }
-
