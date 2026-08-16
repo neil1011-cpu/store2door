@@ -381,7 +381,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // Ensure security rules see the most recent identity token
+            // CRITICAL: Force token refresh to ensure Storage rules recognize the session
             await currentUser.getIdToken(true);
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
