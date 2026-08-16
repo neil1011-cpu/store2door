@@ -49,6 +49,7 @@ export type ShipmentStatus =
   | 'Arrived in Jamaica'
   | 'Customs' 
   | 'On Route' 
+  | 'Available for pickup'
   | 'Delivered';
 
 export type ShipmentTimelineEvent = {

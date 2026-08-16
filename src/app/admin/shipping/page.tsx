@@ -33,6 +33,8 @@ const getStatusVariant = (status: ShipmentStatus | string | undefined) => {
     case 'Received at Warehouse (FL)':
     case 'Arrived in Jamaica':
       return 'secondary';
+    case 'Available for pickup':
+      return 'default';
     case 'Delivered':
       return 'outline';
     case 'Pending':
@@ -56,6 +58,7 @@ const OFFICIAL_STATUSES: ShipmentStatus[] = [
     'Arrived in Jamaica',
     'Customs',
     'On Route',
+    'Available for pickup',
     'Delivered'
 ];
 

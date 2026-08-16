@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -29,6 +30,9 @@ const getStatusVariant = (status: ShipmentStatus | string | undefined) => {
   if (safeStatus.includes('transit') || safeStatus.includes('shipped') || safeStatus.includes('route')) {
       return 'default';
   }
+  if (safeStatus.includes('pickup')) {
+      return 'default';
+  }
   if (safeStatus.includes('customs') || safeStatus.includes('processed') || safeStatus.includes('review') || safeStatus.includes('warehouse') || safeStatus.includes('jamaica')) {
       return 'secondary';
   }
@@ -47,6 +51,7 @@ const getStatusIcon = (status: ShipmentStatus | string | undefined) => {
     if (safeStatus.includes('jamaica')) return <MapPin className="h-4 w-4" />;
     if (safeStatus.includes('delivered')) return <CheckCircle2 className="h-4 w-4" />;
     if (safeStatus.includes('transit') || safeStatus.includes('shipped')) return <Truck className="h-4 w-4" />;
+    if (safeStatus.includes('pickup')) return <MapPin className="h-4 w-4 text-blue-500" />;
     return <Package className="h-4 w-4" />;
 }
 
