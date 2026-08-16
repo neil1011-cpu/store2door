@@ -377,18 +377,21 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // FORCE TOKEN REFRESH to prevent cloud auth expiration
+            // FORCE TOKEN REFRESH: Ensures the cloud storage engine sees the absolute latest authorization state.
+            console.log(`[STORAGE SYNC] Authorizing transfer for UID: ${currentUser.uid}`);
             await currentUser.getIdToken(true);
+            
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // Clean simple filename for rules matching invoices/{userId}/{fileName}
+            // Standardized Path aligned with broadened Security Rules: invoices/{userId}/{timestamp}_invoice
             const fileName = `${Date.now()}_invoice`;
-            const storageRef = ref(storage, `invoices/${currentUid}/${fileName}`);
+            const storagePath = `invoices/${currentUid}/${fileName}`;
+            const storageRef = ref(storage, storagePath);
             
-            console.log(`[SECURE UPLOAD] Path: invoices/${currentUid}/${fileName} | Identity: ${currentUid}`);
+            console.log(`[STORAGE UPLOAD] Target Path: ${storagePath}`);
             
-            // Authorize upload with explicit MIME type metadata
+            // Authorize upload with mandatory explicit MIME type metadata
             const metadata = { 
                 contentType: selectedFile.type,
                 customMetadata: {
@@ -397,6 +400,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 }
             };
 
+            // INITIATE TRANSFER
             await uploadBytes(storageRef, selectedFile, metadata);
             const downloadUrl = await getDownloadURL(storageRef);
 
@@ -426,7 +430,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             let msg = error.message || "An error occurred during upload.";
             
             if (error.code === 'storage/unauthorized') {
-                msg = "Permission denied. Cloud storage rules may still be propagating or your session has expired. Please wait 30 seconds and retry.";
+                msg = "Permission denied by cloud protocols. This usually indicates a rule propagation delay. Please retry once more.";
             }
             
             toast({ title: "Upload Interrupted", description: msg, variant: "destructive" });

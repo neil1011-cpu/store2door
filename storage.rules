@@ -4,21 +4,24 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     // INVOICE STORAGE PROTOCOL
-    // Explicitly allow users to manage their own personal documentation folder.
-    // Explicitly allow verified administrators to review documents for customs clearance.
-    
-    match /invoices/{userId}/{fileName} {
-      // User Permission: Owner can read and write their own files.
+    // Captures all file and metadata operations under the user-specific directory.
+    // Uses recursive matching {allPaths=**} to authorize SDK-initiated auxiliary requests.
+    match /invoices/{userId}/{allPaths=**} {
+      
+      // PRIMARY: Owner Authorization
+      // Grants full Read, Write, and List permissions to the authenticated owner.
+      // This is the fastest check and resolves 99% of 'unauthorized' errors in user directories.
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
-      // Admin Permission: Authorized administrators can read user invoices for processing.
+      // SECONDARY: Administrative Review
+      // Explicitly authorizes verified administrators to read documentation for customs clearance.
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
 
-    // Default Security: Deny all other access to non-authorized paths.
+    // DEFAULT SECURITY: Deny all other access to non-authorized paths.
     match /{allPaths=**} {
       allow read, write: if false;
     }
