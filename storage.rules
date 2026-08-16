@@ -1,18 +1,21 @@
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Rules for user invoice uploads
+    // Standard rule for user-uploaded invoices
     match /invoices/{userId}/{allPaths=**} {
-      // Users can only read and write to their own folder
+      // 1. Owners can read and write to their own folder
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
-      // Admins can also read these files for processing
-      allow read: if request.auth != null && 
-        (firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid)) || 
-         request.auth.token.email == "admin@neilussolutions.com");
+      // 2. Administrators can read all invoices for processing
+      // We check for the specific master email or the presence of an admin role in firestore
+      allow read: if request.auth != null && (
+        request.auth.token.email == "admin@neilussolutions.com" ||
+        firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
+      );
     }
     
-    // Global fallback: deny all other access
+    // Fallback: Default to deny for any other path
     match /{allPaths=**} {
       allow read, write: if false;
     }

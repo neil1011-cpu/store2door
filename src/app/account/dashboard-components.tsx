@@ -18,7 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn, calculateShippingCost } from '@/lib/utils';
 import type { UserProfile, Shipment, PreAlert, ShipmentStatus, DropoffAddress, PickupPerson } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, useStorage, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useStorage, useUser, useAuth } from '@/firebase';
 import { collection, query, orderBy, limit, serverTimestamp, addDoc, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -340,6 +340,7 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
 
 export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber, onSuccess }: { customerId: string, customerName: string, prefilledTrackingNumber?: string, onSuccess?: () => void }) {
     const { user } = useUser();
+    const auth = useAuth();
     const firestore = useFirestore();
     const storage = useStorage();
     const { toast } = useToast();
@@ -363,9 +364,10 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        if (!user || !storage || !firestore) {
+        // 1. Session and Ready Check
+        if (!user || !auth?.currentUser || !storage || !firestore) {
             toast({ 
-                title: "System Initializing", 
+                title: "Security Link Initializing", 
                 description: "Waiting for secure connection to worldwide storage. Please try again in a few seconds.", 
                 variant: "destructive" 
             });
@@ -379,30 +381,33 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
+            const currentUid = auth.currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // 1. Storage Upload (Must await to get the URL)
-            const storagePath = `invoices/${user.uid}/${Date.now()}_${selectedFile.name}`;
+            // 2. Storage Upload
+            // Ensure we use the exact UID from the current session to match rules
+            const storagePath = `invoices/${currentUid}/${Date.now()}_${selectedFile.name}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE] Uploading to path: ${storagePath}`);
+            console.log(`[STORAGE] Uploading as UID: ${currentUid} to path: ${storagePath}`);
             
+            let uploadResult;
             try {
-                await uploadBytes(storageRef, selectedFile);
+                uploadResult = await uploadBytes(storageRef, selectedFile);
             } catch (storageErr: any) {
                 console.error("[STORAGE UPLOAD ERROR]", storageErr);
                 if (storageErr.code === 'storage/unauthorized') {
-                    throw new Error("Security Access Denied: You do not have permission to upload documents to this project. Please verify Storage Rules.");
+                    throw new Error("Security Access Denied: Your account does not have permission to write to this project's storage bucket. Please ensure Storage Rules are deployed.");
                 }
                 throw storageErr;
             }
 
             const downloadUrl = await getDownloadURL(storageRef);
 
-            // 2. Firestore Document (Non-blocking)
+            // 3. Firestore Document (Non-blocking)
             const alertData = {
                 customerName,
-                customerId: user.uid,
+                customerId: currentUid,
                 trackingNumber: finalTracking,
                 contents,
                 weight: parseFloat(weight) || 0,
@@ -412,23 +417,23 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 invoiceHtml: ''
             };
 
-            const preAlertsCollection = collection(firestore, 'users', user.uid, 'pre_alerts');
+            const preAlertsCollection = collection(firestore, 'users', currentUid, 'pre_alerts');
             addDoc(preAlertsCollection, alertData).catch(async (serverError) => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: `users/${user.uid}/pre_alerts`,
+                    path: `users/${currentUid}/pre_alerts`,
                     operation: 'create',
                     requestResourceData: alertData
                 }));
             });
 
-            // 3. System Logging & Notifications
+            // 4. Activity Logs & Notifications
             fetch('/api/log-activity', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'pre_alert_upload',
                     description: `User ${customerName} uploaded a new pre-alert for ${finalTracking}.`,
-                    userId: user.uid,
+                    userId: currentUid,
                     userName: customerName,
                     metadata: { trackingNumber: finalTracking, contents, weight, fileUrl: downloadUrl }
                 })
@@ -455,7 +460,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             console.error("[PRE-ALERT UPLOAD ERROR]", error);
             toast({ 
                 title: "Upload Interrupted", 
-                description: error.message || "We were unable to secure your documentation. Please check your internet connection and try again.", 
+                description: error.message || "We were unable to secure your documentation. Please verify your internet connection.", 
                 variant: "destructive" 
             });
         } finally {
