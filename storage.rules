@@ -1,0 +1,20 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Rules for user invoice uploads
+    match /invoices/{userId}/{allPaths=**} {
+      // Users can only read and write to their own folder
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Admins can also read these files for processing
+      allow read: if request.auth != null && 
+        (firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid)) || 
+         request.auth.token.email == "admin@neilussolutions.com");
+    }
+    
+    // Global fallback: deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -384,7 +384,19 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             // 1. Storage Upload (Must await to get the URL)
             const storagePath = `invoices/${user.uid}/${Date.now()}_${selectedFile.name}`;
             const storageRef = ref(storage, storagePath);
-            await uploadBytes(storageRef, selectedFile);
+            
+            console.log(`[STORAGE] Uploading to path: ${storagePath}`);
+            
+            try {
+                await uploadBytes(storageRef, selectedFile);
+            } catch (storageErr: any) {
+                console.error("[STORAGE UPLOAD ERROR]", storageErr);
+                if (storageErr.code === 'storage/unauthorized') {
+                    throw new Error("Security Access Denied: You do not have permission to upload documents to this project. Please verify Storage Rules.");
+                }
+                throw storageErr;
+            }
+
             const downloadUrl = await getDownloadURL(storageRef);
 
             // 2. Firestore Document (Non-blocking)
@@ -443,7 +455,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             console.error("[PRE-ALERT UPLOAD ERROR]", error);
             toast({ 
                 title: "Upload Interrupted", 
-                description: "We were unable to secure your documentation. Please check your internet connection and try again.", 
+                description: error.message || "We were unable to secure your documentation. Please check your internet connection and try again.", 
                 variant: "destructive" 
             });
         } finally {
@@ -456,11 +468,11 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                     <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">Tracking Number</Label>
-                    <Input 
+                    <input 
                         placeholder="e.g. 1Z9999W..." 
                         value={trackingNumber} 
                         onChange={e => setTrackingNumber(e.target.value)}
-                        className="font-mono h-12 border-2 text-base"
+                        className="flex h-12 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
                         required
                     />
                 </div>
@@ -546,6 +558,12 @@ export function AccountTab({ details }: { details: UserProfile }) {
 
     const handleUpdateProfile = () => {
         if (!firestore) return;
+        
+        if (trn && trn.length !== 9) {
+            toast({ title: "Validation Error", description: "Tax Registration Number (TRN) must be exactly 9 digits.", variant: "destructive" });
+            return;
+        }
+
         setIsSaving(true);
         const updates = { phone, trn };
         const userDocRef = doc(firestore, 'users', details.id);
@@ -641,7 +659,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
                         </div>
                         <div className="space-y-1.5">
                             <Label className="text-[10px] font-bold uppercase">Tax Number (TRN)</Label>
-                            <Input value={trn} onChange={e => setTrn(e.target.value)} className="h-12 border-2 text-base" maxLength={9} />
+                            <Input value={trn} onChange={e => setTrn(e.target.value)} className="h-12 border-2 text-base" maxLength={9} placeholder="9-digit TRN" />
                         </div>
                         <Button onClick={handleUpdateProfile} disabled={isSaving} className="w-full h-12 font-black uppercase tracking-widest shadow-lg">
                             {isSaving ? <Loader2 className="animate-spin h-5 w-5" /> : "Secure Profile Changes"}
