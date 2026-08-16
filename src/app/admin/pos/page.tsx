@@ -38,7 +38,10 @@ import {
   FileText,
   Edit3,
   FileDown,
-  Wallet
+  Wallet,
+  AlertCircle,
+  TrendingDown,
+  TrendingUp
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -64,6 +67,7 @@ import html2canvas from 'html2canvas';
 /**
  * @fileOverview POS System with integrated PDF Receipt Generation and Finance linking.
  * Includes Manual Amount Override and optimized PDF export for thermal printing.
+ * Enhanced to show detailed item descriptions and prominent account balances.
  */
 
 export default function POSPage() {
@@ -244,7 +248,6 @@ export default function POSPage() {
             
             const imgData = canvas.toDataURL('image/png');
             
-            // Typical thermal paper is 80mm wide. Height is proportional.
             const pdfWidth = 80;
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
             
@@ -276,6 +279,9 @@ export default function POSPage() {
         setManualAmount('');
     };
 
+    const userBalance = selectedUser?.walletBalance || 0;
+    const isIndebted = userBalance < 0;
+
     return (
         <div className="flex flex-col gap-6 max-w-7xl mx-auto">
             {/* Hidden Receipt Template for PDF Capture */}
@@ -305,7 +311,7 @@ export default function POSPage() {
                             </div>
                             {receiptData.items.map(item => (
                                 <div key={item.id} className="grid grid-cols-4 py-1">
-                                    <span className="col-span-2 text-left truncate">{item.invoiceId} - SHIPMENT</span>
+                                    <span className="col-span-2 text-left truncate">{item.lineItems?.[0]?.description || 'Shipment Service'}</span>
                                     <span className="text-right">1</span>
                                     <span className="text-right">${item.amount.toFixed(2)}</span>
                                 </div>
@@ -333,7 +339,6 @@ export default function POSPage() {
                 )}
             </div>
 
-            {/* Standard Dashboard Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
@@ -347,9 +352,8 @@ export default function POSPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Left Column: Customer & Item Selection */}
                 <div className="lg:col-span-8 space-y-6">
-                    {/* Customer Lookup */}
+                    {/* Customer Lookup with Detailed Balance */}
                     <Card className="border-none shadow-xl">
                         <CardHeader className="bg-muted/10 pb-4">
                             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
@@ -385,29 +389,46 @@ export default function POSPage() {
                                     )}
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-between p-6 bg-primary text-primary-foreground rounded-2xl shadow-inner group">
-                                    <div className="flex items-center gap-6">
-                                        <div className="bg-white/20 p-4 rounded-full">
-                                            <User className="h-8 w-8" />
+                                <div className={cn(
+                                    "flex flex-col md:flex-row items-center justify-between p-8 rounded-2xl shadow-inner group transition-all duration-500",
+                                    isIndebted ? "bg-red-500 text-white" : "bg-primary text-primary-foreground"
+                                )}>
+                                    <div className="flex items-center gap-6 mb-4 md:mb-0">
+                                        <div className="bg-white/20 p-5 rounded-full shadow-lg">
+                                            <User className="h-10 w-10" />
                                         </div>
                                         <div>
-                                            <p className="text-4xl font-black italic uppercase tracking-tighter">{selectedUser.fullName}</p>
-                                            <p className="font-bold opacity-80 uppercase tracking-widest text-[10px] mt-1">Mailbox: {selectedUser.mailboxNumber} • {selectedUser.email}</p>
-                                            <div className="mt-2 inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-lg border border-white/20">
-                                                <Wallet className="h-3.5 w-3.5" />
-                                                <span className="text-xs font-bold">Balance: JMD ${(selectedUser.walletBalance || 0).toLocaleString()}</span>
+                                            <div className="flex items-center gap-3">
+                                                <p className="text-4xl font-black italic uppercase tracking-tighter">{selectedUser.fullName}</p>
+                                                <Badge className="bg-white/20 text-white border-white/40 uppercase text-[10px] font-black italic">{selectedUser.mailboxNumber}</Badge>
                                             </div>
+                                            <p className="font-bold opacity-80 uppercase tracking-widest text-[10px] mt-1">{selectedUser.email}</p>
                                         </div>
                                     </div>
-                                    <Button variant="ghost" onClick={() => setSelectedUser(null)} className="text-white hover:bg-white/10 h-14 w-14 rounded-full shrink-0">
-                                        <X className="h-8 w-8" />
-                                    </Button>
+                                    
+                                    <div className="flex items-center gap-6">
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Current Account Standing</p>
+                                            <div className="flex items-center justify-end gap-3 mt-1">
+                                                {isIndebted ? (
+                                                    <AlertCircle className="h-8 w-8 text-white animate-pulse" />
+                                                ) : (
+                                                    <TrendingUp className="h-8 w-8 text-white" />
+                                                )}
+                                                <span className="text-5xl font-black italic tracking-tighter">JMD ${userBalance.toLocaleString()}</span>
+                                            </div>
+                                            {isIndebted && <p className="text-[10px] font-black uppercase italic mt-1 text-white/80">*** Outstanding Balance Due ***</p>}
+                                        </div>
+                                        <Button variant="ghost" onClick={() => setSelectedUser(null)} className="text-white hover:bg-white/10 h-14 w-14 rounded-full shrink-0">
+                                            <X className="h-8 w-8" />
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
 
-                    {/* Unpaid Items Table */}
+                    {/* Unpaid Items Table with Shipment Descriptions */}
                     <Card className="border-none shadow-xl overflow-hidden min-h-[400px]">
                         <CardHeader className="bg-muted/10 pb-4">
                             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
@@ -440,9 +461,10 @@ export default function POSPage() {
                                     <TableHeader className="bg-muted/50">
                                         <TableRow>
                                             <TableHead className="w-[50px] pl-6"></TableHead>
-                                            <TableHead>Invoice ID</TableHead>
-                                            <TableHead>Date Logged</TableHead>
-                                            <TableHead className="text-right pr-6">Amount (JMD)</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Invoice / Reference</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Service Description</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Date Logged</TableHead>
+                                            <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Amount (JMD)</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -459,7 +481,13 @@ export default function POSPage() {
                                                         className="h-6 w-6 border-2"
                                                     />
                                                 </TableCell>
-                                                <TableCell className="font-mono font-black text-primary uppercase text-lg">{inv.invoiceId}</TableCell>
+                                                <TableCell className="font-mono font-black text-primary uppercase text-sm">{inv.invoiceId}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-xs uppercase italic">{inv.lineItems?.[0]?.description || 'Logistics Service'}</span>
+                                                        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Qty: {inv.lineItems?.[0]?.quantity || 1}</span>
+                                                    </div>
+                                                </TableCell>
                                                 <TableCell className="text-xs font-bold opacity-60">
                                                     {inv.date?.toDate ? inv.date.toDate().toLocaleDateString() : 'N/A'}
                                                 </TableCell>
@@ -475,7 +503,7 @@ export default function POSPage() {
                     </Card>
                 </div>
 
-                {/* Right Column: Checkout Summary */}
+                {/* Right Column: Checkout Summary with Balance Impact */}
                 <div className="lg:col-span-4 space-y-6">
                     <Card className="border-none shadow-2xl bg-zinc-950 text-zinc-100 sticky top-24 overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-primary animate-pulse" />
@@ -491,7 +519,9 @@ export default function POSPage() {
                                 <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                                     {userInvoices?.filter(i => selectedInvoices.has(i.id)).map(i => (
                                         <div key={i.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10 group">
-                                            <div className="text-xs font-mono font-bold text-primary">{i.invoiceId}</div>
+                                            <div className="text-[10px] font-mono font-bold text-primary truncate max-w-[150px]">
+                                                {i.lineItems?.[0]?.description || i.invoiceId}
+                                            </div>
                                             <div className="text-sm font-black italic">${i.amount.toLocaleString()}</div>
                                         </div>
                                     ))}
@@ -499,6 +529,29 @@ export default function POSPage() {
                             </div>
 
                             <Separator className="bg-white/10" />
+
+                            {selectedUser && (
+                                <div className="bg-primary/10 p-4 rounded-xl border border-primary/20 space-y-3">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-primary text-center">Ledger Impact Preview</p>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-bold opacity-60 uppercase">Account Debt</span>
+                                        <span className={cn("text-sm font-black", isIndebted ? "text-red-400" : "text-green-400")}>
+                                            JMD ${userBalance.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-bold opacity-60 uppercase">Incoming Payment</span>
+                                        <span className="text-sm font-black text-blue-400">+ JMD ${finalAmount.toLocaleString()}</span>
+                                    </div>
+                                    <Separator className="opacity-10" />
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-bold uppercase">New Balance</span>
+                                        <span className="text-lg font-black italic tracking-tighter">
+                                            JMD ${(userBalance + finalAmount).toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between">
@@ -566,7 +619,6 @@ export default function POSPage() {
                 </div>
             </div>
 
-            {/* Checkout Confirmation Dialog */}
             <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
