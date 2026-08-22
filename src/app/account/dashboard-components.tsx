@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -377,19 +376,23 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
+            // DIAGNOSTIC LOGGING: Verify session identity vs requested path
+            console.log("--- STORAGE AUDIT LOG ---");
+            console.log("Auth UID:", currentUser.uid);
+            console.log("Storage Bucket:", storage.app.options.storageBucket);
+            
             // FORCE TOKEN REFRESH: Ensures the cloud storage engine sees the absolute latest authorization state.
-            console.log(`[STORAGE SYNC] Authorizing transfer for UID: ${currentUser.uid}`);
             await currentUser.getIdToken(true);
             
             const currentUid = currentUser.uid;
             const finalTracking = trackingNumber.toUpperCase();
             
-            // Standardized Path aligned with broadened Security Rules: invoices/{userId}/{timestamp}_invoice
+            // Explicit Path Mapping
             const fileName = `${Date.now()}_invoice`;
             const storagePath = `invoices/${currentUid}/${fileName}`;
             const storageRef = ref(storage, storagePath);
             
-            console.log(`[STORAGE UPLOAD] Target Path: ${storagePath}`);
+            console.log("Target Storage Path:", storagePath);
             
             // Authorize upload with mandatory explicit MIME type metadata
             const metadata = { 
