@@ -385,7 +385,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // FORCE TOKEN REFRESH to ensure Storage session is active
+            // FORCE TOKEN REFRESH to ensure Storage session is active with latest rules
             await currentUser.getIdToken(true);
 
             let finalUrl = externalUrl;
@@ -396,9 +396,13 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 const storagePath = `invoices/${currentUser.uid}/${fileName}`;
                 const storageRef = ref(storage, storagePath);
                 
+                // CRITICAL: Explicitly set content type to pass cloud security metadata check
                 const metadata = { contentType: selectedFile.type };
                 
-                console.log("[STORAGE] Starting high-priority upload to:", storagePath);
+                console.log("[STORAGE AUDIT] UID:", currentUser.uid);
+                console.log("[STORAGE AUDIT] Bucket:", storage.app.options.storageBucket);
+                console.log("[STORAGE AUDIT] Target Path:", storagePath);
+
                 await uploadBytes(storageRef, selectedFile, metadata);
                 finalUrl = await getDownloadURL(storageRef);
             }

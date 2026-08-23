@@ -7,7 +7,8 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
  * Optimized for stable performance across all Next.js 15 environments.
  */
 
-const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || 'swiftroute-3230b';
+// SYNCHRONIZED PROJECT ID: Essential for administrative functions to target the active environment.
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || 'studio-5132922026';
 
 function getAdminApp(): App {
   const apps = getApps();
