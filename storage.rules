@@ -2,14 +2,14 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // INVOICE STORAGE PROTOCOL - UNAMBIGUOUS MATCHING
-    // Strictly binds the {uid} segment to request.auth.uid to resolve unauthorized errors.
-    match /invoices/{uid}/{filename} {
+    // UNIVERSAL INVOICE ACCESS PROTOCOL
+    // Provides unambiguous access to user-specific folders
+    match /invoices/{uid}/{allPaths=**} {
       
-      // OWNER AUTHORIZATION: Primary read/write/list for the authenticated folder owner.
+      // OWNER ACCESS: Full authority for the authenticated folder owner.
       allow read, write, list: if request.auth != null && request.auth.uid == uid;
       
-      // ADMINISTRATIVE ACCESS: Emergency/Process bypass for verified admins.
+      // ADMINISTRATIVE ACCESS: Read-only access for verified admins and custom roles.
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))

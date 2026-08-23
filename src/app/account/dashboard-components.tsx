@@ -433,7 +433,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             let msg = error.message || "An error occurred during upload.";
             
             if (error.code === 'storage/unauthorized') {
-                msg = "Permission denied by cloud protocols. This usually indicates a rule propagation delay. Please retry once more.";
+                msg = "Permission denied by cloud protocols. Verify storage rules have been published correctly for the 'invoices' folder. This may take 30 seconds to propagate.";
             }
             
             toast({ title: "Upload Interrupted", description: msg, variant: "destructive" });

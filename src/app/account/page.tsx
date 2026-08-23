@@ -95,7 +95,7 @@ export default function AccountPage() {
             </div>
 
             <div className="space-y-6 mb-12">
-                {/* Optimized Horizontal Ledger Banner */}
+                {/* Horizontal Ledger Banner */}
                 <Card className={cn(
                     "border-none shadow-xl rounded-2xl overflow-hidden relative group transition-all",
                     isIndebted ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
