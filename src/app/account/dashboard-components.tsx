@@ -369,7 +369,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         
         const currentUser = auth?.currentUser;
         if (!user || !currentUser || !firestore) {
-            toast({ title: "System Readying...", description: "Establishing connection. Please try again.", variant: "destructive" });
+            toast({ title: "Session Syncing...", description: "Establishing secure link. Please try again in a moment.", variant: "destructive" });
             return;
         }
 
@@ -385,16 +385,20 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
+            // FORCE TOKEN REFRESH to ensure Storage session is active
+            await currentUser.getIdToken(true);
+
             let finalUrl = externalUrl;
 
-            // HANDLE INTERNAL UPLOAD (If not using external link)
+            // HANDLE INTERNAL UPLOAD
             if (!useExternal && selectedFile && storage) {
-                const currentUid = currentUser.uid;
                 const fileName = `${Date.now()}_invoice`;
-                const storagePath = `invoices/${currentUid}/${fileName}`;
+                const storagePath = `invoices/${currentUser.uid}/${fileName}`;
                 const storageRef = ref(storage, storagePath);
                 
                 const metadata = { contentType: selectedFile.type };
+                
+                console.log("[STORAGE] Starting high-priority upload to:", storagePath);
                 await uploadBytes(storageRef, selectedFile, metadata);
                 finalUrl = await getDownloadURL(storageRef);
             }
@@ -415,7 +419,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             const preAlertsCollection = collection(firestore, 'users', currentUser.uid, 'pre_alerts');
             await addDoc(preAlertsCollection, alertData);
 
-            toast({ title: "Pre-Alert Secured", description: "Your documentation has been received and queued for review." });
+            toast({ title: "Pre-Alert Authorized", description: "Your documentation has been queued for warehouse review." });
             setTrackingNumber('');
             setContents('');
             setWeight('');
@@ -423,8 +427,12 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             setExternalUrl('');
             onSuccess?.();
         } catch (error: any) {
-            console.error("[PRE-ALERT ERROR]", error);
-            toast({ title: "Submission Failed", description: error.message || "An error occurred. Check permissions.", variant: "destructive" });
+            console.error("[PRE-ALERT AUTH ERROR]", error);
+            toast({ 
+                title: "Authorization Failed", 
+                description: error.code === 'storage/unauthorized' ? "Cloud permission denied. Ensure your file is under 20MB and try again." : error.message, 
+                variant: "destructive" 
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -515,7 +523,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                             className="h-12 border-2 bg-white"
                         />
                         <p className="text-[9px] text-muted-foreground uppercase leading-relaxed font-medium">
-                            If you are using an external cloud like Vultr Object Storage or Dropbox, paste the direct share link here. Ensure it is accessible for customs review.
+                            If your invoice is hosted elsewhere, paste the direct share link here.
                         </p>
                     </div>
                 )}
@@ -523,7 +531,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
             <button type="submit" disabled={isSubmitting} className="w-full h-14 bg-primary text-primary-foreground flex items-center justify-center gap-2 text-lg font-black uppercase italic shadow-xl rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity">
                 {isSubmitting ? <Loader2 className="h-6 w-6 animate-spin" /> : <Zap className="h-6 w-6" />}
-                Authorize Pre-Alert
+                Authorize Global Intake
             </button>
         </form>
     );

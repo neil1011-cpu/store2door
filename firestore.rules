@@ -6,7 +6,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Basic User Profile Rules - Absolute Ownership
+    // Primary User Registry Rules
     match /users/{userId} {
        allow read, write: if isSignedIn() && request.auth.uid == userId;
        
@@ -20,18 +20,16 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
     
-    // Explicit Collection Group Access for User Views
+    // Explicit Collection Group Access for Global Views
     match /{path=**}/pre_alerts/{id} {
-      allow read: if isSignedIn() && resource.data.customerId == request.auth.uid;
-      allow list: if isSignedIn() && request.query.filters.customerId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.customerId == request.auth.uid || request.auth.token.email == "admin@neilussolutions.com");
     }
     
     match /{path=**}/shipments/{id} {
        allow read: if true; 
-       allow list: if isSignedIn() && request.query.filters.customerId == request.auth.uid;
     }
 
-    // Global Admin Override
+    // Administrative Override
     match /{allPaths=**} {
       allow read, write: if isSignedIn() && (
         exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||

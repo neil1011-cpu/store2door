@@ -81,7 +81,7 @@ export default function PreAlertPage() {
                                         <TableRow>
                                             <TableCell colSpan={4} className="h-48 text-center">
                                                 <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                                                <p className="text-xs font-bold uppercase mt-2 opacity-40">Syncing History...</p>
+                                                <p className="text-xs font-bold uppercase mt-2 opacity-40">Syncing Records...</p>
                                             </TableCell>
                                         </TableRow>
                                     ) : userPreAlerts && userPreAlerts.length > 0 ? (
