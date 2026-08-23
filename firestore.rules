@@ -1,73 +1,42 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // --- Core Helper Functions ---
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Administrators have full access.
-    function isAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
-        request.auth.token.email == "admin@neilussolutions.com"
-      );
-    }
-
-    // --- Primary User Collection Rules ---
-    // Explicitly handles the user's primary identity record.
+    // Basic User Profile Rules - Absolute Ownership
     match /users/{userId} {
-       // Owners can manage their own profile.
        allow read, write: if isSignedIn() && request.auth.uid == userId;
        
-       // Ensure subcollections inherit the same owner permissions.
        match /{allSubcollections=**} {
-         allow read, write, list: if isSignedIn() && request.auth.uid == userId;
+         allow read, write: if isSignedIn() && request.auth.uid == userId;
        }
     }
 
-    match /users {
-      allow list: if isAdmin();
-    }
-    
-    // Explicitly allow users to read/write metadata counter for mailbox assignment during signup.
+    // Allow user onboarding counter handshake
     match /metadata/mailboxCounter {
       allow read, write: if isSignedIn();
     }
-
-    // Explicitly allow users to see their own pre-alerts via collectionGroup.
+    
+    // Explicit Collection Group Access for User Views
     match /{path=**}/pre_alerts/{id} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
-      allow list: if isAdmin() || (isSignedIn() && request.query.filters.customerId == request.auth.uid);
+      allow read: if isSignedIn() && resource.data.customerId == request.auth.uid;
+      allow list: if isSignedIn() && request.query.filters.customerId == request.auth.uid;
     }
     
-    // Explicitly allow tracking (read by ID) and owner listing for shipments.
     match /{path=**}/shipments/{id} {
        allow read: if true; 
-       allow list: if isAdmin() || (isSignedIn() && request.query.filters.customerId == request.auth.uid);
-    }
-    
-    match /invoices/{id} {
-       allow read: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
-       allow list: if isAdmin() || (isSignedIn() && request.query.filters.customerId == request.auth.uid);
-       allow write: if isAdmin();
+       allow list: if isSignedIn() && request.query.filters.customerId == request.auth.uid;
     }
 
-    match /admin_roles/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if isAdmin();
-    }
-
-    match /metadata/{id} {
-      allow read, write: if isAdmin();
-    }
-
-    // --- Global Administrative Override ---
+    // Global Admin Override
     match /{allPaths=**} {
-      allow read, write, list: if isAdmin();
+      allow read, write: if isSignedIn() && (
+        exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
+        request.auth.token.email == "admin@neilussolutions.com"
+      );
     }
   }
 }

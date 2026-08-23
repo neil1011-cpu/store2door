@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useEffect, type ReactNode, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase, useAuth } from '@/firebase';
-import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { UserProfile } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -18,9 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-// Create a context to share the user profile data with child pages
 const UserProfileContext = createContext<UserProfile | null>(null);
-
 export const useAccountProfile = () => useContext(UserProfileContext);
 
 const accountNavLinks = [
@@ -41,15 +38,9 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const [isMounted, setIsMounted] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isRepairing, setIsRepairing] = useState(false);
-    const [syncTimeout, setSyncTimeout] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
-        // Fallback: If still syncing after 5 seconds, show retry UI
-        const timer = setTimeout(() => {
-            setSyncTimeout(true);
-        }, 5000);
-        return () => clearTimeout(timer);
     }, []);
 
     const userProfileRef = useMemoFirebase(() => {
@@ -57,7 +48,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         return doc(firestore, 'users', user.uid);
     }, [firestore, user]);
     
-    const { data: userProfile, isLoading: isProfileLoading, error: profileError } = useDoc<UserProfile>(userProfileRef);
+    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
 
     useEffect(() => {
         if (!isUserLoading && !user && isMounted) {
@@ -65,18 +56,17 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     }, [user, isUserLoading, router, isMounted]);
 
-    // IDENTITY AUTO-REPAIR: If user is authenticated but the Firestore document is missing,
-    // we initialize their profile now to prevent "Authentication Error" locks.
+    // IDENTITY AUTO-REPAIR (Silent): If doc is missing, we create it but don't block the UI.
     useEffect(() => {
-        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore && !isRepairing && !profileError) {
+        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore && !isRepairing) {
             const repairIdentity = async () => {
-                console.log("[IDENTITY REPAIR] Initiating real-time sync for UID:", user.uid);
+                console.log("[IDENTITY REPAIR] Synchronizing UID:", user.uid);
                 setIsRepairing(true);
                 try {
                     const mailbox = `FSTD-${user.uid.substring(0, 5).toUpperCase()}`;
                     await setDoc(doc(firestore, 'users', user.uid), {
                         id: user.uid,
-                        fullName: user.displayName || user.email?.split('@')[0] || 'Authenticated User',
+                        fullName: user.displayName || user.email?.split('@')[0] || 'Member',
                         email: user.email || '',
                         phone: 'N/A',
                         trn: 'N/A',
@@ -94,21 +84,15 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                         pickupPersonnel: [],
                         dropoffAddresses: [],
                     }, { merge: true });
-                    console.log("[IDENTITY REPAIR] Profile successfully synchronized.");
                 } catch (e) {
                     console.error("[IDENTITY REPAIR] FAILED:", e);
-                    toast({ 
-                        title: "Identity Sync Error", 
-                        description: "We couldn't establish your logistics identity. Please try signing out and back in.",
-                        variant: "destructive"
-                    });
                 } finally {
                     setIsRepairing(false);
                 }
             };
             repairIdentity();
         }
-    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore, isRepairing, profileError, toast]);
+    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore, isRepairing]);
 
     // Force Password Reset Check
     useEffect(() => {
@@ -124,65 +108,37 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     };
 
-    if (isUserLoading || (isProfileLoading && !userProfile) || isRepairing || !isMounted) {
+    if (isUserLoading || !isMounted) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
-                <div className="bg-primary/5 p-8 rounded-full mb-6 relative">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                    <div className="absolute inset-0 border-4 border-primary/20 rounded-full animate-ping" />
-                </div>
-                <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2">Syncing Logistics Identity</h2>
-                <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse max-w-xs mx-auto">
-                    Establishing secure link with worldwide database...
-                </p>
-                
-                {syncTimeout && (
-                    <div className="mt-12 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                        <div className="flex flex-col gap-3">
-                            <p className="text-[10px] text-destructive font-bold uppercase">Connection taking longer than expected</p>
-                            <div className="flex gap-2 justify-center">
-                                <Button onClick={() => window.location.reload()} variant="outline" className="border-2 font-black uppercase italic h-12 px-6 shadow-lg">
-                                    <RefreshCcw className="mr-2 h-4 w-4" /> Force Sync
-                                </Button>
-                                <Button onClick={handleSignOut} variant="secondary" className="font-black uppercase italic h-12 px-6">
-                                    <LogOut className="mr-2 h-4 w-4" /> Sign Out
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <Loader2 className="h-12 w-12 animate-spin text-primary mb-6" />
+                <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2">Connecting to Hub</h2>
+                <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">Establishing secure worldwide link...</p>
             </div>
         );
     }
 
-    if (!userProfile && !isRepairing) {
-        return (
-            <div className="container mx-auto py-24 px-4 md:px-6 text-center">
-                <div className="bg-orange-100 p-6 rounded-3xl w-24 h-24 flex items-center justify-center mx-auto mb-6">
-                    <ShieldAlert className="h-12 w-12 text-orange-600" />
-                </div>
-                 <h1 className="text-3xl font-black italic uppercase tracking-tighter">Identity Sync Failed</h1>
-                <p className="text-muted-foreground mt-2 max-w-md mx-auto">We were unable to establish a secure link with your registry record. This may be due to a temporary network interruption or a session mismatch.</p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-                    <Button onClick={() => window.location.reload()} className="font-black uppercase italic h-14 px-10 shadow-xl">
-                        <RefreshCcw className="mr-2 h-5 w-5" /> Retry Sync
-                    </Button>
-                    <Button onClick={handleSignOut} variant="outline" className="h-14 font-bold border-2 px-10">
-                        <LogOut className="mr-2 h-5 w-5" /> Secure Sign Out
-                    </Button>
-                </div>
-            </div>
-        );
-    }
+    // If we're logged in but don't have a profile yet, we show a simplified "Initializing" screen or just the content
+    // We choose to show the content and provide a fallback userProfile value to prevent crashes in child components
+    const safeProfile = userProfile || {
+        id: user?.uid || '',
+        fullName: 'Loading...',
+        email: user?.email || '',
+        phone: '',
+        mailboxNumber: '...',
+        trn: '',
+        address: { address1: '', address2: '', city: '', state: '', zip: '' },
+        walletBalance: 0,
+        createdAt: null
+    } as UserProfile;
 
     const isSecurityPage = pathname === '/account/change-password';
-    const walletBalance = userProfile?.walletBalance || 0;
+    const walletBalance = safeProfile.walletBalance || 0;
     const isIndebted = walletBalance < 0;
 
     return (
-        <UserProfileContext.Provider value={userProfile}>
+        <UserProfileContext.Provider value={safeProfile}>
             <div className="min-h-screen bg-muted/20">
-                {/* User Account Sub-Header with Real-time Balance */}
                 <div className="bg-background border-b shadow-sm sticky top-0 z-40 print:hidden">
                     <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 md:gap-4 shrink-0">
@@ -212,30 +168,26 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                                                 </Link>
                                             ))}
                                             <Separator className="my-4" />
-                                            <Link href="/tracking" className="p-4 text-sm font-bold opacity-60 uppercase">Public Tracking</Link>
-                                            <Link href="/support" className="p-4 text-sm font-bold opacity-60 uppercase">Get Help</Link>
+                                            <Button onClick={handleSignOut} variant="destructive" className="w-full h-12 font-black uppercase italic mt-4">
+                                                <LogOut className="mr-2 h-4 w-4" /> Sign Out
+                                            </Button>
                                         </nav>
                                     </SheetContent>
                                 </Sheet>
                             )}
                             <AppLogo className="scale-75 sm:scale-90" />
-                            <Separator orientation="vertical" className="h-6 hidden lg:block" />
-                            <span className="text-[10px] font-black uppercase italic tracking-tighter opacity-40 hidden lg:block">Console</span>
                         </div>
                         
                         <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end overflow-hidden">
-                            {!isSecurityPage && userProfile && (
+                            {!isSecurityPage && (
                                 <div className={cn(
                                     "border-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[200px] sm:max-w-none transition-colors",
                                     isIndebted ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/10"
                                 )}>
                                     {isIndebted ? <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600 shrink-0" /> : <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />}
                                     <div className="flex flex-col min-w-0">
-                                        <span className={cn(
-                                            "text-[7px] sm:text-[8px] font-black uppercase tracking-widest leading-none",
-                                            isIndebted ? 'Outstanding Dues' : 'Account Credit'
-                                        )}>
-                                            {isIndebted ? 'Outstanding Dues' : 'Account Credit'}
+                                        <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest leading-none">
+                                            {isIndebted ? 'Outstanding' : 'Credit'}
                                         </span>
                                         <span className={cn(
                                             "text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate",
@@ -247,6 +199,9 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                                 </div>
                             )}
                             <div className="shrink-0"><ThemeToggle /></div>
+                            <Button variant="ghost" size="icon" onClick={handleSignOut} className="hidden sm:flex text-muted-foreground hover:text-destructive">
+                                <LogOut className="h-5 w-5" />
+                            </Button>
                         </div>
                     </div>
                 </div>
