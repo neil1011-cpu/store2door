@@ -17,12 +17,6 @@ service cloud.firestore {
       );
     }
 
-    // --- Global Administrative Override ---
-    // This must remain top-level to allow admins to manage everything.
-    match /{allPaths=**} {
-      allow read, write, list: if isAdmin();
-    }
-
     // --- Primary User Collection Rules ---
     // Explicitly handles the user's primary identity record.
     match /users/{userId} {
@@ -64,10 +58,16 @@ service cloud.firestore {
 
     match /admin_roles/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
     }
 
     match /metadata/{id} {
       allow read, write: if isAdmin();
+    }
+
+    // --- Global Administrative Override ---
+    match /{allPaths=**} {
+      allow read, write, list: if isAdmin();
     }
   }
 }
