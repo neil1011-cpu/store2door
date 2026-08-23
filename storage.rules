@@ -3,17 +3,17 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // INVOICE STORAGE PROTOCOL
-    // Provides unambiguous recursive access for the owner and read-only for admins.
-    match /invoices/{uid}/{allPaths=**} {
+    // DIRECT INVOICE ACCESS
+    // Simple, non-nested match to ensure metadata handshakes pass instantly.
+    match /invoices/{uid}/{filename} {
       
-      // Full authority for the owner to manage their folder.
-      allow read, write, list: if request.auth != null && request.auth.uid == uid;
+      // Authorized owner access
+      allow read, write: if request.auth != null && request.auth.uid == uid;
       
-      // Administrative fallback for document verification.
+      // Administrative fallback (Explicit email check is most reliable)
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
-        firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
+        request.auth.token.admin == true
       );
     }
 

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -5,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy, Zap, UserPlus, Phone, User, X, Mail, Wallet } from 'lucide-react';
+import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy, Zap, UserPlus, Phone, User, X, Mail, Wallet, ExternalLink, Globe } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -343,17 +344,20 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
     const firestore = useFirestore();
     const storage = useStorage();
     const { toast } = useToast();
+    
     const [trackingNumber, setTrackingNumber] = useState(prefilledTrackingNumber || '');
     const [contents, setContents] = useState('');
     const [weight, setWeight] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [externalUrl, setExternalUrl] = useState('');
+    const [useExternal, setUseExternal] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 50 * 1024 * 1024) {
-                toast({ title: "File Too Large", description: "The maximum upload size is 50MB.", variant: "destructive" });
+            if (file.size > 20 * 1024 * 1024) {
+                toast({ title: "File Too Large", description: "Maximum upload size is 20MB.", variant: "destructive" });
                 return;
             }
             setSelectedFile(file);
@@ -364,62 +368,51 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         e.preventDefault();
         
         const currentUser = auth?.currentUser;
-        if (!user || !currentUser || !storage || !firestore) {
+        if (!user || !currentUser || !firestore) {
             toast({ title: "System Readying...", description: "Establishing connection. Please try again.", variant: "destructive" });
             return;
         }
 
-        if (!trackingNumber || !contents || !selectedFile) {
-            toast({ title: "Missing Information", description: "Please complete all required fields.", variant: "destructive" });
+        if (!trackingNumber || !contents) {
+            toast({ title: "Missing Information", description: "Tracking and contents are required.", variant: "destructive" });
+            return;
+        }
+
+        if (!useExternal && !selectedFile) {
+            toast({ title: "Invoice Missing", description: "Please upload a file or provide an external link.", variant: "destructive" });
             return;
         }
 
         setIsSubmitting(true);
         try {
-            // DIAGNOSTIC LOGGING: Verify session identity vs requested path
-            console.log("--- STORAGE AUDIT LOG ---");
-            console.log("Auth UID:", currentUser.uid);
-            console.log("Storage Bucket:", storage.app.options.storageBucket);
-            
-            // FORCE TOKEN REFRESH: Ensures the cloud storage engine sees the absolute latest authorization state.
-            await currentUser.getIdToken(true);
-            
-            const currentUid = currentUser.uid;
-            const finalTracking = trackingNumber.toUpperCase();
-            
-            // Explicit Path Mapping
-            const fileName = `${Date.now()}_invoice`;
-            const storagePath = `invoices/${currentUid}/${fileName}`;
-            const storageRef = ref(storage, storagePath);
-            
-            console.log("Target Storage Path:", storagePath);
-            
-            // Authorize upload with mandatory explicit MIME type metadata
-            const metadata = { 
-                contentType: selectedFile.type,
-                customMetadata: {
-                    'tracking': finalTracking,
-                    'owner': currentUid
-                }
-            };
+            let finalUrl = externalUrl;
 
-            // INITIATE TRANSFER
-            await uploadBytes(storageRef, selectedFile, metadata);
-            const downloadUrl = await getDownloadURL(storageRef);
+            // HANDLE INTERNAL UPLOAD (If not using external link)
+            if (!useExternal && selectedFile && storage) {
+                const currentUid = currentUser.uid;
+                const fileName = `${Date.now()}_invoice`;
+                const storagePath = `invoices/${currentUid}/${fileName}`;
+                const storageRef = ref(storage, storagePath);
+                
+                const metadata = { contentType: selectedFile.type };
+                await uploadBytes(storageRef, selectedFile, metadata);
+                finalUrl = await getDownloadURL(storageRef);
+            }
 
             const alertData = {
                 customerName,
-                customerId: currentUid,
-                trackingNumber: finalTracking,
+                customerId: currentUser.uid,
+                trackingNumber: trackingNumber.toUpperCase(),
                 contents,
                 weight: parseFloat(weight) || 0,
                 status: 'Pending' as const,
                 submissionDate: serverTimestamp(),
-                uploadedInvoiceUrl: downloadUrl,
+                uploadedInvoiceUrl: finalUrl,
+                isExternalCloud: useExternal,
                 invoiceHtml: ''
             };
 
-            const preAlertsCollection = collection(firestore, 'users', currentUid, 'pre_alerts');
+            const preAlertsCollection = collection(firestore, 'users', currentUser.uid, 'pre_alerts');
             await addDoc(preAlertsCollection, alertData);
 
             toast({ title: "Pre-Alert Secured", description: "Your documentation has been received and queued for review." });
@@ -427,16 +420,11 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             setContents('');
             setWeight('');
             setSelectedFile(null);
+            setExternalUrl('');
             onSuccess?.();
         } catch (error: any) {
-            console.error("[STORAGE EXCEPTION]", error);
-            let msg = error.message || "An error occurred during upload.";
-            
-            if (error.code === 'storage/unauthorized') {
-                msg = "Permission denied by cloud protocols. Verify storage rules have been published correctly for the 'invoices' folder. This may take 30 seconds to propagate.";
-            }
-            
-            toast({ title: "Upload Interrupted", description: msg, variant: "destructive" });
+            console.error("[PRE-ALERT ERROR]", error);
+            toast({ title: "Submission Failed", description: error.message || "An error occurred. Check permissions.", variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }
@@ -481,40 +469,56 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 </div>
             </div>
 
-            <div className="space-y-2">
-                <Label className="text-[10px] sm:text-xs font-bold uppercase opacity-60">Upload Commercial Invoice</Label>
-                <div className="border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center bg-muted/20 relative group hover:bg-muted/30 transition-colors">
-                    <input 
-                        type="file" 
-                        accept="image/*,application/pdf" 
-                        onChange={handleFileChange}
-                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                        required
-                    />
-                    {!selectedFile ? (
-                        <div className="space-y-3">
-                            <UploadCloud className="h-12 w-12 mx-auto text-primary opacity-40 group-hover:scale-110 transition-transform" />
-                            <p className="text-sm font-black uppercase tracking-widest">Select Invoice File</p>
-                            <p className="text-[10px] text-muted-foreground">PDF or Image up to 50MB</p>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center gap-3 text-green-600 font-bold uppercase text-xs">
-                            <div className="bg-green-100 p-3 rounded-full"><CheckCircle2 className="h-8 w-8" /></div>
-                            <div className="flex flex-col gap-1">
-                                <span className="max-w-[200px] truncate">{selectedFile.name}</span>
-                                <span className="text-muted-foreground text-[10px]">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
-                            </div>
-                        </div>
-                    )}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Invoice Documentation</Label>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-tighter italic opacity-40">Use External Link</span>
+                        <Switch checked={useExternal} onCheckedChange={setUseExternal} />
+                    </div>
                 </div>
-            </div>
 
-            <div className="p-4 bg-primary/5 rounded-xl border border-dashed flex gap-4">
-                <Info className="h-5 w-5 text-primary shrink-0" />
-                <div>
-                    <p className="text-[11px] font-bold uppercase leading-tight">Identity Verification Active</p>
-                    <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">Your documentation is secured in a directory tied to your unique identity.</p>
-                </div>
+                {!useExternal ? (
+                    <div className="border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center bg-muted/20 relative group hover:bg-muted/30 transition-colors">
+                        <input 
+                            type="file" 
+                            accept="image/*,application/pdf" 
+                            onChange={handleFileChange}
+                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                        />
+                        {!selectedFile ? (
+                            <div className="space-y-3">
+                                <UploadCloud className="h-12 w-12 mx-auto text-primary opacity-40 group-hover:scale-110 transition-transform" />
+                                <p className="text-sm font-black uppercase tracking-widest">Select Invoice File</p>
+                                <p className="text-[10px] text-muted-foreground">PDF or Image up to 20MB</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center gap-3 text-green-600 font-bold uppercase text-xs">
+                                <div className="bg-green-100 p-3 rounded-full"><CheckCircle2 className="h-8 w-8" /></div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="max-w-[200px] truncate">{selectedFile.name}</span>
+                                    <span className="text-muted-foreground text-[10px]">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="p-6 rounded-2xl bg-blue-50/50 border-2 border-dashed border-blue-200 space-y-4">
+                        <div className="flex items-center gap-3 text-blue-700">
+                             <Globe className="h-6 w-6" />
+                             <p className="text-xs font-bold uppercase tracking-tight">External Cloud Link (Vultr, Drive, etc.)</p>
+                        </div>
+                        <Input 
+                            placeholder="https://example.com/invoice.pdf" 
+                            value={externalUrl} 
+                            onChange={e => setExternalUrl(e.target.value)} 
+                            className="h-12 border-2 bg-white"
+                        />
+                        <p className="text-[9px] text-muted-foreground uppercase leading-relaxed font-medium">
+                            If you are using an external cloud like Vultr Object Storage or Dropbox, paste the direct share link here. Ensure it is accessible for customs review.
+                        </p>
+                    </div>
+                )}
             </div>
 
             <button type="submit" disabled={isSubmitting} className="w-full h-14 bg-primary text-primary-foreground flex items-center justify-center gap-2 text-lg font-black uppercase italic shadow-xl rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity">

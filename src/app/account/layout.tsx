@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, type ReactNode, useState } from 'react';
@@ -10,10 +11,9 @@ import { Button } from '@/components/ui/button';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
-import { Wallet, Menu, TrendingDown, Loader2, RefreshCcw, ShieldAlert, LogOut } from 'lucide-react';
+import { Wallet, Menu, TrendingDown, Loader2, LogOut, RefreshCcw } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
@@ -33,11 +33,9 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const { user, isUserLoading } = useUser();
     const auth = useAuth();
     const firestore = useFirestore();
-    const { toast } = useToast();
     
     const [isMounted, setIsMounted] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isRepairing, setIsRepairing] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
@@ -56,12 +54,10 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     }, [user, isUserLoading, router, isMounted]);
 
-    // IDENTITY AUTO-REPAIR (Silent): If doc is missing, we create it but don't block the UI.
+    // IDENTITY AUTO-REPAIR (Silent & Non-Blocking)
     useEffect(() => {
-        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore && !isRepairing) {
+        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore) {
             const repairIdentity = async () => {
-                console.log("[IDENTITY REPAIR] Synchronizing UID:", user.uid);
-                setIsRepairing(true);
                 try {
                     const mailbox = `FSTD-${user.uid.substring(0, 5).toUpperCase()}`;
                     await setDoc(doc(firestore, 'users', user.uid), {
@@ -86,20 +82,11 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                     }, { merge: true });
                 } catch (e) {
                     console.error("[IDENTITY REPAIR] FAILED:", e);
-                } finally {
-                    setIsRepairing(false);
                 }
             };
             repairIdentity();
         }
-    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore, isRepairing]);
-
-    // Force Password Reset Check
-    useEffect(() => {
-        if (userProfile?.needsPasswordReset && pathname !== '/account/change-password' && isMounted) {
-            router.push('/account/change-password');
-        }
-    }, [userProfile, pathname, router, isMounted]);
+    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore]);
 
     const handleSignOut = async () => {
         if (auth) {
@@ -108,6 +95,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     };
 
+    // ONLY block on Auth state, NOT profile data.
     if (isUserLoading || !isMounted) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
@@ -118,12 +106,12 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         );
     }
 
-    // If we're logged in but don't have a profile yet, we show a simplified "Initializing" screen or just the content
-    // We choose to show the content and provide a fallback userProfile value to prevent crashes in child components
+    if (!user) return null;
+
     const safeProfile = userProfile || {
-        id: user?.uid || '',
-        fullName: 'Loading...',
-        email: user?.email || '',
+        id: user.uid,
+        fullName: user.displayName || 'Loading...',
+        email: user.email || '',
         phone: '',
         mailboxNumber: '...',
         trn: '',
