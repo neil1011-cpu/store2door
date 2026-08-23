@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, type ReactNode, useState } from 'react';
@@ -6,17 +5,15 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { UserProfile } from '@/lib/types';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
-import { Wallet, Menu, CreditCard, TrendingDown, TrendingUp, Loader2 } from 'lucide-react';
+import { Wallet, Menu, TrendingDown, Loader2, RefreshCcw, ShieldAlert } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 
 // Create a context to share the user profile data with child pages
 const UserProfileContext = createContext<UserProfile | null>(null);
@@ -38,9 +35,15 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const [isMounted, setIsMounted] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isRepairing, setIsRepairing] = useState(false);
+    const [syncTimeout, setSyncTimeout] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
+        // Fallback: If still syncing after 8 seconds, show retry UI
+        const timer = setTimeout(() => {
+            setSyncTimeout(true);
+        }, 8000);
+        return () => clearTimeout(timer);
     }, []);
 
     const userProfileRef = useMemoFirebase(() => {
@@ -48,7 +51,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         return doc(firestore, 'users', user.uid);
     }, [firestore, user]);
     
-    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
+    const { data: userProfile, isLoading: isProfileLoading, error: profileError } = useDoc<UserProfile>(userProfileRef);
 
     useEffect(() => {
         if (!isUserLoading && !user && isMounted) {
@@ -59,11 +62,11 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     // IDENTITY AUTO-REPAIR: If user is authenticated but the Firestore document is missing,
     // we initialize their profile now to prevent "Authentication Error" locks.
     useEffect(() => {
-        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore) {
+        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore && !isRepairing) {
             const repairIdentity = async () => {
                 setIsRepairing(true);
                 try {
-                    const mailbox = `FSTD-FIX-${user.uid.substring(0, 4).toUpperCase()}`;
+                    const mailbox = `FSTD-${user.uid.substring(0, 5).toUpperCase()}`;
                     await setDoc(doc(firestore, 'users', user.uid), {
                         id: user.uid,
                         fullName: user.displayName || user.email?.split('@')[0] || 'Authenticated User',
@@ -84,7 +87,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                         pickupPersonnel: [],
                         dropoffAddresses: [],
                     }, { merge: true });
-                    console.log("[IDENTITY REPAIR] Profile generated for missing record.");
+                    console.log("[IDENTITY REPAIR] Profile successfully synced.");
                 } catch (e) {
                     console.error("[IDENTITY REPAIR] FAILED:", e);
                 } finally {
@@ -93,7 +96,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             };
             repairIdentity();
         }
-    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore]);
+    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore, isRepairing]);
 
     // Force Password Reset Check
     useEffect(() => {
@@ -102,43 +105,52 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     }, [userProfile, pathname, router, isMounted]);
 
-    // Global Address Auto-Repair: Ensures existing users are migrated to Lauderdale Lake
-    useEffect(() => {
-        if (userProfile && userProfile.address?.address1 !== '3507 NW 19th ST' && isMounted && firestore) {
-            const mailbox = userProfile.mailboxNumber || 'HUB';
-            updateDoc(doc(firestore, 'users', userProfile.id), {
-                address: {
-                    address1: '3507 NW 19th ST',
-                    address2: `${mailbox}-FSTD`,
-                    city: 'Lauderdale Lake',
-                    state: 'FL',
-                    zip: '33311-4224',
-                }
-            }).catch(e => console.error("Address auto-repair failed", e));
-        }
-    }, [userProfile, firestore, isMounted]);
-
-    if (isUserLoading || isProfileLoading || isRepairing || !isMounted) {
+    if (isUserLoading || (isProfileLoading && !userProfile) || isRepairing || !isMounted) {
         return (
-            <div className="container mx-auto py-12 px-4 md:px-6 flex flex-col items-center justify-center min-h-[60vh]">
-                <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-                <p className="text-sm font-bold uppercase tracking-widest animate-pulse">Syncing Secure Profile...</p>
+            <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
+                <div className="bg-primary/5 p-8 rounded-full mb-6 relative">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <div className="absolute inset-0 border-4 border-primary/20 rounded-full animate-ping" />
+                </div>
+                <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2">Syncing Logistics Identity</h2>
+                <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse max-w-xs mx-auto">
+                    Establishing secure link with worldwide database...
+                </p>
+                
+                {syncTimeout && (
+                    <div className="mt-12 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                        <p className="text-[10px] text-destructive font-bold uppercase">Connection taking longer than expected</p>
+                        <Button onClick={() => window.location.reload()} variant="outline" className="border-2 font-black uppercase italic h-12 px-8 shadow-lg">
+                            <RefreshCcw className="mr-2 h-4 w-4" /> Force Hub Reconnect
+                        </Button>
+                    </div>
+                )}
             </div>
         );
     }
 
-    if (!userProfile) {
+    if (!userProfile && !isRepairing) {
         return (
             <div className="container mx-auto py-24 px-4 md:px-6 text-center">
-                 <h1 className="text-3xl font-black italic uppercase tracking-tighter">Account Sync Failure</h1>
-                <p className="text-muted-foreground mt-2 max-w-md mx-auto">We were unable to establish a secure link with your identity record. Please try refreshing the page or re-authenticating.</p>
-                <Button onClick={() => window.location.reload()} className="mt-8 font-black uppercase italic h-12 px-8">Refresh Session</Button>
+                <div className="bg-orange-100 p-6 rounded-3xl w-24 h-24 flex items-center justify-center mx-auto mb-6">
+                    <ShieldAlert className="h-12 w-12 text-orange-600" />
+                </div>
+                 <h1 className="text-3xl font-black italic uppercase tracking-tighter">Identity Sync Failed</h1>
+                <p className="text-muted-foreground mt-2 max-w-md mx-auto">We were unable to establish a secure link with your registry record. This may be due to a temporary network interruption.</p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+                    <Button onClick={() => window.location.reload()} className="font-black uppercase italic h-14 px-10 shadow-xl">
+                        <RefreshCcw className="mr-2 h-5 w-5" /> Retry Sync
+                    </Button>
+                    <Button variant="outline" asChild className="h-14 font-bold border-2">
+                        <Link href="/signin">Return to Sign In</Link>
+                    </Button>
+                </div>
             </div>
         );
     }
 
     const isSecurityPage = pathname === '/account/change-password';
-    const walletBalance = userProfile.walletBalance || 0;
+    const walletBalance = userProfile?.walletBalance || 0;
     const isIndebted = walletBalance < 0;
 
     return (
@@ -186,7 +198,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                         </div>
                         
                         <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end overflow-hidden">
-                            {!isSecurityPage && (
+                            {!isSecurityPage && userProfile && (
                                 <div className={cn(
                                     "border-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[200px] sm:max-w-none transition-colors",
                                     isIndebted ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/10"

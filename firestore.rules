@@ -17,22 +17,21 @@ service cloud.firestore {
       );
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     // --- Global Administrative Override ---
+    // This must remain top-level to allow admins to manage everything.
     match /{allPaths=**} {
       allow read, write, list: if isAdmin();
     }
 
-    // --- Public & User Collection Rules ---
-
+    // --- Primary User Collection Rules ---
+    // Explicitly handles the user's primary identity record.
     match /users/{userId} {
-       allow read, write: if isOwner(userId) || isAdmin();
+       // Owners can manage their own profile.
+       allow read, write: if isSignedIn() && request.auth.uid == userId;
        
+       // Ensure subcollections inherit the same owner permissions.
        match /{allSubcollections=**} {
-         allow read, write, list: if isOwner(userId) || isAdmin();
+         allow read, write, list: if isSignedIn() && request.auth.uid == userId;
        }
     }
 
@@ -40,25 +39,21 @@ service cloud.firestore {
       allow list: if isAdmin();
     }
     
-    // Allow signed-in users to interact with the mailbox counter for signup
+    // Explicitly allow users to read/write metadata counter for mailbox assignment during signup.
     match /metadata/mailboxCounter {
       allow read, write: if isSignedIn();
     }
 
-    // Explicitly allow users to see their own pre-alerts via collectionGroup
+    // Explicitly allow users to see their own pre-alerts via collectionGroup.
     match /{path=**}/pre_alerts/{id} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
       allow list: if isAdmin() || (isSignedIn() && request.query.filters.customerId == request.auth.uid);
     }
     
-    // Explicitly allow tracking (read by ID) and owner listing for shipments
+    // Explicitly allow tracking (read by ID) and owner listing for shipments.
     match /{path=**}/shipments/{id} {
        allow read: if true; 
        allow list: if isAdmin() || (isSignedIn() && request.query.filters.customerId == request.auth.uid);
-    }
-
-    match /transactions/{id} {
-       allow read, write, list: if isAdmin();
     }
     
     match /invoices/{id} {
@@ -67,21 +62,12 @@ service cloud.firestore {
        allow write: if isAdmin();
     }
 
-    match /sent_emails/{id} {
-       allow read, write, list: if isAdmin();
-    }
-
     match /admin_roles/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == "admin@neilussolutions.com");
     }
 
     match /metadata/{id} {
       allow read, write: if isAdmin();
-    }
-
-    match /system_logs/{id} {
-       allow read, write: if isAdmin();
     }
   }
 }

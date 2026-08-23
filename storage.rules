@@ -3,21 +3,21 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // UNIVERSAL FOLDER-OWNER PERMISSION SET
-    // Uses a simplified path match to ensure metadata handshakes are always authorized for the owner.
+    // INVOICE STORAGE PROTOCOL
+    // Provides unambiguous recursive access for the owner and read-only for admins.
     match /invoices/{uid}/{allPaths=**} {
       
-      // Full authority for the folder owner.
+      // Full authority for the owner to manage their folder.
       allow read, write, list: if request.auth != null && request.auth.uid == uid;
       
-      // Administrative fallback for customs verification.
+      // Administrative fallback for document verification.
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
 
-    // Default: Deny all other unmapped access.
+    // Default Security: Deny all unmapped access.
     match /{allPaths=**} {
       allow read, write: if false;
     }
