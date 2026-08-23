@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -369,40 +368,37 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         
         const currentUser = auth?.currentUser;
         if (!user || !currentUser || !firestore) {
-            toast({ title: "Session Syncing...", description: "Establishing secure link. Please try again in a moment.", variant: "destructive" });
+            toast({ title: "Syncing Session...", description: "Please wait a moment while we authorize your account.", variant: "destructive" });
             return;
         }
 
         if (!trackingNumber || !contents) {
-            toast({ title: "Missing Information", description: "Tracking and contents are required.", variant: "destructive" });
+            toast({ title: "Required Data", description: "Tracking # and Contents are mandatory.", variant: "destructive" });
             return;
         }
 
         if (!useExternal && !selectedFile) {
-            toast({ title: "Invoice Missing", description: "Please upload a file or provide an external link.", variant: "destructive" });
+            toast({ title: "Documentation Missing", description: "Please provide an invoice file or cloud link.", variant: "destructive" });
             return;
         }
 
         setIsSubmitting(true);
         try {
-            // FORCE TOKEN REFRESH to ensure Storage session is active with latest rules
+            // CRITICAL: Force refresh token to ensure cloud storage evaluates the most current session
             await currentUser.getIdToken(true);
 
             let finalUrl = externalUrl;
 
-            // HANDLE INTERNAL UPLOAD
             if (!useExternal && selectedFile && storage) {
                 const fileName = `${Date.now()}_invoice`;
                 const storagePath = `invoices/${currentUser.uid}/${fileName}`;
                 const storageRef = ref(storage, storagePath);
                 
-                // CRITICAL: Explicitly set content type to pass cloud security metadata check
-                const metadata = { contentType: selectedFile.type };
-                
                 console.log("[STORAGE AUDIT] UID:", currentUser.uid);
-                console.log("[STORAGE AUDIT] Bucket:", storage.app.options.storageBucket);
                 console.log("[STORAGE AUDIT] Target Path:", storagePath);
 
+                // Explicit metadata is required for strict rule handshakes
+                const metadata = { contentType: selectedFile.type || 'application/octet-stream' };
                 await uploadBytes(storageRef, selectedFile, metadata);
                 finalUrl = await getDownloadURL(storageRef);
             }
@@ -423,7 +419,8 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             const preAlertsCollection = collection(firestore, 'users', currentUser.uid, 'pre_alerts');
             await addDoc(preAlertsCollection, alertData);
 
-            toast({ title: "Pre-Alert Authorized", description: "Your documentation has been queued for warehouse review." });
+            toast({ title: "Pre-Alert Authorized", description: "Your documentation has been queued for warehouse intake." });
+            
             setTrackingNumber('');
             setContents('');
             setWeight('');
@@ -431,10 +428,10 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             setExternalUrl('');
             onSuccess?.();
         } catch (error: any) {
-            console.error("[PRE-ALERT AUTH ERROR]", error);
+            console.error("[PRE-ALERT AUTH FAILURE]", error);
             toast({ 
-                title: "Authorization Failed", 
-                description: error.code === 'storage/unauthorized' ? "Cloud permission denied. Ensure your file is under 20MB and try again." : error.message, 
+                title: "Processing Failed", 
+                description: `System Error [${error.code || 'UNKNOWN'}]: ${error.message}`, 
                 variant: "destructive" 
             });
         } finally {

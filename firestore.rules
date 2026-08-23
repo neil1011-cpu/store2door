@@ -6,30 +6,39 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Primary User Registry Rules
+    // Explicit User Registry Rules
     match /users/{userId} {
        allow read, write: if isSignedIn() && request.auth.uid == userId;
        
+       // Explicit subcollection matching for higher priority
+       match /pre_alerts/{id} {
+         allow read, write: if isSignedIn() && request.auth.uid == userId;
+       }
+       
+       match /shipments/{id} {
+         allow read, write: if isSignedIn() && request.auth.uid == userId;
+       }
+
        match /{allSubcollections=**} {
          allow read, write: if isSignedIn() && request.auth.uid == userId;
        }
     }
 
-    // Allow user onboarding counter handshake
+    // Mailbox Counter (Used during signup)
     match /metadata/mailboxCounter {
       allow read, write: if isSignedIn();
     }
     
-    // Explicit Collection Group Access for Global Views
+    // Explicit Collection Group Access for Admins and Owners
     match /{path=**}/pre_alerts/{id} {
       allow read: if isSignedIn() && (resource.data.customerId == request.auth.uid || request.auth.token.email == "admin@neilussolutions.com");
     }
     
     match /{path=**}/shipments/{id} {
-       allow read: if true; 
+       allow read: if isSignedIn(); 
     }
 
-    // Administrative Override
+    // Administrative Override (Evaluated alongside user rules)
     match /{allPaths=**} {
       allow read, write: if isSignedIn() && (
         exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
