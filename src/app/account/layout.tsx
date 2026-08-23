@@ -1,16 +1,17 @@
+
 'use client';
 
 import { useEffect, type ReactNode, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { UserProfile } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
-import { Wallet, Menu, CreditCard, TrendingDown, TrendingUp } from 'lucide-react';
+import { Wallet, Menu, CreditCard, TrendingDown, TrendingUp, Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
@@ -36,6 +37,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const firestore = useFirestore();
     const [isMounted, setIsMounted] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isRepairing, setIsRepairing] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
@@ -54,6 +56,45 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     }, [user, isUserLoading, router, isMounted]);
 
+    // IDENTITY AUTO-REPAIR: If user is authenticated but the Firestore document is missing,
+    // we initialize their profile now to prevent "Authentication Error" locks.
+    useEffect(() => {
+        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore) {
+            const repairIdentity = async () => {
+                setIsRepairing(true);
+                try {
+                    const mailbox = `FSTD-FIX-${user.uid.substring(0, 4).toUpperCase()}`;
+                    await setDoc(doc(firestore, 'users', user.uid), {
+                        id: user.uid,
+                        fullName: user.displayName || user.email?.split('@')[0] || 'Authenticated User',
+                        email: user.email || '',
+                        phone: 'N/A',
+                        trn: 'N/A',
+                        mailboxNumber: mailbox,
+                        address: {
+                            address1: '3507 NW 19th ST',
+                            address2: `${mailbox}-FSTD`,
+                            city: 'Lauderdale Lake',
+                            state: 'FL',
+                            zip: '33311-4224',
+                        },
+                        walletBalance: 0,
+                        createdAt: serverTimestamp(),
+                        needsPasswordReset: false,
+                        pickupPersonnel: [],
+                        dropoffAddresses: [],
+                    }, { merge: true });
+                    console.log("[IDENTITY REPAIR] Profile generated for missing record.");
+                } catch (e) {
+                    console.error("[IDENTITY REPAIR] FAILED:", e);
+                } finally {
+                    setIsRepairing(false);
+                }
+            };
+            repairIdentity();
+        }
+    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore]);
+
     // Force Password Reset Check
     useEffect(() => {
         if (userProfile?.needsPasswordReset && pathname !== '/account/change-password' && isMounted) {
@@ -63,9 +104,9 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
     // Global Address Auto-Repair: Ensures existing users are migrated to Lauderdale Lake
     useEffect(() => {
-        if (userProfile && userProfile.address?.address1 !== '3507 NW 19th ST' && isMounted) {
+        if (userProfile && userProfile.address?.address1 !== '3507 NW 19th ST' && isMounted && firestore) {
             const mailbox = userProfile.mailboxNumber || 'HUB';
-            updateDoc(doc(firestore!, 'users', userProfile.id), {
+            updateDoc(doc(firestore, 'users', userProfile.id), {
                 address: {
                     address1: '3507 NW 19th ST',
                     address2: `${mailbox}-FSTD`,
@@ -77,26 +118,21 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     }, [userProfile, firestore, isMounted]);
 
-    if (isUserLoading || isProfileLoading || !isMounted) {
+    if (isUserLoading || isProfileLoading || isRepairing || !isMounted) {
         return (
-            <div className="container mx-auto py-12 px-4 md:px-6">
-                <div className="mb-8">
-                    <Skeleton className="h-9 w-64 mb-2" />
-                    <Skeleton className="h-5 w-80" />
-                </div>
-                <div className="space-y-6">
-                    <Skeleton className="h-64 w-full" />
-                    <Skeleton className="h-64 w-full" />
-                </div>
+            <div className="container mx-auto py-12 px-4 md:px-6 flex flex-col items-center justify-center min-h-[60vh]">
+                <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+                <p className="text-sm font-bold uppercase tracking-widest animate-pulse">Syncing Secure Profile...</p>
             </div>
         );
     }
 
     if (!userProfile) {
         return (
-            <div className="container mx-auto py-12 px-4 md:px-6 text-center">
-                 <h1 className="text-2xl font-bold italic uppercase tracking-tighter">Authentication Error</h1>
-                <p className="text-muted-foreground mt-2">Critical profile data missing from system. Contact worldwide support center.</p>
+            <div className="container mx-auto py-24 px-4 md:px-6 text-center">
+                 <h1 className="text-3xl font-black italic uppercase tracking-tighter">Account Sync Failure</h1>
+                <p className="text-muted-foreground mt-2 max-w-md mx-auto">We were unable to establish a secure link with your identity record. Please try refreshing the page or re-authenticating.</p>
+                <Button onClick={() => window.location.reload()} className="mt-8 font-black uppercase italic h-12 px-8">Refresh Session</Button>
             </div>
         );
     }

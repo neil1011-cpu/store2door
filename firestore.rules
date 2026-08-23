@@ -40,6 +40,11 @@ service cloud.firestore {
       allow list: if isAdmin();
     }
     
+    // Allow signed-in users to interact with the mailbox counter for signup
+    match /metadata/mailboxCounter {
+      allow read, write: if isSignedIn();
+    }
+
     // Explicitly allow users to see their own pre-alerts via collectionGroup
     match /{path=**}/pre_alerts/{id} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
@@ -71,7 +76,6 @@ service cloud.firestore {
       allow write: if isAdmin() || (isSignedIn() && request.auth.token.email == "admin@neilussolutions.com");
     }
 
-    // Tightened: Only admins can access system metadata (SMTP, API keys, etc.)
     match /metadata/{id} {
       allow read, write: if isAdmin();
     }
