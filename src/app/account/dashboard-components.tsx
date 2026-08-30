@@ -22,7 +22,7 @@ import { collection, query, orderBy, limit, serverTimestamp, addDoc, doc, update
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import Link from 'next/navigation';
+import Link from 'next/link';
 
 const getStatusVariant = (status: ShipmentStatus | string | undefined) => {
   const safeStatus = (status || 'Pending').toLowerCase();

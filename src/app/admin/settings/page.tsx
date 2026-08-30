@@ -240,7 +240,7 @@ export default function SettingsPage() {
                     <div className="bg-orange-100 p-3 rounded-xl"><Cloud className="h-6 w-6 text-orange-600" /></div>
                     <div className="flex-1">
                         <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm font-black uppercase tracking-widest italic text-orange-700">Vultr Primary Cloud Storage</ Eldorado/CardTitle>
+                            <CardTitle className="text-sm font-black uppercase tracking-widest italic text-orange-700">Vultr Primary Cloud Storage</CardTitle>
                             {vultr.isSaved && <Badge className="bg-green-500 text-white uppercase text-[8px] font-black italic">Cloud ACTIVE</Badge>}
                         </div>
                         <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-orange-600/70">Connect your Vultr account to bypass Google Storage limitations.</CardDescription>
@@ -270,7 +270,7 @@ export default function SettingsPage() {
                             <Input value={vultr.endpoint} onChange={e => setVultr({...vultr, endpoint: e.target.value, isSaved: false})} className="h-11 border-2 font-mono" placeholder="ewr1.vultrobjects.com" />
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold uppercase opacity-60">Bucket Name</ Eldorado/Label>
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Bucket Name</Label>
                             <Input value={vultr.bucket} onChange={e => setVultr({...vultr, bucket: e.target.value, isSaved: false})} className="h-11 border-2 font-mono" placeholder="store2door-docs" />
                         </div>
                     </div>
