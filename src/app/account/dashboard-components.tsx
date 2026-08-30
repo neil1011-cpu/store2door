@@ -384,15 +384,28 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
+            // FORCE TOKEN REFRESH: Ensures Storage recognizes the most current security context
+            console.log(`[STORAGE] Authorized UID: ${currentUser.uid}`);
+            await currentUser.getIdToken(true);
+
             let finalUrl = externalUrl;
 
             if (!useExternal && selectedFile && storage) {
                 const fileName = `${Date.now()}_invoice`;
+                // Precise path structure for swiftroute-3230b verification
                 const storagePath = `invoices/${currentUser.uid}/${fileName}`;
                 const storageRef = ref(storage, storagePath);
                 
-                // Explicit metadata is critical for rule validation and handshake
-                const metadata = { contentType: selectedFile.type || 'application/octet-stream' };
+                console.log(`[STORAGE] Target Path: ${storagePath}`);
+
+                const metadata = { 
+                    contentType: selectedFile.type || 'application/octet-stream',
+                    customMetadata: {
+                        uploaderId: currentUser.uid,
+                        trackingNumber: trackingNumber.toUpperCase()
+                    }
+                };
+
                 await uploadBytes(storageRef, selectedFile, metadata);
                 finalUrl = await getDownloadURL(storageRef);
             }
@@ -424,10 +437,11 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         } catch (error: any) {
             console.error("[PRE-ALERT FAILURE]", error);
             
-            // Contextual error handling
             let errorMessage = error.message;
-            if (error.code === 'storage/unauthorized') {
-                errorMessage = "Cloud storage authorization denied. Please sign out and sign back in to refresh your token.";
+            if (error.code === 'storage/unauthorized' || error.code === 'storage/unauthenticated') {
+                errorMessage = "Cloud authorization denied. This usually happens when the security session is stale or the project bucket configuration is mismatching. Please refresh your browser and try once more.";
+            } else if (error.code === 'storage/quota-exceeded') {
+                errorMessage = "Cloud storage limit reached. Please contact administration.";
             }
 
             toast({ 

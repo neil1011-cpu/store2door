@@ -8,8 +8,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
-        request.auth.token.email == "admin@neilussolutions.com"
+        request.auth.token.email == "admin@neilussolutions.com" ||
+        exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid))
       );
     }
 
@@ -29,12 +29,12 @@ service cloud.firestore {
        }
     }
 
-    // Administrative Metadata - Strictly Protected
+    // Administrative Metadata - Strictly Protected from non-admin users
     match /metadata/{document=**} {
-      // SMTP/Logicware configs are NEVER accessible to users
+      // SMTP/Logicware configs are NEVER accessible to non-admin users
       allow read, write: if isAdmin();
       
-      // Mailbox counter is accessible for registration handshake
+      // Mailbox counter is accessible for registration handshake during signup
       match /mailboxCounter {
         allow read, write: if isSignedIn();
       }
@@ -49,7 +49,7 @@ service cloud.firestore {
        allow read: if isAdmin(); 
     }
 
-    // Global Finance Ledger
+    // Global Finance Ledger - Admin Only
     match /transactions/{id} {
       allow read, write: if isAdmin();
     }
@@ -64,7 +64,7 @@ service cloud.firestore {
     }
     
     match /invoices/{id} {
-      // Users can see their own invoices, Admins see all
+      // Users can see their own invoices, Admins see and write all
       allow read: if isSignedIn() && (resource.data.customerId == request.auth.uid || isAdmin());
       allow write: if isAdmin();
     }

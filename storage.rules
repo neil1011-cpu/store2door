@@ -3,18 +3,19 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     // Supporting Documents (Invoices, Receipts)
-    // Optimized for Metadata Handshake during uploadBytes
-    match /invoices/{userId}/{fileName} {
+    // Optimized for Metadata Handshake and recursive wildcards to ensure SDK compatibility
+    match /invoices/{userId}/{allPaths=**} {
+      // Primary Authorization: User must be signed in and accessing their own UID folder
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
-      // Admin read access
+      // Administrative Override: Authorized admins can read all invoices for logistics processing
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
 
-    // Global Catch-all Security
+    // Global Catch-all Security: Deny everything else by default
     match /{allPaths=**} {
       allow read, write: if false;
     }
