@@ -1,33 +1,30 @@
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Hardened Firebase Admin SDK initialization for Store2Door.
- * Targeting production project swiftroute-3230b for global synchronization.
+ * Explicitly locked to production project: swiftroute-3230b.
  */
 
 const PROJECT_ID = 'swiftroute-3230b';
 
 function getAdminApp(): App {
   const apps = getApps();
-  if (apps.length > 0) {
-    return apps[0];
+  // Filter for an app that matches our specific production project ID
+  const existingApp = apps.find(a => a.options.projectId === PROJECT_ID);
+  if (existingApp) {
+    return existingApp;
   }
   
+  // Initialize with explicit Project ID to prevent drift in App Hosting environments
   return initializeApp({
     projectId: PROJECT_ID,
-  });
+  }, `app-${Date.now()}`);
 }
 
 // Initialize app once at module level with safety checks
-let app: App;
-try {
-  app = getAdminApp();
-} catch (e: any) {
-  console.error('[ADMIN SDK] Initialization Error:', e.message);
-  app = initializeApp({ projectId: PROJECT_ID }, 'fallback-' + Date.now());
-}
+const app = getAdminApp();
 
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
@@ -40,7 +37,7 @@ export const adminField = FieldValue;
 export function cleanPayload(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
 
-  // Handle Dates
+  // Handle Dates & Timestamps
   if (obj instanceof Date) return obj;
 
   // Handle Arrays
