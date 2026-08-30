@@ -2,19 +2,19 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Invoices / Supporting Documents
+    // Supporting Documents (Invoices, Receipts)
     match /invoices/{userId}/{fileName} {
-      // Owners have full access to their folder
+      // Recursive match to allow metadata checks and file access
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
-      // Admins can view all documents
+      // Admins can read all documents for verification
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
-        exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
+        firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
 
-    // Default Security
+    // Global Catch-all Security
     match /{allPaths=**} {
       allow read, write: if false;
     }

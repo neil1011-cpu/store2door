@@ -4,7 +4,7 @@ import { adminDb, adminField } from '@/lib/firebaseAdmin';
 
 /**
  * @fileOverview Standardized Email API with Hardened TLS and Identity Alignment.
- * Prioritizes Environment Variables to avoid frequent Google Cloud Resource prompts.
+ * Prioritizes Firestore Metadata to ensure keys are available on strict environments.
  */
 
 function linkify(text: string) {
@@ -40,27 +40,23 @@ export async function POST(request: Request) {
         }
     };
 
-    // Stage 1: Load from Environment Variables (Primary to avoid DB hits)
+    // Load from Firestore Metadata to ensure keys are available across project migrations
     let host = process.env.SMTP_HOST;
     let port = process.env.SMTP_PORT || '465';
     let user = process.env.SMTP_USER;
     let pass = process.env.SMTP_PASS;
 
-    // Stage 2: Fallback to Firestore Metadata only if ENV vars are missing
-    // This logic prevents the "Grant Access to Google Cloud" prompt for users with .env files
-    if (!host || !user || !pass) {
-        try {
-            const configSnap = await adminDb.collection('metadata').doc('email_config').get();
-            if (configSnap.exists) {
-                const data = configSnap.data();
-                host = data?.host || host;
-                port = data?.port || port;
-                user = data?.user || user;
-                pass = data?.pass || pass;
-            }
-        } catch (e) {
-            console.warn('[EMAIL API] Firestore Metadata fetch failed.');
+    try {
+        const configSnap = await adminDb.collection('metadata').doc('email_config').get();
+        if (configSnap.exists) {
+            const data = configSnap.data();
+            host = data?.host || host;
+            port = data?.port || port;
+            user = data?.user || user;
+            pass = data?.pass || pass;
         }
+    } catch (e) {
+        console.warn('[EMAIL API] Metadata fetch failed. Falling back to environment variables.');
     }
 
     if (!host || !port || !user || !pass || pass.includes('xxxx')) {
@@ -99,7 +95,6 @@ export async function POST(request: Request) {
             greetingTimeout: 10000
         });
 
-        // Use the SMTP user as the 'from' address to satisfy strict provider requirements
         const info = await transporter.sendMail({
             from: `"FromStore2Door Global Logistics" <${user}>`,
             to: Array.isArray(to) ? user : to,
