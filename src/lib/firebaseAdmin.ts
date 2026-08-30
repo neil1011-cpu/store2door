@@ -3,19 +3,17 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Proactively hardened Firebase Admin SDK initialization.
- * Explicitly targeting studio-5132922026 to resolve token verification issues.
+ * @fileOverview Hardened Firebase Admin SDK initialization for Store2Door.
+ * Targeting swiftroute-3230b to match production environment.
  */
 
-const PROJECT_ID = 'studio-5132922026';
+const PROJECT_ID = 'swiftroute-3230b';
 
 function getAdminApp(): App {
   const apps = getApps();
   if (apps.length > 0) {
     return apps[0];
   }
-  
-  console.log('[ADMIN SDK] Initializing primary application instance for:', PROJECT_ID);
   
   return initializeApp({
     projectId: PROJECT_ID,

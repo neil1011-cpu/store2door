@@ -6,11 +6,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Explicit User Registry Rules
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
+        request.auth.token.email == "admin@neilussolutions.com"
+      );
+    }
+
+    // Explicit User Profile Rules
     match /users/{userId} {
        allow read, write: if isSignedIn() && request.auth.uid == userId;
        
-       // Explicit subcollection matching for higher priority
        match /pre_alerts/{id} {
          allow read, write: if isSignedIn() && request.auth.uid == userId;
        }
@@ -18,32 +24,50 @@ service cloud.firestore {
        match /shipments/{id} {
          allow read, write: if isSignedIn() && request.auth.uid == userId;
        }
-
-       match /{allSubcollections=**} {
-         allow read, write: if isSignedIn() && request.auth.uid == userId;
-       }
     }
 
-    // Mailbox Counter (Used during signup)
-    match /metadata/mailboxCounter {
-      allow read, write: if isSignedIn();
+    // Administrative Metadata - Strictly Protected
+    match /metadata/{document=**} {
+      // Users can only read the mailbox counter for signup
+      allow read: if isSignedIn() && (isAdmin() || request.path[4] == 'mailboxCounter');
+      allow write: if isAdmin() || (isSignedIn() && request.path[4] == 'mailboxCounter');
+      
+      // email_config is NEVER accessible to ordinary users
+      match /email_config {
+        allow read, write: if isAdmin();
+      }
     }
-    
-    // Explicit Collection Group Access for Admins and Owners
+
+    // Collection Group Rules for Admins
     match /{path=**}/pre_alerts/{id} {
-      allow read: if isSignedIn() && (resource.data.customerId == request.auth.uid || request.auth.token.email == "admin@neilussolutions.com");
+      allow read: if isAdmin();
     }
     
     match /{path=**}/shipments/{id} {
-       allow read: if isSignedIn(); 
+       allow read: if isAdmin(); 
     }
 
-    // Administrative Override (Evaluated alongside user rules)
-    match /{allPaths=**} {
-      allow read, write: if isSignedIn() && (
-        exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid)) ||
-        request.auth.token.email == "admin@neilussolutions.com"
-      );
+    // Global Collections
+    match /transactions/{id} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /admin_roles/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /sent_emails/{id} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /invoices/{id} {
+      allow read: if isSignedIn() && (resource.data.customerId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    
+    match /system_logs/{id} {
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -1,10 +1,9 @@
-
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmin';
 
 /**
- * @fileOverview Robust Administrative User Creation API.
- * Handles duplicate checks, mailbox assignment, and administrative role granting.
+ * @fileOverview Robust Administrative User Creation API for Store2Door.
+ * Uses synchronized Admin SDK for swiftroute-3230b.
  */
 
 export async function POST(request: Request) {
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: 'Required fields: Email, First Name, Last Name.' }, { status: 400 });
     }
 
-    // 1. Verify Administrative Authority
+    // 1. Verify Administrative Authority via standardized Admin SDK
     let decodedToken;
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -46,7 +45,7 @@ export async function POST(request: Request) {
     const isMasterAdmin = decodedToken.email === 'admin@neilussolutions.com';
     
     if (!adminRoleSnap.exists && !isMasterAdmin) {
-        return NextResponse.json({ success: false, message: 'Access Denied: You do not have permission to create users.' }, { status: 403 });
+        return NextResponse.json({ success: false, message: 'Access Denied: Administrative authority required.' }, { status: 403 });
     }
 
     // 2. Create Authentication Identity
@@ -64,7 +63,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: `Identity System Error: ${authError.message}` }, { status: 500 });
     }
 
-    // 3. Establish Registry Record and Mailbox via Transaction
+    // 3. Establish Registry Record with Transactional Integrity
     try {
         const finalMailbox = await adminDb.runTransaction(async (transaction) => {
             let mailboxId = requestedMailbox;
@@ -122,14 +121,13 @@ export async function POST(request: Request) {
             return mailboxId;
         });
 
-        // 4. Record Administrative Action in Logs
+        // 4. Record Activity
         await adminDb.collection('system_logs').add({
             type: 'user_creation',
             description: `Admin created user ${email} (${finalMailbox}).`,
             userId: decodedToken.uid,
             userName: decodedToken.name || decodedToken.email,
             timestamp: adminField.serverTimestamp(),
-            metadata: { mailbox: finalMailbox, isNewAdmin: !!isAdmin }
         });
 
         return NextResponse.json({
@@ -139,13 +137,13 @@ export async function POST(request: Request) {
         });
         
     } catch (dbError: any) {
-        console.error('[CREATE USER] Firestore transaction error:', dbError.message);
+        console.error('[CREATE USER] DB error:', dbError.message);
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database Registry Error: ${dbError.message}` }, { status: 500 });
     }
 
   } catch (criticalError: any) {
-    console.error('[CREATE USER FATAL EXCEPTION]:', criticalError.message);
+    console.error('[CREATE USER FATAL]:', criticalError.message);
     return NextResponse.json(
       { success: false, message: 'System Exception: ' + criticalError.message },
       { status: 500 }

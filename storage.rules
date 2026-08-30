@@ -2,19 +2,19 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Flattened matching pattern to resolve metadata handshake failures
+    // Invoices / Supporting Documents
     match /invoices/{userId}/{fileName} {
-      // Owner Access
+      // Owners have full access to their folder
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
-      // Admin Access
+      // Admins can view all documents
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
-        request.auth.token.admin == true
+        exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))
       );
     }
 
-    // Default Security: Deny all unmapped access
+    // Default Security
     match /{allPaths=**} {
       allow read, write: if false;
     }
