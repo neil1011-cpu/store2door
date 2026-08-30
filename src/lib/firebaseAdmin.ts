@@ -4,7 +4,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Hardened Firebase Admin SDK initialization for Store2Door.
- * Locked to production project: swiftroute-3230b as verified by owner.
+ * Locked to production project: swiftroute-3230b.
  */
 
 const PROJECT_ID = 'swiftroute-3230b';
