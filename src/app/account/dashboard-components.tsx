@@ -338,7 +338,6 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
 }
 
 export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber, onSuccess }: { customerId: string, customerName: string, prefilledTrackingNumber?: string, onSuccess?: () => void }) {
-    const { user } = useUser();
     const auth = useAuth();
     const firestore = useFirestore();
     const storage = useStorage();
@@ -368,7 +367,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         
         const currentUser = auth?.currentUser;
         if (!currentUser || !firestore) {
-            toast({ title: "Syncing Session...", description: "Please wait a moment while we authorize your account.", variant: "destructive" });
+            toast({ title: "Identity Synchronization", description: "Please sign in again to re-authorize your session.", variant: "destructive" });
             return;
         }
 
@@ -384,8 +383,8 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
 
         setIsSubmitting(true);
         try {
-            // FORCE TOKEN REFRESH: Ensures Storage recognizes the most current security context
-            console.log(`[STORAGE] Initiating upload for UID: ${currentUser.uid}`);
+            // High-Priority Security Handshake: Force refresh identity token
+            console.log(`[STORAGE] Initiating Secure Upload Protocol for UID: ${currentUser.uid}`);
             await currentUser.getIdToken(true);
 
             let finalUrl = externalUrl;
@@ -396,7 +395,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 const storagePath = `invoices/${currentUser.uid}/${fileName}`;
                 const storageRef = ref(storage, storagePath);
                 
-                console.log(`[STORAGE] Target Cloud Path: ${storagePath}`);
+                console.log(`[STORAGE] Authorized Cloud Path: ${storagePath}`);
 
                 const metadata = { 
                     contentType: selectedFile.type || 'application/octet-stream',
@@ -406,8 +405,10 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                     }
                 };
 
+                // UPLOAD PHASE
                 await uploadBytes(storageRef, selectedFile, metadata);
                 finalUrl = await getDownloadURL(storageRef);
+                console.log(`[STORAGE] Document Transfer Complete: ${finalUrl}`);
             }
 
             const alertData = {
@@ -438,10 +439,10 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             console.error("[PRE-ALERT FAILURE]", error);
             
             let errorMessage = error.message;
-            if (error.code === 'storage/unauthorized' || error.code === 'storage/unauthenticated' || error.message.includes('permission')) {
-                errorMessage = "Security Handshake Denied. Your identity token was not accepted by the Storage server. Please ensure you are uploading to your own folder and try one more time. If error persists, please refresh your browser.";
+            if (error.code === 'storage/unauthorized') {
+                errorMessage = "Cloud Authorization Failure. The Storage server denied your upload request. Please refresh your browser and try once more.";
             } else if (error.code === 'storage/quota-exceeded') {
-                errorMessage = "Cloud storage limit reached. Please contact administration.";
+                errorMessage = "Infrastructure Limit Reached. Please contact our support team.";
             }
 
             toast({ 

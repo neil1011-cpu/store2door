@@ -1,4 +1,4 @@
-import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
@@ -20,7 +20,7 @@ function getAdminApp(): App {
   // Initialize with explicit Project ID to prevent drift in App Hosting environments
   return initializeApp({
     projectId: PROJECT_ID,
-  }, `app-${Date.now()}`);
+  });
 }
 
 // Initialize app once at module level with safety checks

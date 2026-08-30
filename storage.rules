@@ -3,12 +3,15 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     // User Documentation Path
-    // Flattened rules to prevent recursive shadow matching and ensure immediate metadata authorization
-    match /invoices/{userId}/{fileName} {
+    // Using recursive wildcard {allPaths=**} to authorize SDK metadata operations and handshakes
+    match /invoices/{userId}/{allPaths=**} {
+      
       // Owner-based read/write access
+      // Explicitly checking UID against path segment for absolute isolation
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
       // Admin bypass for logistics review
+      // Checking Firestore for explicit administrative role or master email claim
       allow read: if request.auth != null && (
         request.auth.token.email == "admin@neilussolutions.com" ||
         firestore.exists(/databases/(default)/documents/admin_roles/$(request.auth.uid))

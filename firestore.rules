@@ -29,18 +29,17 @@ service cloud.firestore {
        }
     }
 
-    // Administrative Metadata - Strictly Protected
+    // Administrative Metadata - Strictly Protected from non-admins
     match /metadata/{document=**} {
-      // SMTP/Logicware configs are NEVER accessible to non-admin users
       allow read, write: if isAdmin();
       
-      // Counter is limited to specific handshake path
+      // Handshake exception for mailbox generation during sign-up
       match /mailboxCounter {
         allow read, write: if isSignedIn();
       }
     }
 
-    // Collection Group Rules for Dashboard
+    // Collection Group Rules for Admin Dashboards
     match /{path=**}/pre_alerts/{id} {
       allow read: if isAdmin();
     }
@@ -49,7 +48,7 @@ service cloud.firestore {
        allow read: if isAdmin(); 
     }
 
-    // Finance & Audit
+    // Finance & Audit - Admin Only
     match /transactions/{id} {
       allow read, write: if isAdmin();
     }
