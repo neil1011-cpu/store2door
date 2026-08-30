@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy, Zap, UserPlus, Phone, User, X, Mail, Wallet, ExternalLink, Globe } from 'lucide-react';
+import { Copy, Check, FileUp, Package, Loader2, CreditCard, MoreHorizontal, FileText, Download, PlusCircle, Trash2, Home, Calculator, Truck, DollarSign, Weight, Sun, Moon, Laptop, Clock, AlertCircle, Info, MapPin, CheckCircle2, UploadCloud, LifeBuoy, Zap, UserPlus, Phone, User, X, Mail, Wallet, ExternalLink, Globe, Cloud } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,7 +22,7 @@ import { collection, query, orderBy, limit, serverTimestamp, addDoc, doc, update
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import Link from 'next/link';
+import Link from 'next/navigation';
 
 const getStatusVariant = (status: ShipmentStatus | string | undefined) => {
   const safeStatus = (status || 'Pending').toLowerCase();
@@ -340,7 +340,6 @@ export function PackagesTab({ customerId, mailboxNumber }: { customerId: string,
 export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber, onSuccess }: { customerId: string, customerName: string, prefilledTrackingNumber?: string, onSuccess?: () => void }) {
     const auth = useAuth();
     const firestore = useFirestore();
-    const storage = useStorage();
     const { toast } = useToast();
     
     const [trackingNumber, setTrackingNumber] = useState(prefilledTrackingNumber || '');
@@ -377,38 +376,32 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
         }
 
         if (!useExternal && !selectedFile) {
-            toast({ title: "Documentation Missing", description: "Please provide an invoice file or cloud link.", variant: "destructive" });
+            toast({ title: "Documentation Missing", description: "Please provide an invoice file.", variant: "destructive" });
             return;
         }
 
         setIsSubmitting(true);
         try {
-            // High-Priority Security Handshake: Force refresh identity token
-            console.log(`[STORAGE] Initiating Secure Upload Protocol for UID: ${currentUser.uid}`);
-            await currentUser.getIdToken(true);
-
             let finalUrl = externalUrl;
 
-            if (!useExternal && selectedFile && storage) {
-                const fileName = `${Date.now()}_invoice`;
-                // Path strictly locking to userId folder to match storage.rules
-                const storagePath = `invoices/${currentUser.uid}/${fileName}`;
-                const storageRef = ref(storage, storagePath);
+            if (!useExternal && selectedFile) {
+                console.log(`[STORAGE] Initiating Secure Upload to Vultr Cloud...`);
                 
-                console.log(`[STORAGE] Authorized Cloud Path: ${storagePath}`);
+                const idToken = await currentUser.getIdToken(true);
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                
+                const response = await fetch('/api/storage/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${idToken}` },
+                    body: formData
+                });
 
-                const metadata = { 
-                    contentType: selectedFile.type || 'application/octet-stream',
-                    customMetadata: {
-                        uploaderId: currentUser.uid,
-                        trackingNumber: trackingNumber.toUpperCase()
-                    }
-                };
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Cloud storage handshake failed.');
 
-                // UPLOAD PHASE
-                await uploadBytes(storageRef, selectedFile, metadata);
-                finalUrl = await getDownloadURL(storageRef);
-                console.log(`[STORAGE] Document Transfer Complete: ${finalUrl}`);
+                finalUrl = data.url;
+                console.log(`[STORAGE] Vultr Transfer Complete: ${finalUrl}`);
             }
 
             const alertData = {
@@ -424,10 +417,9 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 invoiceHtml: ''
             };
 
-            const preAlertsCollection = collection(firestore, 'users', currentUser.uid, 'pre_alerts');
-            await addDoc(preAlertsCollection, alertData);
+            await addDoc(collection(firestore, 'users', currentUser.uid, 'pre_alerts'), alertData);
 
-            toast({ title: "Pre-Alert Authorized", description: "Your documentation has been queued for warehouse intake." });
+            toast({ title: "Pre-Alert Authorized", description: "Your documentation has been queued for warehouse intake via Vultr Primary Cloud." });
             
             setTrackingNumber('');
             setContents('');
@@ -437,26 +429,11 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
             onSuccess?.();
         } catch (error: any) {
             console.error("[PRE-ALERT FAILURE]", error);
-            
-            let errorMessage = error.message;
-            if (error.code === 'storage/unauthorized') {
-                errorMessage = "Cloud Authorization Failure. The Storage server denied your upload request. Please refresh your browser and try once more.";
-            } else if (error.code === 'storage/quota-exceeded') {
-                errorMessage = "Infrastructure Limit Reached. Please contact our support team.";
-            }
-
             toast({ 
-                title: "Upload Blocked", 
-                description: errorMessage, 
+                title: "Processing Blocked", 
+                description: error.message, 
                 variant: "destructive" 
             });
-
-            if (error.code === 'permission-denied' || error.code === 'storage/unauthorized') {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: `invoices/${currentUser?.uid}`,
-                    operation: 'write'
-                }));
-            }
         } finally {
             setIsSubmitting(false);
         }
@@ -505,7 +482,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                 <div className="flex items-center justify-between">
                     <Label className="text-[10px] font-bold uppercase opacity-60">Invoice Documentation</Label>
                     <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black uppercase tracking-tighter italic opacity-40">Use External Link</span>
+                        <span className="text-[9px] font-black uppercase tracking-tighter italic opacity-40">External Link</span>
                         <Switch checked={useExternal} onCheckedChange={setUseExternal} />
                     </div>
                 </div>
@@ -520,9 +497,9 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                         />
                         {!selectedFile ? (
                             <div className="space-y-3">
-                                <UploadCloud className="h-12 w-12 mx-auto text-primary opacity-40 group-hover:scale-110 transition-transform" />
+                                <Cloud className="h-12 w-12 mx-auto text-orange-500 opacity-40 group-hover:scale-110 transition-transform" />
                                 <p className="text-sm font-black uppercase tracking-widest">Select Invoice File</p>
-                                <p className="text-[10px] text-muted-foreground">PDF or Image up to 20MB</p>
+                                <p className="text-[10px] text-muted-foreground italic">Vultr Object Storage Primary</p>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center gap-3 text-green-600 font-bold uppercase text-xs">
@@ -538,7 +515,7 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                     <div className="p-6 rounded-2xl bg-blue-50/50 border-2 border-dashed border-blue-200 space-y-4">
                         <div className="flex items-center gap-3 text-blue-700">
                              <Globe className="h-6 w-6" />
-                             <p className="text-xs font-bold uppercase tracking-tight">External Cloud Link (Vultr, Drive, etc.)</p>
+                             <p className="text-xs font-bold uppercase tracking-tight">Manual Cloud Link</p>
                         </div>
                         <Input 
                             placeholder="https://example.com/invoice.pdf" 
@@ -546,9 +523,6 @@ export function PreAlertTab({ customerId, customerName, prefilledTrackingNumber,
                             onChange={e => setExternalUrl(e.target.value)} 
                             className="h-12 border-2 bg-white"
                         />
-                        <p className="text-[9px] text-muted-foreground uppercase leading-relaxed font-medium">
-                            If your invoice is hosted elsewhere, paste the direct share link here.
-                        </p>
                     </div>
                 )}
             </div>
@@ -589,12 +563,8 @@ export function AccountTab({ details }: { details: UserProfile }) {
                 setIsSaving(false);
             })
             .catch(async (error) => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: userDocRef.path,
-                    operation: 'update',
-                    requestResourceData: updates
-                }));
                 setIsSaving(false);
+                toast({ title: "Update Failed", description: error.message, variant: "destructive" });
             });
     };
 
@@ -611,11 +581,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
             toast({ title: "Personnel Added" });
         })
         .catch(async (error) => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: userDocRef.path,
-                operation: 'update',
-                requestResourceData: { pickupPersonnel: person }
-            }));
+             toast({ title: "Authorization Failed", description: error.message, variant: "destructive" });
         });
     };
 
@@ -625,11 +591,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
         updateDoc(userDocRef, {
             pickupPersonnel: arrayRemove(person)
         }).catch(async (error) => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: userDocRef.path,
-                operation: 'update',
-                requestResourceData: { pickupPersonnel: person }
-            }));
+             toast({ title: "Update Failed", variant: "destructive" });
         });
     };
 
