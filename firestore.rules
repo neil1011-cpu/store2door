@@ -15,21 +15,20 @@ service cloud.firestore {
 
     // User Profiles: Owners have full control, Admins can read for logistics
     match /users/{userId} {
-       allow read, write: if isSignedIn() && request.auth.uid == userId;
-       allow read: if isAdmin();
+       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+       allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
        
        match /pre_alerts/{id} {
-         allow read, write: if isSignedIn() && request.auth.uid == userId;
-         allow read, write: if isAdmin();
+         allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
        }
        
        match /shipments/{id} {
-         allow read, write: if isSignedIn() && request.auth.uid == userId;
-         allow read, write: if isAdmin();
+         allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
        }
     }
 
-    // Administrative Metadata - Strictly Protected from non-admins
+    // Administrative Metadata - Strictly Protected
+    // This blocks non-admins from reading SMTP or Vultr keys
     match /metadata/{document=**} {
       allow read, write: if isAdmin();
       
@@ -39,7 +38,7 @@ service cloud.firestore {
       }
     }
 
-    // Collection Group Rules for Admin Dashboards
+    // Support collection group queries for Admin Dashboards
     match /{path=**}/pre_alerts/{id} {
       allow read: if isAdmin();
     }

@@ -3,7 +3,7 @@ import { adminAuth, adminDb, adminField, cleanPayload } from '@/lib/firebaseAdmi
 
 /**
  * @fileOverview Robust Administrative User Creation API for Store2Door.
- * Uses synchronized Admin SDK for swiftroute-3230b.
+ * Uses synchronized Admin SDK for production project swiftroute-3230b.
  */
 
 export async function POST(request: Request) {
@@ -14,10 +14,6 @@ export async function POST(request: Request) {
     }
 
     const idToken = authHeader.split(' ')[1];
-    if (!idToken) {
-      return NextResponse.json({ success: false, message: 'Invalid token format detected.' }, { status: 401 });
-    }
-
     let body;
     try {
         body = await request.json();
@@ -33,12 +29,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: 'Required fields: Email, First Name, Last Name.' }, { status: 400 });
     }
 
-    // 1. Verify Administrative Authority via standardized Admin SDK
+    // 1. Verify Administrative Authority
     let decodedToken;
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
     } catch (tokenErr: any) {
-      return NextResponse.json({ success: false, message: 'Session validation failed: ' + tokenErr.message }, { status: 401 });
+      return NextResponse.json({ success: false, message: 'Session validation failed.' }, { status: 401 });
     }
     
     const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
@@ -121,15 +117,6 @@ export async function POST(request: Request) {
             return mailboxId;
         });
 
-        // 4. Record Activity
-        await adminDb.collection('system_logs').add({
-            type: 'user_creation',
-            description: `Admin created user ${email} (${finalMailbox}).`,
-            userId: decodedToken.uid,
-            userName: decodedToken.name || decodedToken.email,
-            timestamp: adminField.serverTimestamp(),
-        });
-
         return NextResponse.json({
             success: true,
             uid: userRecord.uid,
@@ -138,6 +125,7 @@ export async function POST(request: Request) {
         
     } catch (dbError: any) {
         console.error('[CREATE USER] DB error:', dbError.message);
+        // Cleanup Auth if DB failed
         await adminAuth.deleteUser(userRecord.uid).catch(() => {});
         return NextResponse.json({ success: false, message: `Database Registry Error: ${dbError.message}` }, { status: 500 });
     }

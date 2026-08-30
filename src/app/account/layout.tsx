@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, type ReactNode, useState } from 'react';
@@ -46,7 +45,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         return doc(firestore, 'users', user.uid);
     }, [firestore, user]);
     
-    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
+    const { data: userProfile, isLoading: isProfileLoading, error: profileError } = useDoc<UserProfile>(userProfileRef);
 
     useEffect(() => {
         if (!isUserLoading && !user && isMounted) {
@@ -56,7 +55,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
     // IDENTITY AUTO-REPAIR (Silent & Non-Blocking)
     useEffect(() => {
-        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore) {
+        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore && !profileError) {
             const repairIdentity = async () => {
                 try {
                     const mailbox = `FSTD-${user.uid.substring(0, 5).toUpperCase()}`;
@@ -86,7 +85,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             };
             repairIdentity();
         }
-    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore]);
+    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore, profileError]);
 
     const handleSignOut = async () => {
         if (auth) {
@@ -95,7 +94,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     };
 
-    // ONLY block on Auth state, NOT profile data.
     if (isUserLoading || !isMounted) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
@@ -108,17 +106,24 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
     if (!user) return null;
 
-    const safeProfile = userProfile || {
+    // Use safe fallback values to prevent "Session Sync Failure" crashes
+    const safeProfile: UserProfile = userProfile || {
         id: user.uid,
-        fullName: user.displayName || 'Loading...',
+        fullName: user.displayName || 'Valued Member',
         email: user.email || '',
-        phone: '',
-        mailboxNumber: '...',
-        trn: '',
-        address: { address1: '', address2: '', city: '', state: '', zip: '' },
+        phone: '...',
+        mailboxNumber: 'FSTD-SYNC',
+        trn: '...',
+        address: { 
+          address1: '3507 NW 19th ST', 
+          address2: 'HUB-SYNC', 
+          city: 'Lauderdale Lake', 
+          state: 'FL', 
+          zip: '33311-4224' 
+        },
         walletBalance: 0,
         createdAt: null
-    } as UserProfile;
+    };
 
     const isSecurityPage = pathname === '/account/change-password';
     const walletBalance = safeProfile.walletBalance || 0;

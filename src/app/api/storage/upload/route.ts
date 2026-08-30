@@ -21,10 +21,22 @@ export async function POST(request: Request) {
         // 1. Fetch Vultr Credentials from protected Admin metadata
         const vultrConfigSnap = await adminDb.collection('metadata').doc('vultr_config').get();
         if (!vultrConfigSnap.exists) {
-            return NextResponse.json({ message: 'Cloud storage not configured by administrator.' }, { status: 500 });
+            console.error('[VULTR BRIDGE] Missing configuration doc in metadata/vultr_config');
+            return NextResponse.json({ 
+                message: 'Vultr Cloud Storage not configured in Admin Settings.',
+                code: 'CONFIG_MISSING'
+            }, { status: 500 });
         }
 
-        const { accessKey, secretKey, endpoint, bucket } = vultrConfigSnap.data()!;
+        const config = vultrConfigSnap.data();
+        if (!config?.accessKey || !config?.secretKey || !config?.bucket) {
+             return NextResponse.json({ 
+                message: 'Vultr configuration is incomplete. Check Admin Settings.',
+                code: 'CONFIG_INCOMPLETE'
+            }, { status: 500 });
+        }
+
+        const { accessKey, secretKey, endpoint, bucket } = config;
 
         // 2. Parse Incoming File
         const formData = await request.formData();
@@ -38,7 +50,7 @@ export async function POST(request: Request) {
         // 3. Initialize S3 Client (Vultr Compatible)
         const s3Client = new S3Client({
             region: 'us-east-1',
-            endpoint: `https://${endpoint}`,
+            endpoint: `https://${endpoint || 'ewr1.vultrobjects.com'}`,
             credentials: {
                 accessKeyId: accessKey,
                 secretKeyId: secretKey,
@@ -55,7 +67,7 @@ export async function POST(request: Request) {
             ACL: 'public-read',
         }));
 
-        const publicUrl = `https://${bucket}.${endpoint}/${key}`;
+        const publicUrl = `https://${bucket}.${endpoint || 'ewr1.vultrobjects.com'}/${key}`;
 
         return NextResponse.json({
             success: true,
@@ -66,7 +78,7 @@ export async function POST(request: Request) {
     } catch (error: any) {
         console.error('[VULTR UPLOAD ERROR]:', error);
         return NextResponse.json({
-            message: 'Cloud transfer failed: ' + error.message,
+            message: 'Cloud transfer failed: ' + (error.message || 'Unknown S3 error'),
             code: error.code || 'S3_ERROR'
         }, { status: 500 });
     }

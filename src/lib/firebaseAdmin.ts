@@ -4,7 +4,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Hardened Firebase Admin SDK initialization for Store2Door.
- * Explicitly locked to production project: swiftroute-3230b.
+ * Locked to production project: swiftroute-3230b as verified by owner.
  */
 
 const PROJECT_ID = 'swiftroute-3230b';
@@ -29,7 +29,6 @@ export const adminField = FieldValue;
 
 export function cleanPayload(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
-
   if (obj instanceof Date) return obj;
 
   if (Array.isArray(obj)) {
@@ -49,7 +48,8 @@ export function cleanPayload(obj: any): any {
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
       const value = obj[key];
-      if (value !== undefined) {
+      // Prevent undefined or complex DOM objects from hitting Firestore
+      if (value !== undefined && typeof value !== 'function') {
         result[key] = cleanPayload(value);
       }
     }
