@@ -11,7 +11,7 @@ export async function createClient() {
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
         getAll() {
@@ -34,13 +34,13 @@ export async function createClient() {
 }
 
 /**
- * Creates an administrative Supabase client using the Service Role Key.
+ * Creates an administrative Supabase client using the Secret Key.
  * CRITICAL: This must ONLY be used on the server and never exposed to the client.
  */
 export async function createAdminClient() {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.SUPABASE_SECRET_KEY!,
     {
       cookies: {
         getAll() { return []; },
