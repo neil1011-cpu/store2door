@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 
 /**
  * @fileOverview Server Actions for Supabase Auth Testing.
+ * Hardened with development-only guards for privileged operations.
  */
 
 export async function signUp(formData: FormData) {
@@ -61,9 +62,15 @@ export async function resetPassword(email: string) {
 
 /**
  * PRIVILEGED OPERATION: Promotes a user to admin for testing purposes.
- * USES SUPABASE_SECRET_KEY
+ * USES SUPABASE_SECRET_KEY.
+ * GUARDED: Only functional in development environment.
  */
 export async function promoteToAdmin(userId: string) {
+    // 1. Strict Environment Guard
+    if (process.env.NODE_ENV === 'production') {
+        return { error: 'Administrative promotion tool is disabled in production for security.' };
+    }
+
     const supabaseAdmin = await createAdminClient();
     
     // Check if role already exists
