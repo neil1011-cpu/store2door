@@ -1,116 +1,120 @@
+-- STORE2DOOR AUTH & RBAC FOUNDATION
+-- Audited: 2025-08-30
+-- Target: Supabase / PostgreSQL 15+
 
--- Store2Door Auth Foundation Migration
--- Purpose: Establish profiles, roles, and auto-provisioning triggers.
+-- 1. EXTENSIONS & CLEANUP
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Create Tables
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name text,
-  phone text,
-  trn text,
-  mailbox_number text UNIQUE,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+-- 2. MAILBOX SEQUENCE (Thread-safe, starting at 101)
+CREATE SEQUENCE IF NOT EXISTS public.mailbox_seq START 101;
 
-CREATE TYPE app_role AS ENUM ('customer', 'staff', 'admin');
-
+-- 3. APP ROLES (Enum-like lookup table)
 CREATE TABLE IF NOT EXISTS public.app_roles (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-  role app_role NOT NULL,
-  UNIQUE(user_id, role)
+    id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    role text NOT NULL CHECK (role IN ('customer', 'staff', 'admin')),
+    created_at timestamptz DEFAULT now(),
+    UNIQUE(id, role)
 );
 
--- 2. Mailbox Sequence
-CREATE SEQUENCE IF NOT EXISTS mailbox_seq START 101;
+-- 4. PROFILES TABLE
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    full_name text,
+    phone text,
+    trn text,
+    mailbox_number text UNIQUE,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
 
--- 3. Authorization Functions (Hardened with search_path)
+-- 5. AUTHORIZATION FUNCTIONS (Hardened SECURITY DEFINER)
+-- We set search_path to public to prevent hijacking via other schemas.
+
 CREATE OR REPLACE FUNCTION public.is_admin() 
 RETURNS boolean 
-LANGUAGE sql 
-SECURITY DEFINER
-SET search_path = public, auth
+LANGUAGE plpgsql 
+SECURITY DEFINER 
+SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM app_roles 
-    WHERE user_id = auth.uid() AND role = 'admin'
-  );
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM app_roles 
+        WHERE id = auth.uid() AND role = 'admin'
+    );
+END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.has_role(target_role app_role) 
+CREATE OR REPLACE FUNCTION public.has_role(target_role text) 
 RETURNS boolean 
-LANGUAGE sql 
-SECURITY DEFINER
-SET search_path = public, auth
+LANGUAGE plpgsql 
+SECURITY DEFINER 
+SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM app_roles 
-    WHERE user_id = auth.uid() AND role = target_role
-  );
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM app_roles 
+        WHERE id = auth.uid() AND role = target_role
+    );
+END;
 $$;
 
--- 4. Auto-Profile Trigger Function
+-- 6. AUTOMATED ONBOARDING TRIGGER
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS trigger 
 LANGUAGE plpgsql 
 SECURITY DEFINER 
-SET search_path = public, auth
+SET search_path = public
 AS $$
 DECLARE
-  new_mailbox text;
+    new_mailbox text;
 BEGIN
-  -- Generate atomic mailbox number
-  new_mailbox := 'FSTD' || nextval('mailbox_seq');
+    -- Generate unique mailbox number
+    new_mailbox := 'FSTD' || nextval('public.mailbox_seq')::text;
 
-  -- Create Profile
-  INSERT INTO public.profiles (id, full_name, mailbox_number)
-  VALUES (new.id, new.raw_user_meta_data->>'full_name', new_mailbox);
+    -- 1. Create Profile
+    INSERT INTO public.profiles (id, full_name, mailbox_number)
+    VALUES (
+        new.id, 
+        COALESCE(new.raw_user_meta_data->>'full_name', new.email),
+        new_mailbox
+    );
 
-  -- Assign Default Role
-  INSERT INTO public.app_roles (user_id, role)
-  VALUES (new.id, 'customer');
+    -- 2. Assign Default Role
+    INSERT INTO public.app_roles (id, role)
+    VALUES (new.id, 'customer');
 
-  RETURN new;
+    RETURN new;
 END;
 $$;
 
--- 5. Bind Trigger
+-- Apply Trigger to auth.users
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 6. Row Level Security (RLS)
+-- 7. ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_roles ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
-CREATE POLICY "Users can view own profile" 
+CREATE POLICY "Profiles are viewable by owner or admin" 
 ON public.profiles FOR SELECT 
-TO authenticated 
-USING (auth.uid() = id);
+USING (auth.uid() = id OR is_admin());
 
-CREATE POLICY "Users can update own profile" 
+CREATE POLICY "Profiles can be updated by owner" 
 ON public.profiles FOR UPDATE 
-TO authenticated 
-USING (auth.uid() = id);
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Admins can view all profiles" 
-ON public.profiles FOR SELECT 
-TO authenticated 
-USING (is_admin());
-
--- Roles Policies
-CREATE POLICY "Users can view own roles" 
+-- App Roles Policies
+CREATE POLICY "Roles are viewable by owner or admin" 
 ON public.app_roles FOR SELECT 
-TO authenticated 
-USING (auth.uid() = user_id);
+USING (auth.uid() = id OR is_admin());
 
-CREATE POLICY "Admins can view all roles" 
-ON public.app_roles FOR SELECT 
-TO authenticated 
-USING (is_admin());
+-- NO client-side insert/update/delete on roles allowed.
+-- Administrative role modification happens via Service Role only.
 
--- Note: No INSERT/UPDATE/DELETE policies for authenticated users on app_roles.
--- These operations are restricted to the service_role (Admin Client).
+-- 8. INDEXING for high-performance joins
+CREATE INDEX IF NOT EXISTS idx_profiles_mailbox ON public.profiles(mailbox_number);
+CREATE INDEX IF NOT EXISTS idx_app_roles_id_role ON public.app_roles(id, role);
