@@ -1,48 +1,47 @@
+-- Store2Door: Auth & RBAC Foundation
+-- Handles user profiles, mailbox generation, and secure roles.
 
--- Store2Door Auth Foundation Migration
--- Establishes Profiles, Roles, and hardened RLS
+-- 1. Create a sequence for unique mailbox numbers
+CREATE SEQUENCE IF NOT EXISTS mailbox_seq START 101;
 
--- 1. ENUMS & TYPES
-DO $$ BEGIN
-    CREATE TYPE public.app_role AS ENUM ('customer', 'staff', 'admin');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
--- 2. TABLES
--- Profiles: Core identity linked to Auth
+-- 2. Profiles Table: Stores non-sensitive identity data
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id             uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name      text,
-  phone          text,
-  trn            text,
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name text,
+  phone text,
+  trn text,
   mailbox_number text UNIQUE,
-  created_at     timestamptz DEFAULT now(),
-  updated_at     timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 
--- App Roles: Authorization separate from Profile
+-- 3. App Roles Table: Stores authorization data
 CREATE TABLE IF NOT EXISTS public.app_roles (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  role       public.app_role NOT NULL DEFAULT 'customer',
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  role text CHECK (role IN ('customer', 'staff', 'admin')),
   created_at timestamptz DEFAULT now(),
   UNIQUE(user_id, role)
 );
 
--- 3. SEQUENCES
-CREATE SEQUENCE IF NOT EXISTS public.mailbox_seq START 101;
+-- 4. Enable Row Level Security
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_roles ENABLE ROW LEVEL SECURITY;
 
--- 4. HELPER FUNCTIONS
-CREATE OR REPLACE FUNCTION public.generate_mailbox() 
-RETURNS text AS $$
+-- 5. Authorization Functions (SECURITY DEFINER)
+-- We set search_path to public to prevent hijacking.
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
 BEGIN
-  RETURN 'FSTD' || nextval('public.mailbox_seq')::text;
+  RETURN EXISTS (
+    SELECT 1 FROM public.app_roles
+    WHERE user_id = auth.uid() AND role = 'admin'
+  );
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- 5. AUTHORIZATION FUNCTIONS (Used in RLS)
-CREATE OR REPLACE FUNCTION public.has_role(role_name public.app_role)
+CREATE OR REPLACE FUNCTION public.has_role(role_name text)
 RETURNS boolean AS $$
 BEGIN
   RETURN EXISTS (
@@ -52,57 +51,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS boolean AS $$
-BEGIN
-  RETURN public.has_role('admin');
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
--- 6. RLS CONFIGURATION
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.app_roles ENABLE ROW LEVEL SECURITY;
-
--- Profiles Policies
-CREATE POLICY "Users can view own profile"
-  ON public.profiles FOR SELECT
-  USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Admins can view all profiles"
-  ON public.profiles FOR SELECT
-  USING (public.is_admin());
-
-CREATE POLICY "Admins can update all profiles"
-  ON public.profiles FOR UPDATE
-  USING (public.is_admin());
-
--- Roles Policies
-CREATE POLICY "Users can view own roles"
-  ON public.app_roles FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Admins can view all roles"
-  ON public.app_roles FOR SELECT
-  USING (public.is_admin());
-
--- 7. TRIGGERS (Automated Onboarding)
+-- 6. Trigger: Automatic Profile and Role creation upon Auth registration
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
+DECLARE
+  new_mailbox text;
 BEGIN
-  -- Create initial profile
+  -- Generate unique mailbox number
+  new_mailbox := 'FSTD' || nextval('mailbox_seq');
+
+  -- Create Profile
   INSERT INTO public.profiles (id, full_name, mailbox_number)
   VALUES (
-    new.id, 
+    new.id,
     new.raw_user_meta_data->>'full_name',
-    public.generate_mailbox()
+    new_mailbox
   );
 
-  -- Assign default role
+  -- Assign default 'customer' role
   INSERT INTO public.app_roles (user_id, role)
   VALUES (new.id, 'customer');
 
@@ -110,8 +76,31 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- Clean up existing trigger if any to prevent duplicates during re-runs
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
+CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 7. RLS Policies: Profiles
+CREATE POLICY "Users can read own profile"
+  ON public.profiles FOR SELECT
+  USING (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile"
+  ON public.profiles FOR UPDATE
+  USING (auth.uid() = id);
+
+CREATE POLICY "Admins can read all profiles"
+  ON public.profiles FOR SELECT
+  USING (is_admin());
+
+-- 8. RLS Policies: App Roles
+CREATE POLICY "Users can read own roles"
+  ON public.app_roles FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can read all roles"
+  ON public.app_roles FOR SELECT
+  USING (is_admin());
+
+-- Note: No INSERT/UPDATE/DELETE policies for non-admin roles on app_roles.
+-- Only service_role or SECURITY DEFINER functions can modify them.
