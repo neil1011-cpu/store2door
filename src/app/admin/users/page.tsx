@@ -6,68 +6,191 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, Eye, Search, ShieldCheck } from 'lucide-react';
+import { PlusCircle, Loader2, UserPlus, Mail, Phone, ShieldCheck, X } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
 
 export default function UsersPage() {
   const { supabase } = useSupabase();
+  const { toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const [newUser, setNewUser] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    trn: '',
+    isAdmin: false
+  });
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*, app_roles(role)')
+      .order('full_name', { ascending: true });
+    
+    if (error) {
+        toast({ title: "Registry Fetch Error", description: error.message, variant: "destructive" });
+    } else {
+        setUsers(data || []);
+    }
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*, app_roles(role)')
-        .order('full_name', { ascending: true });
-      setUsers(data || []);
-      setIsLoading(false);
-    };
     fetchUsers();
   }, [supabase]);
+
+  const handleCreateUser = async () => {
+      if (!newUser.email || !newUser.firstName) {
+          toast({ title: "Missing Fields", variant: "destructive" });
+          return;
+      }
+
+      setIsCreating(true);
+      try {
+          const session = await supabase.auth.getSession();
+          const idToken = session.data.session?.access_token;
+
+          const response = await fetch('/api/admin/create-user', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify(newUser)
+          });
+
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message || 'Creation failed');
+
+          toast({ title: "Identity Created", description: `Account for ${newUser.email} is now active.` });
+          setIsAddUserOpen(false);
+          setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', isAdmin: false });
+          fetchUsers();
+      } catch (error: any) {
+          toast({ title: "Operation Failed", description: error.message, variant: "destructive" });
+      } finally {
+          setIsCreating(false);
+      }
+  };
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter">Identity Registry</h1>
-          <p className="text-muted-foreground font-medium uppercase text-[10px]">Supabase Auth & RBAC Central</p>
+          <p className="text-muted-foreground font-medium uppercase text-[10px]">Universal Account & RBAC Central</p>
         </div>
-        <Button className="font-black uppercase italic" disabled><PlusCircle className="mr-2 h-4 w-4" /> Add User (Auth logic required)</Button>
+        
+        <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+            <DialogTrigger asChild>
+                <Button className="font-black uppercase italic shadow-lg">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Client
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">New Global Identity</DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">Register a new client or administrator</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">First Name</Label>
+                            <Input value={newUser.firstName} onChange={e => setNewUser({...newUser, firstName: e.target.value})} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Last Name</Label>
+                            <Input value={newUser.lastName} onChange={e => setNewUser({...newUser, lastName: e.target.value})} className="h-11 border-2" />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[10px] font-bold uppercase opacity-60">Email Address</Label>
+                        <Input type="email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} className="h-11 border-2" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                         <div className="space-y-1">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Phone</Label>
+                            <Input value={newUser.phone} onChange={e => setNewUser({...newUser, phone: e.target.value})} className="h-11 border-2" />
+                        </div>
+                         <div className="space-y-1">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">TRN</Label>
+                            <Input value={newUser.trn} onChange={e => setNewUser({...newUser, trn: e.target.value})} maxLength={9} className="h-11 border-2" />
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border-2 border-dashed">
+                        <div className="space-y-0.5">
+                            <Label className="text-xs font-bold uppercase">Grant Admin Access</Label>
+                            <p className="text-[9px] text-muted-foreground uppercase">Enable full dashboard management</p>
+                        </div>
+                        <Switch checked={newUser.isAdmin} onCheckedChange={checked => setNewUser({...newUser, isAdmin: checked})} />
+                    </div>
+                </div>
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild><Button variant="outline" className="font-bold h-12 uppercase">Cancel</Button></DialogClose>
+                    <Button onClick={handleCreateUser} disabled={isCreating} className="flex-1 h-12 font-black uppercase italic shadow-xl">
+                        {isCreating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserPlus className="mr-2 h-5 w-5" />}
+                        Authorize Creation
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
       </div>
 
-      <Card className="shadow-2xl border-none overflow-hidden">
+      <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead className="pl-6">Identity</TableHead>
-                <TableHead>Mailbox</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="text-right pr-6">Action</TableHead>
+              <TableRow className="h-12">
+                <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Identity</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Mailbox</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Role</TableHead>
+                <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="h-64 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /><p className="text-[10px] font-bold uppercase mt-2 opacity-40">Syncing Registry...</p></TableCell></TableRow>
               ) : users.map(u => (
-                <TableRow key={u.id}>
+                <TableRow key={u.id} className="hover:bg-primary/5 transition-colors h-20">
                   <TableCell className="pl-6">
                     <p className="font-black text-primary uppercase text-sm">{u.full_name}</p>
-                    <p className="text-[10px] opacity-60">{u.id}</p>
+                    <p className="text-[10px] font-mono opacity-60 uppercase tracking-tighter">{u.id}</p>
                   </TableCell>
-                  <TableCell className="font-mono font-bold">{u.mailbox_number}</TableCell>
+                  <TableCell className="font-mono font-bold">
+                    <Badge variant="outline" className="h-8 px-4 font-black italic border-2">{u.mailbox_number}</Badge>
+                  </TableCell>
                   <TableCell>
-                    {u.app_roles?.map((r: any) => (
-                        <Badge key={r.role} variant={r.role === 'admin' ? 'default' : 'secondary'} className="mr-1 capitalize">{r.role}</Badge>
-                    ))}
+                    <div className="flex gap-1">
+                        {u.app_roles?.map((r: any) => (
+                            <Badge key={r.role} variant={r.role === 'admin' ? 'default' : 'secondary'} className="capitalize text-[8px] font-black italic tracking-widest border-2">
+                                {r.role === 'admin' && <ShieldCheck className="h-2 w-2 mr-1" />}
+                                {r.role}
+                            </Badge>
+                        ))}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right pr-6">
-                    <Button variant="outline" size="sm" asChild className="h-8 font-black uppercase text-[10px]"><Link href={`/admin/users/${u.id}`}>Details</Link></Button>
+                    <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase italic text-[10px] border-2 shadow-sm px-6">
+                        <Link href={`/admin/users/${u.id}`}>Audit Record</Link>
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
+              {users.length === 0 && !isLoading && (
+                  <TableRow><TableCell colSpan={4} className="h-48 text-center text-muted-foreground italic opacity-30">No identities detected in the global registry.</TableCell></TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
