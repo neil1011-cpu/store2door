@@ -18,7 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Loader2, ShieldCheck, AlertCircle, UserPlus, Fingerprint } from 'lucide-react';
+import { Loader2, ShieldCheck, AlertCircle, UserPlus, Fingerprint, CheckCircle2 } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
@@ -65,7 +65,7 @@ export default function SetupAdminPage() {
           }, 1500);
       } catch (error: any) {
           console.error("Elevation error:", error);
-          toast({ title: 'Setup Failed', description: error.message, variant: 'destructive' });
+          toast({ title: 'Setup Failed', description: error.message, variant: "destructive" });
       } finally {
           setIsElevatingSession(false);
       }
@@ -75,51 +75,24 @@ export default function SetupAdminPage() {
     setLoading(true);
     
     try {
-        // 1. Try to sign in first, if not exist, create
-        let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: values.email,
-            password: values.password
+        const response = await fetch('/api/admin/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(values),
         });
 
-        if (signInError) {
-            // Attempt signup if login fails (likely doesn't exist in Supabase yet)
-            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                email: values.email,
-                password: values.password,
-                options: {
-                    data: {
-                        full_name: 'Master Admin'
-                    }
-                }
-            });
-            if (signUpError) throw signUpError;
-            
-            toast({
-                title: 'Identity Created',
-                description: 'Initial Supabase credentials established.',
-            });
-        }
+        const result = await response.json();
 
-        // 2. Refresh session to ensure we have the UID
-        const { data: { user } } = await supabase.auth.getUser();
+        if (!response.ok) throw new Error(result.message || 'Setup protocol failed.');
+
+        toast({
+            title: 'Identity Secured',
+            description: 'Master Admin account created and confirmed successfully.',
+        });
         
-        if (user) {
-            // 3. Promote to Admin via RPC
-            const { error: rpcError } = await supabase.rpc('manage_user_role', { 
-                target_user_id: user.id, 
-                new_role: 'admin' 
-            });
-            if (rpcError) throw rpcError;
-
-            toast({
-                title: 'Account Configured',
-                description: 'Database privileges have been successfully linked.',
-            });
-            
-            setTimeout(() => {
-                router.push('/admin-login');
-            }, 1500);
-        }
+        setTimeout(() => {
+            router.push('/admin-login');
+        }, 2000);
 
     } catch (error: any) {
         toast({
@@ -147,7 +120,7 @@ export default function SetupAdminPage() {
                 <AlertCircle className="h-4 w-4 text-blue-600" />
                 <AlertTitle className="font-bold uppercase text-xs">Administrative Protocol</AlertTitle>
                 <AlertDescription className="text-[10px] uppercase leading-relaxed mt-1">
-                    Use this tool to synchronize your primary identity with the Supabase RBAC layer.
+                    This terminal will auto-confirm your master email and grant full database access.
                 </AlertDescription>
             </Alert>
 
@@ -161,12 +134,12 @@ export default function SetupAdminPage() {
                       </div>
                   </div>
                   <Button onClick={handleElevateCurrentSession} disabled={isElevatingSession} className="w-full h-14 font-black uppercase italic shadow-lg" variant="secondary">
-                      {isElevatingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                      {isElevatingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                       Elevate Current Account
                   </Button>
                   <div className="relative py-4">
                     <Separator />
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-[10px] uppercase font-bold text-muted-foreground">OR CREATE NEW</span>
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-[10px] uppercase font-bold text-muted-foreground">OR CONFIGURE MASTER</span>
                   </div>
               </div>
           ) : null}
@@ -199,8 +172,8 @@ export default function SetupAdminPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" size="lg" className="w-full h-14 font-black uppercase italic shadow-xl" disabled={loading}>
-                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Initialize Admin Entry'}
+              <Button type="submit" size="lg" className="w-full h-14 text-lg font-black uppercase italic shadow-xl" disabled={loading}>
+                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Authorizing...</> : 'Bypass Verification & Initialize'}
               </Button>
             </form>
           </Form>
