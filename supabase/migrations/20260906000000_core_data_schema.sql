@@ -3,8 +3,8 @@
 -- Timestamp: 20260906000000
 
 /**
- * @fileOverview Normalized relational schema design for the Store2Door logistics platform.
- * Includes a staff authorization model and idempotent policy definitions.
+ * @fileOverview Hardened relational schema design for the Store2Door logistics platform.
+ * Implements granular staff authorization and historical record protection.
  */
 
 -- 1. Addresses Table
@@ -24,8 +24,6 @@ CREATE TABLE IF NOT EXISTS public.addresses (
   updated_at timestamptz DEFAULT now()
 );
 
-COMMENT ON TABLE public.addresses IS 'Stores normalized delivery and origin addresses for users.';
-
 -- 2. Pickup Personnel
 CREATE TABLE IF NOT EXISTS public.pickup_personnel (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -37,12 +35,10 @@ CREATE TABLE IF NOT EXISTS public.pickup_personnel (
   legacy_firebase_id text
 );
 
-COMMENT ON TABLE public.pickup_personnel IS 'Stores authorized personnel who can collect packages on behalf of a customer.';
-
 -- 3. Invoices
 CREATE TABLE IF NOT EXISTS public.invoices (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT, -- PROTECTED: Historical Accounting
   invoice_number text UNIQUE NOT NULL, 
   amount numeric(12,2) NOT NULL DEFAULT 0,
   status text NOT NULL CHECK (status IN ('Paid', 'Unpaid', 'Cancelled')),
@@ -66,7 +62,7 @@ CREATE TABLE IF NOT EXISTS public.invoice_line_items (
 -- 5. Shipments
 CREATE TABLE IF NOT EXISTS public.shipments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT, -- PROTECTED: Historical Logistics
   invoice_id uuid REFERENCES public.invoices(id) ON DELETE SET NULL,
   tracking_number text UNIQUE NOT NULL,
   contents text,
@@ -97,7 +93,7 @@ CREATE TABLE IF NOT EXISTS public.shipment_tracking_events (
 -- 7. Pre-Alerts
 CREATE TABLE IF NOT EXISTS public.pre_alerts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT, -- PROTECTED: Historical Audit
   tracking_number text NOT NULL,
   contents text,
   weight_lbs numeric(10,2),
@@ -153,37 +149,8 @@ CREATE TABLE IF NOT EXISTS public.system_configs (
   updated_at timestamptz DEFAULT now()
 );
 
--- 12. PERMISSIONS
--- Revoke all from PUBLIC to ensure explicit grants
-REVOKE ALL ON public.addresses FROM authenticated;
-REVOKE ALL ON public.pickup_personnel FROM authenticated;
-REVOKE ALL ON public.invoices FROM authenticated;
-REVOKE ALL ON public.invoice_line_items FROM authenticated;
-REVOKE ALL ON public.shipments FROM authenticated;
-REVOKE ALL ON public.shipment_tracking_events FROM authenticated;
-REVOKE ALL ON public.pre_alerts FROM authenticated;
-REVOKE ALL ON public.financial_ledger FROM authenticated;
-REVOKE ALL ON public.system_logs FROM authenticated;
-REVOKE ALL ON public.sent_emails FROM authenticated;
-REVOKE ALL ON public.system_configs FROM authenticated;
+-- 12. ROW LEVEL SECURITY POLICIES
 
--- Grant broad read to staff/admin, owner read to customers
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticated;
-
--- Grant mutation only to authorized roles or owners
-GRANT INSERT, UPDATE, DELETE ON public.addresses TO authenticated;
-GRANT INSERT, UPDATE, DELETE ON public.pickup_personnel TO authenticated;
-GRANT INSERT, UPDATE ON public.pre_alerts TO authenticated;
-
--- Operational tables: mutation limited to staff/admin
-GRANT INSERT, UPDATE ON public.shipments TO authenticated;
-GRANT INSERT ON public.shipment_tracking_events TO authenticated;
-GRANT INSERT, UPDATE ON public.invoices TO authenticated;
-GRANT INSERT, UPDATE ON public.invoice_line_items TO authenticated;
-GRANT INSERT ON public.financial_ledger TO authenticated; -- Immutable ledger
-GRANT INSERT ON public.system_logs TO authenticated;
-
--- 13. ROW LEVEL SECURITY POLICIES
 ALTER TABLE public.addresses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pickup_personnel ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
@@ -196,104 +163,100 @@ ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sent_emails ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_configs ENABLE ROW LEVEL SECURITY;
 
--- Helper to check for operational staff/admin roles
-CREATE OR REPLACE FUNCTION public.is_operational() 
-RETURNS boolean AS $$
-BEGIN
-  RETURN public.has_role('staff') OR public.is_admin();
-END;
-$$ LANGUAGE plpgsql STABLE;
-
 -- Addresses
-DROP POLICY IF EXISTS "Addresses view policy" ON public.addresses;
-CREATE POLICY "Addresses view policy" ON public.addresses FOR SELECT 
-  USING (auth.uid() = profile_id OR public.is_operational());
+DROP POLICY IF EXISTS "Profiles view own addresses" ON public.addresses;
+CREATE POLICY "Profiles view own addresses" ON public.addresses FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_admin() OR public.has_role('staff'));
 
-DROP POLICY IF EXISTS "Addresses management policy" ON public.addresses;
-CREATE POLICY "Addresses management policy" ON public.addresses FOR ALL 
-  USING (auth.uid() = profile_id OR public.is_operational());
+DROP POLICY IF EXISTS "Profiles manage own addresses" ON public.addresses;
+CREATE POLICY "Profiles manage own addresses" ON public.addresses FOR ALL 
+  USING (auth.uid() = profile_id);
 
 -- Pickup Personnel
-DROP POLICY IF EXISTS "Pickup view policy" ON public.pickup_personnel;
-CREATE POLICY "Pickup view policy" ON public.pickup_personnel FOR SELECT 
-  USING (auth.uid() = profile_id OR public.is_operational());
+DROP POLICY IF EXISTS "Profiles view own pickup personnel" ON public.pickup_personnel;
+CREATE POLICY "Profiles view own pickup personnel" ON public.pickup_personnel FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_admin() OR public.has_role('staff'));
 
-DROP POLICY IF EXISTS "Pickup management policy" ON public.pickup_personnel;
-CREATE POLICY "Pickup management policy" ON public.pickup_personnel FOR ALL 
-  USING (auth.uid() = profile_id OR public.is_operational());
+DROP POLICY IF EXISTS "Profiles manage own pickup personnel" ON public.pickup_personnel;
+CREATE POLICY "Profiles manage own pickup personnel" ON public.pickup_personnel FOR ALL 
+  USING (auth.uid() = profile_id);
 
 -- Invoices
-DROP POLICY IF EXISTS "Invoices view policy" ON public.invoices;
-CREATE POLICY "Invoices view policy" ON public.invoices FOR SELECT 
-  USING (auth.uid() = profile_id OR public.is_operational());
+DROP POLICY IF EXISTS "Profiles view own invoices" ON public.invoices;
+CREATE POLICY "Profiles view own invoices" ON public.invoices FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_admin() OR public.has_role('staff'));
 
-DROP POLICY IF EXISTS "Invoices staff mutation" ON public.invoices;
-CREATE POLICY "Invoices staff mutation" ON public.invoices FOR INSERT 
-  WITH CHECK (public.is_operational());
+DROP POLICY IF EXISTS "Operational staff can create and update invoices" ON public.invoices;
+CREATE POLICY "Operational staff can create and update invoices" ON public.invoices FOR INSERT
+  WITH CHECK (public.is_admin() OR public.has_role('staff'));
 
-DROP POLICY IF EXISTS "Invoices staff update" ON public.invoices;
-CREATE POLICY "Invoices staff update" ON public.invoices FOR UPDATE 
-  USING (public.is_operational());
+CREATE POLICY "Operational staff can update invoices" ON public.invoices FOR UPDATE
+  USING (public.is_admin() OR public.has_role('staff'));
 
 -- Invoice Line Items
-DROP POLICY IF EXISTS "Line items view policy" ON public.invoice_line_items;
-CREATE POLICY "Line items view policy" ON public.invoice_line_items FOR SELECT 
-  USING (EXISTS (SELECT 1 FROM public.invoices WHERE id = invoice_id AND (profile_id = auth.uid() OR public.is_operational())));
+DROP POLICY IF EXISTS "Profiles view own line items" ON public.invoice_line_items;
+CREATE POLICY "Profiles view own line items" ON public.invoice_line_items FOR SELECT 
+  USING (EXISTS (SELECT 1 FROM public.invoices WHERE id = invoice_id AND (profile_id = auth.uid() OR public.is_admin() OR public.has_role('staff'))));
 
-DROP POLICY IF EXISTS "Line items staff mutation" ON public.invoice_line_items;
-CREATE POLICY "Line items staff mutation" ON public.invoice_line_items FOR ALL 
-  USING (public.is_operational());
+DROP POLICY IF EXISTS "Operational staff can manage line items" ON public.invoice_line_items;
+CREATE POLICY "Operational staff can manage line items" ON public.invoice_line_items FOR INSERT
+  WITH CHECK (public.is_admin() OR public.has_role('staff'));
+
+CREATE POLICY "Operational staff can update line items" ON public.invoice_line_items FOR UPDATE
+  USING (public.is_admin() OR public.has_role('staff'));
 
 -- Shipments
-DROP POLICY IF EXISTS "Shipments view policy" ON public.shipments;
-CREATE POLICY "Shipments view policy" ON public.shipments FOR SELECT 
-  USING (auth.uid() = profile_id OR public.is_operational());
+DROP POLICY IF EXISTS "Profiles view own shipments" ON public.shipments;
+CREATE POLICY "Profiles view own shipments" ON public.shipments FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_admin() OR public.has_role('staff'));
 
-DROP POLICY IF EXISTS "Shipments staff mutation" ON public.shipments;
-CREATE POLICY "Shipments staff mutation" ON public.shipments FOR ALL 
-  USING (public.is_operational());
+DROP POLICY IF EXISTS "Operational staff can manage shipments" ON public.shipments;
+CREATE POLICY "Operational staff can manage shipments" ON public.shipments FOR INSERT
+  WITH CHECK (public.is_admin() OR public.has_role('staff'));
+
+CREATE POLICY "Operational staff can update shipments" ON public.shipments FOR UPDATE
+  USING (public.is_admin() OR public.has_role('staff'));
 
 -- Shipment Tracking Events
-DROP POLICY IF EXISTS "Tracking events view policy" ON public.shipment_tracking_events;
-CREATE POLICY "Tracking events view policy" ON public.shipment_tracking_events FOR SELECT 
-  USING (EXISTS (SELECT 1 FROM public.shipments WHERE id = shipment_id AND (profile_id = auth.uid() OR public.is_operational())));
+DROP POLICY IF EXISTS "Profiles view own tracking events" ON public.shipment_tracking_events;
+CREATE POLICY "Profiles view own tracking events" ON public.shipment_tracking_events FOR SELECT 
+  USING (EXISTS (SELECT 1 FROM public.shipments WHERE id = shipment_id AND (profile_id = auth.uid() OR public.is_admin() OR public.has_role('staff'))));
 
-DROP POLICY IF EXISTS "Tracking events staff insertion" ON public.shipment_tracking_events;
-CREATE POLICY "Tracking events staff insertion" ON public.shipment_tracking_events FOR INSERT 
-  WITH CHECK (public.is_operational());
+DROP POLICY IF EXISTS "Operational staff can manage tracking events" ON public.shipment_tracking_events;
+CREATE POLICY "Operational staff can manage tracking events" ON public.shipment_tracking_events FOR INSERT
+  WITH CHECK (public.is_admin() OR public.has_role('staff'));
 
 -- Pre-Alerts
-DROP POLICY IF EXISTS "Pre-alerts view policy" ON public.pre_alerts;
-CREATE POLICY "Pre-alerts view policy" ON public.pre_alerts FOR SELECT 
-  USING (auth.uid() = profile_id OR public.is_operational());
+DROP POLICY IF EXISTS "Profiles view own pre_alerts" ON public.pre_alerts;
+CREATE POLICY "Profiles view own pre_alerts" ON public.pre_alerts FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_admin() OR public.has_role('staff'));
 
-DROP POLICY IF EXISTS "Pre-alerts customer insertion" ON public.pre_alerts;
-CREATE POLICY "Pre-alerts customer insertion" ON public.pre_alerts FOR INSERT 
-  WITH CHECK (auth.uid() = profile_id OR public.is_operational());
+DROP POLICY IF EXISTS "Profiles insert own pre_alerts" ON public.pre_alerts;
+CREATE POLICY "Profiles insert own pre_alerts" ON public.pre_alerts FOR INSERT 
+  WITH CHECK (auth.uid() = profile_id);
 
-DROP POLICY IF EXISTS "Pre-alerts staff update" ON public.pre_alerts;
-CREATE POLICY "Pre-alerts staff update" ON public.pre_alerts FOR UPDATE 
-  USING (public.is_operational());
+DROP POLICY IF EXISTS "Operational staff update pre_alerts" ON public.pre_alerts;
+CREATE POLICY "Operational staff update pre_alerts" ON public.pre_alerts FOR UPDATE 
+  USING (public.is_admin() OR public.has_role('staff'));
 
--- Ledger (Immutable)
-DROP POLICY IF EXISTS "Ledger view policy" ON public.financial_ledger;
-CREATE POLICY "Ledger view policy" ON public.financial_ledger FOR SELECT 
-  USING (auth.uid() = profile_id OR public.is_operational());
+-- Ledger (APPEND ONLY)
+DROP POLICY IF EXISTS "Profiles view own ledger entries" ON public.financial_ledger;
+CREATE POLICY "Profiles view own ledger entries" ON public.financial_ledger FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_admin() OR public.has_role('staff'));
 
-DROP POLICY IF EXISTS "Ledger staff insertion" ON public.financial_ledger;
-CREATE POLICY "Ledger staff insertion" ON public.financial_ledger FOR INSERT 
-  WITH CHECK (public.is_operational());
+DROP POLICY IF EXISTS "Operational staff can insert ledger entries" ON public.financial_ledger;
+CREATE POLICY "Operational staff can insert ledger entries" ON public.financial_ledger FOR INSERT 
+  WITH CHECK (public.is_admin() OR public.has_role('staff'));
 
--- Audit/System (Staff & Admin Read)
-DROP POLICY IF EXISTS "System logs view policy" ON public.system_logs;
-CREATE POLICY "System logs view policy" ON public.system_logs FOR SELECT 
-  USING (public.is_operational());
+-- Audit/System
+DROP POLICY IF EXISTS "Operational staff view system logs" ON public.system_logs;
+CREATE POLICY "Operational staff view system logs" ON public.system_logs FOR SELECT 
+  USING (public.is_admin() OR public.has_role('staff'));
 
-DROP POLICY IF EXISTS "Sent emails view policy" ON public.sent_emails;
-CREATE POLICY "Sent emails view policy" ON public.sent_emails FOR SELECT 
-  USING (public.is_operational());
+DROP POLICY IF EXISTS "Operational staff view sent emails" ON public.sent_emails;
+CREATE POLICY "Operational staff view sent emails" ON public.sent_emails FOR SELECT 
+  USING (public.is_admin() OR public.has_role('staff'));
 
--- Configuration (Admin Only)
-DROP POLICY IF EXISTS "System configs admin policy" ON public.system_configs;
-CREATE POLICY "System configs admin policy" ON public.system_configs FOR ALL 
+DROP POLICY IF EXISTS "Admins can manage system configs" ON public.system_configs;
+CREATE POLICY "Admins can manage system configs" ON public.system_configs FOR ALL 
   USING (public.is_admin());
