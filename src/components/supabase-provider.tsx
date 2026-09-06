@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
@@ -28,7 +27,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
     // Validate configuration
-    if (!url || !url.startsWith('http') || url.includes('your_supabase_project_url') || !key || key.includes('your_supabase_public_anon_key')) {
+    if (!url || !url.startsWith('http') || url.includes('your_project_url') || !key || key.includes('your_public_key')) {
       setIsConfigMissing(true);
       setIsLoading(false);
       return;
