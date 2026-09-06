@@ -6,8 +6,13 @@ import { createBrowserClient } from '@supabase/ssr';
  * This client is safe for browser use as it uses the Publishable key.
  */
 export function createClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  // Use dummy values if missing to prevent "Invalid supabaseUrl" error during SSR/boot.
+  // The SupabaseProvider component will detect these and show the config UI.
   return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+    url && url.startsWith('http') ? url : 'https://placeholder-project.supabase.co',
+    key || 'placeholder-anon-key'
   );
 }

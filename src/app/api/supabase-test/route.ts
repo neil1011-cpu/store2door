@@ -7,6 +7,16 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function GET() {
   try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+    if (!url || url === 'your_project_url_here') {
+      return NextResponse.json({
+        success: false,
+        message: 'NEXT_PUBLIC_SUPABASE_URL is not configured.'
+      }, { status: 400 });
+    }
+
     const supabase = await createClient();
     
     // Check initialization
@@ -19,7 +29,7 @@ export async function GET() {
       message: 'Supabase client initialized successfully',
       connected: true,
       authenticated: !!session,
-      project_url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      project_url: url,
       note: 'Connection verified via publishable key handshake.'
     });
   } catch (err: any) {

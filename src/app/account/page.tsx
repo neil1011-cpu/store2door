@@ -5,8 +5,6 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, ArrowRight, Wallet, TrendingDown, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DashboardTab } from './dashboard-components';
-import { useAuth } from '@/firebase';
-import { signOut } from 'firebase/auth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -14,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useAccountProfile } from './layout';
 import { useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
+import { useSupabase } from '@/components/supabase-provider';
 
 const featureCards = [
     {
@@ -49,8 +48,8 @@ const featureCards = [
 export default function AccountPage() {
     const router = useRouter();
     const { toast } = useToast();
-    const auth = useAuth();
-    const userProfile = useAccountProfile();
+    const { supabase } = useSupabase();
+    const { profile: userProfile, balance: walletBalance } = useAccountProfile();
     const [mounted, setMounted] = useState(false);
     const [year, setYear] = useState<number>(2024);
 
@@ -61,7 +60,7 @@ export default function AccountPage() {
 
     const handleSignOut = async () => {
         try {
-            await signOut(auth!);
+            await supabase.auth.signOut();
             toast({
                 title: 'Signed Out',
                 description: 'You have been successfully signed out.',
@@ -77,15 +76,14 @@ export default function AccountPage() {
 
     if (!userProfile || !mounted) return null;
 
-    const walletBalance = userProfile.walletBalance || 0;
     const isIndebted = walletBalance < 0;
 
     return (
         <div className="container mx-auto px-4 md:px-6 pb-20">
             <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
                 <div className="text-center md:text-left">
-                    <h1 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter">Welcome, {userProfile.fullName.split(' ')[0]}!</h1>
-                    <p className="text-muted-foreground text-xs sm:text-sm font-bold uppercase tracking-widest opacity-60 mt-1">Global Mailbox: {userProfile.mailboxNumber}</p>
+                    <h1 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter">Welcome, {userProfile.full_name?.split(' ')[0] || 'User'}!</h1>
+                    <p className="text-muted-foreground text-xs sm:text-sm font-bold uppercase tracking-widest opacity-60 mt-1">Global Mailbox: {userProfile.mailbox_number}</p>
                 </div>
                 <div className="flex items-center justify-center md:justify-end gap-2">
                     <Button variant="outline" onClick={handleSignOut} size="sm" className="font-black uppercase italic border-2 px-6 h-10">
