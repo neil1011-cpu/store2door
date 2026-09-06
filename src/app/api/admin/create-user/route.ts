@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Administrative User Creation API for Supabase.
- * Optimized for robustness with upsert logic.
+ * @fileOverview Administrative User Creation API.
+ * Uses a two-step verification to ensure caller has admin rights before using the Admin SDK.
  */
 
 export async function POST(request: Request) {
@@ -13,62 +13,59 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Authorization required.' }, { status: 401 });
     }
 
-    const supabase = await createAdminClient();
+    const token = authHeader.split(' ')[1];
     
-    // Verify Caller is Admin
-    const { data: { user: caller } } = await supabase.auth.getUser(authHeader.split(' ')[1]);
-    if (!caller) return NextResponse.json({ message: 'Invalid session' }, { status: 401 });
+    // 1. Verify Caller identity and role using a standard client (honors RLS/auth context)
+    const supabase = await createClient();
+    const { data: { user: caller }, error: authError } = await supabase.auth.getUser(token);
     
-    // Domain Admin bypass or RPC check
+    if (authError || !caller) {
+      return NextResponse.json({ message: 'Invalid or expired session.' }, { status: 401 });
+    }
+
+    // 2. Check for Admin privileges (Domain bypass or database role)
     const { data: isAdmin } = await supabase.rpc('is_admin');
     const isDomainAdmin = caller.email === 'admin@neilussolutions.com';
     
     if (!isAdmin && !isDomainAdmin) {
-        return NextResponse.json({ message: 'Admin access denied' }, { status: 403 });
+      return NextResponse.json({ message: 'Forbidden: Administrative authority required.' }, { status: 403 });
     }
 
     const { firstName, lastName, email, phone, trn, isAdmin: promoteToAdmin } = await request.json();
 
-    // 1. Create Supabase Auth User
-    const { data: newUser, error: authError } = await supabase.auth.admin.createUser({
+    // 3. Perform privileged creation using the Admin Client
+    const adminClient = await createAdminClient();
+    
+    const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
-        password: Math.random().toString(36).slice(-12), // Temporary random password
+        password: Math.random().toString(36).slice(-12),
         email_confirm: true,
         user_metadata: { full_name: `${firstName} ${lastName}` }
     });
 
-    if (authError) throw authError;
+    if (createError) throw createError;
 
-    // 2. Profile Creation (Robust Upsert)
-    // We use upsert to ensure the profile exists even if the DB trigger failed
-    const { error: profileError } = await supabase.from('profiles').upsert({
-        id: newUser.user.id,
+    // 4. Initialize Profile and Role
+    const userId = newUser.user.id;
+    
+    await adminClient.from('profiles').upsert({
+        id: userId,
         full_name: `${firstName} ${lastName}`,
         email: email,
         phone: phone || null,
         trn: trn || null,
-        mailbox_number: `FSTD${Math.floor(1000 + Math.random() * 9000)}` // Fallback mailbox if trigger fails
+        mailbox_number: `FSTD${Math.floor(1000 + Math.random() * 9000)}`
     });
 
-    if (profileError) {
-        console.warn('[API: CREATE-USER] Profile upsert issue:', profileError.message);
-    }
+    await adminClient.from('app_roles').upsert({
+        user_id: userId,
+        role: promoteToAdmin ? 'admin' : 'customer'
+    });
 
-    // 3. Assign Role
-    const roleToAssign = promoteToAdmin ? 'admin' : 'customer';
-    const { error: roleError } = await supabase.from('app_roles').upsert({
-        user_id: newUser.user.id,
-        role: roleToAssign
-    }, { onConflict: 'user_id, role' });
-
-    if (roleError) {
-        console.error('[API: CREATE-USER] Role assignment failed:', roleError.message);
-    }
-
-    return NextResponse.json({ success: true, uid: newUser.user.id });
+    return NextResponse.json({ success: true, uid: userId });
 
   } catch (error: any) {
     console.error('[API: CREATE-USER ERROR]', error);
-    return NextResponse.json({ message: error.message }, { status: 500 });
+    return NextResponse.json({ message: error.message || 'An unexpected error occurred during user creation.' }, { status: 500 });
   }
 }

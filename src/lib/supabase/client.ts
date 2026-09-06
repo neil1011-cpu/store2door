@@ -2,15 +2,17 @@ import { createBrowserClient } from '@supabase/ssr';
 
 /**
  * Creates a Supabase client for use in Client Components.
- * Uses a safe fallback if environment variables are missing during boot.
  */
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Defensive fallback to prevent "Invalid supabaseUrl" crash during build/init
-  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder.supabase.co';
-  const finalKey = key || 'placeholder-key';
+  if (!url || !key) {
+    console.warn('[Supabase Client] Missing environment variables. Using placeholders for initialization.');
+  }
 
-  return createBrowserClient(finalUrl, finalKey);
+  return createBrowserClient(
+    url || 'https://placeholder.supabase.co',
+    key || 'placeholder-key'
+  );
 }

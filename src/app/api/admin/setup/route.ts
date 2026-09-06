@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -11,20 +10,20 @@ export async function POST(request: Request) {
     try {
         const { email, password } = await request.json();
 
+        // Security Lock: Only the domain-hardcoded master admin can use this endpoint
         if (email !== 'admin@neilussolutions.com') {
-            return NextResponse.json({ message: 'Unauthorized: Only the master admin identifier can be initialized here.' }, { status: 403 });
+            return NextResponse.json({ message: 'Unauthorized: Access restricted to the master administrator identifier.' }, { status: 403 });
         }
 
         const supabase = await createAdminClient();
 
-        // 1. Check if user exists
+        // 1. Identify if account exists in Auth Registry
         const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
         const existingUser = users.find(u => u.email === email);
 
         let userId: string;
 
         if (existingUser) {
-            // Update existing user: Set password and confirm email
             const { data: updatedUser, error: updateError } = await supabase.auth.admin.updateUserById(
                 existingUser.id,
                 { 
@@ -36,7 +35,6 @@ export async function POST(request: Request) {
             if (updateError) throw updateError;
             userId = updatedUser.user.id;
         } else {
-            // Create new user with auto-confirm
             const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
                 email,
                 password,
@@ -47,21 +45,23 @@ export async function POST(request: Request) {
             userId = newUser.user.id;
         }
 
-        // 2. Ensure Role exists via RPC
-        const { error: rpcError } = await supabase.rpc('manage_user_role', { 
-            target_user_id: userId, 
-            new_role: 'admin' 
-        });
+        // 2. Grant 'admin' role in the permissions table
+        await supabase.from('app_roles').upsert({ 
+            user_id: userId, 
+            role: 'admin' 
+        }, { onConflict: 'user_id, role' });
 
-        if (rpcError) {
-            console.error('[SETUP RPC ERROR]', rpcError);
-            // Fallback: try direct insert if RPC fails (though RPC is preferred)
-            await supabase.from('app_roles').upsert({ user_id: userId, role: 'admin' });
-        }
+        // 3. Ensure profile is established
+        await supabase.from('profiles').upsert({
+            id: userId,
+            email: email,
+            full_name: 'Master Admin',
+            mailbox_number: 'FSTD-ADMIN'
+        });
 
         return NextResponse.json({ 
             success: true, 
-            message: 'Administrative identity secured and confirmed.' 
+            message: 'Administrative identity secured and confirmed in Supabase.' 
         });
 
     } catch (error: any) {

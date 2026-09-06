@@ -9,12 +9,9 @@ export async function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder.supabase.co';
-  const finalKey = key || 'placeholder-key';
-
   return createServerClient(
-    finalUrl,
-    finalKey,
+    url || 'https://placeholder.supabase.co',
+    key || 'placeholder-key',
     {
       cookies: {
         getAll() {
@@ -36,18 +33,19 @@ export async function createClient() {
 
 /**
  * Creates an administrative Supabase client using the Secret Key.
- * Used strictly in Server Actions or API Routes.
+ * Used strictly for privileged Auth and DB operations in Server Actions or API Routes.
  */
 export async function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
 
-  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder.supabase.co';
-  const finalKey = key || 'placeholder-key';
+  if (!url || !key) {
+    throw new Error('[Supabase Admin] Missing environment variables: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY');
+  }
 
   return createServerClient(
-    finalUrl,
-    finalKey,
+    url,
+    key,
     {
       cookies: {
         getAll() { return []; },
