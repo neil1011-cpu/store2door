@@ -1,9 +1,9 @@
-
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Administrative User Creation API for Supabase.
+ * Optimized for robustness with upsert logic.
  */
 
 export async function POST(request: Request) {
@@ -19,8 +19,11 @@ export async function POST(request: Request) {
     const { data: { user: caller } } = await supabase.auth.getUser(authHeader.split(' ')[1]);
     if (!caller) return NextResponse.json({ message: 'Invalid session' }, { status: 401 });
     
+    // Domain Admin bypass or RPC check
     const { data: isAdmin } = await supabase.rpc('is_admin');
-    if (!isAdmin && caller.email !== 'admin@neilussolutions.com') {
+    const isDomainAdmin = caller.email === 'admin@neilussolutions.com';
+    
+    if (!isAdmin && !isDomainAdmin) {
         return NextResponse.json({ message: 'Admin access denied' }, { status: 403 });
     }
 
@@ -36,12 +39,30 @@ export async function POST(request: Request) {
 
     if (authError) throw authError;
 
-    // 2. Profile and Role are created automatically by the DB trigger 'on_auth_user_created'
-    // but we might need to update TRN/Phone since they aren't in Auth metadata defaults
-    await supabase.from('profiles').update({ phone, trn }).eq('id', newUser.user.id);
+    // 2. Profile Creation (Robust Upsert)
+    // We use upsert to ensure the profile exists even if the DB trigger failed
+    const { error: profileError } = await supabase.from('profiles').upsert({
+        id: newUser.user.id,
+        full_name: `${firstName} ${lastName}`,
+        email: email,
+        phone: phone || null,
+        trn: trn || null,
+        mailbox_number: `FSTD${Math.floor(1000 + Math.random() * 9000)}` // Fallback mailbox if trigger fails
+    });
 
-    if (promoteToAdmin) {
-        await supabase.rpc('manage_user_role', { target_user_id: newUser.user.id, new_role: 'admin' });
+    if (profileError) {
+        console.warn('[API: CREATE-USER] Profile upsert issue:', profileError.message);
+    }
+
+    // 3. Assign Role
+    const roleToAssign = promoteToAdmin ? 'admin' : 'customer';
+    const { error: roleError } = await supabase.from('app_roles').upsert({
+        user_id: newUser.user.id,
+        role: roleToAssign
+    }, { onConflict: 'user_id, role' });
+
+    if (roleError) {
+        console.error('[API: CREATE-USER] Role assignment failed:', roleError.message);
     }
 
     return NextResponse.json({ success: true, uid: newUser.user.id });

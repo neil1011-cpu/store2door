@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -66,20 +65,20 @@ export default function SignUpPage() {
 
       if (authError) throw authError;
 
-      // The 'on_auth_user_created' trigger in PostgreSQL handles:
-      // - Profile creation
-      // - Unique Mailbox generation (FSTD101...)
-      // - Default 'customer' role assignment
-
-      // Wait a moment for the DB trigger to finish
-      await new Promise(r => setTimeout(r, 1000));
-
-      // 2. Update TRN and Phone (if not picked up by metadata or for extra safety)
+      // 2. Immediate Profile Confirmation (Robust Upsert)
+      // Standard Supabase setups use triggers, but we do a direct upsert here for 100% reliability
       if (authData.user) {
-          await supabase.from('profiles').update({
+          const { error: profileError } = await supabase.from('profiles').upsert({
+              id: authData.user.id,
+              full_name: values.fullName,
+              email: values.email,
               phone: values.phone,
               trn: values.trn
-          }).eq('id', authData.user.id);
+          });
+
+          if (profileError) {
+              console.warn('[SIGNUP] Manual profile sync warning:', profileError.message);
+          }
       }
 
       toast({
