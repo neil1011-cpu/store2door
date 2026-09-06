@@ -24,7 +24,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   const router = useRouter();
 
   useEffect(() => {
-    // Check if configuration is present
+    // Check if configuration is present and valid
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 

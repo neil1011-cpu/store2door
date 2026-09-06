@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, type ReactNode, useState, useMemo } from 'react';
+import { useEffect, type ReactNode, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSupabase } from '@/components/supabase-provider';
 import type { UserProfile } from '@/lib/types';
@@ -52,7 +52,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                     .from('profiles')
                     .select('*')
                     .eq('id', user.id)
-                    .single();
+                    .maybeSingle();
                 
                 setProfile(profileData);
 
@@ -75,7 +75,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
         // Real-time Ledger Updates for Balance
         const channel = supabase
-            .channel('ledger-updates')
+            .channel(`ledger-${user.id}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'financial_ledger', filter: `profile_id=eq.${user.id}` }, () => {
                 fetchData();
             })

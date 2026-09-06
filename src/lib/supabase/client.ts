@@ -9,8 +9,8 @@ export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  // Use dummy values if missing to prevent "Invalid supabaseUrl" error during SSR/boot.
-  // The SupabaseProvider component will detect these and show the config UI.
+  // Use a valid dummy URL if missing to prevent "Invalid supabaseUrl" error during boot.
+  // The SupabaseProvider component will detect these and show the configuration UI.
   return createBrowserClient(
     url && url.startsWith('http') ? url : 'https://placeholder-project.supabase.co',
     key || 'placeholder-anon-key'

@@ -1,21 +1,16 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, FileUp, Package, Loader2, CreditCard, MapPin, CheckCircle2, Weight, Globe, Cloud, Zap, PlusCircle, X } from 'lucide-react';
+import { Loader2, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { cn, calculateShippingCost } from '@/lib/utils';
-import type { UserProfile, Shipment, PreAlert, PickupPerson } from '@/lib/types';
+import type { UserProfile, Shipment } from '@/lib/types';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 
@@ -40,7 +35,8 @@ export function DashboardTab({ details }: { details: UserProfile }) {
         .eq('profile_id', details.id)
         .order('shipping_date', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
+      
       setRecentShipment(data);
       setIsLoading(false);
     };
@@ -61,7 +57,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
             <div className="bg-muted/20 p-4 rounded-lg flex justify-between items-center">
               <div>
                 <p className="text-[10px] font-bold uppercase opacity-60">Tracking Number</p>
-                <p className="font-mono font-bold text-lg">{recentShipment.tracking_number}</p>
+                <p className="font-mono font-bold text-lg">{recentShipment.trackingNumber}</p>
               </div>
               <Badge variant={getStatusVariant(recentShipment.status)}>{recentShipment.status}</Badge>
             </div>
@@ -88,7 +84,11 @@ export function PackagesTab({ profileId }: { profileId: string }) {
       const combined = [
         ...(shipments || []).map(s => ({ ...s, type: 'shipment' })),
         ...(preAlerts || []).map(p => ({ ...p, type: 'pre-alert' }))
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      ].sort((a, b) => {
+        const dateA = a.shipping_date || a.submission_date || a.created_at;
+        const dateB = b.shipping_date || b.submission_date || b.created_at;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
 
       setPackages(combined);
       setIsLoading(false);
@@ -116,7 +116,7 @@ export function PackagesTab({ profileId }: { profileId: string }) {
             ) : packages.map((pkg) => (
               <TableRow key={pkg.id}>
                 <TableCell>
-                  <p className="font-mono font-bold text-primary">{pkg.tracking_number}</p>
+                  <p className="font-mono font-bold text-primary">{pkg.tracking_number || pkg.trackingNumber}</p>
                   <p className="text-[10px] uppercase opacity-60">{pkg.contents}</p>
                 </TableCell>
                 <TableCell><Badge variant={getStatusVariant(pkg.status)}>{pkg.status}</Badge></TableCell>
@@ -146,12 +146,12 @@ export function PreAlertTab({ profileId, onSuccess }: { profileId: string, onSuc
         try {
             let finalUrl = '';
             if (formData.file && user) {
-                const idToken = (await supabase.auth.getSession()).data.session?.access_token;
+                const session = (await supabase.auth.getSession()).data.session;
                 const body = new FormData();
                 body.append('file', formData.file);
                 const res = await fetch('/api/storage/upload', {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${idToken}` },
+                    headers: { 'Authorization': `Bearer ${session?.access_token}` },
                     body
                 });
                 const uploadData = await res.json();
@@ -278,6 +278,5 @@ export function SupportTab() {
 }
 
 export function CustomsCalculatorTab() {
-    // Logic remains identical to the existing calculators
     return <div className="p-8 text-center opacity-50 italic">Calculators are JS-based and fully operational.</div>;
 }
