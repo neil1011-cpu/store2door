@@ -1,93 +1,62 @@
-
 'use server';
 
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 /**
- * @fileOverview Server Actions for Supabase Auth Testing.
- * Hardened with development-only guards for privileged operations.
+ * @fileOverview Server Actions for Hardened Auth/RBAC Testing.
+ * Strictly limited to development environment.
  */
 
-export async function signUp(formData: FormData) {
-  const supabase = await createClient();
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-  const fullName = formData.get('fullName') as string;
+const IS_DEV = process.env.NODE_ENV === 'development';
 
-  const { data, error } = await supabase.auth.signUp({
+export async function promoteToAdmin(userId: string) {
+  if (!IS_DEV) return { error: 'Admin promotion restricted to development.' };
+
+  const supabaseAdmin = await createAdminClient();
+  
+  const { error } = await supabaseAdmin
+    .from('app_roles')
+    .insert({ user_id: userId, role: 'admin' })
+    .onConflict('user_id, role')
+    .ignore();
+
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+export async function createTestUserB() {
+  if (!IS_DEV) return { error: 'Test user creation restricted to development.' };
+
+  const supabaseAdmin = await createAdminClient();
+  const email = `test-b-${Date.now()}@fstd-test.com`;
+  const password = 'TestPassword123!';
+
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,
-    options: {
-      data: {
-        full_name: fullName,
-      },
-    },
+    email_confirm: true,
+    user_metadata: { full_name: 'Test Customer B' }
   });
 
   if (error) return { error: error.message };
-  revalidatePath('/supabase-auth-test');
   return { success: true, user: data.user };
 }
 
-export async function signIn(formData: FormData) {
-  const supabase = await createClient();
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
+export async function cleanupTestData(uids: string[]) {
+  if (!IS_DEV) return { error: 'Cleanup restricted to development.' };
+  
+  const supabaseAdmin = await createAdminClient();
+  
+  for (const uid of uids) {
+    await supabaseAdmin.auth.admin.deleteUser(uid);
+    // Trigger cascades will clean up profiles/roles
+  }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) return { error: error.message };
-  revalidatePath('/supabase-auth-test');
-  return { success: true, user: data.user };
+  return { success: true };
 }
 
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
-  revalidatePath('/supabase-auth-test');
-}
-
-export async function resetPassword(email: string) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/supabase-auth-test/reset-password`,
-    });
-    if (error) return { error: error.message };
-    return { success: true };
-}
-
-/**
- * PRIVILEGED OPERATION: Promotes a user to admin for testing purposes.
- * USES SUPABASE_SECRET_KEY.
- * GUARDED: Only functional in development environment.
- */
-export async function promoteToAdmin(userId: string) {
-    // 1. Strict Environment Guard
-    if (process.env.NODE_ENV === 'production') {
-        return { error: 'Administrative promotion tool is disabled in production for security.' };
-    }
-
-    const supabaseAdmin = await createAdminClient();
-    
-    // Check if role already exists
-    const { data: existing } = await supabaseAdmin
-        .from('app_roles')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('role', 'admin')
-        .single();
-
-    if (existing) return { success: true, message: 'User is already an admin.' };
-
-    const { error } = await supabaseAdmin
-        .from('app_roles')
-        .insert({ user_id: userId, role: 'admin' });
-
-    if (error) return { error: error.message };
-    revalidatePath('/supabase-auth-test');
-    return { success: true };
 }
