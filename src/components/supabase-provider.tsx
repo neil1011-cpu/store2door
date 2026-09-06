@@ -23,7 +23,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChanged((event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
       if (event === 'SIGNED_IN') router.refresh();
