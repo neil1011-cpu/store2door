@@ -1,193 +1,299 @@
--- Store2Door Core Data Schema Migration
--- Purpose: Normalized relational replacement for Firebase documents.
+-- Core Data Schema Migration
+-- Target Project: FromStore2Door Global Logistics
 -- Timestamp: 20260906000000
 
--- 1. ADDRESSES
--- Normalizes embedded user addresses and dropoff arrays.
+/**
+ * @fileOverview Normalized relational schema design for the Store2Door logistics platform.
+ * Includes a staff authorization model and idempotent policy definitions.
+ */
+
+-- 1. Addresses Table
 CREATE TABLE IF NOT EXISTS public.addresses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  name text, -- e.g., 'Home', 'Office', 'Recipient Name'
+  name text, 
   address_line_1 text NOT NULL,
   address_line_2 text,
   city text NOT NULL,
-  parish text, -- Specific to Jamaica logistics
-  state text, -- Specific to Florida logistics
-  zip text,
+  state_parish text NOT NULL,
+  zip_code text,
   country text DEFAULT 'Jamaica',
   is_default boolean DEFAULT false,
-  address_type text CHECK (address_type IN ('shipping', 'billing', 'dropoff')),
+  address_type text CHECK (address_type IN ('shipping_origin', 'delivery_destination')),
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
 
--- 2. PICKUP PERSONNEL
--- Normalizes the users.pickupPersonnel array into reusable contacts.
+COMMENT ON TABLE public.addresses IS 'Stores normalized delivery and origin addresses for users.';
+
+-- 2. Pickup Personnel
 CREATE TABLE IF NOT EXISTS public.pickup_personnel (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   full_name text NOT NULL,
-  id_number text NOT NULL, -- Government ID for verification at branch
+  government_id text NOT NULL,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  legacy_firebase_id text
 );
 
--- 3. PRE-ALERTS
--- Tracks incoming documentation before warehouse intake.
-CREATE TABLE IF NOT EXISTS public.pre_alerts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  tracking_number text NOT NULL,
-  contents text,
-  weight_lbs numeric(10,2),
-  status text DEFAULT 'Pending' CHECK (status IN ('Pending', 'Processed')),
-  invoice_url text, -- Original document URL (Vultr/S3)
-  legacy_firebase_id text, -- Traceability back to Firestore
-  submission_date timestamptz DEFAULT now(),
-  created_at timestamptz DEFAULT now()
-);
+COMMENT ON TABLE public.pickup_personnel IS 'Stores authorized personnel who can collect packages on behalf of a customer.';
 
--- 4. INVOICES
--- Master billing records.
+-- 3. Invoices
 CREATE TABLE IF NOT EXISTS public.invoices (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_number text UNIQUE NOT NULL, -- Business ID (e.g., INV-1001)
   profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  total_amount numeric(12,2) NOT NULL DEFAULT 0,
-  status text DEFAULT 'Unpaid' CHECK (status IN ('Paid', 'Unpaid', 'Cancelled', 'Refunded')),
-  invoice_url text, -- Generated HTML/PDF URL
+  invoice_number text UNIQUE NOT NULL, 
+  amount numeric(12,2) NOT NULL DEFAULT 0,
+  status text NOT NULL CHECK (status IN ('Paid', 'Unpaid', 'Cancelled')),
+  invoice_url text, 
   due_date timestamptz,
-  legacy_firebase_id text,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  legacy_firebase_id text
 );
 
--- 5. SHIPMENTS
--- Core logistics records.
+-- 4. Invoice Line Items
+CREATE TABLE IF NOT EXISTS public.invoice_line_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id uuid NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+  description text NOT NULL,
+  quantity integer NOT NULL DEFAULT 1,
+  unit_price numeric(12,2) NOT NULL DEFAULT 0,
+  total_price numeric(12,2) GENERATED ALWAYS AS (quantity * unit_price) STORED
+);
+
+-- 5. Shipments
 CREATE TABLE IF NOT EXISTS public.shipments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   invoice_id uuid REFERENCES public.invoices(id) ON DELETE SET NULL,
   tracking_number text UNIQUE NOT NULL,
   contents text,
-  status text DEFAULT 'Pending', -- Transitioning to tracking table for history
-  shipping_date timestamptz,
   weight_lbs numeric(10,2),
-  cost_jmd numeric(12,2),
-  payment_status text DEFAULT 'Unpaid' CHECK (payment_status IN ('Paid', 'Unpaid')),
-  logicware_id text, -- ID from external Hub
-  internal_barcode text, -- FSTD specific barcode
-  legacy_firebase_id text,
+  total_cost_jmd numeric(12,2) DEFAULT 0,
+  status text NOT NULL, 
+  payment_status text DEFAULT 'Unpaid' CHECK (payment_status IN ('Paid', 'Unpaid', 'Partial')),
+  shipping_date timestamptz,
+  logicware_id text, 
+  internal_barcode text,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  legacy_firebase_id text
 );
 
--- 6. SHIPMENT TRACKING EVENTS
--- Immutable history of logistics movements.
+-- 6. Shipment Tracking Events
 CREATE TABLE IF NOT EXISTS public.shipment_tracking_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   shipment_id uuid NOT NULL REFERENCES public.shipments(id) ON DELETE CASCADE,
   status text NOT NULL,
-  description text,
   location text,
+  description text,
   event_timestamp timestamptz DEFAULT now(),
-  actor_id uuid REFERENCES public.profiles(id), -- Who performed the update
-  source text DEFAULT 'system' CHECK (source IN ('system', 'logicware_webhook', 'manual')),
+  actor_id uuid REFERENCES public.profiles(id), 
   created_at timestamptz DEFAULT now()
 );
 
--- 7. INVOICE LINE ITEMS
--- Atomic breakdown of charges.
-CREATE TABLE IF NOT EXISTS public.invoice_line_items (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_id uuid NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
-  description text NOT NULL,
-  quantity integer DEFAULT 1,
-  unit_price numeric(12,2) NOT NULL,
-  total_price numeric(12,2) NOT NULL, -- Proposed: Derived but stored for audit
-  created_at timestamptz DEFAULT now()
-);
-
--- 8. FINANCIAL LEDGER (IMMUTABLE)
--- The source of truth for all balances. No mutable walletBalance column.
-CREATE TABLE IF NOT EXISTS public.financial_ledger (
+-- 7. Pre-Alerts
+CREATE TABLE IF NOT EXISTS public.pre_alerts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  amount numeric(12,2) NOT NULL, -- Positive for credit/payment, negative for debit/fee
-  entry_type text NOT NULL CHECK (entry_type IN ('revenue', 'expense', 'credit', 'debit')),
-  category text NOT NULL, -- e.g., 'shipping_fee', 'customs_duty', 'pos_payment', 'refund'
-  description text,
-  payment_method text, -- e.g., 'Cash', 'Card', 'Transfer', 'Wallet'
-  source text DEFAULT 'system', -- e.g., 'POS', 'Online', 'Auto'
-  invoice_id uuid REFERENCES public.invoices(id) ON DELETE SET NULL,
-  shipment_id uuid REFERENCES public.shipments(id) ON DELETE SET NULL,
-  transaction_date timestamptz DEFAULT now(),
-  created_at timestamptz DEFAULT now()
+  tracking_number text NOT NULL,
+  contents text,
+  weight_lbs numeric(10,2),
+  status text DEFAULT 'Pending' CHECK (status IN ('Pending', 'Processed', 'Cancelled')),
+  invoice_url text, 
+  submission_date timestamptz DEFAULT now(),
+  created_at timestamptz DEFAULT now(),
+  legacy_firebase_id text
 );
 
--- 9. SYSTEM LOGS & AUDIT
+-- 8. Financial Ledger (Immutable)
+CREATE TABLE IF NOT EXISTS public.financial_ledger (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  invoice_id uuid REFERENCES public.invoices(id) ON DELETE SET NULL,
+  shipment_id uuid REFERENCES public.shipments(id) ON DELETE SET NULL,
+  amount numeric(12,2) NOT NULL, 
+  transaction_type text NOT NULL CHECK (transaction_type IN ('payment', 'refund', 'adjustment', 'shipping_fee')),
+  method text, 
+  source text, 
+  description text,
+  transaction_date timestamptz DEFAULT now(),
+  created_at timestamptz DEFAULT now(),
+  legacy_firebase_id text
+);
+
+-- 9. System Logs
 CREATE TABLE IF NOT EXISTS public.system_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   log_type text NOT NULL,
   description text NOT NULL,
   actor_id uuid REFERENCES public.profiles(id),
-  metadata jsonb,
+  metadata jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz DEFAULT now()
 );
 
--- 10. SENT EMAILS AUDIT
+-- 10. Sent Emails
 CREATE TABLE IF NOT EXISTS public.sent_emails (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  recipient_name text,
   recipient_email text NOT NULL,
+  recipient_name text,
   subject text NOT NULL,
-  body_text text,
+  body_content text,
   status text DEFAULT 'sent',
   sent_at timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now()
 );
 
--- 11. SYSTEM CONFIGURATION
--- Non-secret application settings.
-CREATE TABLE IF NOT EXISTS public.system_config (
-  key text PRIMARY KEY,
-  value jsonb NOT NULL,
-  description text,
+-- 11. System Configuration
+CREATE TABLE IF NOT EXISTS public.system_configs (
+  config_key text PRIMARY KEY,
+  config_value jsonb NOT NULL,
   updated_at timestamptz DEFAULT now()
 );
 
--- 12. ROW LEVEL SECURITY (RLS)
+-- 12. PERMISSIONS
+-- Revoke all from PUBLIC to ensure explicit grants
+REVOKE ALL ON public.addresses FROM authenticated;
+REVOKE ALL ON public.pickup_personnel FROM authenticated;
+REVOKE ALL ON public.invoices FROM authenticated;
+REVOKE ALL ON public.invoice_line_items FROM authenticated;
+REVOKE ALL ON public.shipments FROM authenticated;
+REVOKE ALL ON public.shipment_tracking_events FROM authenticated;
+REVOKE ALL ON public.pre_alerts FROM authenticated;
+REVOKE ALL ON public.financial_ledger FROM authenticated;
+REVOKE ALL ON public.system_logs FROM authenticated;
+REVOKE ALL ON public.sent_emails FROM authenticated;
+REVOKE ALL ON public.system_configs FROM authenticated;
+
+-- Grant broad read to staff/admin, owner read to customers
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticated;
+
+-- Grant mutation only to authorized roles or owners
+GRANT INSERT, UPDATE, DELETE ON public.addresses TO authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.pickup_personnel TO authenticated;
+GRANT INSERT, UPDATE ON public.pre_alerts TO authenticated;
+
+-- Operational tables: mutation limited to staff/admin
+GRANT INSERT, UPDATE ON public.shipments TO authenticated;
+GRANT INSERT ON public.shipment_tracking_events TO authenticated;
+GRANT INSERT, UPDATE ON public.invoices TO authenticated;
+GRANT INSERT, UPDATE ON public.invoice_line_items TO authenticated;
+GRANT INSERT ON public.financial_ledger TO authenticated; -- Immutable ledger
+GRANT INSERT ON public.system_logs TO authenticated;
+
+-- 13. ROW LEVEL SECURITY POLICIES
 ALTER TABLE public.addresses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pickup_personnel ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.pre_alerts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.shipments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.shipment_tracking_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoice_line_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shipments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shipment_tracking_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pre_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.financial_ledger ENABLE ROW LEVEL SECURITY;
-
--- POLICIES (Pattern: Users see own, Admins see all)
-
--- Addresses
-CREATE POLICY "Users view own addresses" ON public.addresses FOR SELECT USING (auth.uid() = profile_id OR public.is_admin());
-CREATE POLICY "Users manage own addresses" ON public.addresses FOR ALL USING (auth.uid() = profile_id);
-
--- Shipments/Invoices/Ledger
-CREATE POLICY "Users view own logistics" ON public.shipments FOR SELECT USING (auth.uid() = profile_id OR public.is_admin());
-CREATE POLICY "Users view own billing" ON public.invoices FOR SELECT USING (auth.uid() = profile_id OR public.is_admin());
-CREATE POLICY "Users view own ledger" ON public.financial_ledger FOR SELECT USING (auth.uid() = profile_id OR public.is_admin());
-
--- Pre-Alerts (Users can create)
-CREATE POLICY "Users manage own pre_alerts" ON public.pre_alerts FOR ALL USING (auth.uid() = profile_id OR public.is_admin());
-
--- System Logs/Emails (Admin Only)
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sent_emails ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins view system audits" ON public.system_logs FOR SELECT USING (public.is_admin());
-CREATE POLICY "Admins view email logs" ON public.sent_emails FOR SELECT USING (public.is_admin());
+ALTER TABLE public.system_configs ENABLE ROW LEVEL SECURITY;
 
--- 13. INDEXES FOR PERFORMANCE
-CREATE INDEX IF NOT EXISTS idx_shipments_tracking ON public.shipments(tracking_number);
-CREATE INDEX IF NOT EXISTS idx_ledger_profile ON public.financial_ledger(profile_id);
-CREATE INDEX IF NOT EXISTS idx_tracking_shipment ON public.shipment_tracking_events(shipment_id);
-CREATE INDEX IF NOT EXISTS idx_invoices_number ON public.invoices(invoice_number);
+-- Helper to check for operational staff/admin roles
+CREATE OR REPLACE FUNCTION public.is_operational() 
+RETURNS boolean AS $$
+BEGIN
+  RETURN public.has_role('staff') OR public.is_admin();
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Addresses
+DROP POLICY IF EXISTS "Addresses view policy" ON public.addresses;
+CREATE POLICY "Addresses view policy" ON public.addresses FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_operational());
+
+DROP POLICY IF EXISTS "Addresses management policy" ON public.addresses;
+CREATE POLICY "Addresses management policy" ON public.addresses FOR ALL 
+  USING (auth.uid() = profile_id OR public.is_operational());
+
+-- Pickup Personnel
+DROP POLICY IF EXISTS "Pickup view policy" ON public.pickup_personnel;
+CREATE POLICY "Pickup view policy" ON public.pickup_personnel FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_operational());
+
+DROP POLICY IF EXISTS "Pickup management policy" ON public.pickup_personnel;
+CREATE POLICY "Pickup management policy" ON public.pickup_personnel FOR ALL 
+  USING (auth.uid() = profile_id OR public.is_operational());
+
+-- Invoices
+DROP POLICY IF EXISTS "Invoices view policy" ON public.invoices;
+CREATE POLICY "Invoices view policy" ON public.invoices FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_operational());
+
+DROP POLICY IF EXISTS "Invoices staff mutation" ON public.invoices;
+CREATE POLICY "Invoices staff mutation" ON public.invoices FOR INSERT 
+  WITH CHECK (public.is_operational());
+
+DROP POLICY IF EXISTS "Invoices staff update" ON public.invoices;
+CREATE POLICY "Invoices staff update" ON public.invoices FOR UPDATE 
+  USING (public.is_operational());
+
+-- Invoice Line Items
+DROP POLICY IF EXISTS "Line items view policy" ON public.invoice_line_items;
+CREATE POLICY "Line items view policy" ON public.invoice_line_items FOR SELECT 
+  USING (EXISTS (SELECT 1 FROM public.invoices WHERE id = invoice_id AND (profile_id = auth.uid() OR public.is_operational())));
+
+DROP POLICY IF EXISTS "Line items staff mutation" ON public.invoice_line_items;
+CREATE POLICY "Line items staff mutation" ON public.invoice_line_items FOR ALL 
+  USING (public.is_operational());
+
+-- Shipments
+DROP POLICY IF EXISTS "Shipments view policy" ON public.shipments;
+CREATE POLICY "Shipments view policy" ON public.shipments FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_operational());
+
+DROP POLICY IF EXISTS "Shipments staff mutation" ON public.shipments;
+CREATE POLICY "Shipments staff mutation" ON public.shipments FOR ALL 
+  USING (public.is_operational());
+
+-- Shipment Tracking Events
+DROP POLICY IF EXISTS "Tracking events view policy" ON public.shipment_tracking_events;
+CREATE POLICY "Tracking events view policy" ON public.shipment_tracking_events FOR SELECT 
+  USING (EXISTS (SELECT 1 FROM public.shipments WHERE id = shipment_id AND (profile_id = auth.uid() OR public.is_operational())));
+
+DROP POLICY IF EXISTS "Tracking events staff insertion" ON public.shipment_tracking_events;
+CREATE POLICY "Tracking events staff insertion" ON public.shipment_tracking_events FOR INSERT 
+  WITH CHECK (public.is_operational());
+
+-- Pre-Alerts
+DROP POLICY IF EXISTS "Pre-alerts view policy" ON public.pre_alerts;
+CREATE POLICY "Pre-alerts view policy" ON public.pre_alerts FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_operational());
+
+DROP POLICY IF EXISTS "Pre-alerts customer insertion" ON public.pre_alerts;
+CREATE POLICY "Pre-alerts customer insertion" ON public.pre_alerts FOR INSERT 
+  WITH CHECK (auth.uid() = profile_id OR public.is_operational());
+
+DROP POLICY IF EXISTS "Pre-alerts staff update" ON public.pre_alerts;
+CREATE POLICY "Pre-alerts staff update" ON public.pre_alerts FOR UPDATE 
+  USING (public.is_operational());
+
+-- Ledger (Immutable)
+DROP POLICY IF EXISTS "Ledger view policy" ON public.financial_ledger;
+CREATE POLICY "Ledger view policy" ON public.financial_ledger FOR SELECT 
+  USING (auth.uid() = profile_id OR public.is_operational());
+
+DROP POLICY IF EXISTS "Ledger staff insertion" ON public.financial_ledger;
+CREATE POLICY "Ledger staff insertion" ON public.financial_ledger FOR INSERT 
+  WITH CHECK (public.is_operational());
+
+-- Audit/System (Staff & Admin Read)
+DROP POLICY IF EXISTS "System logs view policy" ON public.system_logs;
+CREATE POLICY "System logs view policy" ON public.system_logs FOR SELECT 
+  USING (public.is_operational());
+
+DROP POLICY IF EXISTS "Sent emails view policy" ON public.sent_emails;
+CREATE POLICY "Sent emails view policy" ON public.sent_emails FOR SELECT 
+  USING (public.is_operational());
+
+-- Configuration (Admin Only)
+DROP POLICY IF EXISTS "System configs admin policy" ON public.system_configs;
+CREATE POLICY "System configs admin policy" ON public.system_configs FOR ALL 
+  USING (public.is_admin());
