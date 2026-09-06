@@ -5,7 +5,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from "@/components/ui/toaster";
 import { AppContent } from '@/components/app-content';
 import { Inter } from 'next/font/google';
-import { FirebaseClientProvider } from '@/firebase';
+import SupabaseProvider from '@/components/supabase-provider';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -14,13 +14,11 @@ export const metadata: Metadata = {
     description: 'Your Bridge Between Florida & Jamaica for seamless, reliable, and affordable shipping services.',
 };
 
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-body antialiased`}>
@@ -30,11 +28,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <FirebaseClientProvider>
+          <SupabaseProvider>
             <AppContent>
               {children}
             </AppContent>
-          </FirebaseClientProvider>
+          </SupabaseProvider>
           <Toaster />
         </ThemeProvider>
       </body>

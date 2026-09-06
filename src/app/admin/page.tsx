@@ -2,25 +2,9 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  Users,
-  Inbox,
-  Truck,
-  ArrowRightCircle,
-  Loader2,
-  DollarSign,
-  Mail,
-  Plane,
-  Tag,
-  Calculator,
-  Settings,
-  TrendingUp,
-} from 'lucide-react';
-import { useMemo } from 'react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collectionGroup, query, collection } from 'firebase/firestore';
-import type { Shipment, PreAlert, UserProfile, Invoice, Transaction } from '@/lib/types';
-
+import { Users, Inbox, Truck, ArrowRightCircle, Loader2, DollarSign, Plane, Tag, Calculator, Settings, TrendingUp } from 'lucide-react';
+import { useMemo, useEffect, useState } from 'react';
+import { useSupabase } from '@/components/supabase-provider';
 
 const StatCard = ({ title, value, icon, color, href }: { title: string, value?: string, icon: React.ReactNode, color: string, href: string }) => {
     return (
@@ -48,80 +32,62 @@ const StatCard = ({ title, value, icon, color, href }: { title: string, value?: 
 };
 
 export default function DashboardPage() {
-    const firestore = useFirestore();
+    const { supabase } = useSupabase();
+    const [stats, setStats] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const preAlertsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collectionGroup(firestore, 'pre_alerts'));
-    }, [firestore]);
-    const { data: preAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
+    useEffect(() => {
+        const fetchStats = async () => {
+            const [
+                { count: pendingPreAlerts },
+                { count: totalShipments },
+                { count: totalUsers },
+                { data: ledgerData }
+            ] = await Promise.all([
+                supabase.from('pre_alerts').select('*', { count: 'exact', head: true }).eq('status', 'Pending'),
+                supabase.from('shipments').select('*', { count: 'exact', head: true }),
+                supabase.from('profiles').select('*', { count: 'exact', head: true }),
+                supabase.from('financial_ledger').select('amount')
+            ]);
 
-    const shipmentsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collectionGroup(firestore, 'shipments'));
-    }, [firestore]);
-    const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
+            const revenue = ledgerData?.filter(l => Number(l.amount) > 0).reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+            const netProfit = ledgerData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
 
-    const usersQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'users'));
-    }, [firestore]);
-    const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
-
-    const invoicesQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'invoices'));
-    }, [firestore]);
-    const { data: invoices, isLoading: isLoadingInvoices } = useCollection<Invoice>(invoicesQuery);
-
-    const transactionsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'transactions'));
-    }, [firestore]);
-    const { data: transactions, isLoading: isLoadingTransactions } = useCollection<Transaction>(transactionsQuery);
+            setStats({
+                pendingPreAlerts: pendingPreAlerts || 0,
+                totalShipments: totalShipments || 0,
+                totalUsers: totalUsers || 0,
+                revenue,
+                netProfit
+            });
+            setIsLoading(false);
+        };
+        fetchStats();
+    }, [supabase]);
 
     const dashboardItems = useMemo(() => {
-        const pendingPreAlerts = preAlerts?.filter(pa => pa.status === 'Pending').length ?? 0;
-        const totalShipments = shipments?.length ?? 0;
-        const totalUsers = users?.length ?? 0;
-
-        // Financial Calculations
-        const paidInvoices = invoices?.filter(inv => inv.status === 'Paid') || [];
-        const invoiceRevenue = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-        const manualRevenue = transactions?.filter(t => t.type === 'revenue').reduce((sum, t) => sum + t.amount, 0) || 0;
-        const manualExpenses = transactions?.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) || 0;
-
-        const totalRevenue = invoiceRevenue + manualRevenue;
-        const netProfit = totalRevenue - manualExpenses;
-
+        if (!stats) return [];
         return [
-            { title: 'Pending Pre-Alerts', value: pendingPreAlerts.toString(), icon: <Inbox size={100} />, color: 'bg-red-500', href: '/admin/pre-alerts' },
-            { title: 'Total Shipments', value: totalShipments.toString(), icon: <Truck size={100} />, color: 'bg-blue-500', href: '/admin/shipping' },
-            { title: 'Total Users', value: totalUsers.toString(), icon: <Users size={100} />, color: 'bg-amber-500', href: '/admin/users' },
-            { title: 'Total Revenue (JMD)', value: `JMD $${totalRevenue.toLocaleString()}`, icon: <TrendingUp size={100} />, color: 'bg-emerald-500', href: '/admin/finance' },
-            { title: 'Net Profit (JMD)', value: `JMD $${netProfit.toLocaleString()}`, icon: <DollarSign size={100} />, color: 'bg-cyan-500', href: '/admin/finance' },
-            { title: 'Communications', icon: <Mail size={100} />, color: 'bg-teal-500', href: '/admin/communications' },
+            { title: 'Pending Pre-Alerts', value: stats.pendingPreAlerts.toString(), icon: <Inbox size={100} />, color: 'bg-red-500', href: '/admin/pre-alerts' },
+            { title: 'Total Shipments', value: stats.totalShipments.toString(), icon: <Truck size={100} />, color: 'bg-blue-500', href: '/admin/shipping' },
+            { title: 'Total Users', value: stats.totalUsers.toString(), icon: <Users size={100} />, color: 'bg-amber-500', href: '/admin/users' },
+            { title: 'Total Revenue', value: `JMD $${stats.revenue.toLocaleString()}`, icon: <TrendingUp size={100} />, color: 'bg-emerald-500', href: '/admin/finance' },
+            { title: 'Net Ledger Standing', value: `JMD $${stats.netProfit.toLocaleString()}`, icon: <DollarSign size={100} />, color: 'bg-cyan-500', href: '/admin/finance' },
             { title: 'Flight Manifests', icon: <Plane size={100} />, color: 'bg-orange-500', href: '/admin/manifests' },
             { title: 'Courier Rates', icon: <Tag size={100} />, color: 'bg-indigo-500', href: '/admin/rates' },
             { title: 'Customs Calculator', icon: <Calculator size={100} />, color: 'bg-purple-500', href: '/admin/customs-calculator' },
             { title: 'Settings', icon: <Settings size={100} />, color: 'bg-slate-500', href: '/admin/settings' },
         ];
-    }, [shipments, users, preAlerts, invoices, transactions]);
-
-    const isLoading = isLoadingPreAlerts || isLoadingShipments || isLoadingUsers || isLoadingInvoices || isLoadingTransactions;
+    }, [stats]);
 
     return (
         <div className="flex flex-col gap-6">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
-                <p className="text-muted-foreground mt-1">Real-time statistics and management shortcuts.</p>
+                <p className="text-muted-foreground mt-1">Real-time statistics from Supabase PostgreSQL.</p>
             </div>
             {isLoading ? (
-                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {[...Array(10)].map((_, i) => (
-                        <div key={i} className="h-[140px] bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
-                    ))}
-                </div>
+                <div className="flex justify-center py-20"><Loader2 className="animate-spin h-10 w-10" /></div>
             ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {dashboardItems.map((item) => (
@@ -129,8 +95,8 @@ export default function DashboardPage() {
                     ))}
                 </div>
             )}
-             <div className="text-center text-muted-foreground text-sm mt-12 border-t pt-6">
-                Copyright © {new Date().getFullYear()} Developed By FromStore2Door. All rights reserved.
+            <div className="text-center text-muted-foreground text-sm mt-12 border-t pt-6 opacity-40 uppercase font-bold tracking-widest">
+                System Status: CUTOVER COMPLETE • ARCHIVAL FALLBACK READY
             </div>
         </div>
     );

@@ -1,22 +1,21 @@
+
 'use client';
 
-import { useEffect, type ReactNode, useState } from 'react';
+import { useEffect, type ReactNode, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase, useAuth } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
-import { UserProfile } from '@/lib/types';
+import { useSupabase } from '@/components/supabase-provider';
+import type { UserProfile } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
-import { Wallet, Menu, TrendingDown, Loader2, LogOut, RefreshCcw } from 'lucide-react';
+import { Wallet, Menu, TrendingDown, Loader2, LogOut } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-const UserProfileContext = createContext<UserProfile | null>(null);
+const UserProfileContext = createContext<{ profile: UserProfile | null; balance: number }>({ profile: null, balance: 0 });
 export const useAccountProfile = () => useContext(UserProfileContext);
 
 const accountNavLinks = [
@@ -27,74 +26,72 @@ const accountNavLinks = [
 ];
 
 export default function AccountLayout({ children }: { children: ReactNode }) {
+    const { supabase, user, isLoading: isAuthLoading } = useSupabase();
     const router = useRouter();
     const pathname = usePathname();
-    const { user, isUserLoading } = useUser();
-    const auth = useAuth();
-    const firestore = useFirestore();
     
-    const [isMounted, setIsMounted] = useState(false);
+    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [balance, setBalance] = useState(0);
+    const [isDataLoading, setIsDataLoading] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     useEffect(() => {
-        setIsMounted(true);
-    }, []);
-
-    const userProfileRef = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return doc(firestore, 'users', user.uid);
-    }, [firestore, user]);
-    
-    const { data: userProfile, isLoading: isProfileLoading, error: profileError } = useDoc<UserProfile>(userProfileRef);
-
-    useEffect(() => {
-        if (!isUserLoading && !user && isMounted) {
+        if (!isAuthLoading && !user) {
             router.push('/signin');
         }
-    }, [user, isUserLoading, router, isMounted]);
+    }, [user, isAuthLoading, router]);
 
-    // IDENTITY AUTO-REPAIR (Silent & Non-Blocking)
     useEffect(() => {
-        if (!isUserLoading && user && !isProfileLoading && !userProfile && isMounted && firestore && !profileError) {
-            const repairIdentity = async () => {
-                try {
-                    const mailbox = `FSTD-${user.uid.substring(0, 5).toUpperCase()}`;
-                    await setDoc(doc(firestore, 'users', user.uid), {
-                        id: user.uid,
-                        fullName: user.displayName || user.email?.split('@')[0] || 'Member',
-                        email: user.email || '',
-                        phone: 'N/A',
-                        trn: 'N/A',
-                        mailboxNumber: mailbox,
-                        address: {
-                            address1: '3507 NW 19th ST',
-                            address2: `${mailbox}-FSTD`,
-                            city: 'Lauderdale Lake',
-                            state: 'FL',
-                            zip: '33311-4224',
-                        },
-                        walletBalance: 0,
-                        createdAt: serverTimestamp(),
-                        needsPasswordReset: false,
-                        pickupPersonnel: [],
-                        dropoffAddresses: [],
-                    }, { merge: true });
-                } catch (e) {
-                    console.error("[IDENTITY REPAIR] FAILED:", e);
-                }
-            };
-            repairIdentity();
-        }
-    }, [user, isUserLoading, userProfile, isProfileLoading, isMounted, firestore, profileError]);
+        if (!user) return;
+
+        const fetchData = async () => {
+            setIsDataLoading(true);
+            try {
+                // Fetch Profile
+                const { data: profileData } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+                
+                setProfile(profileData);
+
+                // Fetch Balance from Ledger
+                const { data: ledgerData } = await supabase
+                    .from('financial_ledger')
+                    .select('amount')
+                    .eq('profile_id', user.id);
+                
+                const totalBalance = ledgerData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+                setBalance(totalBalance);
+            } catch (error) {
+                console.error('Error fetching account data:', error);
+            } finally {
+                setIsDataLoading(false);
+            }
+        };
+
+        fetchData();
+
+        // Real-time Ledger Updates for Balance
+        const channel = supabase
+            .channel('ledger-updates')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'financial_ledger', filter: `profile_id=eq.${user.id}` }, () => {
+                fetchData();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, supabase]);
 
     const handleSignOut = async () => {
-        if (auth) {
-            await signOut(auth);
-            window.location.href = '/signin';
-        }
+        await supabase.auth.signOut();
+        router.push('/signin');
     };
 
-    if (isUserLoading || !isMounted) {
+    if (isAuthLoading || (user && isDataLoading)) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-6" />
@@ -104,33 +101,13 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         );
     }
 
-    if (!user) return null;
-
-    // Use safe fallback values to prevent "Session Sync Failure" crashes
-    const safeProfile: UserProfile = userProfile || {
-        id: user.uid,
-        fullName: user.displayName || 'Valued Member',
-        email: user.email || '',
-        phone: '...',
-        mailboxNumber: 'FSTD-SYNC',
-        trn: '...',
-        address: { 
-          address1: '3507 NW 19th ST', 
-          address2: 'HUB-SYNC', 
-          city: 'Lauderdale Lake', 
-          state: 'FL', 
-          zip: '33311-4224' 
-        },
-        walletBalance: 0,
-        createdAt: null
-    };
+    if (!user || !profile) return null;
 
     const isSecurityPage = pathname === '/account/change-password';
-    const walletBalance = safeProfile.walletBalance || 0;
-    const isIndebted = walletBalance < 0;
+    const isIndebted = balance < 0;
 
     return (
-        <UserProfileContext.Provider value={safeProfile}>
+        <UserProfileContext.Provider value={{ profile, balance }}>
             <div className="min-h-screen bg-muted/20">
                 <div className="bg-background border-b shadow-sm sticky top-0 z-40 print:hidden">
                     <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-2">
@@ -186,7 +163,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                                             "text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate",
                                             isIndebted ? "text-red-600" : "text-foreground"
                                         )}>
-                                            JMD ${Math.abs(walletBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            JMD ${Math.abs(balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </span>
                                     </div>
                                 </div>

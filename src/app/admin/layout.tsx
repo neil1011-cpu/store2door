@@ -1,120 +1,62 @@
 
 'use client';
 
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarInset,
-  SidebarTrigger,
-  SidebarFooter,
-} from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger, SidebarFooter } from '@/components/ui/sidebar';
 import Link from 'next/link';
-import {
-  LayoutDashboard,
-  Users,
-  Package,
-  Settings,
-  LogOut,
-  Loader2,
-  Inbox,
-  Truck,
-  DollarSign,
-  Mail,
-  Plane,
-  Tag,
-  Calculator,
-  Bell,
-  DatabaseZap,
-  ShoppingCart,
-  History,
-} from 'lucide-react';
+import { LayoutDashboard, Users, Package, Settings, LogOut, Loader2, Inbox, Truck, DollarSign, Mail, Plane, Tag, Calculator, Bell, DatabaseZap, ShoppingCart, History } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, type ReactNode } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { signOut } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useSupabase } from '@/components/supabase-provider';
 import { Notifications } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 function AdminAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
-  const { toast } = useToast();
-
-  const adminRoleRef = useMemoFirebase(
-    () => {
-      if (!firestore || !user) return null;
-      return doc(firestore, 'admin_roles', user.uid);
-    },
-    [firestore, user]
-  );
-
-  const {
-    data: adminRoleDoc,
-    isLoading: isAdminLoading,
-    error: adminError,
-  } = useDoc(adminRoleRef);
+  const { supabase, user, isLoading } = useSupabase();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(true);
 
   useEffect(() => {
-    if (isUserLoading || isAdminLoading) return;
-
+    if (isLoading) return;
     if (!user) {
       router.replace('/admin-login');
       return;
     }
 
-    // Fail-Safe: admin@neilussolutions.com is the Master Admin
-    const isMasterAdmin = user.email === 'admin@neilussolutions.com';
-    const hasAdminDoc = !!adminRoleDoc;
-
-    if (!isMasterAdmin && !hasAdminDoc && !adminError) {
-        toast({
-          title: 'Access Denied',
-          description: "Administrator privileges required. Use the recovery tool at /setup-admin if needed.",
-          variant: 'destructive',
-        });
+    const checkRole = async () => {
+      const { data } = await supabase.rpc('is_admin');
+      if (data) {
+        setIsAdmin(true);
+      } else {
         router.replace('/admin-login');
-    }
-  }, [isUserLoading, isAdminLoading, adminRoleDoc, adminError, adminRoleRef, router, toast, user]);
+      }
+      setIsVerifying(false);
+    };
+    checkRole();
+  }, [user, isLoading, supabase, router]);
 
-  if (isUserLoading || isAdminLoading) {
+  if (isLoading || isVerifying) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background text-center p-6">
+      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <div className="space-y-1">
-            <p className="text-lg font-black uppercase italic tracking-tighter">Authorizing Admin Session</p>
-            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">Checking credentials...</p>
-        </div>
+        <p className="text-lg font-black uppercase italic">Authorizing Admin Session</p>
       </div>
     );
   }
   
-  const isAuthorized = adminRoleDoc || user?.email === 'admin@neilussolutions.com';
-  if (!user || !isAuthorized) return null;
+  if (!isAdmin) return null;
 
   return <>{children}</>;
 }
 
-export default function AdminLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  const auth = useAuth();
-  const { user } = useUser();
+export default function AdminLayout({ children }: { children: ReactNode }) {
+  const { supabase, user } = useSupabase();
   const pathname = usePathname();
   const router = useRouter();
 
   const handleSignOut = async () => {
-    await signOut(auth);
+    await supabase.auth.signOut();
     router.replace('/admin-login');
   };
 
@@ -131,7 +73,6 @@ export default function AdminLayout({
     { href: "/admin/customs-calculator", icon: <Calculator />, label: "Calculator" },
     { href: "/admin/logs", icon: <History />, label: "Activity Logs" },
     { href: "/admin/notifications", icon: <Bell />, label: "Notifications" },
-    { href: "/admin/migration", icon: <DatabaseZap />, label: "Migration" },
     { href: "/admin/settings", icon: <Settings />, label: "Settings" },
   ];
 
@@ -142,13 +83,13 @@ export default function AdminLayout({
           <SidebarHeader className="p-4">
              <div className="flex items-center gap-3 p-1">
                   <Avatar className="h-9 w-9 border-2 border-primary/20">
-                      <AvatarImage src={user?.photoURL || undefined} />
+                      <AvatarImage src={user?.user_metadata?.avatar_url} />
                       <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                         {user?.email?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                   </Avatar>
                   <div className="text-sm overflow-hidden">
-                      <div className="font-bold truncate">{user?.displayName || 'Admin'}</div>
+                      <div className="font-bold truncate">{user?.user_metadata?.full_name || 'Admin'}</div>
                       <div className="text-muted-foreground text-[10px] truncate">{user?.email}</div>
                   </div>
               </div>
@@ -168,30 +109,20 @@ export default function AdminLayout({
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-4 border-t">
-              <SidebarMenu>
-                  <SidebarMenuItem>
-                     <SidebarMenuButton variant="outline" onClick={handleSignOut} className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/5">
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Sign Out
-                     </SidebarMenuButton>
-                  </SidebarMenuItem>
-              </SidebarMenu>
+            <Button variant="ghost" onClick={handleSignOut} className="w-full justify-start text-destructive hover:bg-destructive/5 font-bold">
+                <LogOut className="mr-2 h-4 w-4" /> Sign Out
+            </Button>
           </SidebarFooter>
         </Sidebar>
         <SidebarInset>
           <header className="flex h-16 items-center gap-4 border-b bg-background px-6 sticky top-0 z-30">
             <SidebarTrigger />
-            <div className="h-6 w-px bg-border mx-2 hidden md:block" />
-            <div className="text-sm font-bold tracking-tight uppercase text-muted-foreground hidden md:block">
-              FromStore2Door Admin
-            </div>
+            <div className="text-sm font-bold tracking-tight uppercase text-muted-foreground hidden md:block">FromStore2Door Admin</div>
             <div className="flex-1" />
-             <ThemeToggle />
-             <Notifications />
+            <ThemeToggle />
+            <Notifications />
           </header>
-          <main className="flex-1 p-6 lg:p-8 max-w-[1600px] mx-auto w-full">
-            {children}
-          </main>
+          <main className="flex-1 p-6 lg:p-8 max-w-[1600px] mx-auto w-full">{children}</main>
         </SidebarInset>
       </SidebarProvider>
     </AdminAuthGuard>

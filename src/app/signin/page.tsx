@@ -5,14 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -20,126 +13,73 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useSupabase } from '@/components/supabase-provider';
 
 const formSchema = z.object({
-  email: z.string().email({ message: 'Please enter a valid email address.' }),
-  password: z.string().min(1, { message: 'Password is required.' }),
+  email: z.string().email({ message: 'Enter valid email.' }),
+  password: z.string().min(1, { message: 'Password required.' }),
 });
 
 export default function SignInPage() {
+  const { supabase } = useSupabase();
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const auth = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    
-    try {
-        await signInWithEmailAndPassword(auth!, values.email, values.password);
-        toast({
-          title: 'Sign In Successful!',
-          description: 'Welcome back! Redirecting to your account...',
-        });
-        router.push('/account');
-    } catch (error: any) {
-        console.error("Sign in error:", error);
-        toast({
-            title: 'Sign In Failed',
-            description: error.message || 'Invalid email or password.',
-            variant: 'destructive',
-        });
-    }
+    const { error } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+    });
 
-    setLoading(false);
+    if (error) {
+        toast({ title: 'Sign In Failed', description: error.message, variant: 'destructive' });
+        setLoading(false);
+    } else {
+        toast({ title: 'Welcome Back!' });
+        router.push('/account');
+    }
   };
 
   return (
-    <div className="container mx-auto py-12 px-4 md:px-6 max-w-lg">
+    <div className="container mx-auto py-12 px-4 max-w-lg">
       <Card>
         <CardHeader>
           <CardTitle className="text-3xl">Sign In</CardTitle>
-          <CardDescription>
-            Welcome back! Access your account dashboard.
-          </CardDescription>
+          <CardDescription>Access your Supabase-powered dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email Address</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center">
-                        <FormLabel>Password</FormLabel>
-                        <Link
-                            href="/forgot-password"
-                            className="ml-auto inline-block text-sm text-primary hover:underline"
-                        >
-                            Forgot your password?
-                        </Link>
-                    </div>
+              <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="you@example.com" {...field} /></FormControl><FormMessage /></FormItem>
+              )}/>
+              <FormField control={form.control} name="password" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Password</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          <span className="sr-only">
-                            {showPassword ? "Hide password" : "Show password"}
-                          </span>
+                        <Input type={showPassword ? "text" : "password"} {...field} />
+                        <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full" onClick={() => setShowPassword(!showPassword)}>
+                          {showPassword ? <EyeOff /> : <Eye />}
                         </Button>
                       </div>
                     </FormControl>
                     <FormMessage />
-                  </FormItem>
-                )}
-              />
+                </FormItem>
+              )}/>
               <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                 {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing In...</> : 'Sign In'}
+                 {loading ? <Loader2 className="animate-spin" /> : 'Sign In'}
               </Button>
             </form>
           </Form>
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href="/signup" className="font-semibold text-primary hover:underline">
-              Sign Up
-            </Link>
-          </p>
         </CardContent>
       </Card>
     </div>
