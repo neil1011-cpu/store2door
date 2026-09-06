@@ -63,12 +63,11 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized: Only administrators can manage roles.';
   END IF;
 
-  -- Ensure target user actually exists in the system
+  -- Verify target exists
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = target_user_id) THEN
-    RAISE EXCEPTION 'Target user not found.';
+    RAISE EXCEPTION 'Target user not found in profiles registry.';
   END IF;
 
-  -- Atomic role assignment
   INSERT INTO public.app_roles (user_id, role)
   VALUES (target_user_id, new_role)
   ON CONFLICT (user_id, role) DO NOTHING;
@@ -81,9 +80,10 @@ RETURNS trigger AS $$
 DECLARE
   new_mailbox_num text;
 BEGIN
+  -- Generate thread-safe mailbox number
   new_mailbox_num := 'FSTD' || nextval('public.mailbox_seq');
 
-  -- Create Profile
+  -- 1. Create Profile
   INSERT INTO public.profiles (id, full_name, mailbox_number)
   VALUES (
     new.id,
@@ -91,7 +91,7 @@ BEGIN
     new_mailbox_num
   );
 
-  -- Assign Default Role
+  -- 2. Assign Default Customer Role
   INSERT INTO public.app_roles (user_id, role)
   VALUES (new.id, 'customer');
 
@@ -106,7 +106,7 @@ BEGIN
   new.updated_at = now();
   RETURN new;
 END;
-$$ LANGUAGE plpgsql SET search_path = pg_catalog, public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public;
 
 -- 9. Triggers Execution
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
@@ -119,28 +119,28 @@ CREATE TRIGGER on_profile_update
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.update_profile_timestamp();
 
--- 10. Explicit Permission Management
--- REVOKE from PUBLIC (default) for managed functions
+-- 10. Role and Object Privileges
+-- Explicitly revoke and grant for isolation
+
+-- Functions
 REVOKE EXECUTE ON FUNCTION public.is_admin() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.has_role(public.user_role) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.manage_user_role(uuid, public.user_role) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.update_profile_timestamp() FROM PUBLIC;
 
--- GRANT EXECUTE only to necessary roles
 GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.has_role(public.user_role) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.manage_user_role(uuid, public.user_role) TO authenticated;
 
--- Table Privileges
+-- Tables
 REVOKE ALL ON public.profiles FROM authenticated;
 REVOKE ALL ON public.app_roles FROM authenticated;
 
 GRANT SELECT ON public.profiles TO authenticated;
 GRANT SELECT ON public.app_roles TO authenticated;
 
--- Column-level Update Security
--- Only non-system fields are writable by the client
+-- Column-level Update Security for Profiles
 GRANT UPDATE (full_name, phone) ON public.profiles TO authenticated;
 
 -- 11. Row Level Security Policies
