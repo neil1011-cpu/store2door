@@ -8,9 +8,9 @@ export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Defensive fallback to prevent "Invalid supabaseUrl" crash
-  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder-project.supabase.co';
-  const finalKey = key || '';
+  // Defensive fallback to prevent "Invalid supabaseUrl" crash during build/init
+  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder.supabase.co';
+  const finalKey = key || 'placeholder-key';
 
   return createBrowserClient(finalUrl, finalKey);
 }

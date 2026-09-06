@@ -9,8 +9,8 @@ export async function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder-project.supabase.co';
-  const finalKey = key || '';
+  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder.supabase.co';
+  const finalKey = key || 'placeholder-key';
 
   return createServerClient(
     finalUrl,
@@ -36,13 +36,14 @@ export async function createClient() {
 
 /**
  * Creates an administrative Supabase client using the Secret Key.
+ * Used strictly in Server Actions or API Routes.
  */
 export async function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
 
-  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder-project.supabase.co';
-  const finalKey = key || '';
+  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder.supabase.co';
+  const finalKey = key || 'placeholder-key';
 
   return createServerClient(
     finalUrl,

@@ -26,8 +26,8 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // Validate configuration - checking for placeholder strings or empty values
-    if (!url || !url.startsWith('http') || url.includes('your_project_url') || !key || key.includes('your_anon_key')) {
+    // Validate configuration
+    if (!url || !url.startsWith('http') || url.includes('placeholder') || !key || key === 'placeholder-key') {
       setIsConfigMissing(true);
       setIsLoading(false);
       return;
