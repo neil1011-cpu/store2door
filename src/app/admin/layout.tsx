@@ -1,4 +1,3 @@
-
 'use client';
 
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger, SidebarFooter } from '@/components/ui/sidebar';
@@ -10,6 +9,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useSupabase } from '@/components/supabase-provider';
 import { Notifications } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Button } from '@/components/ui/button';
 
 function AdminAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
