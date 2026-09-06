@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
@@ -27,7 +28,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
     // Validate configuration
-    if (!url || !url.startsWith('http') || url.includes('your_project_url') || !key || key.includes('your_anon_key')) {
+    if (!url || !url.startsWith('http') || url.includes('your_supabase_project_url') || !key || key.includes('your_supabase_public_anon_key')) {
       setIsConfigMissing(true);
       setIsLoading(false);
       return;
@@ -64,7 +65,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
             <div className="p-4 bg-orange-50 border border-dashed border-orange-200 rounded-xl flex gap-3">
               <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0" />
               <p className="text-[11px] font-bold text-orange-800 uppercase leading-relaxed">
-                To activate the Global Logistics OS, you must define your Supabase Project credentials in the environment settings.
+                To activate the Global Logistics OS, you must define your Supabase Project credentials in the environment settings (.env file).
               </p>
             </div>
 
