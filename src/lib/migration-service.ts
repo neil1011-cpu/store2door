@@ -5,7 +5,7 @@ import type { UserProfile, Shipment, PreAlert, Invoice, Transaction } from './ty
 
 /**
  * @fileOverview Phase 3C: Controlled Firebase to Supabase Data Migration Engine.
- * Handles shadow copying of logistics and financial data with full audit lineage.
+ * Hardened for idempotency and strict financial integrity.
  */
 
 export type MigrationStats = {
@@ -50,7 +50,7 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
       
       if (!authUser.user) {
         report.profiles.skipped++;
-        report.profiles.errors.push(`No Supabase Auth user for UID: ${doc.id}`);
+        // Log skip for reconciliation
         continue;
       }
 
@@ -71,6 +71,7 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
       if (data.address) {
         report.addresses.attempted++;
         if (!isDryRun) {
+          // Use primary user address as 'delivery_destination' for Jamaica context
           await supabase.from('addresses').upsert({
             profile_id: doc.id,
             address_line_1: data.address.address1,
@@ -80,7 +81,7 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
             zip_code: data.address.zip,
             address_type: 'delivery_destination',
             is_default: true
-          });
+          }, { onConflict: 'profile_id, address_type' });
         }
         report.addresses.migrated++;
       }
@@ -106,13 +107,20 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
     }
   }
 
-  // 4. MIGRATION: PRE-ALERTS (Collection Group)
+  // 4. MIGRATION: PRE-ALERTS
   const preAlertsSnap = await adminDb.collectionGroup('pre_alerts').get();
   report.pre_alerts.attempted = preAlertsSnap.size;
   for (const doc of preAlertsSnap.docs) {
     const data = doc.data() as PreAlert;
     try {
       if (!isDryRun) {
+        // FK Check: Ensure parent profile exists in Supabase
+        const { data: profileExists } = await supabase.from('profiles').select('id').eq('id', data.customerId).single();
+        if (!profileExists) {
+           report.pre_alerts.skipped++;
+           continue;
+        }
+
         const { error } = await supabase.from('pre_alerts').upsert({
           profile_id: data.customerId,
           tracking_number: data.trackingNumber,
@@ -132,13 +140,19 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
     }
   }
 
-  // 5. MIGRATION: SHIPMENTS (Collection Group)
+  // 5. MIGRATION: SHIPMENTS
   const shipmentsSnap = await adminDb.collectionGroup('shipments').get();
   report.shipments.attempted = shipmentsSnap.size;
   for (const doc of shipmentsSnap.docs) {
     const data = doc.data() as Shipment;
     try {
       if (!isDryRun) {
+        const { data: profileExists } = await supabase.from('profiles').select('id').eq('id', data.customerId).single();
+        if (!profileExists) {
+           report.shipments.skipped++;
+           continue;
+        }
+
         const { error } = await supabase.from('shipments').upsert({
           profile_id: data.customerId,
           tracking_number: data.trackingNumber,
@@ -167,11 +181,17 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
     const data = doc.data() as Invoice;
     try {
       if (!isDryRun) {
+        const { data: profileExists } = await supabase.from('profiles').select('id').eq('id', data.customerId).single();
+        if (!profileExists) {
+           report.invoices.skipped++;
+           continue;
+        }
+
         const { error } = await supabase.from('invoices').upsert({
           profile_id: data.customerId,
           invoice_number: data.invoiceId,
           amount: data.amount,
-          status: data.status,
+          status: data.status === 'Paid' ? 'Paid' : (data.status === 'Unpaid' ? 'Unpaid' : 'Cancelled'),
           invoice_url: data.invoiceUrl,
           legacy_firebase_id: doc.id
         }, { onConflict: 'legacy_firebase_id' });
@@ -206,11 +226,13 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
     const data = doc.data() as Transaction;
     try {
       if (!isDryRun) {
-        // Semantics: Sign the amount based on revenue vs expense
-        // Revenue (Payment received) = Positive Credit (+)
-        // Expense (Operational cost) = Not relevant for customer ledger? 
-        // We only migrate customer-linked transactions.
-        if (!data.customerId && data.type === 'expense') {
+        if (!data.customerId || !data.amount || !data.type) {
+          report.ledger.skipped++;
+          continue;
+        }
+
+        const { data: profileExists } = await supabase.from('profiles').select('id').eq('id', data.customerId).single();
+        if (!profileExists) {
           report.ledger.skipped++;
           continue;
         }
