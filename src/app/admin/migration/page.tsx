@@ -2,245 +2,164 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import {
-  Loader2,
-  DatabaseZap,
-  CheckCircle2,
-  Trash2,
-  ShieldAlert,
-  AlertTriangle,
-  MapPin,
-  RefreshCw
-} from 'lucide-react';
+import { Loader2, DatabaseZap, CheckCircle2, AlertTriangle, ShieldAlert, TableProperties, Play, SearchCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth } from '@/firebase';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
-import { getDocs, collection, updateDoc } from 'firebase/firestore';
-import { cn } from '@/lib/utils';
-import { 
-    AlertDialog, 
-    AlertDialogAction, 
-    AlertDialogCancel, 
-    AlertDialogContent, 
-    AlertDialogDescription, 
-    AlertDialogFooter, 
-    AlertDialogHeader, 
-    AlertDialogTitle, 
-    AlertDialogTrigger 
-} from '@/components/ui/alert-dialog';
-
-const NEW_DEFAULT_ADDRESS = {
-    address1: '3507 NW 19th ST',
-    city: 'Lauderdale Lake',
-    state: 'FL',
-    zip: '33311-4224',
-};
+import { Badge } from '@/components/ui/badge';
+import type { GlobalMigrationReport } from '@/lib/migration-service';
 
 export default function MigrationPage() {
   const { toast } = useToast();
   const auth = useAuth();
-  const firestore = useFirestore();
 
-  const [isPurging, setIsPurging] = useState(false);
-  const [isUpdatingAddresses, setIsUpdatingAddresses] = useState(false);
-  const [logs, setLogs] = useState<{message: string, type: 'success' | 'error' | 'info' | 'purge'}[]>([]);
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [report, setReport] = useState<GlobalMigrationReport | null>(null);
+  const [isDryRun, setIsDryRun] = useState(true);
 
-  const runPurgeReset = async () => {
-    setIsPurging(true);
-    setLogs([{ message: "INITIATING GLOBAL SYSTEM PURGE PROTOCOL...", type: 'purge' }]);
-    
+  const startMigration = async (dryRun: boolean) => {
+    setIsMigrating(true);
+    setIsDryRun(dryRun);
     try {
-      const currentUser = auth?.currentUser;
-      if (!currentUser) throw new Error('Administrative authorization required.');
-      const idToken = await currentUser.getIdToken(true);
-
-      const res = await fetch('/api/admin/purge-users', {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${idToken}`,
-          }
+      const idToken = await auth?.currentUser?.getIdToken(true);
+      const res = await fetch('/api/admin/migration/run', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ isDryRun: dryRun })
       });
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.message || 'System reset protocol failed.');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Migration failed');
 
-      setLogs(prev => [...prev, { message: `SUCCESS: Permanently removed ${result.deletedCount} user accounts.`, type: 'success' }]);
-      setLogs(prev => [...prev, { message: "MAILBOX COUNTER RESET TO FSTD101.", type: 'info' }]);
-      
-      toast({ title: "System Cleared", description: "All client registries have been purged and mailbox sequence reset." });
-      
-      // Refresh the page after a short delay to update real-time views
-      setTimeout(() => window.location.reload(), 2000);
-      
+      setReport(data.report);
+      toast({ 
+        title: dryRun ? "Dry Run Complete" : "Migration Complete", 
+        description: dryRun ? "Review the counts before authorizing actual writes." : "Shadow copy successful." 
+      });
     } catch (err: any) {
-      setLogs(prev => [...prev, { message: `CRITICAL SYSTEM ERROR: ${err.message}`, type: 'error' }]);
-      toast({ title: 'Purge Aborted', description: err.message, variant: 'destructive' });
+      toast({ title: 'Migration Error', description: err.message, variant: 'destructive' });
     } finally {
-      setIsPurging(false);
+      setIsMigrating(false);
     }
   };
 
-  const updateAllUserAddresses = async () => {
-      if (!firestore) return;
-      setIsUpdatingAddresses(true);
-      setLogs([{ message: "SYNCING ALL CLIENT ADDRESSES TO LAUDERDALE LAKE HUB...", type: 'info' }]);
-      try {
-          const snapshot = await getDocs(collection(firestore, 'users'));
-          const total = snapshot.size;
-          setProgress({ current: 0, total });
-
-          for (const userDoc of snapshot.docs) {
-              const data = userDoc.data();
-              const mailbox = data.mailboxNumber || 'HUB';
-              
-              await updateDoc(userDoc.ref, {
-                  address: {
-                      ...NEW_DEFAULT_ADDRESS,
-                      address2: `${mailbox}-FSTD`,
-                  }
-              });
-
-              setLogs(prev => [...prev, { message: `MIGRATED: ${mailbox}`, type: 'success' }]);
-              setProgress(prev => ({ ...prev, current: prev.current + 1 }));
-          }
-
-          toast({ title: "Address Sync Complete", description: `Successfully updated ${total} worldwide shipping profiles.` });
-      } catch (err: any) {
-          toast({ title: "Batch Sync Failed", description: err.message, variant: "destructive" });
-      } finally {
-          setIsUpdatingAddresses(false);
-      }
-  };
-
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6 pb-20">
-      <Card className="border-t-4 border-t-primary shadow-2xl overflow-hidden rounded-2xl">
-        <CardHeader className="bg-muted/10 pb-8">
-          <div className="flex items-center gap-4">
-              <div className="bg-primary/10 p-3 rounded-xl"><DatabaseZap className="h-8 w-8 text-primary" /></div>
-              <div>
-                  <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Administrative Migration & Reset</CardTitle>
-                  <CardDescription className="font-bold text-[10px] uppercase tracking-widest">Global Logistics OS Control Console</CardDescription>
-              </div>
-          </div>
-        </CardHeader>
+    <div className="max-w-6xl mx-auto flex flex-col gap-6 pb-20">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter">Phase 3: Data Migration</h1>
+          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Firebase → Supabase Shadow Copy Registry</p>
+        </div>
+        <div className="flex gap-2">
+            <Button onClick={() => startMigration(true)} disabled={isMigrating} variant="outline" className="font-bold border-2">
+                {isMigrating && isDryRun ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchCode className="mr-2 h-4 w-4" />}
+                Run Validation Pass
+            </Button>
+            <Button onClick={() => startMigration(false)} disabled={isMigrating} className="font-black uppercase italic shadow-lg">
+                {isMigrating && !isDryRun ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                Authorize Live Migration
+            </Button>
+        </div>
+      </div>
 
-        <CardContent className="space-y-8 pt-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Database Purification</Label>
-                <Card className="border-destructive/20 bg-destructive/5">
-                    <CardHeader className="p-4 pb-2">
-                        <CardTitle className="text-sm font-black uppercase italic text-destructive flex items-center gap-2">
-                            <Trash2 className="h-4 w-4" /> Global Registry Purge
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                        <p className="text-[10px] font-medium leading-relaxed opacity-70">
-                            Permanently removes every non-admin user record and history. 
-                            Resets the automated mailbox sequence to FSTD101.
-                        </p>
-                    </CardContent>
-                    <CardFooter className="p-4 pt-0">
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" size="sm" className="w-full font-black uppercase italic text-[10px] h-10 shadow-lg" disabled={isPurging || isUpdatingAddresses}>
-                                    Initiate Full System Wipe
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter italic text-center">Confirm Irreversible Reset</AlertDialogTitle>
-                                    <AlertDialogDescription className="font-medium uppercase text-[10px] tracking-widest leading-relaxed text-center">
-                                        This protocol will permanently delete every client record, shipping history, and credential unless they are marked as an administrator. 
-                                        This action is final and non-recoverable.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <div className="p-6 bg-red-50 border-2 border-dashed border-red-200 rounded-2xl flex gap-4 items-center">
-                                    <AlertTriangle className="h-12 w-12 text-red-600 shrink-0 animate-pulse" />
-                                    <p className="text-[10px] font-black text-red-800 uppercase leading-relaxed">
-                                        Mailbox numbering will restart at FSTD101. All historical invoices, transits, and pre-alerts will be purged from the worldwide database.
-                                    </p>
-                                </div>
-                                <AlertDialogFooter className="gap-2">
-                                    <AlertDialogCancel className="font-bold uppercase h-12">Cancel Abort</AlertDialogCancel>
-                                    <AlertDialogAction onClick={runPurgeReset} className="bg-destructive text-white font-black uppercase italic tracking-tight h-12 flex-1 shadow-lg">Authorize Full Wipe Now</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    </CardFooter>
-                </Card>
-             </div>
-
-             <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Infrastructure Maintenance</Label>
-                <Card className="border-blue-200 bg-blue-50/30">
-                    <CardHeader className="p-4 pb-2">
-                        <CardTitle className="text-sm font-black uppercase italic text-blue-700 flex items-center gap-2">
-                            <MapPin className="h-4 w-4" /> Lauderdale Lake Migration
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                        <p className="text-[10px] font-medium leading-relaxed opacity-70">
-                            Updates all existing user shipping addresses to our current Florida target: 
-                            3507 NW 19th ST, Lauderdale Lake, FL.
-                        </p>
-                    </CardContent>
-                    <CardFooter className="p-4 pt-0">
-                        <Button onClick={updateAllUserAddresses} variant="outline" size="sm" className="w-full font-black uppercase italic text-[10px] h-10 border-blue-200 text-blue-700 hover:bg-blue-100" disabled={isPurging || isUpdatingAddresses}>
-                            Force Address Synchronization
-                        </Button>
-                    </CardFooter>
-                </Card>
-             </div>
-          </div>
-
-          {(isPurging || isUpdatingAddresses) && (
-            <div className="space-y-4 py-4 bg-muted/20 p-6 rounded-2xl border-2 border-dashed">
-              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                <span>Registry Progress: {progress.current} / {progress.total}</span>
-                <span className="animate-pulse text-primary italic">Processing Global Data...</span>
-              </div>
-              <Progress value={progress.total > 0 ? (progress.current / progress.total) * 100 : 100} className="h-3 bg-muted" />
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase opacity-60 tracking-widest">System Activity Diagnostic Console</Label>
-            <ScrollArea className="h-[250px] w-full rounded-2xl border-2 bg-zinc-950 p-4 shadow-inner">
-                {logs.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-zinc-700 opacity-30"><Loader2 className="h-5 w-5 animate-spin mb-2" /><p className="text-[9px] uppercase font-black">Awaiting Administrative Instruction...</p></div>
-                ) : (
-                    <div className="space-y-1 font-mono text-[10px]">
-                        {logs.map((log, i) => (
-                            <div key={i} className={cn(
-                                log.type === 'success' ? 'text-green-400' : 
-                                log.type === 'error' ? 'text-red-400' : 
-                                log.type === 'purge' ? 'text-orange-400 font-black italic underline' : 'text-zinc-500'
-                            )}>
-                                [{new Date().toLocaleTimeString()}] {log.type === 'success' ? '✓ ' : log.type === 'error' ? '✗ ' : '○ '}
-                                {log.message}
-                            </div>
-                        ))}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+            <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
+                <CardHeader className="bg-muted/10 border-b">
+                    <CardTitle className="text-sm font-black uppercase tracking-widest italic">Migration Matrix</CardTitle>
+                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Reconciliation between Source and Target counts.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-muted/30 border-b h-12">
+                                    <th className="pl-6 text-left font-black uppercase text-[10px]">Entity</th>
+                                    <th className="text-center font-black uppercase text-[10px]">Attempted</th>
+                                    <th className="text-center font-black uppercase text-[10px]">Migrated</th>
+                                    <th className="text-center font-black uppercase text-[10px]">Skipped</th>
+                                    <th className="pr-6 text-right font-black uppercase text-[10px]">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {report ? Object.entries(report).map(([key, stats]) => (
+                                    <tr key={key} className="border-b h-16 hover:bg-muted/5">
+                                        <td className="pl-6 font-bold uppercase italic text-xs">{key.replace('_', ' ')}</td>
+                                        <td className="text-center font-mono">{stats.attempted}</td>
+                                        <td className="text-center font-mono text-green-600">{stats.migrated}</td>
+                                        <td className="text-center font-mono text-orange-600">{stats.skipped}</td>
+                                        <td className="pr-6 text-right">
+                                            {stats.failed > 0 ? (
+                                                <Badge variant="destructive">FAIL ({stats.failed})</Badge>
+                                            ) : stats.attempted > 0 ? (
+                                                <Badge className="bg-green-500">PASS</Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="opacity-30">IDLE</Badge>
+                                            )}
+                                        </td>
+                                    </tr>
+                                )) : (
+                                    <tr><td colSpan={5} className="h-64 text-center text-muted-foreground italic">No migration data to display. Run validation pass.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
-                )}
-            </ScrollArea>
-          </div>
-        </CardContent>
-      </Card>
+                </CardContent>
+            </Card>
+        </div>
+
+        <div className="lg:col-span-1 space-y-6">
+            <Card className="border-none shadow-lg bg-zinc-950 text-white rounded-2xl overflow-hidden">
+                <CardHeader className="pb-4">
+                    <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">System Log Console</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <ScrollArea className="h-[400px] w-full p-4 font-mono text-[10px]">
+                        {report ? (
+                            <div className="space-y-2">
+                                <p className="text-primary italic">[{new Date().toLocaleTimeString()}] RECONCILIATION COMPLETE.</p>
+                                {Object.entries(report).flatMap(([entity, stats]) => 
+                                    stats.errors.map((err, i) => (
+                                        <p key={`${entity}-${i}`} className="text-red-400">
+                                            [ERROR] {entity.toUpperCase()}: {err}
+                                        </p>
+                                    ))
+                                )}
+                                {report.profiles.migrated === 0 && (
+                                    <div className="p-4 border border-dashed border-red-500/30 bg-red-500/10 rounded-xl">
+                                        <p className="text-red-400 font-bold">CRITICAL: Identity Mismatch</p>
+                                        <p className="opacity-60 leading-relaxed mt-1">No Firebase UIDs found in Supabase Auth. Profiles migration skipped.</p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full opacity-20">
+                                <DatabaseZap className="h-8 w-8 mb-2" />
+                                <p>Awaiting Trigger...</p>
+                            </div>
+                        )}
+                    </ScrollArea>
+                </CardContent>
+            </Card>
+
+            <div className="p-6 rounded-2xl border-2 border-dashed border-primary/20 bg-primary/5 space-y-4">
+                <div className="flex items-center gap-3">
+                    <ShieldAlert className="h-6 w-6 text-primary" />
+                    <p className="text-xs font-black uppercase italic tracking-tighter">Hardened Identity Rule</p>
+                </div>
+                <p className="text-[10px] font-medium leading-relaxed opacity-70">
+                    Migration logic enforces strict **Auth Alignment**. Firebase Profiles will only be copied if a matching UID exists in the Supabase Auth Registry.
+                </p>
+            </div>
+        </div>
+      </div>
     </div>
   );
 }
