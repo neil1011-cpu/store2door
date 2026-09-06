@@ -1,10 +1,8 @@
-
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Refreshes the Supabase session and updates cookies.
- * This is called by middleware.ts for every applicable request.
+ * Refreshes the Supabase session in middleware.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -14,9 +12,12 @@ export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
+  const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder-project.supabase.co';
+  const finalKey = key || 'placeholder-anon-key';
+
   const supabase = createServerClient(
-    url && url.startsWith('http') ? url : 'https://placeholder-project.supabase.co',
-    key || 'placeholder-anon-key',
+    finalUrl,
+    finalKey,
     {
       cookies: {
         getAll() {
@@ -35,7 +36,6 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // This will refresh the auth token if it's expired
   await supabase.auth.getUser();
 
   return supabaseResponse;

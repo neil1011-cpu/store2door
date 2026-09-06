@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,7 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Loader2, ShieldCheck, AlertCircle, UserPlus, Fingerprint, CheckCircle2 } from 'lucide-react';
+import { Loader2, ShieldCheck, AlertCircle, Fingerprint, CheckCircle2 } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
@@ -50,7 +49,6 @@ export default function SetupAdminPage() {
       }
       setIsElevatingSession(true);
       try {
-          // Use RPC to promote current user
           const { error } = await supabase.rpc('manage_user_role', { 
             target_user_id: currentUser.id, 
             new_role: 'admin' 

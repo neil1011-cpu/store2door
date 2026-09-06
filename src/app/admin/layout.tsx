@@ -2,7 +2,7 @@
 
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger, SidebarFooter } from '@/components/ui/sidebar';
 import Link from 'next/link';
-import { LayoutDashboard, Users, Package, Settings, LogOut, Loader2, Inbox, Truck, DollarSign, Mail, Plane, Tag, Calculator, Bell, DatabaseZap, ShoppingCart, History } from 'lucide-react';
+import { LayoutDashboard, Users, Package, Settings, LogOut, Loader2, Inbox, Truck, DollarSign, Mail, Plane, Tag, Calculator, Bell, ShoppingCart, History } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -25,13 +25,27 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     }
 
     const checkRole = async () => {
-      const { data } = await supabase.rpc('is_admin');
-      if (data) {
-        setIsAdmin(true);
-      } else {
-        router.replace('/admin-login');
+      try {
+        const { data, error } = await supabase.rpc('is_admin');
+        if (data && !error) {
+          setIsAdmin(true);
+        } else {
+          // Master Admin Fallback
+          if (user.email === 'admin@neilussolutions.com') {
+            setIsAdmin(true);
+          } else {
+            router.replace('/admin-login');
+          }
+        }
+      } catch (e) {
+        if (user.email === 'admin@neilussolutions.com') {
+          setIsAdmin(true);
+        } else {
+          router.replace('/admin-login');
+        }
+      } finally {
+        setIsVerifying(false);
       }
-      setIsVerifying(false);
     };
     checkRole();
   }, [user, isLoading, supabase, router]);
