@@ -19,9 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
-import { useAuth, useFirestore } from '@/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { useSupabase } from '@/components/supabase-provider';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -34,10 +32,9 @@ const formSchema = z.object({
 export default function SignUpPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const { supabase } = useSupabase();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const auth = useAuth();
-  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -54,64 +51,40 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      const userCred = await createUserWithEmailAndPassword(auth!, values.email, values.password);
-      const user = userCred.user;
-
-      await user.getIdToken(true);
-
-      const mailbox = await runTransaction(firestore!, async (tx) => {
-        const ref = doc(firestore!, "metadata", "mailboxCounter");
-        const snap = await tx.get(ref);
-
-        if (!snap.exists()) {
-            tx.set(ref, { next: 102 });
-            return `FSTD101`;
-        }
-
-        const current = snap.data().next;
-        tx.update(ref, { next: current + 1 });
-
-        return `FSTD${current}`;
-      });
-
-      const userAddress = {
-          address1: '3507 NW 19th ST',
-          address2: `${mailbox}-FSTD`,
-          city: 'Lauderdale Lake',
-          state: 'FL',
-          zip: '33311-4224',
-      };
-      
-      await setDoc(doc(firestore!, 'users', user.uid), {
-        id: user.uid,
-        fullName: values.fullName,
+      // 1. Create Supabase Auth User
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: values.email,
-        phone: values.phone,
-        trn: values.trn,
-        mailboxNumber: mailbox,
-        address: userAddress,
-        walletBalance: 0,
-        createdAt: serverTimestamp(),
-        pickupPersonnel: [],
-        dropoffAddresses: [],
+        password: values.password,
+        options: {
+          data: {
+            full_name: values.fullName,
+            phone: values.phone,
+            trn: values.trn
+          }
+        }
       });
 
-      try {
-        await fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: values.email,
-            subject: 'Welcome to the FromStore2Door Family!',
-            body: `Hi ${values.fullName},\n\nWelcome to FromStore2Door! We're thrilled to have you with us.\n\nYour new, tax-free worldwide shipping credentials are ready.\n\nYour personal mailbox number is: ${mailbox}\n\nHere is your network shipping address for global store checkouts:\n\n${values.fullName}\n${userAddress.address1}\n${userAddress.address2}\n${userAddress.city}, ${userAddress.state} ${userAddress.zip}\n\nYou can start shopping at your favorite stores worldwide right away. Just use this address at checkout, and we'll handle the rest.\n\nHappy Shopping!`,
-            recipientName: values.fullName,
-          }),
-        });
-      } catch (emailError) {}
+      if (authError) throw authError;
+
+      // The 'on_auth_user_created' trigger in PostgreSQL handles:
+      // - Profile creation
+      // - Unique Mailbox generation (FSTD101...)
+      // - Default 'customer' role assignment
+
+      // Wait a moment for the DB trigger to finish
+      await new Promise(r => setTimeout(r, 1000));
+
+      // 2. Update TRN and Phone (if not picked up by metadata or for extra safety)
+      if (authData.user) {
+          await supabase.from('profiles').update({
+              phone: values.phone,
+              trn: values.trn
+          }).eq('id', authData.user.id);
+      }
 
       toast({
         title: 'Account Created',
-        description: `Your mailbox: ${mailbox}`
+        description: `Welcome to FromStore2Door! Your global mailbox is being prepared.`
       });
 
       router.push('/account');
@@ -123,9 +96,9 @@ export default function SignUpPage() {
         description: error.message,
         variant: 'destructive'
       });
+    } finally {
+        setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -134,7 +107,7 @@ export default function SignUpPage() {
         <CardHeader>
           <CardTitle className="text-3xl">Create Your Account</CardTitle>
           <CardDescription>
-            Get your global mailbox & shipping address instantly.
+            Get your global mailbox & shipping address instantly via Supabase Auth.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -159,14 +132,7 @@ export default function SignUpPage() {
                           className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                           onClick={() => setShowPassword(!showPassword)}
                         >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          <span className="sr-only">
-                            {showPassword ? "Hide password" : "Show password"}
-                          </span>
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       </div>
                     </FormControl>
@@ -180,8 +146,8 @@ export default function SignUpPage() {
                 <FormItem><FormLabel>TRN</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )}/>
 
-              <Button type="submit" className="w-full" size="lg" disabled={loading}>
-                {loading ? <><Loader2 className="animate-spin h-4 w-4 mr-2" /> Creating...</> : "Create Account"}
+              <Button type="submit" className="w-full h-12 font-bold uppercase italic" size="lg" disabled={loading}>
+                {loading ? <><Loader2 className="animate-spin h-4 w-4 mr-2" /> Initializing...</> : "Create Account"}
               </Button>
             </form>
           </Form>

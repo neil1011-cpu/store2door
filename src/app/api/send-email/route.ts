@@ -1,115 +1,66 @@
+
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import { adminDb, adminField } from '@/lib/firebaseAdmin';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Standardized Email API with Hardened TLS and Identity Alignment.
- * Prioritizes Firestore Metadata to ensure keys are available on strict environments.
+ * @fileOverview Production Email API integrated with Supabase Sent Emails audit.
  */
 
-function linkify(text: string) {
-    const urlPattern = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
-    return text.replace(urlPattern, '<a href="$1" style="color: #0d6efd; text-decoration: underline;">$1</a>');
-}
-
 export async function POST(request: Request) {
-    let body;
     try {
-        body = await request.json();
-    } catch (e) {
-        return NextResponse.json({ message: 'Invalid JSON payload' }, { status: 400 });
-    }
+        const body = await request.json();
+        const { to, subject, body: emailBody, recipientName } = body;
 
-    const { to, subject, body: emailBody, recipientName } = body;
+        const supabase = await createAdminClient();
 
-    const logEmail = async (status: 'sent' | 'simulated' | 'failed', metadata?: any) => {
-        try {
-            await adminDb.collection('sent_emails').add({
-                recipientName: recipientName || (Array.isArray(to) ? `Multiple (${to.length})` : to),
-                recipientEmail: Array.isArray(to) ? to.join(', ') : to,
-                subject: subject || '(No Subject)',
-                body: emailBody || '(No Body)',
-                status,
-                smtpResponse: metadata?.response || null,
-                messageId: metadata?.messageId || null,
-                error: metadata?.error || null,
-                sentAt: adminField.serverTimestamp(),
-            });
-        } catch (dbError) {
-            console.error("[EMAIL LOG ERROR]:", dbError);
-        }
-    };
-
-    // Load from Firestore Metadata to ensure keys are available across project migrations
-    let host = process.env.SMTP_HOST;
-    let port = process.env.SMTP_PORT || '465';
-    let user = process.env.SMTP_USER;
-    let pass = process.env.SMTP_PASS;
-
-    try {
-        const configSnap = await adminDb.collection('metadata').doc('email_config').get();
-        if (configSnap.exists) {
-            const data = configSnap.data();
-            host = data?.host || host;
-            port = data?.port || port;
-            user = data?.user || user;
-            pass = data?.pass || pass;
-        }
-    } catch (e) {
-        console.warn('[EMAIL API] Metadata fetch failed. Falling back to environment variables.');
-    }
-
-    if (!host || !port || !user || !pass || pass.includes('xxxx')) {
-        await logEmail('simulated');
-        return NextResponse.json({ message: `Simulation Active. No SMTP keys detected in system.`, simulated: true }, { status: 200 });
-    }
-
-    try {
-        if (!to || !subject || !emailBody) {
-            return NextResponse.json({ message: 'Required fields missing.' }, { status: 400 });
-        }
+        // 1. Fetch Config from Supabase
+        const { data: config } = await supabase.from('system_configs').select('config_value').eq('config_key', 'email_config').single();
         
-        const fullBodyHtml = `
-            <div style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <h2 style="color: #000; font-weight: 900; letter-spacing: -1px; font-style: italic; margin: 0;">FROMSTORE2DOOR</h2>
-                </div>
-                <div style="padding: 20px 0; border-top: 2px solid #000;">
-                    ${linkify(emailBody.replace(/\n/g, "<br>"))}
-                </div>
-            </div>
-        `;
+        const host = process.env.SMTP_HOST || config?.config_value?.host;
+        const port = process.env.SMTP_PORT || config?.config_value?.port || '465';
+        const user = process.env.SMTP_USER || config?.config_value?.user;
+        const pass = process.env.SMTP_PASS; // Pass remains strictly an ENV secret
+
+        if (!host || !user || !pass) {
+            // Log simulation
+            await supabase.from('sent_emails').insert({
+                recipient_email: Array.isArray(to) ? to.join(', ') : to,
+                recipient_name: recipientName,
+                subject,
+                body_content: emailBody,
+                status: 'simulated'
+            });
+            return NextResponse.json({ simulated: true });
+        }
 
         const transporter = nodemailer.createTransport({
-            host: host,
-            port: Number(port),
-            secure: Number(port) === 465,
-            auth: { user: user, pass: pass },
-            tls: { 
-                rejectUnauthorized: false,
-                minVersion: 'TLSv1.2'
-            },
-            pool: false,
-            connectionTimeout: 15000,
-            socketTimeout: 15000,
-            greetingTimeout: 10000
+            host, port: Number(port), secure: Number(port) === 465,
+            auth: { user, pass },
+            tls: { rejectUnauthorized: false }
         });
 
-        const info = await transporter.sendMail({
-            from: `"FromStore2Door Global Logistics" <${user}>`,
+        await transporter.sendMail({
+            from: `"FromStore2Door" <${user}>`,
             to: Array.isArray(to) ? user : to,
             bcc: Array.isArray(to) ? to : undefined,
-            subject: subject,
-            html: fullBodyHtml,
+            subject,
             text: emailBody,
         });
 
-        await logEmail('sent', { messageId: info.messageId, response: info.response });
-        return NextResponse.json({ success: true, message: 'Email delivered successfully.' });
+        // 2. Log Audit in Supabase
+        await supabase.from('sent_emails').insert({
+            recipient_email: Array.isArray(to) ? to.join(', ') : to,
+            recipient_name: recipientName,
+            subject,
+            body_content: emailBody,
+            status: 'sent'
+        });
+
+        return NextResponse.json({ success: true });
 
     } catch (error: any) {
-        console.error('[SMTP TRANSMISSION FAILURE]:', error.message);
-        await logEmail('failed', { error: error.message });
-        return NextResponse.json({ message: `Transmission Failed: ${error.message}` }, { status: 500 });
+        console.error('[SMTP ERROR]:', error.message);
+        return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }

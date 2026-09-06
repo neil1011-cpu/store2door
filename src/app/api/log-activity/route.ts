@@ -1,36 +1,30 @@
 
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
-import { serverTimestamp } from 'firebase-admin/firestore';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Internal API for recording audit logs and system activity.
+ * @fileOverview Production Log Activity API for Supabase.
  */
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { type, description, metadata, userId, userName } = body;
+        const { type, description, metadata, userId } = body;
 
-        if (!type || !description) {
-            return NextResponse.json({ message: 'Log type and description required' }, { status: 400 });
-        }
+        const supabase = await createAdminClient();
 
-        await adminDb.collection('system_logs').add({
-            type,
+        const { error } = await supabase.from('system_logs').insert({
+            log_type: type,
             description,
-            metadata: metadata || {},
-            userId: userId || 'system',
-            userName: userName || 'System',
-            timestamp: serverTimestamp(),
+            actor_id: userId || null,
+            metadata: metadata || {}
         });
+
+        if (error) throw error;
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error('[ACTIVITY LOG ERROR]:', error);
-        return NextResponse.json(
-            { message: error.message || 'Failed to record activity log' },
-            { status: 500 }
-        );
+        console.error('[LOG ERROR]:', error);
+        return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }

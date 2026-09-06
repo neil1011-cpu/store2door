@@ -4,9 +4,7 @@
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ShieldAlert, LogIn, RefreshCcw } from 'lucide-react';
-import Link from 'next/link';
-import { signOut } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { useSupabase } from '@/components/supabase-provider';
 
 export default function AccountError({
   error,
@@ -15,14 +13,14 @@ export default function AccountError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const auth = useAuth();
+  const { supabase } = useSupabase();
 
   useEffect(() => {
     console.error('Account Dashboard Exception:', error);
   }, [error]);
 
   const handleSignOut = async () => {
-    await signOut(auth);
+    await supabase.auth.signOut();
     window.location.href = '/signin';
   };
 
@@ -33,7 +31,7 @@ export default function AccountError({
       </div>
       <h1 className="text-3xl font-black italic uppercase tracking-tighter mb-2">Session Sync Failure</h1>
       <p className="text-muted-foreground max-w-md mb-8 text-sm">
-        We encountered an issue retrieving your secure profile data. This usually happens when your security token expires.
+        We encountered an issue retrieving your secure Supabase profile.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-sm">
         <Button onClick={() => reset()} variant="secondary" className="font-bold h-12">

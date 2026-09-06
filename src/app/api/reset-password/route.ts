@@ -1,152 +1,43 @@
 
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb, adminField } from '@/lib/firebaseAdmin';
-import nodemailer from 'nodemailer';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Standardized secure administrative password reset endpoint.
- * Optimized for serverless environments with strict SMTP timeouts and identity alignment.
+ * @fileOverview Administrative reset link generation using Supabase Auth.
  */
-
-async function getSafeBody(request: Request) {
-  try {
-    const text = await request.text();
-    if (!text) return {};
-    return JSON.parse(text);
-  } catch (e) {
-    return {};
-  }
-}
 
 export async function POST(request: Request) {
     try {
-        const body = await getSafeBody(request);
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+        const body = await request.json();
         const { userId } = body;
 
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json({ message: 'Administrative authorization required.' }, { status: 401 });
-        }
-        const idToken = authHeader.split(' ')[1];
-
-        let decodedToken;
-        try {
-            decodedToken = await adminAuth.verifyIdToken(idToken);
-        } catch (tokenErr: any) {
-            return NextResponse.json({ message: 'Session expired or invalid.' }, { status: 401 });
-        }
-
-        const adminUid = decodedToken.uid;
-        const isMasterEmail = decodedToken.email === 'admin@neilussolutions.com';
-        const adminRoleDoc = await adminDb.collection('admin_roles').doc(adminUid).get();
+        const supabase = await createAdminClient();
         
-        if (!adminRoleDoc.exists && !isMasterEmail) {
-            return NextResponse.json({ message: 'Access Denied: Administrative authority required.' }, { status: 403 });
-        }
+        // 1. Verify Caller is Admin
+        const { data: { user: caller } } = await supabase.auth.getUser(authHeader.split(' ')[1]);
+        const { data: isAdmin } = await supabase.rpc('is_admin');
         
-        if (!userId) {
-            return NextResponse.json({ message: 'Target user ID is required.' }, { status: 400 });
+        if (!isAdmin && caller?.email !== 'admin@neilussolutions.com') {
+            return NextResponse.json({ message: 'Admin access denied' }, { status: 403 });
         }
 
-        const userRecord = await adminAuth.getUser(userId);
-        const userProfileSnap = await adminDb.collection('users').doc(userId).get();
-        const userProfile = userProfileSnap.exists ? userProfileSnap.data() : null;
-        const recipientName = userProfile?.fullName || userRecord.displayName || 'Valued Customer';
-        const recipientEmail = userRecord.email;
+        // 2. Fetch target user email
+        const { data: targetProfile } = await supabase.from('profiles').select('email').eq('id', userId).single();
+        if (!targetProfile?.email) return NextResponse.json({ message: 'User not found' }, { status: 404 });
 
-        if (!recipientEmail) {
-             return NextResponse.json({ message: 'User email not found in authentication record.' }, { status: 404 });
-        }
-
-        // 1. GENERATE SECURE RESET LINK
-        const resetLink = await adminAuth.generatePasswordResetLink(recipientEmail);
-
-        // 2. FLAG PROFILE FOR SECURITY RESET SCREEN
-        await adminDb.collection('users').doc(userId).update({
-            needsPasswordReset: true,
-            updatedAt: adminField.serverTimestamp()
+        // 3. Generate Link
+        const { error } = await supabase.auth.resetPasswordForEmail(targetProfile.email, {
+            redirectTo: `${new URL(request.url).origin}/account/change-password`,
         });
 
-        // 3. RESOLVE SMTP CREDENTIALS
-        let host = process.env.SMTP_HOST;
-        let port = process.env.SMTP_PORT || '465';
-        let user = process.env.SMTP_USER;
-        let pass = process.env.SMTP_PASS;
+        if (error) throw error;
 
-        if (!host || !user || !pass) {
-            try {
-                const configSnap = await adminDb.collection('metadata').doc('email_config').get();
-                if (configSnap.exists) {
-                    const data = configSnap.data();
-                    host = data?.host || host;
-                    port = data?.port || port;
-                    user = data?.user || user;
-                    pass = data?.pass || pass;
-                }
-            } catch (e) {}
-        }
-
-        const subject = 'Action Required: Reset Your Logistics Access Key';
-        const emailBody = `Hi ${recipientName},\n\nYour administrator has initiated a security update for your FromStore2Door account. Please click the link below to set your new secure access key:\n\n${resetLink}\n\nThis link will expire for your protection.\n\nThank you for shipping with us!`;
-
-        if (!host || !port || !user || !pass || pass.includes('xxxx')) {
-            await adminDb.collection('sent_emails').add({
-                recipientName, recipientEmail, subject, body: emailBody, status: 'simulated', sentAt: adminField.serverTimestamp(),
-            });
-            return NextResponse.json({ success: true, simulated: true, message: 'Simulated reset link generation.' });
-        }
-
-        // 4. AWAIT SMTP DISPATCH WITH TIMEOUT
-        try {
-            const transporter = nodemailer.createTransport({
-                host: host, 
-                port: Number(port), 
-                secure: Number(port) === 465,
-                auth: { user: user, pass: pass }, 
-                tls: { 
-                    rejectUnauthorized: false, 
-                    minVersion: 'TLSv1.2' 
-                },
-                pool: false,
-                connectionTimeout: 15000,
-                socketTimeout: 15000,
-                greetingTimeout: 10000
-            });
-
-            await transporter.sendMail({
-                from: `"FromStore2Door Global Logistics" <${user}>`,
-                to: recipientEmail, 
-                subject: subject, 
-                text: emailBody,
-                html: `
-                    <div style="font-family:sans-serif;padding:20px;border:1px solid #eee;border-radius:10px;max-width:600px;margin:auto;">
-                        <div style="text-align:center;margin-bottom:20px;">
-                            <h2 style="color:#000;font-weight:900;font-style:italic;margin:0;">FROMSTORE2DOOR</h2>
-                        </div>
-                        <p>Hi ${recipientName},</p>
-                        <p>Your administrator has initiated a security update. Click the button below to set your new access key:</p>
-                        <div style="margin:30px 0;text-align:center;">
-                            <a href="${resetLink}" style="background:#000;color:white;padding:15px 30px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block;text-transform:uppercase;letter-spacing:1px;">Reset Access Key</a>
-                        </div>
-                        <p style="font-size:12px;color:#888;">If the button doesn't work, copy and paste this link: <br><a href="${resetLink}">${resetLink}</a></p>
-                    </div>`
-            });
-
-            await adminDb.collection('sent_emails').add({
-                recipientName, recipientEmail, subject, body: emailBody, status: 'sent', sentAt: adminField.serverTimestamp(),
-            });
-
-            return NextResponse.json({ success: true, message: 'Reset link dispatched to user email.' });
-        } catch (mailErr: any) {
-            console.error('[RESET MAIL ERROR]:', mailErr.message);
-            await adminDb.collection('sent_emails').add({
-                recipientName, recipientEmail, subject, body: emailBody, status: 'failed', error: mailErr.message, sentAt: adminField.serverTimestamp(),
-            });
-            return NextResponse.json({ success: false, message: `Transmission Failed: ${mailErr.message}` }, { status: 500 });
-        }
+        return NextResponse.json({ success: true, message: 'Reset link dispatched via Supabase Auth.' });
 
     } catch (error: any) {
-        console.error('[RESET PASSWORD FATAL EXCEPTION]:', error.message);
-        return NextResponse.json({ message: 'System Exception: ' + error.message }, { status: 500 });
+        return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }

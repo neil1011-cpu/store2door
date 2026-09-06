@@ -18,10 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Loader2, ShieldCheck, Eye, EyeOff } from 'lucide-react';
-import Link from 'next/link';
-import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { useSupabase } from '@/components/supabase-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AdminWelcomeAnimation } from '@/components/admin-welcome-animation';
 import Image from 'next/image';
@@ -34,11 +31,10 @@ const formSchema = z.object({
 export default function AdminLoginPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const { supabase } = useSupabase();
   const [loading, setLoading] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const auth = useAuth();
-  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -48,28 +44,25 @@ export default function AdminLoginPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth!, values.email, values.password);
-      
-      const adminSnap = await getDoc(doc(firestore!, 'admin_roles', cred.user.uid));
-      // Reverted domain fallback
+      const { data, error } = await supabase.auth.signInWithPassword({
+          email: values.email,
+          password: values.password
+      });
+
+      if (error) throw error;
+
+      // Verify Admin Status via RBAC RPC
+      const { data: isAdmin } = await supabase.rpc('is_admin');
       const isDomainAdmin = values.email === 'admin@neilussolutions.com';
       
-      if (adminSnap.exists() || isDomainAdmin) {
+      if (isAdmin || isDomainAdmin) {
         setShowWelcome(true);
       } else {
-        await signOut(auth!);
-        toast({ 
-            title: 'Access Denied', 
-            description: 'This account does not have administrator privileges in the database.', 
-            variant: 'destructive' 
-        });
+        await supabase.auth.signOut();
+        toast({ title: 'Access Denied', description: 'Administrative privileges required.', variant: 'destructive' });
       }
     } catch (error: any) {
-        toast({ 
-            title: 'Login Failed', 
-            description: 'Invalid credentials. Please verify your admin email and password.', 
-            variant: 'destructive' 
-        });
+        toast({ title: 'Login Failed', description: error.message, variant: 'destructive' });
     } finally {
         setLoading(false);
     }
@@ -80,13 +73,7 @@ export default function AdminLoginPage() {
   return (
     <div className="w-full min-h-screen flex items-center justify-center bg-zinc-950 p-4 relative overflow-hidden">
       <div className="absolute inset-0 opacity-20 grayscale pointer-events-none">
-          <Image 
-            src="https://picsum.photos/seed/delivery-van-dark/1920/1080" 
-            alt="Delivery Network" 
-            fill 
-            className="object-cover"
-            data-ai-hint="delivery van"
-          />
+          <Image src="https://picsum.photos/seed/delivery-van-dark/1920/1080" alt="Delivery Network" fill className="object-cover" data-ai-hint="delivery van" />
       </div>
 
       <Card className="w-full max-w-[450px] shadow-2xl border-none relative z-10">
@@ -96,58 +83,34 @@ export default function AdminLoginPage() {
             </div>
             <CardTitle className="text-3xl font-black tracking-tighter uppercase italic">FromStore2Door OS</CardTitle>
             <CardDescription className="font-bold text-muted-foreground uppercase tracking-widest text-[10px]">
-                Administrator Authentication Required
+                Administrative Supabase Authentication
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               <FormField control={form.control} name="email" render={({ field }) => (
-                <FormItem>
-                    <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Admin ID</FormLabel>
-                    <FormControl>
-                        <Input placeholder="admin@neilussolutions.com" {...field} className="h-12 border-2 focus:border-primary" />
-                    </FormControl>
-                    <FormMessage />
-                </FormItem>
+                <FormItem><FormLabel>Admin ID</FormLabel><FormControl><Input placeholder="admin@neilussolutions.com" {...field} /></FormControl><FormMessage /></FormItem>
               )}/>
               <FormField control={form.control} name="password" render={({ field }) => (
                 <FormItem>
-                    <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Secure Key</FormLabel>
+                    <FormLabel>Secure Key</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} className="h-12 border-2 focus:border-primary" />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          <span className="sr-only">
-                            {showPassword ? "Hide password" : "Show password"}
-                          </span>
+                        <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} />
+                        <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       </div>
                     </FormControl>
                     <FormMessage />
                 </FormItem>
               )}/>
-              <Button type="submit" size="lg" className="w-full h-14 text-lg font-black shadow-xl mt-4" disabled={loading}>
+              <Button type="submit" size="lg" className="w-full h-14 text-lg font-black" disabled={loading}>
                   {loading ? <Loader2 className="animate-spin h-6 w-6 mr-2" /> : "Authorize Entry"}
               </Button>
             </form>
           </Form>
-          <div className="pt-6 text-center border-t border-dashed">
-              <Button variant="link" asChild className="text-muted-foreground text-xs hover:text-primary">
-                  <Link href="/">Return to Worldwide Shipping Portal</Link>
-              </Button>
-          </div>
         </CardContent>
       </Card>
     </div>
