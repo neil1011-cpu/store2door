@@ -10,10 +10,10 @@ export async function updateSession(request: NextRequest) {
   });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder-project.supabase.co';
-  const finalKey = key || 'placeholder-anon-key';
+  const finalKey = key || '';
 
   const supabase = createServerClient(
     finalUrl,

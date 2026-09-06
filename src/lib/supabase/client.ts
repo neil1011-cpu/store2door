@@ -6,11 +6,11 @@ import { createBrowserClient } from '@supabase/ssr';
  */
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   // Defensive fallback to prevent "Invalid supabaseUrl" crash
   const finalUrl = url && url.startsWith('http') ? url : 'https://placeholder-project.supabase.co';
-  const finalKey = key || 'placeholder-anon-key';
+  const finalKey = key || '';
 
   return createBrowserClient(finalUrl, finalKey);
 }

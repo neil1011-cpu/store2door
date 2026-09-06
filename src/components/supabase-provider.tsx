@@ -24,10 +24,10 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
 
   useEffect(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // Validate configuration
-    if (!url || !url.startsWith('http') || url.includes('your_project_url') || !key || key.includes('your_public_key')) {
+    // Validate configuration - checking for placeholder strings or empty values
+    if (!url || !url.startsWith('http') || url.includes('your_project_url') || !key || key.includes('your_anon_key')) {
       setIsConfigMissing(true);
       setIsLoading(false);
       return;
@@ -75,7 +75,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
                   <span className="text-zinc-500 italic uppercase font-black">Required Variables:</span>
                 </div>
                 <p>NEXT_PUBLIC_SUPABASE_URL</p>
-                <p>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</p>
+                <p>NEXT_PUBLIC_SUPABASE_ANON_KEY</p>
                 <p>SUPABASE_SECRET_KEY</p>
               </div>
             </div>
