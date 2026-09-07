@@ -62,12 +62,17 @@ export default function UsersPage() {
       try {
           // Explicitly get the session token to send in the Authorization header
           const { data: { session } } = await supabase.auth.getSession();
+          const accessToken = session?.access_token;
+
+          if (!accessToken) {
+              throw new Error("No active administrative session found. Please re-authenticate.");
+          }
           
           const response = await fetch('/api/admin/create-user', {
               method: 'POST',
               headers: { 
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${session?.access_token}`
+                  'Authorization': `Bearer ${accessToken}`
               },
               body: JSON.stringify(newUser)
           });
@@ -84,6 +89,7 @@ export default function UsersPage() {
           setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', isAdmin: false });
           fetchUsers();
       } catch (error: any) {
+          console.error("[ADMIN:CREATE_USER]", error);
           toast({ title: "Operation Failed", description: error.message, variant: "destructive" });
       } finally {
           setIsCreating(false);

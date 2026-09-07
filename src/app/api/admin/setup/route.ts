@@ -7,6 +7,9 @@ import { createAdminClient } from '@/lib/supabase/server';
  */
 
 export async function POST(request: Request) {
+    const requestId = Math.random().toString(36).slice(2, 9);
+    console.log(`[API:SETUP:${requestId}] Initiating system establishment protocol.`);
+
     try {
         const { email, password } = await request.json();
 
@@ -24,6 +27,7 @@ export async function POST(request: Request) {
         let userId: string;
 
         if (existingUser) {
+            console.log(`[API:SETUP:${requestId}] Target identity found. Synchronizing access.`);
             const { data: updatedUser, error: updateError } = await supabase.auth.admin.updateUserById(
                 existingUser.id,
                 { 
@@ -35,6 +39,7 @@ export async function POST(request: Request) {
             if (updateError) throw updateError;
             userId = updatedUser.user.id;
         } else {
+            console.log(`[API:SETUP:${requestId}] Creating fresh administrative root.`);
             const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
                 email,
                 password,
@@ -59,13 +64,15 @@ export async function POST(request: Request) {
             mailbox_number: 'FSTD-ADMIN'
         });
 
+        console.log(`[API:SETUP:${requestId}] System root established for ${userId}.`);
+
         return NextResponse.json({ 
             success: true, 
             message: 'Administrative identity secured and confirmed in Supabase.' 
         });
 
     } catch (error: any) {
-        console.error('[ADMIN SETUP FATAL]', error);
+        console.error(`[API:SETUP:${requestId}] CRITICAL FAILURE:`, error.message);
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }
