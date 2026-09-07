@@ -16,12 +16,13 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { Loader2, ShieldCheck, AlertCircle, Fingerprint, CheckCircle2, Database, Copy, Terminal, ExternalLink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2, ShieldCheck, AlertCircle, Fingerprint, CheckCircle2, Database, Copy, Terminal, ExternalLink, RefreshCcw, Table2 } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -182,7 +183,8 @@ export default function SetupAdminPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [isElevatingSession, setIsElevatingSession] = useState(false);
+  const [isCheckingSchema, setIsCheckingSchema] = useState(false);
+  const [schemaStatus, setSchemaStatus] = useState<{ [key: string]: boolean }>({});
   const { supabase, user: currentUser } = useSupabase();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -193,216 +195,162 @@ export default function SetupAdminPage() {
     },
   });
 
+  const checkSchemaVisibility = async () => {
+    setIsCheckingSchema(true);
+    const tables = ['profiles', 'app_roles', 'shipments', 'invoices'];
+    const results: { [key: string]: boolean } = {};
+    
+    for (const table of tables) {
+      const { error } = await supabase.from(table).select('*').limit(0);
+      results[table] = !error || error.code !== 'PGRST205';
+    }
+    
+    setSchemaStatus(results);
+    setIsCheckingSchema(false);
+    toast({ title: "Schema Visibility Check Complete" });
+  };
+
+  useEffect(() => {
+    checkSchemaVisibility();
+  }, [supabase]);
+
   const handleCopySql = async () => {
     try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(INITIALIZATION_SQL);
         toast({ title: "SQL Copied", description: "Paste this into your Supabase SQL Editor." });
       } else {
-        throw new Error('Clipboard API blocked or unavailable.');
+        throw new Error('Clipboard access denied');
       }
     } catch (err) {
-      console.warn("Clipboard Access Warning:", err);
-      // Fallback for restricted production environments
-      toast({ 
-        title: "Copy Blocked by Browser", 
-        description: "Please manually select and copy (Ctrl+C) the SQL code below.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Manual Copy Required", description: "Please select the code and copy manually.", variant: "destructive" });
     }
-  }
-
-  const handleElevateCurrentSession = async () => {
-      if (!currentUser) {
-          toast({ title: 'No Session Found', description: 'Please sign in first.', variant: 'destructive' });
-          return;
-      }
-      setIsElevatingSession(true);
-      try {
-          const { error } = await supabase.rpc('manage_user_role', { 
-            target_user_id: currentUser.id, 
-            new_role: 'admin' 
-          });
-
-          if (error) throw error;
-
-          toast({ title: 'Privileges Granted!', description: 'Your administrator identity has been synchronized.' });
-          
-          setTimeout(() => {
-            router.push('/admin');
-          }, 1500);
-      } catch (error: any) {
-          console.error("Elevation error:", error);
-          toast({ title: 'Setup Failed', description: error.message, variant: "destructive" });
-      } finally {
-          setIsElevatingSession(false);
-      }
-  }
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    
     try {
         const response = await fetch('/api/admin/setup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(values),
         });
-
         const result = await response.json();
-
         if (!response.ok) throw new Error(result.message || 'Setup protocol failed.');
-
-        toast({
-            title: 'Identity Secured',
-            description: 'Master Admin account created and confirmed successfully.',
-        });
-        
-        setTimeout(() => {
-            router.push('/admin-login');
-        }, 2000);
-
+        toast({ title: 'Identity Secured', description: 'Admin account confirmed.' });
+        router.push('/admin-login');
     } catch (error: any) {
-        toast({
-            title: 'Setup Error',
-            description: error.message,
-            variant: 'destructive',
-        });
+        toast({ title: 'Setup Error', description: error.message, variant: 'destructive' });
     } finally {
         setLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto py-12 px-4 md:px-6 max-w-4xl">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="space-y-6">
-            <Card className="shadow-xl overflow-hidden border-none">
-                <CardHeader className="text-center bg-primary/5 pb-8">
-                <ShieldCheck className="mx-auto h-12 w-12 text-primary" />
-                <CardTitle className="text-3xl mt-4 font-black italic uppercase tracking-tighter text-primary">Admin Recovery Hub</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
-                    Establish Supabase Master Admin
-                </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-6">
-                <Alert className="mb-6 bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-900">
-                        <AlertCircle className="h-4 w-4 text-blue-600" />
-                        <AlertTitle className="font-bold uppercase text-xs">Administrative Protocol</AlertTitle>
-                        <AlertDescription className="text-[10px] uppercase leading-relaxed mt-1">
-                            This terminal will auto-confirm your master email and grant full database access.
-                        </AlertDescription>
-                    </Alert>
-
-                {currentUser ? (
-                    <div className="space-y-4 mb-8">
-                        <div className="p-4 border-2 border-dashed rounded-xl bg-muted/30 flex items-center gap-4">
-                            <Fingerprint className="h-8 w-8 text-primary" />
-                            <div className="overflow-hidden">
-                                <p className="text-[10px] font-bold uppercase text-muted-foreground">Active Session</p>
-                                <p className="font-bold truncate text-sm">{currentUser.email}</p>
-                            </div>
-                        </div>
-                        <Button onClick={handleElevateCurrentSession} disabled={isElevatingSession} className="w-full h-14 font-black uppercase italic shadow-lg" variant="secondary">
-                            {isElevatingSession ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                            Elevate Current Account
-                        </Button>
-                        <div className="relative py-4">
-                            <Separator />
-                            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-[10px] uppercase font-bold text-muted-foreground">OR CONFIGURE MASTER</span>
-                        </div>
-                    </div>
-                ) : null}
-
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                    <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-[10px] font-bold uppercase opacity-60">Master Admin ID</FormLabel>
-                            <FormControl>
-                            <Input type="email" placeholder="admin@neilussolutions.com" {...field} className="h-12 border-2" />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="password"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-[10px] font-bold uppercase opacity-60">Secure Key</FormLabel>
-                            <FormControl>
-                            <Input type="password" placeholder="••••••••" {...field} className="h-12 border-2" />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <Button type="submit" size="lg" className="w-full h-14 text-lg font-black uppercase italic shadow-xl" disabled={loading}>
-                        {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Authorizing...</> : 'Bypass Verification & Initialize'}
-                    </Button>
-                    </form>
-                </Form>
-                </CardContent>
-            </Card>
-        </div>
-
-        <div className="space-y-6">
-            <Card className="shadow-xl border-orange-200">
-                <CardHeader className="bg-orange-50/50">
-                    <div className="flex items-center gap-3">
-                        <Database className="h-6 w-6 text-orange-600" />
-                        <CardTitle className="text-xl font-black italic uppercase italic">Database Schema Required</CardTitle>
-                    </div>
-                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-orange-600">
-                        Fix "Table Not Found" errors by initializing your schema
-                    </CardDescription>
+    <div className="container mx-auto py-12 px-4 md:px-6 max-w-6xl">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Diagnostic Column */}
+        <div className="lg:col-span-1 space-y-6">
+            <Card className="border-none shadow-xl">
+                <CardHeader className="bg-primary/5">
+                    <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                        <Table2 className="h-4 w-4" /> API Schema Cache
+                    </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6 space-y-4">
-                    <p className="text-xs font-medium leading-relaxed opacity-70">
-                        If you are seeing a <strong>"Could not find the table 'public.profiles'"</strong> error, your Supabase project is missing its core structure.
-                    </p>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Live PostgREST Visibility</p>
+                    <div className="space-y-2">
+                        {Object.entries(schemaStatus).map(([table, visible]) => (
+                            <div key={table} className="flex justify-between items-center p-2 rounded bg-muted/30">
+                                <span className="font-mono text-xs">{table}</span>
+                                <Badge variant={visible ? "default" : "destructive"} className="text-[8px]">
+                                    {visible ? "VISIBLE" : "MISSING (PGRST205)"}
+                                </Badge>
+                            </div>
+                        ))}
+                    </div>
+                    <Button onClick={checkSchemaVisibility} disabled={isCheckingSchema} variant="outline" className="w-full text-xs h-9">
+                        {isCheckingSchema ? <Loader2 className="animate-spin h-3 w-3" /> : <RefreshCcw className="h-3 w-3 mr-2" />}
+                        Re-Scan Cache
+                    </Button>
+
+                    <Separator />
                     
-                    <div className="p-4 bg-zinc-950 rounded-xl space-y-4 border border-white/10">
-                        <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Logistics OS Script</span>
-                            <Button variant="ghost" size="sm" onClick={handleCopySql} className="h-8 text-zinc-400 hover:text-white">
-                                <Copy className="h-3 w-3 mr-2" /> Copy SQL
-                            </Button>
-                        </div>
-                        <ScrollArea className="h-[200px] w-full rounded-md bg-black/40 p-4">
-                            <code className="text-[10px] font-mono text-green-400/80 leading-tight block whitespace-pre">
-                                {INITIALIZATION_SQL}
-                            </code>
-                        </ScrollArea>
+                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
+                        <p className="text-[9px] font-bold text-orange-800 uppercase flex items-center gap-2">
+                            <AlertCircle className="h-3 w-3" /> If tables show "MISSING"
+                        </p>
+                        <p className="text-[9px] text-orange-700 leading-relaxed">
+                            Run the SQL script on the right. If they still show missing, run:
+                            <code className="block bg-orange-100 p-1 mt-1 font-mono">NOTIFY pgrst, 'reload schema';</code>
+                            in the Supabase SQL Editor.
+                        </p>
                     </div>
-
-                    <div className="space-y-3">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                            <Terminal className="h-3 w-3" /> How to Apply:
-                        </h4>
-                        <ol className="text-[11px] font-bold uppercase tracking-tight space-y-2 opacity-80 list-decimal pl-4">
-                            <li>Go to your <a href="https://supabase.com/dashboard" target="_blank" className="text-primary underline flex-inline items-center gap-1">Supabase Dashboard <ExternalLink className="h-2 w-2 inline" /></a></li>
-                            <li>Select <strong>"SQL Editor"</strong> from the sidebar</li>
-                            <li>Click <strong>"New Query"</strong></li>
-                            <li>Paste the code above and click <strong>"Run"</strong></li>
-                        </ol>
-                    </div>
-
-                    <Alert variant="destructive" className="border-2">
-                        <ShieldCheck className="h-4 w-4" />
-                        <AlertTitle className="text-xs font-black uppercase tracking-widest">Master Identity Required</AlertTitle>
-                        <AlertDescription className="text-[10px] font-medium leading-relaxed uppercase mt-1">
-                            Ensure the email in the SQL script (admin@neilussolutions.com) matches the one you use in the form on the left.
-                        </AlertDescription>
-                    </Alert>
                 </CardContent>
             </Card>
         </div>
+
+        {/* Setup Column */}
+        <div className="lg:col-span-2 space-y-6">
+            <Card className="shadow-xl overflow-hidden border-none">
+                <CardHeader className="bg-primary/5 pb-8">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">System Establishment</CardTitle>
+                            <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Supabase Administrative Root</CardDescription>
+                        </div>
+                        <ShieldCheck className="h-10 w-10 text-primary" />
+                    </div>
+                </CardHeader>
+                <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                                <FormField control={form.control} name="email" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[10px] font-bold uppercase opacity-60">Master Admin ID</FormLabel>
+                                        <FormControl><Input {...field} className="h-11 border-2" /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                                <FormField control={form.control} name="password" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[10px] font-bold uppercase opacity-60">Access Key</FormLabel>
+                                        <FormControl><Input type="password" {...field} className="h-11 border-2" /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                                <Button type="submit" disabled={loading} className="w-full h-14 font-black uppercase italic shadow-lg">
+                                    {loading ? <Loader2 className="animate-spin" /> : "Authorize Root Identity"}
+                                </Button>
+                            </form>
+                        </Form>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="bg-zinc-950 rounded-xl p-4 border border-white/10 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black uppercase text-zinc-500">Database Schema SQL</span>
+                                <Button variant="ghost" size="sm" onClick={handleCopySql} className="h-7 text-zinc-400">
+                                    <Copy className="h-3 w-3 mr-2" /> Copy
+                                </Button>
+                            </div>
+                            <ScrollArea className="h-[200px] w-full rounded bg-black/40 p-3">
+                                <code className="text-[9px] font-mono text-green-400/70 block whitespace-pre">
+                                    {INITIALIZATION_SQL}
+                                </code>
+                            </ScrollArea>
+                        </div>
+                        <div className="text-[10px] font-medium leading-relaxed opacity-60 flex gap-2">
+                            <Terminal className="h-3 w-3 shrink-0" />
+                            <span>Apply this script in the Supabase SQL Editor to resolve Table Not Found errors.</span>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
       </div>
     </div>
   );

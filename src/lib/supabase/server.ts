@@ -3,14 +3,17 @@ import { cookies } from 'next/headers';
 
 /**
  * @fileOverview Server-side Supabase factory for FromStore2Door OS.
- * Implements standard SSR cookie management for Next.js 15.
+ * Implements standard SSR cookie management for Next.js 15 with robust env lookup.
  */
 export async function createClient() {
   const cookieStore = await cookies();
   
-  // Use NEXT_PUBLIC for discovery to match browser client
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = 
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+    process.env.SUPABASE_ANON_KEY || 
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
+    process.env.SUPABASE_PUBLISHABLE_KEY;
 
   return createServerClient(
     url || 'https://placeholder.supabase.co',
@@ -40,7 +43,7 @@ export async function createClient() {
  * Bypasses RLS.
  */
 export async function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
