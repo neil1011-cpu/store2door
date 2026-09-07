@@ -2,18 +2,18 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Refreshes the Supabase session in middleware.
- * Hardened to use robust environment variable discovery.
+ * @fileOverview Supabase Middleware for FromStore2Door OS.
+ * Manages session refresh and cookie forwarding for SSR.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !key || url.includes('placeholder')) {
+  if (!url || !key) {
     return supabaseResponse;
   }
 
@@ -38,7 +38,7 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // This will refresh the session if expired
+  // Refresh the session if it exists
   await supabase.auth.getUser();
 
   return supabaseResponse;

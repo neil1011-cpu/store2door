@@ -60,8 +60,8 @@ export default function UsersPage() {
 
       setIsCreating(true);
       try {
-          // The API route /api/admin/create-user handles session verification via server-side cookies.
-          // We no longer perform redundant client-side user/token checks to avoid sync issues.
+          // Send request to server-side privileged endpoint.
+          // Authentication is handled via cookies refreshed by middleware.
           const response = await fetch('/api/admin/create-user', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -71,7 +71,7 @@ export default function UsersPage() {
           const result = await response.json();
           
           if (!response.ok) {
-            throw new Error(result.message || 'The administrative session is invalid or has expired. Please refresh and try again.');
+            throw new Error(result.message || 'Administrative session failed. Please refresh and log in again.');
           }
 
           toast({ title: "Identity Created", description: `Account for ${newUser.email} is active.` });
@@ -91,8 +91,8 @@ export default function UsersPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter">Identity Registry</h1>
-          <p className="text-muted-foreground font-medium uppercase text-[10px]">Universal Account & RBAC Central</p>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Identity Registry</h1>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] mt-1">Universal Account & RBAC Central</p>
         </div>
         
         <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
@@ -103,8 +103,8 @@ export default function UsersPage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">New Global Identity</DialogTitle>
-                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Register a new client or administrator</DialogDescription>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">New Global Identity</DialogTitle>
+                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Register a new client or administrator</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-3">

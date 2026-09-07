@@ -195,17 +195,18 @@ export default function SetupAdminPage() {
 
   const handleCopySql = async () => {
     try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(INITIALIZATION_SQL);
         toast({ title: "SQL Copied", description: "Paste this into your Supabase SQL Editor." });
       } else {
-        throw new Error('Clipboard API unavailable');
+        throw new Error('Clipboard API blocked or unavailable.');
       }
     } catch (err) {
-      console.warn("Clipboard access failed:", err);
+      console.warn("Clipboard Access Warning:", err);
+      // Fallback for restricted production environments
       toast({ 
-        title: "Manual Copy Required", 
-        description: "Please select the code and copy it manually (Ctrl+C).", 
+        title: "Copy Blocked by Browser", 
+        description: "Please manually select and copy (Ctrl+C) the SQL code below.", 
         variant: "destructive" 
       });
     }
@@ -279,7 +280,7 @@ export default function SetupAdminPage() {
             <Card className="shadow-xl overflow-hidden border-none">
                 <CardHeader className="text-center bg-primary/5 pb-8">
                 <ShieldCheck className="mx-auto h-12 w-12 text-primary" />
-                <CardTitle className="text-3xl mt-4 font-black italic uppercase tracking-tighter">Admin Recovery Hub</CardTitle>
+                <CardTitle className="text-3xl mt-4 font-black italic uppercase tracking-tighter text-primary">Admin Recovery Hub</CardTitle>
                 <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
                     Establish Supabase Master Admin
                 </CardDescription>

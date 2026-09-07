@@ -2,13 +2,15 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 /**
- * Creates a Supabase client for use in Server Components/Routes.
- * Correctly maps production environment variables and manages SSR cookies.
+ * @fileOverview Server-side Supabase factory for FromStore2Door OS.
+ * Implements standard SSR cookie management for Next.js 15.
  */
 export async function createClient() {
   const cookieStore = await cookies();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  
+  // Use NEXT_PUBLIC for discovery to match browser client
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   return createServerClient(
     url || 'https://placeholder.supabase.co',
@@ -24,7 +26,7 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Ignored if called in a Server Component
+            // Ignored if called from a Server Component
           }
         },
       },
@@ -35,13 +37,14 @@ export async function createClient() {
 /**
  * Creates an administrative Supabase client using the Secret Key.
  * Used strictly for privileged Auth and DB operations on the server.
+ * Bypasses RLS.
  */
 export async function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
-    throw new Error('[Supabase Admin] Missing environment variables: SUPABASE_URL or SUPABASE_SECRET_KEY');
+    throw new Error('[Supabase Admin] Missing required environment variables: URL or SECRET_KEY');
   }
 
   return createServerClient(
