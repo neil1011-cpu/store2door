@@ -1,14 +1,15 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldCheck, Database, RefreshCcw, Table2, Key, CheckCircle2, Copy, Terminal, AlertTriangle } from 'lucide-react';
+import { Loader2, Database, RefreshCcw, Key, CheckCircle2, Copy, Terminal, AlertTriangle } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { DEFINITIVE_SQL } from '@/lib/constants/schema';
 
 /**
  * @fileOverview System Proof & Recovery Center.
@@ -21,104 +22,6 @@ export default function SetupAdminPage() {
   const [isChecking, setIsChecking] = useState(false);
   const [envNames, setEnvNames] = useState<string[]>([]);
   const [dbProof, setDbProof] = useState<{ status: string; tables: string[]; error?: string } | null>(null);
-
-  const definitiveSQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA
--- Run this in your Supabase SQL Editor
-
--- 1. TYPES & EXTENSIONS
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-DO $$ BEGIN CREATE TYPE public.user_role AS ENUM ('customer', 'staff', 'admin'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE TYPE public.address_type AS ENUM ('pickup', 'delivery_destination'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-
--- 2. TABLES
-CREATE TABLE IF NOT EXISTS public.profiles (
-    id uuid REFERENCES auth.users ON DELETE CASCADE NOT NULL PRIMARY KEY,
-    full_name text NOT NULL,
-    email text UNIQUE NOT NULL,
-    phone text,
-    trn text,
-    mailbox_number text UNIQUE,
-    wallet_balance numeric(12,2) DEFAULT 0,
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS public.app_roles (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    role public.user_role DEFAULT 'customer' NOT NULL,
-    created_at timestamptz DEFAULT now(),
-    UNIQUE(user_id, role)
-);
-
-CREATE TABLE IF NOT EXISTS public.pre_alerts (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    tracking_number text NOT NULL,
-    contents text,
-    weight_lbs numeric(10,2) DEFAULT 0,
-    status text DEFAULT 'Pending' NOT NULL,
-    invoice_url text,
-    submission_date timestamptz DEFAULT now(),
-    legacy_firebase_id text UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS public.shipments (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    tracking_number text UNIQUE NOT NULL,
-    contents text,
-    weight_lbs numeric(10,2) DEFAULT 0,
-    status text DEFAULT 'Processed' NOT NULL,
-    total_cost_jmd numeric(12,2) DEFAULT 0,
-    payment_status text DEFAULT 'Unpaid' NOT NULL,
-    shipping_date timestamptz,
-    created_at timestamptz DEFAULT now(),
-    legacy_firebase_id text UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS public.invoices (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    invoice_number text UNIQUE NOT NULL,
-    amount numeric(12,2) NOT NULL,
-    status text DEFAULT 'Unpaid' NOT NULL,
-    invoice_url text,
-    created_at timestamptz DEFAULT now(),
-    legacy_firebase_id text UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS public.financial_ledger (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    amount numeric(12,2) NOT NULL,
-    transaction_type text NOT NULL,
-    source text,
-    method text,
-    description text,
-    transaction_date timestamptz DEFAULT now(),
-    legacy_firebase_id text UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS public.system_logs (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    log_type text NOT NULL,
-    description text,
-    actor_id uuid,
-    metadata jsonb DEFAULT '{}'::jsonb,
-    created_at timestamptz DEFAULT now()
-);
-
--- 3. FUNCTIONS & SECURITY
-CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
-BEGIN RETURN EXISTS (SELECT 1 FROM public.app_roles WHERE user_id = auth.uid() AND role = 'admin'); END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public profiles are viewable by owner or admin" ON public.profiles FOR SELECT USING (auth.uid() = id OR is_admin());
-
--- FORCE SCHEMA RELOAD
-NOTIFY pgrst, 'reload schema';`;
 
   const performLiveProof = async () => {
     setIsChecking(true);
@@ -148,10 +51,15 @@ NOTIFY pgrst, 'reload schema';`;
 
   const copyToClipboard = async () => {
     try {
-        await navigator.clipboard.writeText(definitiveSQL);
+        // Feature detection for Clipboard API
+        if (!navigator.clipboard || !navigator.clipboard.writeText) {
+            throw new Error("Clipboard API unavailable");
+        }
+        await navigator.clipboard.writeText(DEFINITIVE_SQL);
         toast({ title: "SQL Copied", description: "Paste this into the Supabase SQL Editor." });
     } catch (err) {
-        toast({ title: "Copy Failed", description: "Please manually select and copy the code below.", variant: "destructive" });
+        console.warn("[CLIPBOARD] Falling back to manual selection.", err);
+        toast({ title: "Automatic Copy Blocked", description: "Please manually select and copy the SQL code below.", variant: "default" });
     }
   };
 
@@ -234,7 +142,7 @@ NOTIFY pgrst, 'reload schema';`;
         <CardContent className="p-0">
             <ScrollArea className="h-[400px] w-full bg-zinc-900 p-6">
                 <pre className="text-[11px] font-mono text-green-400 whitespace-pre leading-relaxed">
-                    {definitiveSQL}
+                    {DEFINITIVE_SQL}
                 </pre>
             </ScrollArea>
         </CardContent>
