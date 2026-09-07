@@ -66,13 +66,20 @@ export default function UsersPage() {
       setIsCreating(true);
       setLastError(null);
       try {
+          // EXPLICIT TOKEN RETRIEVAL: Fixes "hasCookies: false" in production
+          const { data: { session } } = await supabase.auth.getSession();
+          const accessToken = session?.access_token;
+
+          if (!accessToken) {
+              throw new Error("No active administrative session found. Please try logging in again.");
+          }
+
           const response = await fetch('/api/admin/create-user', {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}` // Pass token directly to bypass cookie restrictions
               },
-              // Explicitly include credentials to ensure cookies are sent
-              credentials: 'same-origin',
               body: JSON.stringify(newUser)
           });
 
@@ -121,7 +128,7 @@ export default function UsersPage() {
                       <Alert variant="destructive" className="bg-red-50 border-red-200">
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle className="text-xs font-bold uppercase">Critical Diagnostic Data</AlertTitle>
-                        <AlertDescription className="text-[10px] font-mono whitespace-pre-wrap mt-1">
+                        <AlertDescription className="text-[10px] font-mono whitespace-pre-wrap mt-1 overflow-auto max-h-[200px]">
                           {JSON.stringify(lastError, null, 2)}
                         </AlertDescription>
                       </Alert>
@@ -168,16 +175,6 @@ export default function UsersPage() {
             </DialogContent>
         </Dialog>
       </div>
-
-      {lastError && !isAddUserOpen && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>System Fault Detected</AlertTitle>
-          <AlertDescription className="text-xs opacity-80">
-            Internal diagnostics: {lastError.debug?.authError || lastError.message}
-          </AlertDescription>
-        </Alert>
-      )}
 
       <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
         <CardContent className="p-0">
