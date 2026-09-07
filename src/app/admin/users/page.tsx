@@ -60,19 +60,25 @@ export default function UsersPage() {
 
       setIsCreating(true);
       try {
-          // Explicitly get the session token to send in the Authorization header
+          // Robust session retrieval with fallback
           const { data: { session } } = await supabase.auth.getSession();
-          const accessToken = session?.access_token;
+          let accessToken = session?.access_token;
 
+          // If session is null, it might be due to a race condition in the client
           if (!accessToken) {
-              throw new Error("No active administrative session found. Please re-authenticate.");
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) {
+                  throw new Error("No active administrative session found. Please try refreshing the page and logging in again.");
+              }
+              // If user exists but getSession failed, we try one more time or proceed with cookie-only auth
+              console.warn("[ADMIN] Session token missing, relying on cookie-based authentication.");
           }
           
           const response = await fetch('/api/admin/create-user', {
               method: 'POST',
               headers: { 
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${accessToken}`
+                  ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
               },
               body: JSON.stringify(newUser)
           });
