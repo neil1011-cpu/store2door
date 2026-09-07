@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, UserPlus, Mail, Phone, ShieldCheck, X } from 'lucide-react';
+import { PlusCircle, Loader2, UserPlus, ShieldCheck } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -34,17 +33,19 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*, app_roles(role)')
-      .order('full_name', { ascending: true });
-    
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*, app_roles(role)')
+        .order('full_name', { ascending: true });
+      
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error: any) {
         toast({ title: "Registry Fetch Error", description: error.message, variant: "destructive" });
-    } else {
-        setUsers(data || []);
+    } finally {
+        setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -52,29 +53,30 @@ export default function UsersPage() {
   }, [supabase]);
 
   const handleCreateUser = async () => {
-      if (!newUser.email || !newUser.firstName) {
-          toast({ title: "Missing Fields", variant: "destructive" });
+      if (!newUser.email || !newUser.firstName || !newUser.lastName) {
+          toast({ title: "Missing Required Fields", description: "Email, First Name, and Last Name are mandatory.", variant: "destructive" });
           return;
       }
 
       setIsCreating(true);
       try {
-          const session = await supabase.auth.getSession();
-          const idToken = session.data.session?.access_token;
-
           const response = await fetch('/api/admin/create-user', {
               method: 'POST',
-              headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${idToken}`
-              },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(newUser)
           });
 
           const result = await response.json();
-          if (!response.ok) throw new Error(result.message || 'Creation failed');
+          
+          if (!response.ok) {
+            throw new Error(result.message || 'Creation failed');
+          }
 
-          toast({ title: "Identity Created", description: `Account for ${newUser.email} is now active.` });
+          toast({ 
+            title: "Identity Created", 
+            description: `Account for ${newUser.email} is now active in the global registry.` 
+          });
+          
           setIsAddUserOpen(false);
           setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', isAdmin: false });
           fetchUsers();
@@ -102,7 +104,7 @@ export default function UsersPage() {
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">New Global Identity</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">Register a new client or administrator</DialogDescription>
+                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Register a new client or administrator</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-3">
@@ -140,7 +142,7 @@ export default function UsersPage() {
                 <DialogFooter className="gap-2">
                     <DialogClose asChild><Button variant="outline" className="font-bold h-12 uppercase">Cancel</Button></DialogClose>
                     <Button onClick={handleCreateUser} disabled={isCreating} className="flex-1 h-12 font-black uppercase italic shadow-xl">
-                        {isCreating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserPlus className="mr-2 h-5 w-5" />}
+                        {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-5 w-5" />}
                         Authorize Creation
                     </Button>
                 </DialogFooter>
