@@ -3,47 +3,25 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Administrative User Creation API.
- * Uses Direct Role Check and Double-Verification for reliability in production.
+ * Uses strict server-side cookie verification for production reliability.
  */
 
 export async function POST(request: Request) {
   const requestId = Math.random().toString(36).slice(2, 9);
-  console.log(`[API:${requestId}] Starting Create User request`);
-
+  
   try {
+    // 1. Identify Caller (Standard SSR Client reads cookies)
     const supabase = await createClient();
-    const adminClient = await createAdminClient();
-    
-    // 1. Session Discovery
-    const authHeader = request.headers.get('Authorization');
-    const cookieHeader = request.headers.get('cookie');
-    
-    console.log(`[API:${requestId}] Headers: authPresent=${!!authHeader}, cookiePresent=${!!cookieHeader}`);
+    const { data: { user: caller }, error: authError } = await supabase.auth.getUser();
 
-    // Try cookie-based discovery first
-    let { data: { user: caller }, error: authError } = await supabase.auth.getUser();
-
-    // Fallback: If cookie check fails or errors, verify the JWT from Authorization header
-    if (!caller && authHeader?.startsWith('Bearer ')) {
-      console.log(`[API:${requestId}] Attempting header verification fallback...`);
-      const token = authHeader.split(' ')[1];
-      const { data: { user: headerUser }, error: headerError } = await adminClient.auth.getUser(token);
-      if (headerError) {
-          console.error(`[API:${requestId}] Header verification failed:`, headerError.message);
-      } else {
-          caller = headerUser;
-          console.log(`[API:${requestId}] Header verification success: ${caller?.email}`);
-      }
-    }
-
-    if (!caller) {
-      console.error(`[API:${requestId}] Verification failed: No valid session detected.`);
+    if (authError || !caller) {
+      console.error(`[API:CREATE_USER:${requestId}] Session failure:`, authError?.message);
       return NextResponse.json({ message: 'Invalid or expired administrative session.' }, { status: 401 });
     }
 
-    // 2. Direct Role Verification using Admin Client
-    // We check the table directly to avoid RPC context synchronization issues
-    const { data: roleData, error: roleError } = await adminClient
+    // 2. Verify Administrative Role (Direct DB Check)
+    const adminClient = await createAdminClient();
+    const { data: roleData } = await adminClient
         .from('app_roles')
         .select('role')
         .eq('user_id', caller.id)
@@ -51,15 +29,13 @@ export async function POST(request: Request) {
         .maybeSingle();
 
     const isDomainAdmin = caller.email === 'admin@neilussolutions.com';
-    
-    console.log(`[API:${requestId}] Auth: userId=${caller.id}, roleFound=${!!roleData}, isDomainAdmin=${isDomainAdmin}`);
 
     if (!roleData && !isDomainAdmin) {
-      console.warn(`[API:${requestId}] Authorization denied for ${caller.email}`);
+      console.warn(`[API:CREATE_USER:${requestId}] Authorization denied for ${caller.email}`);
       return NextResponse.json({ message: 'Forbidden: Administrative authority required.' }, { status: 403 });
     }
 
-    // 3. Validate Payload
+    // 3. Process Payload
     const body = await request.json();
     const { firstName, lastName, email, phone, trn, isAdmin: promoteToAdmin } = body;
 
@@ -67,9 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Missing required fields.' }, { status: 400 });
     }
 
-    console.log(`[API:${requestId}] Payload validated for target: ${email}`);
-
-    // 4. Create User (Privileged)
+    // 4. Privileged User Creation
     const tempPassword = Math.random().toString(36).slice(-12) + 'A1!';
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
@@ -78,38 +52,27 @@ export async function POST(request: Request) {
         user_metadata: { full_name: `${firstName} ${lastName}` }
     });
 
-    if (createError) {
-        console.error(`[API:${requestId}] Supabase Auth creation error:`, createError.message);
-        throw createError;
-    }
+    if (createError) throw createError;
 
     const userId = newUser.user.id;
-    console.log(`[API:${requestId}] Auth identity established: ${userId}`);
     
-    // 5. Initialize Profile & Role (Using Admin Client to bypass RLS)
-    const profileResult = await adminClient.from('profiles').upsert({
-        id: userId,
-        full_name: `${firstName} ${lastName}`,
-        email: email,
-        phone: phone || null,
-        trn: trn || null,
-        mailbox_number: `FSTD${Math.floor(1000 + Math.random() * 9000)}`
-    });
+    // 5. Atomic Profile/Role Initialization
+    await Promise.all([
+        adminClient.from('profiles').upsert({
+            id: userId,
+            full_name: `${firstName} ${lastName}`,
+            email: email,
+            phone: phone || null,
+            trn: trn || null,
+            mailbox_number: `FSTD${Math.floor(1000 + Math.random() * 9000)}`
+        }),
+        adminClient.from('app_roles').upsert({
+            user_id: userId,
+            role: promoteToAdmin ? 'admin' : 'customer'
+        })
+    ]);
 
-    if (profileResult.error) {
-        console.error(`[API:${requestId}] Profile initialization error:`, profileResult.error.message);
-    }
-
-    const roleResult = await adminClient.from('app_roles').upsert({
-        user_id: userId,
-        role: promoteToAdmin ? 'admin' : 'customer'
-    });
-
-    if (roleResult.error) {
-        console.error(`[API:${requestId}] Role assignment error:`, roleResult.error.message);
-    }
-
-    console.log(`[API:${requestId}] Operation successful for ${userId}`);
+    console.log(`[API:CREATE_USER:${requestId}] Success: Established identity ${userId}`);
 
     return NextResponse.json({ 
       success: true, 
@@ -118,7 +81,7 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error(`[API:${requestId}] FATAL EXCEPTION:`, error.message);
+    console.error(`[API:CREATE_USER:${requestId}] Fatal Exception:`, error.message);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }

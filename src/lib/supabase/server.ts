@@ -2,13 +2,13 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 /**
- * Creates a Supabase client for use in Server Components.
- * Handles environment variable mapping for production consistency.
+ * Creates a Supabase client for use in Server Components/Routes.
+ * Correctly maps production environment variables and manages SSR cookies.
  */
 export async function createClient() {
   const cookieStore = await cookies();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 
   return createServerClient(
     url || 'https://placeholder.supabase.co',
@@ -24,7 +24,7 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Server Component cookie set error ignored
+            // Ignored if called in a Server Component
           }
         },
       },
@@ -34,7 +34,7 @@ export async function createClient() {
 
 /**
  * Creates an administrative Supabase client using the Secret Key.
- * Used strictly for privileged Auth and DB operations.
+ * Used strictly for privileged Auth and DB operations on the server.
  */
 export async function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;

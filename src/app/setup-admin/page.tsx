@@ -22,7 +22,6 @@ import { useSupabase } from '@/components/supabase-provider';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -194,9 +193,22 @@ export default function SetupAdminPage() {
     },
   });
 
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(INITIALIZATION_SQL);
-    toast({ title: "SQL Copied", description: "Paste this into your Supabase SQL Editor." });
+  const handleCopySql = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(INITIALIZATION_SQL);
+        toast({ title: "SQL Copied", description: "Paste this into your Supabase SQL Editor." });
+      } else {
+        throw new Error('Clipboard API unavailable');
+      }
+    } catch (err) {
+      console.warn("Clipboard access failed:", err);
+      toast({ 
+        title: "Manual Copy Required", 
+        description: "Please select the code and copy it manually (Ctrl+C).", 
+        variant: "destructive" 
+      });
+    }
   }
 
   const handleElevateCurrentSession = async () => {
@@ -263,7 +275,6 @@ export default function SetupAdminPage() {
   return (
     <div className="container mx-auto py-12 px-4 md:px-6 max-w-4xl">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Side: Setup UI */}
         <div className="space-y-6">
             <Card className="shadow-xl overflow-hidden border-none">
                 <CardHeader className="text-center bg-primary/5 pb-8">
@@ -339,7 +350,6 @@ export default function SetupAdminPage() {
             </Card>
         </div>
 
-        {/* Right Side: Schema Diagnostic */}
         <div className="space-y-6">
             <Card className="shadow-xl border-orange-200">
                 <CardHeader className="bg-orange-50/50">

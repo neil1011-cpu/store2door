@@ -60,33 +60,18 @@ export default function UsersPage() {
 
       setIsCreating(true);
       try {
-          // Robust session retrieval with fallback
-          const { data: { session } } = await supabase.auth.getSession();
-          let accessToken = session?.access_token;
-
-          // If session is null, it might be due to a race condition in the client
-          if (!accessToken) {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user) {
-                  throw new Error("No active administrative session found. Please try refreshing the page and logging in again.");
-              }
-              // If user exists but getSession failed, we try one more time or proceed with cookie-only auth
-              console.warn("[ADMIN] Session token missing, relying on cookie-based authentication.");
-          }
-          
+          // The API route /api/admin/create-user handles session verification via server-side cookies.
+          // We no longer perform redundant client-side user/token checks to avoid sync issues.
           const response = await fetch('/api/admin/create-user', {
               method: 'POST',
-              headers: { 
-                  'Content-Type': 'application/json',
-                  ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-              },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(newUser)
           });
 
           const result = await response.json();
           
           if (!response.ok) {
-            throw new Error(result.message || 'Creation failed');
+            throw new Error(result.message || 'The administrative session is invalid or has expired. Please refresh and try again.');
           }
 
           toast({ title: "Identity Created", description: `Account for ${newUser.email} is active.` });
