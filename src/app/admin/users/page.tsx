@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, UserPlus, ShieldCheck } from 'lucide-react';
+import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function UsersPage() {
   const { supabase } = useSupabase();
@@ -21,6 +22,7 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [lastError, setLastError] = useState<any>(null);
 
   const [newUser, setNewUser] = useState({
     firstName: '',
@@ -33,6 +35,7 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     setIsLoading(true);
+    setLastError(null);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -42,6 +45,8 @@ export default function UsersPage() {
       if (error) throw error;
       setUsers(data || []);
     } catch (error: any) {
+        console.error("[USERS_FETCH_ERROR]", error);
+        setLastError(error);
         toast({ title: "Registry Fetch Error", description: error.message, variant: "destructive" });
     } finally {
         setIsLoading(false);
@@ -59,19 +64,24 @@ export default function UsersPage() {
       }
 
       setIsCreating(true);
+      setLastError(null);
       try {
-          // Send request to server-side privileged endpoint.
-          // Authentication is handled via cookies refreshed by middleware.
           const response = await fetch('/api/admin/create-user', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+              },
+              // Explicitly include credentials to ensure cookies are sent
+              credentials: 'same-origin',
               body: JSON.stringify(newUser)
           });
 
           const result = await response.json();
           
           if (!response.ok) {
-            throw new Error(result.message || 'Administrative session failed. Please refresh and log in again.');
+            console.error("[CREATE_USER_API_ERROR]", result);
+            setLastError(result);
+            throw new Error(result.message || 'Operation failed.');
           }
 
           toast({ title: "Identity Created", description: `Account for ${newUser.email} is active.` });
@@ -107,6 +117,15 @@ export default function UsersPage() {
                     <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Register a new client or administrator</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
+                    {lastError && (
+                      <Alert variant="destructive" className="bg-red-50 border-red-200">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle className="text-xs font-bold uppercase">Critical Diagnostic Data</AlertTitle>
+                        <AlertDescription className="text-[10px] font-mono whitespace-pre-wrap mt-1">
+                          {JSON.stringify(lastError, null, 2)}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                             <Label className="text-[10px] font-bold uppercase opacity-60">First Name</Label>
@@ -149,6 +168,16 @@ export default function UsersPage() {
             </DialogContent>
         </Dialog>
       </div>
+
+      {lastError && !isAddUserOpen && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>System Fault Detected</AlertTitle>
+          <AlertDescription className="text-xs opacity-80">
+            Internal diagnostics: {lastError.debug?.authError || lastError.message}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
         <CardContent className="p-0">
