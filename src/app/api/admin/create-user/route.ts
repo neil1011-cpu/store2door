@@ -3,25 +3,29 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Administrative User Creation API.
- * Uses strict server-side cookie verification for production reliability.
+ * Uses strict server-side cookie verification with production diagnostics.
  */
 
 export async function POST(request: Request) {
   const requestId = Math.random().toString(36).slice(2, 9);
   
   try {
-    // 1. Identify Caller (Standard SSR Client reads cookies)
+    // 1. Identify Caller via standard SSR Client (Cookie-based)
     const supabase = await createClient();
+    
+    // Diagnostic: Check if we even have a session cookie
     const { data: { user: caller }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !caller) {
-      console.error(`[API:CREATE_USER:${requestId}] Session failure:`, authError?.message);
+      console.error(`[API:CREATE_USER:${requestId}] Auth Failure. User: ${!!caller}, Error: ${authError?.message}`);
       return NextResponse.json({ message: 'Invalid or expired administrative session.' }, { status: 401 });
     }
 
-    // 2. Verify Administrative Role (Direct DB Check)
+    console.log(`[API:CREATE_USER:${requestId}] Authorized Caller: ${caller.email} (${caller.id})`);
+
+    // 2. Verify Administrative Role via Privileged Client
     const adminClient = await createAdminClient();
-    const { data: roleData } = await adminClient
+    const { data: roleData, error: roleError } = await adminClient
         .from('app_roles')
         .select('role')
         .eq('user_id', caller.id)
@@ -31,7 +35,7 @@ export async function POST(request: Request) {
     const isDomainAdmin = caller.email === 'admin@neilussolutions.com';
 
     if (!roleData && !isDomainAdmin) {
-      console.warn(`[API:CREATE_USER:${requestId}] Authorization denied for ${caller.email}`);
+      console.warn(`[API:CREATE_USER:${requestId}] Forbidden: User ${caller.email} is not an admin.`);
       return NextResponse.json({ message: 'Forbidden: Administrative authority required.' }, { status: 403 });
     }
 
@@ -52,11 +56,14 @@ export async function POST(request: Request) {
         user_metadata: { full_name: `${firstName} ${lastName}` }
     });
 
-    if (createError) throw createError;
+    if (createError) {
+        console.error(`[API:CREATE_USER:${requestId}] Supabase Auth Error:`, createError.message);
+        throw createError;
+    }
 
     const userId = newUser.user.id;
     
-    // 5. Atomic Profile/Role Initialization
+    // 5. Atomic Profile/Role Initialization (Bypassing RLS via adminClient)
     await Promise.all([
         adminClient.from('profiles').upsert({
             id: userId,
@@ -72,7 +79,7 @@ export async function POST(request: Request) {
         })
     ]);
 
-    console.log(`[API:CREATE_USER:${requestId}] Success: Established identity ${userId}`);
+    console.log(`[API:CREATE_USER:${requestId}] Success: Created user ${userId}`);
 
     return NextResponse.json({ 
       success: true, 
