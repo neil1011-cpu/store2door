@@ -2,8 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 /**
- * @fileOverview Standardized Server-side Supabase factory for Next.js 15.
- * Uses the official Next.js/Supabase naming convention and async cookies.
+ * @fileOverview Standardized Server-side Supabase factory.
+ * Uses definitive production variable names.
  */
 export async function createClient() {
   const cookieStore = await cookies();
@@ -12,7 +12,7 @@ export async function createClient() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    throw new Error('[Supabase Server] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    throw new Error('[Supabase Server] Missing REQUIRED production variables: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
 
   return createServerClient(
@@ -38,15 +38,15 @@ export async function createClient() {
 }
 
 /**
- * Creates an administrative Supabase client using the Secret Key.
- * Bypasses RLS for privileged operations.
+ * Creates a privileged administrative Supabase client using the Secret Key.
+ * Standardized on: SUPABASE_SECRET_KEY
  */
 export async function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
-    throw new Error('[Supabase Admin] Missing required environment variables: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY');
+    throw new Error('[Supabase Admin] Missing REQUIRED production variables: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY');
   }
 
   return createServerClient(
