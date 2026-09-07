@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 
 /**
  * @fileOverview Standardized Server-side Supabase factory.
- * Uses definitive production variable names.
+ * Strictly enforced to use standard variable names.
  */
 export async function createClient() {
   const cookieStore = await cookies();
@@ -12,7 +12,7 @@ export async function createClient() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    throw new Error('[Supabase Server] Missing REQUIRED production variables: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    throw new Error('[Supabase Server] Missing REQUIRED variables: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
 
   return createServerClient(
@@ -46,7 +46,7 @@ export async function createAdminClient() {
   const key = process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
-    throw new Error('[Supabase Admin] Missing REQUIRED production variables: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY');
+    throw new Error('[Supabase Admin] Missing REQUIRED variables: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY');
   }
 
   return createServerClient(

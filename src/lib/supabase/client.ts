@@ -2,7 +2,7 @@ import { createBrowserClient } from '@supabase/ssr';
 
 /**
  * @fileOverview Standardized Client-side Supabase factory.
- * Locked to primary production variable names.
+ * Strictly enforced to use NEXT_PUBLIC_ variables only.
  */
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
