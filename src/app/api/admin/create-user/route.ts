@@ -3,15 +3,14 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
 
 /**
- * @fileOverview Hardened User Creation API with Explicit Token Propagation and Manual Mailbox Support.
- * Prioritizes Authorization header to bypass cookie restrictions in production.
+ * @fileOverview Hardened User Creation API.
+ * Prioritizes Authorization header but falls back to cookie session.
  */
 
 export async function POST(request: Request) {
   const requestId = Math.random().toString(36).slice(2, 9);
   const headerList = await headers();
   const authHeader = headerList.get('authorization');
-  const cookieHeader = headerList.get('cookie') || 'NONE';
   
   // Extract token from Bearer header
   const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
@@ -21,7 +20,7 @@ export async function POST(request: Request) {
     let caller;
     let authError;
 
-    // AUTHENTICATION: Use explicit token if provided, otherwise fallback to cookies
+    // AUTHENTICATION: Use explicit token if provided, otherwise standard cookie-based getUser()
     if (token) {
       const { data, error } = await supabase.auth.getUser(token);
       caller = data?.user;
@@ -33,24 +32,17 @@ export async function POST(request: Request) {
     }
 
     if (authError || !caller) {
-      console.error(`[API:CREATE_USER:${requestId}] AUTH_FAILURE:`, {
-        error: authError?.message,
-        hasToken: !!token,
-        hasCookies: cookieHeader !== 'NONE'
-      });
-      
       return NextResponse.json({ 
-        message: 'Administrative session not found. Please refresh and log in again.',
+        message: 'Administrative session not found. Please try refreshing the page.',
         debug: {
-          hasCookies: cookieHeader !== 'NONE',
           hasToken: !!token,
-          authError: authError?.message || 'Auth session missing!',
+          authError: authError?.message || 'Identity missing',
           requestId
         }
       }, { status: 401 });
     }
 
-    // AUTHORIZATION: Verify 'admin' role via privileged client (Secure direct lookup)
+    // AUTHORIZATION: Verify 'admin' role via privileged client
     const adminClient = await createAdminClient();
     const { data: roleData } = await adminClient
         .from('app_roles')
@@ -87,7 +79,6 @@ export async function POST(request: Request) {
     const userId = newUser.user.id;
     
     // Initialize Profile & Role
-    // If mailboxNumber is provided, use it; otherwise generate a random one.
     const finalMailboxNumber = mailboxNumber?.trim() || `FSTD${Math.floor(1000 + Math.random() * 9000)}`;
 
     await Promise.all([

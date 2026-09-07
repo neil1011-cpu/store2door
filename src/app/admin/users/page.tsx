@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function UsersPage() {
-  const { supabase } = useSupabase();
+  const { supabase, user: currentUser } = useSupabase();
   const { toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,19 +67,15 @@ export default function UsersPage() {
       setIsCreating(true);
       setLastError(null);
       try {
-          // EXPLICIT TOKEN RETRIEVAL: Fixes "hasCookies: false" in production
+          // Attempt to get token, but don't block if missing (fall back to cookies)
           const { data: { session } } = await supabase.auth.getSession();
           const accessToken = session?.access_token;
-
-          if (!accessToken) {
-              throw new Error("No active administrative session found. Please try logging in again.");
-          }
 
           const response = await fetch('/api/admin/create-user', {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}` // Pass token directly to bypass cookie restrictions
+                'Authorization': accessToken ? `Bearer ${accessToken}` : ''
               },
               body: JSON.stringify(newUser)
           });
@@ -128,7 +124,7 @@ export default function UsersPage() {
                     {lastError && (
                       <Alert variant="destructive" className="bg-red-50 border-red-200">
                         <AlertCircle className="h-4 w-4" />
-                        <AlertTitle className="text-xs font-bold uppercase">Critical Diagnostic Data</AlertTitle>
+                        <AlertTitle className="text-xs font-bold uppercase">System Diagnostic</AlertTitle>
                         <AlertDescription className="text-[10px] font-mono whitespace-pre-wrap mt-1 overflow-auto max-h-[200px]">
                           {JSON.stringify(lastError, null, 2)}
                         </AlertDescription>
@@ -151,7 +147,6 @@ export default function UsersPage() {
                     <div className="space-y-1">
                         <Label className="text-[10px] font-bold uppercase opacity-60">FSTD Mailbox Number (Optional)</Label>
                         <Input value={newUser.mailboxNumber} onChange={e => setNewUser({...newUser, mailboxNumber: e.target.value.toUpperCase()})} placeholder="e.g. FSTD1234" className="h-11 border-2 font-mono uppercase" />
-                        <p className="text-[9px] text-muted-foreground italic">Leave empty to auto-generate.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                          <div className="space-y-1">
