@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Hardened User Creation API with explicit diagnostic error reporting.
+ * @fileOverview Verified User Creation API.
+ * Uses Direct Role Discovery to bypass RPC synchronization lag.
  */
 
 export async function POST(request: Request) {
@@ -11,21 +12,20 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     
-    // 1. AUTHENTICATION: Is there a session?
+    // 1. AUTHENTICATION: Check for cookie-based session
     const { data: { user: caller }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !caller) {
-      console.error(`[API:CREATE_USER:${requestId}] AUTH_FAILURE:`, authError?.message || 'No session');
+      console.error(`[API:CREATE_USER:${requestId}] NO_SESSION:`, authError?.message);
       return NextResponse.json({ 
-        message: 'Invalid or expired administrative session. Please log in again.',
+        message: 'Administrative session not found. Please refresh and log in again.',
         code: 'UNAUTHENTICATED'
       }, { status: 401 });
     }
 
-    // 2. AUTHORIZATION: Is the caller an admin?
+    // 2. AUTHORIZATION: Query database directly via Admin Client (RLS Bypass)
     const adminClient = await createAdminClient();
     
-    // We check app_roles directly. If this fails with PGRST205, it's a schema issue.
     const { data: roleData, error: roleError } = await adminClient
         .from('app_roles')
         .select('role')
@@ -34,23 +34,24 @@ export async function POST(request: Request) {
         .maybeSingle();
 
     if (roleError) {
-      console.error(`[API:CREATE_USER:${requestId}] SCHEMA_ERROR:`, roleError.message);
+      console.error(`[API:CREATE_USER:${requestId}] DB_QUERY_ERROR:`, roleError.message);
       return NextResponse.json({ 
-        message: `System Infrastructure Error: ${roleError.message}. Check if 'app_roles' table exists in schema cache.`,
+        message: `Database connection error: ${roleError.message}. Table 'app_roles' may be missing or locked.`,
         code: roleError.code
       }, { status: 500 });
     }
 
-    const isDomainAdmin = caller.email === 'admin@neilussolutions.com';
+    const isMasterAdmin = caller.email === 'admin@neilussolutions.com';
 
-    if (!roleData && !isDomainAdmin) {
+    if (!roleData && !isMasterAdmin) {
+      console.warn(`[API:CREATE_USER:${requestId}] FORBIDDEN: User ${caller.id} is not an admin.`);
       return NextResponse.json({ 
-        message: 'Access Denied: Administrative authority required.',
+        message: 'Access Denied: You do not have the required administrative role.',
         code: 'FORBIDDEN'
       }, { status: 403 });
     }
 
-    // 3. EXECUTION: Privileged user creation
+    // 3. EXECUTION
     const body = await request.json();
     const { firstName, lastName, email, phone, trn, isAdmin } = body;
 
@@ -69,26 +70,26 @@ export async function POST(request: Request) {
 
     const userId = newUser.user.id;
     
-    // Initialize profile and role atomically
-    await Promise.all([
-        adminClient.from('profiles').upsert({
-            id: userId,
-            full_name: `${firstName} ${lastName}`,
-            email: email,
-            phone: phone || null,
-            trn: trn || null,
-            mailbox_number: `FSTD${Math.floor(1000 + Math.random() * 9000)}`
-        }),
-        adminClient.from('app_roles').upsert({
-            user_id: userId,
-            role: isAdmin ? 'admin' : 'customer'
-        })
-    ]);
+    // Create Profile and Role
+    await adminClient.from('profiles').upsert({
+        id: userId,
+        full_name: `${firstName} ${lastName}`,
+        email: email,
+        phone: phone || null,
+        trn: trn || null,
+        mailbox_number: `FSTD${Math.floor(1000 + Math.random() * 9000)}`
+    });
 
+    await adminClient.from('app_roles').upsert({
+        user_id: userId,
+        role: isAdmin ? 'admin' : 'customer'
+    });
+
+    console.log(`[API:CREATE_USER:${requestId}] SUCCESS: User created with ID ${userId}`);
     return NextResponse.json({ success: true, uid: userId });
 
   } catch (error: any) {
-    console.error(`[API:CREATE_USER:${requestId}] FATAL:`, error.message);
+    console.error(`[API:CREATE_USER:${requestId}] FATAL_EXCEPTION:`, error.message);
     return NextResponse.json({ message: 'Internal Server Error: ' + error.message }, { status: 500 });
   }
 }

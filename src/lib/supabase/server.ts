@@ -2,22 +2,22 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 /**
- * @fileOverview Server-side Supabase factory for FromStore2Door OS.
- * Implements standard SSR cookie management for Next.js 15 with robust env lookup.
+ * @fileOverview Standardized Server-side Supabase factory for Next.js 15.
+ * Uses the official Next.js/Supabase naming convention and async cookies.
  */
 export async function createClient() {
   const cookieStore = await cookies();
   
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = 
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-    process.env.SUPABASE_ANON_KEY || 
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
-    process.env.SUPABASE_PUBLISHABLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    throw new Error('[Supabase Server] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  }
 
   return createServerClient(
-    url || 'https://placeholder.supabase.co',
-    key || 'placeholder-key',
+    url,
+    key,
     {
       cookies: {
         getAll() {
@@ -29,7 +29,7 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Ignored if called from a Server Component
+            // Safe to ignore in Server Components
           }
         },
       },
@@ -39,15 +39,14 @@ export async function createClient() {
 
 /**
  * Creates an administrative Supabase client using the Secret Key.
- * Used strictly for privileged Auth and DB operations on the server.
- * Bypasses RLS.
+ * Bypasses RLS for privileged operations.
  */
 export async function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
-    throw new Error('[Supabase Admin] Missing required environment variables: URL or SECRET_KEY');
+    throw new Error('[Supabase Admin] Missing required environment variables: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY');
   }
 
   return createServerClient(

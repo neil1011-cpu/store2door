@@ -1,25 +1,19 @@
 import { createBrowserClient } from '@supabase/ssr';
 
 /**
- * @fileOverview Client-side Supabase factory for FromStore2Door OS.
- * Uses exhaustive environment variable lookup to handle different naming conventions.
+ * @fileOverview Standardized Client-side Supabase factory.
+ * Uses the official Next.js/Supabase naming convention.
  */
 export function createClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  
-  // Exhaustive check for publishable/anon keys
-  const key = 
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-    process.env.SUPABASE_ANON_KEY || 
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
-    process.env.SUPABASE_PUBLISHABLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    console.warn('[Supabase Client] Missing credentials. URL or Public Key is undefined.');
+    console.error('[Supabase Client] CRITICAL: Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
 
   return createBrowserClient(
-    url || 'https://placeholder.supabase.co',
-    key || 'placeholder-key'
+    url || '',
+    key || ''
   );
 }
