@@ -54,15 +54,21 @@ export default function UsersPage() {
 
   const handleCreateUser = async () => {
       if (!newUser.email || !newUser.firstName || !newUser.lastName) {
-          toast({ title: "Missing Required Fields", description: "Email, First Name, and Last Name are mandatory.", variant: "destructive" });
+          toast({ title: "Missing Required Fields", variant: "destructive" });
           return;
       }
 
       setIsCreating(true);
       try {
+          // Explicitly get the session token to send in the Authorization header
+          const { data: { session } } = await supabase.auth.getSession();
+          
           const response = await fetch('/api/admin/create-user', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session?.access_token}`
+              },
               body: JSON.stringify(newUser)
           });
 
@@ -72,10 +78,7 @@ export default function UsersPage() {
             throw new Error(result.message || 'Creation failed');
           }
 
-          toast({ 
-            title: "Identity Created", 
-            description: `Account for ${newUser.email} is now active in the global registry.` 
-          });
+          toast({ title: "Identity Created", description: `Account for ${newUser.email} is active.` });
           
           setIsAddUserOpen(false);
           setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', isAdmin: false });
