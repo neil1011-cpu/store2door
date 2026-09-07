@@ -3,7 +3,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
 
 /**
- * @fileOverview Hardened User Creation API with Explicit Token Propagation.
+ * @fileOverview Hardened User Creation API with Explicit Token Propagation and Manual Mailbox Support.
  * Prioritizes Authorization header to bypass cookie restrictions in production.
  */
 
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
     // EXECUTION
     const body = await request.json();
-    const { firstName, lastName, email, phone, trn, isAdmin } = body;
+    const { firstName, lastName, email, phone, trn, isAdmin, mailboxNumber } = body;
 
     const tempPassword = Math.random().toString(36).slice(-12) + 'A1!';
     
@@ -87,6 +87,9 @@ export async function POST(request: Request) {
     const userId = newUser.user.id;
     
     // Initialize Profile & Role
+    // If mailboxNumber is provided, use it; otherwise generate a random one.
+    const finalMailboxNumber = mailboxNumber?.trim() || `FSTD${Math.floor(1000 + Math.random() * 9000)}`;
+
     await Promise.all([
       adminClient.from('profiles').upsert({
         id: userId,
@@ -94,7 +97,7 @@ export async function POST(request: Request) {
         email: email,
         phone: phone || null,
         trn: trn || null,
-        mailbox_number: `FSTD${Math.floor(1000 + Math.random() * 9000)}`
+        mailbox_number: finalMailboxNumber
       }),
       adminClient.from('app_roles').upsert({
         user_id: userId,
@@ -102,7 +105,7 @@ export async function POST(request: Request) {
       })
     ]);
 
-    return NextResponse.json({ success: true, uid: userId });
+    return NextResponse.json({ success: true, uid: userId, mailboxNumber: finalMailboxNumber });
 
   } catch (error: any) {
     console.error(`[API:CREATE_USER:${requestId}] FATAL:`, error.message);

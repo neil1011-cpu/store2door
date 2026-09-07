@@ -30,7 +30,8 @@ export default function UsersPage() {
     email: '',
     phone: '',
     trn: '',
-    isAdmin: false
+    isAdmin: false,
+    mailboxNumber: ''
   });
 
   const fetchUsers = async () => {
@@ -94,7 +95,7 @@ export default function UsersPage() {
           toast({ title: "Identity Created", description: `Account for ${newUser.email} is active.` });
           
           setIsAddUserOpen(false);
-          setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', isAdmin: false });
+          setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', isAdmin: false, mailboxNumber: '' });
           fetchUsers();
       } catch (error: any) {
           console.error("[ADMIN:CREATE_USER]", error);
@@ -146,6 +147,11 @@ export default function UsersPage() {
                     <div className="space-y-1">
                         <Label className="text-[10px] font-bold uppercase opacity-60">Email Address</Label>
                         <Input type="email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} className="h-11 border-2" />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[10px] font-bold uppercase opacity-60">FSTD Mailbox Number (Optional)</Label>
+                        <Input value={newUser.mailboxNumber} onChange={e => setNewUser({...newUser, mailboxNumber: e.target.value.toUpperCase()})} placeholder="e.g. FSTD1234" className="h-11 border-2 font-mono uppercase" />
+                        <p className="text-[9px] text-muted-foreground italic">Leave empty to auto-generate.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                          <div className="space-y-1">
