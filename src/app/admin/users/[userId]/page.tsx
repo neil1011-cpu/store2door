@@ -1,9 +1,8 @@
+
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { useDoc, useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
-import { doc, collection, query, orderBy, updateDoc, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
+import { useState, useEffect, useCallback } from 'react';
 import type { UserProfile, Shipment } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,97 +26,98 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useSupabase } from '@/components/supabase-provider';
 import { cn } from '@/lib/utils';
 
 const getStatusVariant = (status: string) => {
-  switch (status) {
-    case 'In Transit': return 'default';
-    case 'Customs': return 'secondary';
-    case 'Delivered': return 'outline';
-    case 'Pending': return 'destructive';
-    case 'Processed': return 'secondary';
-    default: return 'default';
-  }
+  const s = (status || '').toLowerCase();
+  if (s.includes('transit')) return 'default';
+  if (s.includes('customs')) return 'secondary';
+  if (s.includes('delivered')) return 'outline';
+  if (s.includes('pending')) return 'destructive';
+  return 'default';
 };
 
 export default function UserDetailsPage() {
     const params = useParams();
     const router = useRouter();
     const userId = params.userId as string;
-    const firestore = useFirestore();
-    const auth = useAuth();
+    const { supabase } = useSupabase();
     const { toast } = useToast();
     
+    const [profile, setProfile] = useState<any>(null);
+    const [shipments, setShipments] = useState<any[]>([]);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isUpdatingRole, setIsUpdatingRole] = useState(false);
 
-    const userProfileRef = useMemoFirebase(() => {
-        if (!firestore || !userId) return null;
-        return doc(firestore, 'users', userId);
-    }, [firestore, userId]);
-    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [
+                { data: profileData },
+                { data: shipmentsData },
+                { data: roleData }
+            ] = await Promise.all([
+                supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+                supabase.from('shipments').select('*').eq('profile_id', userId).order('created_at', { ascending: false }),
+                supabase.from('app_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle()
+            ]);
 
-    const adminRoleRef = useMemoFirebase(() => {
-        if (!firestore || !userId) return null;
-        return doc(firestore, 'admin_roles', userId);
-    }, [firestore, userId]);
-    const { data: adminRoleDoc, isLoading: isAdminCheckLoading } = useDoc<{isAdmin: boolean}>(adminRoleRef);
+            setProfile(profileData);
+            setShipments(shipmentsData || []);
+            setIsAdmin(!!roleData);
+        } catch (error: any) {
+            toast({ title: "Fetch Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [userId, supabase, toast]);
 
-    const shipmentsQuery = useMemoFirebase(() => {
-        if (!firestore || !userId) return null;
-        return query(collection(firestore, 'users', userId, 'shipments'), orderBy('shippingDate', 'desc'));
-    }, [firestore, userId]);
-    const { data: userShipments, isLoading: isShipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
-
-    const isMasterAdmin = userProfile?.email === 'admin@neilussolutions.com';
+    useEffect(() => {
+        if (userId) fetchData();
+    }, [fetchData, userId]);
 
     const toggleAdminStatus = async () => {
-        if (isMasterAdmin) {
-            toast({ title: "Operation Denied", description: "Master Admin access cannot be modified.", variant: "destructive" });
+        if (profile?.email === 'admin@neilussolutions.com') {
+            toast({ title: "Operation Denied", description: "Master Admin access is locked.", variant: "destructive" });
             return;
         }
         setIsUpdatingRole(true);
         try {
-            if (adminRoleDoc) {
-                await deleteDoc(adminRoleRef!);
-                toast({ title: "Role Revoked", description: "Administrative access has been removed." });
+            if (isAdmin) {
+                await supabase.from('app_roles').delete().eq('user_id', userId).eq('role', 'admin');
+                toast({ title: "Role Revoked" });
             } else {
-                await setDoc(adminRoleRef!, { 
-                    isAdmin: true, 
-                    email: userProfile?.email,
-                    uid: userId,
-                    updatedAt: serverTimestamp() 
-                });
-                toast({ title: "Role Granted", description: "This account now has full administrative access." });
+                await supabase.from('app_roles').insert({ user_id: userId, role: 'admin' });
+                toast({ title: "Role Granted" });
             }
+            fetchData();
         } catch (e: any) {
-            toast({ title: "Role Update Failed", description: e.message, variant: "destructive" });
+            toast({ title: "Update Failed", description: e.message, variant: "destructive" });
         } finally {
             setIsUpdatingRole(false);
         }
     };
 
     const handleDelete = async () => {
-        if (isMasterAdmin) {
-            toast({ title: "Operation Denied", description: "Master Admin account cannot be purged.", variant: "destructive" });
-            return;
-        }
         setIsDeleting(true);
         try {
-            const idToken = await auth?.currentUser?.getIdToken(true);
+            const { data: { session } } = await supabase.auth.getSession();
             const res = await fetch('/api/admin/delete-user', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${idToken}`
+                    'Authorization': `Bearer ${session?.access_token}`
                 },
                 body: JSON.stringify({ userId })
             });
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Purge failed');
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.message || 'Purge failed');
 
-            toast({ title: "Account Purged", description: "Identity removed from worldwide registry." });
+            toast({ title: "Account Purged" });
             router.push('/admin/users');
         } catch (e: any) {
             toast({ title: "Purge Error", description: e.message, variant: "destructive" });
@@ -125,16 +125,15 @@ export default function UserDetailsPage() {
         }
     };
 
-    if (isProfileLoading || isShipmentsLoading || isAdminCheckLoading) {
+    if (isLoading) {
         return <div className="flex h-screen items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
     }
     
-    if (!userProfile) {
+    if (!profile) {
         return (
             <div className="text-center py-20">
-                <h1 className="text-2xl font-bold">Client Not Found</h1>
-                <p className="text-muted-foreground mt-2">The record may have been purged or relocated.</p>
-                 <Button variant="outline" asChild className="mt-8 font-bold border-2">
+                <h1 className="text-2xl font-bold italic uppercase">Identity Missing</h1>
+                <Button variant="outline" asChild className="mt-8 font-bold border-2">
                     <Link href="/admin/users"><ArrowLeft className="mr-2 h-4 w-4" /> Return to Registry</Link>
                 </Button>
             </div>
@@ -142,13 +141,11 @@ export default function UserDetailsPage() {
     }
 
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 max-w-7xl mx-auto">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-black italic uppercase tracking-tighter">Account Intelligence</h1>
-                    <p className="text-muted-foreground font-medium text-[10px] uppercase tracking-widest mt-1">
-                       Primary identity record for {userProfile.fullName}.
-                    </p>
+                    <p className="text-muted-foreground font-medium text-[10px] uppercase tracking-widest mt-1">Identity: {profile.full_name}</p>
                 </div>
                 <Button variant="outline" asChild className="font-bold border-2">
                     <Link href="/admin/users"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Registry</Link>
@@ -156,28 +153,27 @@ export default function UserDetailsPage() {
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1 flex flex-col gap-6">
+                <div className="lg:col-span-1 space-y-6">
                     <Card className="overflow-hidden border-none shadow-lg">
                         <CardHeader className="items-center bg-primary/5 pb-8">
-                            <Avatar className="h-24 w-24 border-4 border-white shadow-xl">
-                                <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${userProfile.fullName}`} />
-                                <AvatarFallback>{userProfile.fullName.charAt(0)}</AvatarFallback>
+                            <Avatar className="h-24 w-24 border-4 border-background shadow-xl">
+                                <AvatarFallback className="text-2xl font-black">{profile.full_name.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            <CardTitle className="text-2xl pt-4 font-black italic uppercase tracking-tighter text-center">{userProfile.fullName}</CardTitle>
-                            <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Mailbox: {userProfile.mailboxNumber}</CardDescription>
+                            <CardTitle className="text-2xl pt-4 font-black italic uppercase tracking-tighter text-center">{profile.full_name}</CardTitle>
+                            <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Mailbox: {profile.mailbox_number}</CardDescription>
                         </CardHeader>
                         <CardContent className="text-sm space-y-4 pt-6">
                              <div className="flex items-center gap-3">
                                 <div className="bg-muted p-2 rounded-lg"><Mail className="h-4 w-4 text-muted-foreground" /></div>
-                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Email</p><p className="font-medium">{userProfile.email}</p></div>
+                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Email</p><p className="font-medium">{profile.email}</p></div>
                             </div>
                              <div className="flex items-center gap-3">
                                 <div className="bg-muted p-2 rounded-lg"><Phone className="h-4 w-4 text-muted-foreground" /></div>
-                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Phone</p><p className="font-medium">{userProfile.phone}</p></div>
+                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Phone</p><p className="font-medium">{profile.phone || 'N/A'}</p></div>
                             </div>
                              <div className="flex items-center gap-3">
                                 <div className="bg-muted p-2 rounded-lg"><Home className="h-4 w-4 text-muted-foreground" /></div>
-                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">TRN</p><p className="font-medium">{userProfile.trn}</p></div>
+                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">TRN</p><p className="font-medium">{profile.trn || 'N/A'}</p></div>
                             </div>
                         </CardContent>
                     </Card>
@@ -185,60 +181,57 @@ export default function UserDetailsPage() {
                     <Card className="border-primary/20 shadow-md">
                         <CardHeader className="bg-primary/5 pb-4">
                             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                                <Wallet className="h-4 w-4 text-primary" /> Account Balance Management
+                                <Wallet className="h-4 w-4 text-primary" /> Financial Registry
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-6">
                             <div className="text-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Current Balance</p>
-                                <p className="text-4xl font-black italic tracking-tighter text-primary">JMD ${ (userProfile.walletBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 }) }</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Ledger Standing</p>
+                                <p className={cn("text-4xl font-black italic tracking-tighter", profile.wallet_balance < 0 ? "text-red-600" : "text-primary")}>
+                                    JMD ${Math.abs(profile.wallet_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </p>
                             </div>
-                            <AdjustBalanceDialog userId={userProfile.id} userName={userProfile.fullName} currentBalance={userProfile.walletBalance || 0} />
+                            <AdjustBalanceDialog userId={profile.id} userName={profile.full_name} currentBalance={profile.wallet_balance || 0} onSuccess={fetchData} />
                         </CardContent>
                     </Card>
 
-                    <Card className={cn("border-2", adminRoleDoc ? "border-primary/40 bg-primary/5" : "border-dashed opacity-80")}>
+                    <Card className={cn("border-2", isAdmin ? "border-primary/40 bg-primary/5" : "border-dashed opacity-80")}>
                         <CardHeader className="pb-4">
                             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                                <ShieldCheck className="h-4 w-4 text-primary" /> Administrative Access
+                                <ShieldCheck className="h-4 w-4 text-primary" /> Authority Level
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <p className="text-[10px] font-medium leading-relaxed uppercase tracking-tight opacity-60">
-                                {adminRoleDoc 
-                                    ? "This account has full access to the Admin Command Center including finance and user management." 
-                                    : "Granting administrative access allows this user to manage manifests, users, and financial records."}
-                            </p>
                             <Button 
                                 onClick={toggleAdminStatus} 
-                                disabled={isUpdatingRole || isMasterAdmin} 
-                                variant={adminRoleDoc ? "destructive" : "default"}
+                                disabled={isUpdatingRole || profile.email === 'admin@neilussolutions.com'} 
+                                variant={isAdmin ? "destructive" : "default"}
                                 className="w-full font-black uppercase italic text-[10px] h-11 shadow-lg"
                             >
-                                {isUpdatingRole ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : (adminRoleDoc ? <ShieldAlert className="h-4 w-4 mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />)}
-                                {isMasterAdmin ? "Master Admin Locked" : (adminRoleDoc ? "Revoke Admin Privileges" : "Authorize Administrator")}
+                                {isUpdatingRole ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : (isAdmin ? <ShieldAlert className="h-4 w-4 mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />)}
+                                {isAdmin ? "Revoke Admin Access" : "Authorize Administrator"}
                             </Button>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="bg-muted/10">
-                            <CardTitle className="text-sm font-bold uppercase opacity-60">Security & Maintenance</CardTitle>
+                            <CardTitle className="text-sm font-bold uppercase opacity-60">Identity Management</CardTitle>
                         </CardHeader>
                         <CardContent className="pt-4 flex flex-col gap-2">
-                            <ResetPasswordDialog userId={userProfile.id} userName={userProfile.fullName} />
+                            <ResetPasswordDialog userId={profile.id} userName={profile.full_name} />
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/5 font-bold" disabled={isMasterAdmin}>
+                                    <Button variant="ghost" className="w-full justify-start text-destructive hover:bg-destructive/5 font-bold" disabled={profile.email === 'admin@neilussolutions.com'}>
                                         {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                        Purge Customer Record
+                                        Purge Identity Record
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
-                                        <AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter italic text-center">Initiate Irreversible Purge?</AlertDialogTitle>
+                                        <AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter italic text-center">Confirm Deep Purge?</AlertDialogTitle>
                                         <AlertDialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">
-                                            This will delete <strong>{userProfile.fullName}</strong> from Authentication and all Registry tables. All history will be lost.
+                                            This will permanently remove <strong>{profile.full_name}</strong> from Auth and all Registry tables.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -251,38 +244,36 @@ export default function UserDetailsPage() {
                     </Card>
                 </div>
 
-                <div className="lg:col-span-2 flex flex-col gap-6">
+                <div className="lg:col-span-2 space-y-6">
                     <Card className="shadow-lg border-none rounded-2xl overflow-hidden">
                         <CardHeader className="bg-muted/10 border-b">
-                            <CardTitle className="text-sm font-black uppercase tracking-widest italic">Shipping History</CardTitle>
+                            <CardTitle className="text-sm font-black uppercase tracking-widest italic">Worldwide Transit History</CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             <Table>
                                 <TableHeader className="bg-muted/20">
                                     <TableRow>
-                                    <TableHead className="pl-6">Tracking #</TableHead>
-                                    <TableHead>Contents</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right pr-6">Cost</TableHead>
+                                        <TableHead className="pl-6">Tracking ID</TableHead>
+                                        <TableHead>Contents</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right pr-6">Cost (JMD)</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {userShipments && userShipments.length > 0 ? (
-                                        userShipments.map((shipment) => (
-                                        <TableRow key={shipment.id} className="h-16">
-                                            <TableCell className="pl-6 font-mono font-black text-primary uppercase text-sm tracking-tighter">{shipment.trackingNumber}</TableCell>
-                                            <TableCell className="text-xs uppercase font-medium opacity-70">{shipment.contents}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={getStatusVariant(shipment.status)} className="font-black italic uppercase text-[9px] border-2">{shipment.status}</Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right pr-6 font-black italic tracking-tighter">
-                                                {shipment.cost ? `JMD $${shipment.cost.toFixed(2)}` : 'TBD'}
+                                    {shipments.length > 0 ? (
+                                        shipments.map((s) => (
+                                        <TableRow key={s.id} className="h-16">
+                                            <TableCell className="pl-6 font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</TableCell>
+                                            <TableCell className="text-xs uppercase font-medium opacity-70">{s.contents}</TableCell>
+                                            <TableCell><Badge variant={getStatusVariant(s.status)} className="font-black italic uppercase text-[9px] border-2">{s.status}</Badge></TableCell>
+                                            <TableCell className="text-right pr-6 font-black tracking-tighter">
+                                                ${Number(s.total_cost_jmd || 0).toLocaleString()}
                                             </TableCell>
                                         </TableRow>
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center h-48 italic text-muted-foreground opacity-30">No worldwide transits detected for this identity.</TableCell>
+                                            <TableCell colSpan={4} className="text-center h-48 italic text-muted-foreground opacity-30">No transit records found.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
@@ -299,48 +290,30 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
     const [open, setOpen] = useState(false);
     const [isResetting, setIsResetting] = useState(false);
     const { toast } = useToast();
-    const auth = useAuth();
+    const { supabase } = useSupabase();
 
     const handleSendResetLink = async () => {
-        if (!auth?.currentUser) {
-            toast({ title: "Authentication Required", description: "Administrative session lost. Please refresh.", variant: "destructive" });
-            return;
-        }
-
         setIsResetting(true);
-        console.log(`[UI] Initiating secure link dispatch for ${userName}...`);
-        
         try {
-            const idToken = await auth.currentUser.getIdToken(true);
+            const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch('/api/reset-password', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${idToken}`
+                    'Authorization': `Bearer ${session?.access_token}`
                 },
-                body: JSON.stringify({ userId }),
-                signal: AbortSignal.timeout(45000) 
+                body: JSON.stringify({ userId })
             });
             
-            const result = await response.json().catch(() => ({ message: "Server response pending dispatch." }));
-            
-            if (!response.ok) throw new Error(result.message || "Reset protocol failed.");
-
-            if (result.simulated) {
-                toast({ 
-                    title: "Simulation Alert", 
-                    description: "Link generated, but email delivery was simulated. Check server logs.",
-                    variant: "default"
-                });
-            } else {
-                toast({ title: "Dispatch Complete", description: `A secure clickable reset link is now en route to ${userName}.` });
+            if (!response.ok) {
+                const res = await response.json();
+                throw new Error(res.message || "Reset failed.");
             }
-            
+
+            toast({ title: "Link Dispatched", description: `Secure instructions sent to client email.` });
             setOpen(false);
         } catch (error: any) {
-            console.error("[UI RESET ERROR]", error);
-            toast({ title: "System Response Pending", description: "The dispatch is processing in the background. The user will receive their link shortly.", variant: "default" });
-            setOpen(false);
+            toast({ title: "Reset Error", description: error.message, variant: "destructive" });
         } finally {
             setIsResetting(false);
         }
@@ -356,19 +329,14 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Authorize Reset Protocol</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">Security dispatch for {userName}</DialogDescription>
                 </DialogHeader>
-                <div className="py-8 text-center space-y-4">
-                    <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Send className="h-10 w-10 text-primary" />
-                    </div>
-                    <p className="text-sm font-medium leading-relaxed uppercase tracking-tight px-4">
-                        This will dispatch a **one-time secure clickable link** to the user's verified email. They will be able to define their own new private key safely.
-                    </p>
+                <div className="py-8 text-center space-y-4 px-4">
+                    <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"><Send className="h-10 w-10 text-primary" /></div>
+                    <p className="text-sm font-medium uppercase tracking-tight">This will dispatch a one-time secure link to <strong>{userName}</strong>.</p>
                 </div>
                 <DialogFooter>
                     <Button onClick={handleSendResetLink} disabled={isResetting} className="w-full h-14 font-black uppercase italic shadow-xl">
-                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Link Dispatch"}
+                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Dispatch"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -376,23 +344,25 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
     );
 }
 
-function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: string, userName: string, currentBalance: number }) {
+function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { userId: string, userName: string, currentBalance: number, onSuccess: () => void }) {
     const [open, setOpen] = useState(false);
     const [amount, setAmount] = useState(currentBalance.toString());
     const [isUpdating, setIsUpdating] = useState(false);
     const { toast } = useToast();
-    const firestore = useFirestore();
+    const { supabase } = useSupabase();
 
     const handleAdjustBalance = async () => {
         setIsUpdating(true);
         try {
             const newBalance = parseFloat(amount);
-            if (isNaN(newBalance)) throw new Error("Invalid amount format detected.");
-            await updateDoc(doc(firestore!, 'users', userId), { walletBalance: newBalance, balanceUpdatedAt: serverTimestamp() });
-            toast({ title: "Credit Adjusted", description: `New balance for ${userName}: JMD $${newBalance.toLocaleString()}` });
+            if (isNaN(newBalance)) throw new Error("Invalid amount.");
+            const { error } = await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', userId);
+            if (error) throw error;
+            toast({ title: "Credit Adjusted" });
             setOpen(false);
+            onSuccess();
         } catch (error: any) {
-            toast({ title: "Adjustment Failed", description: error.message, variant: "destructive" });
+            toast({ title: "Update Failed", description: error.message, variant: "destructive" });
         } finally {
             setIsUpdating(false);
         }
@@ -404,21 +374,15 @@ function AdjustBalanceDialog({ userId, userName, currentBalance }: { userId: str
                 <Button variant="outline" className="w-full font-bold border-2"><PlusCircle className="mr-2 h-4 w-4 text-primary" /> Adjust Account Balance</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Adjust Account Balance</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">Modify available credit for {userName}</DialogDescription>
-                </DialogHeader>
+                <DialogHeader><DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Adjust Balance</DialogTitle></DialogHeader>
                 <div className="space-y-6 py-4">
                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Current Balance</p>
-                        <p className="text-2xl font-black italic tracking-tighter">JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[10px] font-bold uppercase opacity-60">Current</p>
+                        <p className="text-2xl font-black italic">JMD ${currentBalance.toLocaleString()}</p>
                     </div>
                     <div className="space-y-2">
                         <Label className="text-[10px] font-bold uppercase opacity-60">Set New Balance (JMD $)</Label>
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
-                            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="pl-16 h-14 text-2xl font-black border-2" />
-                        </div>
+                        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-14 text-2xl font-black border-2" />
                     </div>
                 </div>
                 <DialogFooter>

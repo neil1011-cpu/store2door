@@ -1,43 +1,80 @@
 
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { headers } from 'next/headers';
 
 /**
- * @fileOverview Administrative reset link generation using Supabase Auth.
+ * @fileOverview Hardened Reset Password API for FromStore2Door OS.
+ * Uses explicit token verification and the privileged Admin SDK.
  */
 
 export async function POST(request: Request) {
+    const headerList = await headers();
+    const authHeader = headerList.get('authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
     try {
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+        const supabase = await createClient();
+        let caller;
 
-        const body = await request.json();
-        const { userId } = body;
-
-        const supabase = await createAdminClient();
-        
-        // 1. Verify Caller is Admin
-        const { data: { user: caller } } = await supabase.auth.getUser(authHeader.split(' ')[1]);
-        const { data: isAdmin } = await supabase.rpc('is_admin');
-        
-        if (!isAdmin && caller?.email !== 'admin@neilussolutions.com') {
-            return NextResponse.json({ message: 'Admin access denied' }, { status: 403 });
+        // AUTHENTICATION
+        if (token) {
+            const { data } = await supabase.auth.getUser(token);
+            caller = data?.user;
+        } else {
+            const { data } = await supabase.auth.getUser();
+            caller = data?.user;
         }
 
-        // 2. Fetch target user email
-        const { data: targetProfile } = await supabase.from('profiles').select('email').eq('id', userId).single();
-        if (!targetProfile?.email) return NextResponse.json({ message: 'User not found' }, { status: 404 });
+        if (!caller) {
+            return NextResponse.json({ message: 'Administrative session required.' }, { status: 401 });
+        }
 
-        // 3. Generate Link
-        const { error } = await supabase.auth.resetPasswordForEmail(targetProfile.email, {
-            redirectTo: `${new URL(request.url).origin}/account/change-password`,
+        // AUTHORIZATION
+        const adminClient = await createAdminClient();
+        const { data: roleData } = await adminClient
+            .from('app_roles')
+            .select('role')
+            .eq('user_id', caller.id)
+            .eq('role', 'admin')
+            .maybeSingle();
+
+        const isMaster = caller.email === 'admin@neilussolutions.com';
+
+        if (!roleData && !isMaster) {
+            return NextResponse.json({ message: 'Access Denied: Administrative authority required.' }, { status: 403 });
+        }
+
+        const { userId } = await request.json();
+        if (!userId) return NextResponse.json({ message: 'Target identity missing.' }, { status: 400 });
+
+        // FETCH TARGET EMAIL
+        const { data: targetProfile } = await adminClient.from('profiles').select('email').eq('id', userId).single();
+        if (!targetProfile?.email) return NextResponse.json({ message: 'Profile not found.' }, { status: 404 });
+
+        // GENERATE AND DISPATCH RESET LINK
+        const { error } = await adminClient.auth.admin.generateLink({
+            type: 'recovery',
+            email: targetProfile.email,
+            options: {
+                redirectTo: `${new URL(request.url).origin}/account/change-password`
+            }
         });
 
         if (error) throw error;
 
-        return NextResponse.json({ success: true, message: 'Reset link dispatched via Supabase Auth.' });
+        // ALSO log the security event
+        await adminClient.from('system_logs').insert({
+            log_type: 'password_reset_dispatch',
+            description: `Security reset link dispatched to ${targetProfile.email}`,
+            actor_id: caller.id,
+            metadata: { targetUserId: userId }
+        });
+
+        return NextResponse.json({ success: true, message: 'Reset protocol authorized.' });
 
     } catch (error: any) {
+        console.error("[API:RESET_PASSWORD] FATAL:", error.message);
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }

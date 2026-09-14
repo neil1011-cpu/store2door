@@ -1,87 +1,79 @@
+
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { headers } from 'next/headers';
 
 /**
- * @fileOverview Hardened User Deletion API.
- * Permanently removes a user from Registry, protecting Master Admin identities.
+ * @fileOverview Hardened User Deletion API (Supabase Native).
+ * Executes deep identity purge while protecting master admin accounts.
  */
 
 export async function POST(request: Request) {
-    console.log('[API: DELETE-USER] Request received.');
-    
+    const headerList = await headers();
+    const authHeader = headerList.get('authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
     try {
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+        const supabase = await createClient();
+        let caller;
+
+        if (token) {
+            const { data } = await supabase.auth.getUser(token);
+            caller = data?.user;
+        } else {
+            const { data } = await supabase.auth.getUser();
+            caller = data?.user;
         }
 
-        const idToken = authHeader.split(' ')[1];
-        const decodedToken = await adminAuth.verifyIdToken(idToken);
-
-        const MASTER_ADMIN = 'admin@neilussolutions.com';
-        const adminRoleSnap = await adminDb.collection('admin_roles').doc(decodedToken.uid).get();
-
-        if (!adminRoleSnap.exists && decodedToken.email !== MASTER_ADMIN) {
-            return NextResponse.json({ success: false, message: 'Access Denied: Administrative authority required.' }, { status: 403 });
+        if (!caller) {
+            return NextResponse.json({ message: 'Administrative session required.' }, { status: 401 });
         }
 
-        const body = await request.json().catch(() => ({}));
-        const { userId } = body;
-        
-        if (!userId) {
-            return NextResponse.json({ success: false, message: 'User ID is required.' }, { status: 400 });
+        const adminClient = await createAdminClient();
+        const { data: roleData } = await adminClient
+            .from('app_roles')
+            .select('role')
+            .eq('user_id', caller.id)
+            .eq('role', 'admin')
+            .maybeSingle();
+
+        const isMaster = caller.email === 'admin@neilussolutions.com';
+
+        if (!roleData && !isMaster) {
+            return NextResponse.json({ message: 'Access Denied.' }, { status: 403 });
         }
 
-        // 1. Identity Protection double-check
-        const targetUser = await adminAuth.getUser(userId).catch(() => null);
-        if (targetUser?.email === MASTER_ADMIN) {
-             return NextResponse.json({ success: false, message: 'Master Admin account is immutable.' }, { status: 403 });
+        const { userId } = await request.json();
+        if (!userId) return NextResponse.json({ message: 'User ID required.' }, { status: 400 });
+
+        // PROTECTION: Prevent master admin deletion
+        const { data: targetProfile } = await adminClient.from('profiles').select('email').eq('id', userId).single();
+        if (targetProfile?.email === 'admin@neilussolutions.com') {
+             return NextResponse.json({ message: 'The master administrator identity is immutable.' }, { status: 403 });
         }
 
-        console.log(`[DELETE API] Initiating deep purge for UID: ${userId}`);
+        // EXECUTE PURGE (Supabase Auth Admin SDK handles DB cascades if configured, 
+        // but we explicitly delete from profiles/roles first for safety)
+        await adminClient.from('app_roles').delete().eq('user_id', userId);
+        await adminClient.from('shipments').delete().eq('profile_id', userId);
+        await adminClient.from('pre_alerts').delete().eq('profile_id', userId);
+        await adminClient.from('invoices').delete().eq('profile_id', userId);
+        await adminClient.from('profiles').delete().eq('id', userId);
 
-        const userRef = adminDb.collection('users').doc(userId);
-        
-        // 2. Targeted Subcollection Purge
-        const subcollections = ['shipments', 'pre_alerts'];
-        for (const collName of subcollections) {
-            const collRef = userRef.collection(collName);
-            const docs = await collRef.get();
-            if (!docs.empty) {
-                const batch = adminDb.batch();
-                docs.forEach(d => batch.delete(d.ref));
-                await batch.commit();
-                console.log(`[DELETE API] Purged collection: ${collName}`);
-            }
-        }
+        const { error: authError } = await adminClient.auth.admin.deleteUser(userId);
+        if (authError) throw authError;
 
-        // 3. Remove Profile from Firestore
-        await userRef.delete();
-
-        // 4. Remove from Firebase Authentication
-        try {
-            await adminAuth.deleteUser(userId);
-        } catch (authErr: any) {
-            if (authErr.code !== 'auth/user-not-found') {
-                console.error('[DELETE API] Auth deletion failed:', authErr.message);
-            }
-        }
-
-        // 5. Cleanup Admin Role if exists
-        await adminDb.collection('admin_roles').doc(userId).delete();
-
-        console.log(`[DELETE API] Successfully purged user: ${userId}`);
-
-        return NextResponse.json({ 
-            success: true, 
-            message: 'Account permanently removed from registry.' 
+        // Log the audit event
+        await adminClient.from('system_logs').insert({
+            log_type: 'identity_purge',
+            description: `Identity record for ${targetProfile?.email || userId} purged from registry.`,
+            actor_id: caller.id
         });
 
+        return NextResponse.json({ success: true, message: 'Identity permanently purged.' });
+
     } catch (error: any) {
-        console.error('[DELETE USER FATAL EXCEPTION]:', error.message, error.stack);
-        return NextResponse.json({ 
-            success: false, 
-            message: 'System Exception: ' + error.message 
-        }, { status: 500 });
+        console.error("[API:DELETE_USER] FATAL:", error.message);
+        return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }
