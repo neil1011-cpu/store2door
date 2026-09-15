@@ -5,6 +5,7 @@ import { headers } from 'next/headers';
 /**
  * @fileOverview Hardened User Creation API.
  * Prioritizes Authorization header but falls back to cookie session.
+ * Now includes support for immediate "Welcome Reset" dispatch.
  */
 
 export async function POST(request: Request) {
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     let caller;
     let authError;
 
-    // AUTHENTICATION: Use explicit token if provided, otherwise standard cookie-based getUser()
+    // AUTHENTICATION
     if (token) {
       const { data, error } = await supabase.auth.getUser(token);
       caller = data?.user;
@@ -31,18 +32,18 @@ export async function POST(request: Request) {
       authError = error;
     }
 
-    if (authError || !caller) {
+    if (!caller) {
       return NextResponse.json({ 
-        message: 'Administrative session not found. Please try refreshing the page.',
+        message: 'Administrative session not found. Please refresh and log in again.',
         debug: {
-          hasToken: !!token,
-          authError: authError?.message || 'Identity missing',
+          hasCookies: (await request.headers.get('cookie')) ? true : false,
+          authError: authError?.message || 'Auth session missing!',
           requestId
         }
       }, { status: 401 });
     }
 
-    // AUTHORIZATION: Verify 'admin' role via privileged client
+    // AUTHORIZATION
     const adminClient = await createAdminClient();
     const { data: roleData } = await adminClient
         .from('app_roles')
@@ -55,18 +56,18 @@ export async function POST(request: Request) {
 
     if (!roleData && !isMasterAdmin) {
       return NextResponse.json({ 
-        message: 'Access Denied: You do not have administrative privileges.',
+        message: 'Access Denied: Administrative authority required.',
         code: 'FORBIDDEN'
       }, { status: 403 });
     }
 
     // EXECUTION
     const body = await request.json();
-    const { firstName, lastName, email, phone, trn, isAdmin, mailboxNumber } = body;
+    const { firstName, lastName, email, phone, trn, isAdmin, mailboxNumber, sendWelcomeEmail } = body;
 
-    const tempPassword = Math.random().toString(36).slice(-12) + 'A1!';
+    const tempPassword = Math.random().toString(36).slice(-16) + 'A1!z';
     
-    // Create Auth User
+    // 1. Create Auth User
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password: tempPassword,
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
 
     const userId = newUser.user.id;
     
-    // Initialize Profile & Role
+    // 2. Initialize Profile & Role
     const finalMailboxNumber = mailboxNumber?.trim() || `FSTD${Math.floor(1000 + Math.random() * 9000)}`;
 
     await Promise.all([
@@ -96,7 +97,27 @@ export async function POST(request: Request) {
       })
     ]);
 
-    return NextResponse.json({ success: true, uid: userId, mailboxNumber: finalMailboxNumber });
+    // 3. Optional: Dispatch Welcome Reset Link
+    if (sendWelcomeEmail) {
+        await adminClient.auth.resetPasswordForEmail(email, {
+            redirectTo: `${new URL(request.url).origin}/account/change-password`
+        });
+        
+        // Log the security event
+        await adminClient.from('system_logs').insert({
+            log_type: 'welcome_reset_dispatch',
+            description: `Welcome protocol initiated for ${email}. Reset link dispatched.`,
+            actor_id: caller.id,
+            metadata: { targetUserId: userId, requestId }
+        });
+    }
+
+    return NextResponse.json({ 
+        success: true, 
+        uid: userId, 
+        mailboxNumber: finalMailboxNumber,
+        welcomeDispatched: !!sendWelcomeEmail
+    });
 
   } catch (error: any) {
     console.error(`[API:CREATE_USER:${requestId}] FATAL:`, error.message);

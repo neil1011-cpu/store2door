@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle } from 'lucide-react';
+import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -31,7 +31,8 @@ export default function UsersPage() {
     phone: '',
     trn: '',
     isAdmin: false,
-    mailboxNumber: ''
+    mailboxNumber: '',
+    sendWelcomeEmail: true
   });
 
   const fetchUsers = async () => {
@@ -67,7 +68,6 @@ export default function UsersPage() {
       setIsCreating(true);
       setLastError(null);
       try {
-          // Attempt to get token, but don't block if missing (fall back to cookies)
           const { data: { session } } = await supabase.auth.getSession();
           const accessToken = session?.access_token;
 
@@ -83,18 +83,21 @@ export default function UsersPage() {
           const result = await response.json();
           
           if (!response.ok) {
-            console.error("[CREATE_USER_API_ERROR]", result);
             setLastError(result);
             throw new Error(result.message || 'Operation failed.');
           }
 
-          toast({ title: "Identity Created", description: `Account for ${newUser.email} is active.` });
+          toast({ 
+            title: "Identity Created", 
+            description: newUser.sendWelcomeEmail 
+                ? `Account for ${newUser.email} is active and reset link dispatched.` 
+                : `Account for ${newUser.email} is active.` 
+          });
           
           setIsAddUserOpen(false);
-          setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', isAdmin: false, mailboxNumber: '' });
+          setNewUser({ firstName: '', lastName: '', email: '', phone: '', trn: '', isAdmin: false, mailboxNumber: '', sendWelcomeEmail: true });
           fetchUsers();
       } catch (error: any) {
-          console.error("[ADMIN:CREATE_USER]", error);
           toast({ title: "Operation Failed", description: error.message, variant: "destructive" });
       } finally {
           setIsCreating(false);
@@ -125,7 +128,7 @@ export default function UsersPage() {
                       <Alert variant="destructive" className="bg-red-50 border-red-200">
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle className="text-xs font-bold uppercase">System Diagnostic</AlertTitle>
-                        <AlertDescription className="text-[10px] font-mono whitespace-pre-wrap mt-1 overflow-auto max-h-[200px]">
+                        <AlertDescription className="text-[10px] font-mono whitespace-pre-wrap mt-1 overflow-auto max-h-[150px]">
                           {JSON.stringify(lastError, null, 2)}
                         </AlertDescription>
                       </Alert>
@@ -158,12 +161,25 @@ export default function UsersPage() {
                             <Input value={newUser.trn} onChange={e => setNewUser({...newUser, trn: e.target.value})} maxLength={9} className="h-11 border-2" />
                         </div>
                     </div>
-                    <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border-2 border-dashed">
-                        <div className="space-y-0.5">
-                            <Label className="text-xs font-bold uppercase">Grant Admin Access</Label>
-                            <p className="text-[9px] text-muted-foreground uppercase">Enable full dashboard management</p>
+                    
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border-2 border-dashed border-primary/20">
+                            <div className="space-y-0.5">
+                                <Label className="text-xs font-black uppercase flex items-center gap-2">
+                                    <MailCheck className="h-3 w-3 text-primary" /> Welcome Protocol
+                                </Label>
+                                <p className="text-[9px] text-muted-foreground uppercase font-bold">Dispatch Reset Email Immediately</p>
+                            </div>
+                            <Switch checked={newUser.sendWelcomeEmail} onCheckedChange={checked => setNewUser({...newUser, sendWelcomeEmail: checked})} />
                         </div>
-                        <Switch checked={newUser.isAdmin} onCheckedChange={checked => setNewUser({...newUser, isAdmin: checked})} />
+
+                        <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border-2 border-dashed">
+                            <div className="space-y-0.5">
+                                <Label className="text-xs font-bold uppercase">Grant Admin Access</Label>
+                                <p className="text-[9px] text-muted-foreground uppercase">Enable full dashboard management</p>
+                            </div>
+                            <Switch checked={newUser.isAdmin} onCheckedChange={checked => setNewUser({...newUser, isAdmin: checked})} />
+                        </div>
                     </div>
                 </div>
                 <DialogFooter className="gap-2">
