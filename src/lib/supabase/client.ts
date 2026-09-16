@@ -9,11 +9,16 @@ export function createClient() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) {
-    console.error('[Supabase Client] CRITICAL: Missing credentials in browser context.');
+    // During Next.js build/prerendering, environment variables are often missing.
+    // We return a client with placeholders to prevent the build from crashing.
+    // The SupabaseProvider handles the "Missing Config" UI state at runtime.
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[Supabase Client] Credentials missing during build/prerender.');
+    }
   }
 
   return createBrowserClient(
-    url || '',
-    key || ''
+    url || 'https://placeholder-project.supabase.co',
+    key || 'placeholder-key'
   );
 }

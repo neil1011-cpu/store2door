@@ -11,16 +11,14 @@ export async function createClient() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) {
-    // During build time, environment variables might be missing.
-    // We log a warning instead of throwing to allow the build to proceed if this is imported.
     if (process.env.NODE_ENV === 'production') {
-       console.warn('[Supabase Server] Credentials missing. This is expected during static build phases.');
+       console.warn('[Supabase Server] Credentials missing during build/prerender.');
     }
   }
 
   return createServerClient(
-    url || '',
-    key || '',
+    url || 'https://placeholder-project.supabase.co',
+    key || 'placeholder-key',
     {
       cookies: {
         getAll() {
@@ -49,19 +47,15 @@ export async function createAdminClient() {
   const key = process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
-    // CRITICAL: Do not throw during build time.
-    const errorMsg = '[Supabase Admin] Missing REQUIRED variables: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY';
+    const errorMsg = '[Supabase Admin] SUPABASE_SECRET_KEY is missing.';
     if (process.env.NODE_ENV === 'production') {
       console.warn(errorMsg);
-      // Return a dummy client or handle downstream to prevent build crash
-    } else {
-      throw new Error(errorMsg);
     }
   }
 
   return createServerClient(
-    url || '',
-    key || '',
+    url || 'https://placeholder-project.supabase.co',
+    key || 'placeholder-key',
     {
       cookies: {
         getAll() { return []; },
