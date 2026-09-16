@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,7 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Send, History, PlusCircle, AlertCircle, CheckCircle2, Eye, FileText, Mail, User, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, History, PlusCircle, AlertCircle, CheckCircle2, Eye, Mail, User, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,27 +28,25 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { UserProfile } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
+import { useSupabase } from '@/components/supabase-provider';
 
 type SentEmail = {
     id: string;
-    recipientName: string;
-    recipientEmail: string;
+    recipient_email: string;
+    recipient_name: string;
     subject: string;
-    body: string;
-    status?: 'sent' | 'simulated' | 'failed';
-    sentAt: any; // Using any to handle both Timestamps and Dates safely
+    body_content: string;
+    status: 'sent' | 'simulated' | 'failed';
+    sent_at: string;
 };
 
 export default function CommunicationsPage() {
     const { toast } = useToast();
+    const { supabase } = useSupabase();
     
     const [isComposeOpen, setIsComposeOpen] = useState(false);
     const [composeRecipient, setComposeRecipient] = useState('');
@@ -58,36 +55,39 @@ export default function CommunicationsPage() {
     const [composeBody, setComposeBody] = useState('');
     const [isComposing, setIsComposing] = useState(false);
     
+    const [users, setUsers] = useState<any[]>([]);
+    const [sentEmails, setSentEmails] = useState<SentEmail[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
     const [viewingEmail, setViewingEmail] = useState<SentEmail | null>(null);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
-    
-    const { user, isUserLoading } = useUser();
-    const firestore = useFirestore();
 
-    const usersQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, 'users'), orderBy('fullName', 'asc'))
-    }, [firestore, user]);
-    const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
-    
-    const sentEmailsQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, 'sent_emails'), orderBy('sentAt', 'desc'));
-    }, [firestore, user]);
-    const { data: sentEmails, isLoading: isLoadingSentEmails } = useCollection<SentEmail>(sentEmailsQuery);
-    
-    const loading = isUserLoading || isLoadingUsers || isLoadingSentEmails;
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            const [usersRes, emailsRes] = await Promise.all([
+                supabase.from('profiles').select('*').order('full_name', { ascending: true }),
+                supabase.from('sent_emails').select('*').order('sent_at', { ascending: false })
+            ]);
+
+            setUsers(usersRes.data || []);
+            setSentEmails(emailsRes.data || []);
+        } catch (error: any) {
+            console.error('Fetch error:', error);
+            toast({ title: 'Sync Failure', description: 'Could not load registry records.', variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleComposeEmail = async () => {
-        if (!users) {
-            toast({ title: 'Users not loaded', description: 'Please wait for users to load.', variant: 'destructive'});
-            return;
-        }
-
         const isBulkSend = composeRecipient === 'all';
         const isCustomEmail = composeRecipient === 'custom';
 
-        let recipientUser: UserProfile | undefined;
         let emailTarget: string | string[] = '';
         let recipientName = '';
 
@@ -96,21 +96,21 @@ export default function CommunicationsPage() {
           recipientName = 'All Users';
         } else if (isCustomEmail) {
             if (!customEmail.trim()) {
-                toast({ title: 'Missing fields', description: 'Please enter a custom email address.', variant: 'destructive' });
+                toast({ title: 'Missing fields', description: 'Enter custom address.', variant: 'destructive' });
                 return;
             }
             emailTarget = customEmail;
             recipientName = customEmail;
         } else {
-            recipientUser = users.find(u => u.id === composeRecipient);
+            const recipientUser = users.find(u => u.id === composeRecipient);
             if (recipientUser) {
               emailTarget = recipientUser.email;
-              recipientName = recipientUser.fullName;
+              recipientName = recipientUser.full_name;
             }
         }
         
-        if (!emailTarget || (Array.isArray(emailTarget) && emailTarget.length === 0) || !composeSubject.trim() || !composeBody.trim()) {
-            toast({ title: 'Missing fields', description: 'Please select a valid recipient and enter a subject and message.', variant: 'destructive' });
+        if (!emailTarget || !composeSubject.trim() || !composeBody.trim()) {
+            toast({ title: 'Missing fields', description: 'Complete all message details.', variant: 'destructive' });
             return;
         }
 
@@ -129,18 +129,15 @@ export default function CommunicationsPage() {
             });
 
             const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to send email.');
-            }
+            if (!response.ok) throw new Error(data.message || 'Failed to dispatch.');
 
             if (data.simulated) {
                 toast({ 
                     title: 'Simulation Active', 
-                    description: 'Email logged in history but NOT sent. Please configure SMTP settings.',
-                    variant: 'default'
+                    description: 'Email logged but NOT sent. Please configure SMTP in Settings.',
                 });
             } else {
-                toast({ title: 'Email Sent!', description: `Your email to ${recipientName} has been delivered.` });
+                toast({ title: 'Email Sent!', description: `Delivered to ${recipientName}.` });
             }
             
             setIsComposeOpen(false);
@@ -148,19 +145,21 @@ export default function CommunicationsPage() {
             setCustomEmail('');
             setComposeSubject('');
             setComposeBody('');
+            fetchData(); // Refresh history
         } catch (error: any) {
-             toast({ title: 'Transmission Error', description: error.message, variant: 'destructive' });
+             toast({ title: 'Dispatch Error', description: error.message, variant: 'destructive' });
         } finally {
             setIsComposing(false);
         }
     }
 
     const handleDeleteEmail = async (emailId: string) => {
-        if (!firestore) return;
         setIsDeleting(emailId);
         try {
-            await deleteDoc(doc(firestore, 'sent_emails', emailId));
-            toast({ title: 'Record Removed', description: 'The dispatch record has been purged from history.' });
+            const { error } = await supabase.from('sent_emails').delete().eq('id', emailId);
+            if (error) throw error;
+            toast({ title: 'Record Removed' });
+            fetchData();
         } catch (error: any) {
             toast({ title: 'Deletion Failed', description: error.message, variant: 'destructive' });
         } finally {
@@ -168,37 +167,20 @@ export default function CommunicationsPage() {
         }
     }
 
-    const formatSentDate = (sentAt: any) => {
-        if (!sentAt) return 'Pending...';
-        try {
-            if (sentAt.toDate && typeof sentAt.toDate === 'function') {
-                return sentAt.toDate().toLocaleString();
-            }
-            return new Date(sentAt).toLocaleString();
-        } catch (e) {
-            return 'Date Error';
-        }
-    }
-
-  if (loading || !users) {
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="font-bold uppercase tracking-widest text-xs animate-pulse">Syncing Communication Hub...</p>
-        </div>
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6 h-full max-w-6xl mx-auto">
+    <div className="flex flex-col gap-6 h-full max-w-6xl mx-auto pb-20">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Communications Hub</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">
-            Official customer correspondence and outreach center.
-          </p>
+          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Official Supabase-powered correspondence center.</p>
         </div>
         <div className="flex items-center gap-2">
            <Dialog open={isComposeOpen} onOpenChange={setIsComposeOpen}>
@@ -214,33 +196,33 @@ export default function CommunicationsPage() {
                 </DialogHeader>
                 <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1">
                     <div className="space-y-2">
-                        <Label htmlFor="recipient" className="text-[10px] font-bold uppercase opacity-60">Recipient Selection</Label>
+                        <Label className="text-[10px] font-bold uppercase opacity-60">Recipient Selection</Label>
                          <Select value={composeRecipient} onValueChange={setComposeRecipient}>
-                            <SelectTrigger id="recipient" className="h-12 border-2">
+                            <SelectTrigger className="h-12 border-2">
                                 <SelectValue placeholder={"Select a customer or group"} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all" className="font-bold uppercase text-xs">All Registered Clients ({users.length})</SelectItem>
-                                <SelectItem value="custom" className="font-bold uppercase text-xs">Custom Email Address</SelectItem>
+                                <SelectItem value="all" className="font-bold uppercase text-xs">All Clients ({users.length})</SelectItem>
+                                <SelectItem value="custom" className="font-bold uppercase text-xs">Manual Entry</SelectItem>
                                 {users.map(user => (
-                                    <SelectItem key={user.id} value={user.id} className="font-medium">{user.fullName} ({user.email})</SelectItem>
+                                    <SelectItem key={user.id} value={user.id} className="font-medium">{user.full_name} ({user.email})</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
                     {composeRecipient === 'custom' && (
-                      <div className="space-y-2 animate-in slide-in-from-top-2">
-                          <Label htmlFor="custom-email" className="text-[10px] font-bold uppercase opacity-60">Manual Target Entry</Label>
-                          <Input id="custom-email" type="email" value={customEmail} onChange={e => setCustomEmail(e.target.value)} placeholder="Enter full email address" className="h-12 border-2" />
+                      <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase opacity-60">Manual Email</Label>
+                          <Input type="email" value={customEmail} onChange={e => setCustomEmail(e.target.value)} placeholder="target@example.com" className="h-12 border-2" />
                       </div>
                     )}
                      <div className="space-y-2">
-                        <Label htmlFor="subject" className="text-[10px] font-bold uppercase opacity-60">Message Subject</Label>
-                        <Input id="subject" value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="e.g. Your Package Status or Global Update" className="h-12 border-2 font-bold" />
+                        <Label className="text-[10px] font-bold uppercase opacity-60">Subject Header</Label>
+                        <Input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="e.g. Package Status Update" className="h-12 border-2 font-bold" />
                     </div>
                      <div className="space-y-2">
-                        <Label htmlFor="body" className="text-[10px] font-bold uppercase opacity-60">Message Content</Label>
-                        <Textarea id="body" value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Type your message here..." className="min-h-[200px] border-2" />
+                        <Label className="text-[10px] font-bold uppercase opacity-60">Message Content</Label>
+                        <Textarea value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Type your message here..." className="min-h-[200px] border-2" />
                     </div>
                 </div>
                 <DialogFooter className="gap-2">
@@ -253,10 +235,7 @@ export default function CommunicationsPage() {
             </DialogContent>
            </Dialog>
           <Button variant="outline" asChild className="font-bold border-2">
-            <Link href="/admin">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Dashboard
-            </Link>
+            <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" /> Dashboard</Link>
           </Button>
         </div>
       </div>
@@ -266,67 +245,54 @@ export default function CommunicationsPage() {
                 <CardTitle className="text-sm font-black uppercase tracking-[0.2em] flex items-center gap-2">
                     <History className="h-5 w-5 text-primary" /> Outbound Dispatch History
                 </CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Master audit trail of all automated and manual correspondence.</CardDescription>
+                <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Master audit trail of all correspondence.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
                 <Table>
                     <TableHeader className="bg-muted/30">
                         <TableRow>
-                            <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Recipient</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest">Subject Header</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest">System Status</TableHead>
-                            <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
+                            <TableHead className="pl-6 text-[10px] font-black uppercase">Recipient</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase">Subject</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase">System Status</TableHead>
+                            <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Action</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {isLoadingSentEmails ? (
-                           <TableRow>
-                                <TableCell colSpan={4} className="h-48 text-center">
-                                    <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
-                                    <p className="text-[10px] font-bold uppercase mt-2 opacity-40 animate-pulse">Syncing History Ledger...</p>
-                                </TableCell>
-                            </TableRow>
-                        ) : sentEmails && sentEmails.length > 0 ? (
+                        {sentEmails.length > 0 ? (
                             sentEmails.map(email => (
                                 <TableRow key={email.id} className="hover:bg-primary/5 transition-colors h-20">
                                     <TableCell className="pl-6">
-                                        <div className="flex flex-col">
-                                            <span className="font-black text-sm uppercase">{email.recipientName}</span>
-                                            <span className="text-[10px] font-bold text-muted-foreground opacity-60 uppercase tracking-widest">{email.recipientEmail}</span>
-                                        </div>
+                                        <p className="font-black text-sm uppercase">{email.recipient_name}</p>
+                                        <p className="text-[10px] font-mono opacity-60 uppercase">{email.recipient_email}</p>
                                     </TableCell>
                                     <TableCell>
-                                        <span className="font-bold text-xs uppercase italic tracking-tight line-clamp-1">{email.subject}</span>
-                                        <span className="text-[9px] font-bold opacity-40 block">{formatSentDate(email.sentAt)}</span>
+                                        <p className="font-bold text-xs uppercase italic line-clamp-1">{email.subject}</p>
+                                        <p className="text-[9px] font-bold opacity-40">{new Date(email.sent_at).toLocaleString()}</p>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={email.status === 'sent' ? 'default' : email.status === 'simulated' ? 'secondary' : 'destructive'} className="uppercase text-[9px] font-black italic tracking-widest border-2">
-                                            {email.status === 'sent' && <CheckCircle2 className="h-2 w-2 mr-1" />}
-                                            {email.status === 'simulated' && <AlertCircle className="h-2 w-2 mr-1" />}
-                                            {email.status || 'Sent'}
+                                        <Badge variant={email.status === 'sent' ? 'default' : 'secondary'} className="uppercase text-[9px] font-black italic border-2">
+                                            {email.status}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right pr-6">
                                         <div className="flex justify-end gap-2">
                                             <Button variant="outline" size="sm" onClick={() => setViewingEmail(email)} className="h-9 font-black border-2 uppercase tracking-tighter text-[10px]">
-                                                <Eye className="h-3.5 w-3.5 mr-2" /> Preview
+                                                Preview
                                             </Button>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-9 text-destructive hover:text-destructive hover:bg-destructive/5 px-2">
+                                                    <Button variant="ghost" size="sm" className="h-9 text-destructive hover:bg-destructive/5 px-2">
                                                         {isDeleting === email.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                                     </Button>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader>
-                                                        <AlertDialogTitle className="font-black uppercase italic tracking-tight">Purge Dispatch Record?</AlertDialogTitle>
-                                                        <AlertDialogDescription className="text-[10px] font-bold uppercase tracking-widest">
-                                                            This will permanently remove the audit record for this email to <strong>{email.recipientName}</strong>. This action is irreversible.
-                                                        </AlertDialogDescription>
+                                                        <AlertDialogTitle className="font-black uppercase italic">Purge Dispatch Record?</AlertDialogTitle>
+                                                        <AlertDialogDescription className="text-[10px] font-bold uppercase">This action is irreversible.</AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel className="font-bold uppercase h-12">Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDeleteEmail(email.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg">Confirm Delete</AlertDialogAction>
+                                                        <AlertDialogAction onClick={() => handleDeleteEmail(email.id)} className="bg-destructive text-destructive-foreground font-black uppercase h-12">Confirm Delete</AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
@@ -335,11 +301,7 @@ export default function CommunicationsPage() {
                                 </TableRow>
                             ))
                         ) : (
-                             <TableRow>
-                                <TableCell colSpan={4} className="h-48 text-center text-muted-foreground italic opacity-30">
-                                    No dispatch records detected in the communication ledger.
-                                </TableCell>
-                            </TableRow>
+                             <TableRow><TableCell colSpan={4} className="h-48 text-center text-muted-foreground italic opacity-30">No dispatch records found.</TableCell></TableRow>
                         )}
                     </TableBody>
                 </Table>
@@ -351,64 +313,40 @@ export default function CommunicationsPage() {
             <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3 justify-center">
-                        <Mail className="h-8 w-8 text-primary" /> Official Dispatch Preview
+                        <Mail className="h-8 w-8 text-primary" /> Correspondence Audit
                     </DialogTitle>
-                    <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Complete correspondence audit record</DialogDescription>
                 </DialogHeader>
-                
                 <div className="flex-1 overflow-hidden py-6 space-y-6">
                     <Card className="bg-muted/30 border-none shadow-inner rounded-2xl overflow-hidden">
                         <CardContent className="pt-6 space-y-4">
                             <div className="flex flex-col sm:flex-row justify-between gap-4">
                                 <div className="space-y-1">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Recipient</Label>
-                                    <div className="flex items-center gap-2">
-                                        <User className="h-4 w-4 text-primary" />
-                                        <p className="text-sm font-black uppercase">{viewingEmail?.recipientName}</p>
-                                    </div>
-                                    <p className="text-[11px] font-mono opacity-60 ml-6">{viewingEmail?.recipientEmail}</p>
+                                    <Label className="text-[10px] font-black uppercase opacity-60">Recipient</Label>
+                                    <p className="text-sm font-black uppercase">{viewingEmail?.recipient_name}</p>
+                                    <p className="text-[11px] font-mono opacity-60">{viewingEmail?.recipient_email}</p>
                                 </div>
                                 <div className="space-y-1 sm:text-right">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Dispatch Timestamp</Label>
-                                    <p className="text-xs font-bold">{formatSentDate(viewingEmail?.sentAt)}</p>
-                                    <Badge variant={viewingEmail?.status === 'sent' ? 'default' : 'secondary'} className="text-[9px] font-black uppercase">
-                                        Status: {viewingEmail?.status}
-                                    </Badge>
+                                    <Label className="text-[10px] font-black uppercase opacity-60">Sent Date</Label>
+                                    <p className="text-xs font-bold">{viewingEmail?.sent_at ? new Date(viewingEmail.sent_at).toLocaleString() : 'N/A'}</p>
                                 </div>
                             </div>
-                            
                             <Separator className="opacity-10" />
-                            
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Subject Header</Label>
-                                <div className="p-3 bg-background rounded-xl border font-bold text-sm italic tracking-tight">
-                                    {viewingEmail?.subject}
-                                </div>
+                                <Label className="text-[10px] font-black uppercase opacity-60">Subject Header</Label>
+                                <div className="p-3 bg-background rounded-xl border font-bold text-sm italic">{viewingEmail?.subject}</div>
                             </div>
                         </CardContent>
                     </Card>
-
                     <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-2">Message Body</Label>
+                        <Label className="text-[10px] font-black uppercase opacity-60 ml-2">Message Body</Label>
                         <Card className="border-2 shadow-sm rounded-2xl overflow-hidden">
                             <ScrollArea className="h-[300px] w-full p-6">
-                                <div className="prose prose-sm dark:prose-invert max-w-none">
-                                    <div className="whitespace-pre-wrap font-medium text-sm leading-relaxed text-foreground/80">
-                                        {viewingEmail?.body}
-                                    </div>
-                                </div>
+                                <div className="whitespace-pre-wrap font-medium text-sm leading-relaxed text-foreground/80">{viewingEmail?.body_content}</div>
                             </ScrollArea>
                         </Card>
                     </div>
                 </div>
-
-                <DialogFooter className="border-t pt-6">
-                    <DialogClose asChild>
-                        <Button variant="outline" className="w-full sm:w-auto h-12 font-black uppercase tracking-widest text-[11px] border-2">
-                            Close Audit View
-                        </Button>
-                    </DialogClose>
-                </DialogFooter>
+                <DialogFooter><DialogClose asChild><Button variant="outline" className="w-full h-12 font-black uppercase tracking-widest text-[11px] border-2">Close View</Button></DialogClose></DialogFooter>
             </DialogContent>
         </Dialog>
     </div>

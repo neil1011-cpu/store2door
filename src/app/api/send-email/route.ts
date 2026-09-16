@@ -1,10 +1,10 @@
-
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Production Email API integrated with Supabase Sent Emails audit.
+ * Standardized to read configuration from the public.system_configs table.
  */
 
 export async function POST(request: Request) {
@@ -15,15 +15,20 @@ export async function POST(request: Request) {
         const supabase = await createAdminClient();
 
         // 1. Fetch Config from Supabase
-        const { data: config } = await supabase.from('system_configs').select('config_value').eq('config_key', 'email_config').single();
+        const { data: config } = await supabase
+            .from('system_configs')
+            .select('config_value')
+            .eq('config_key', 'email_config')
+            .maybeSingle();
         
         const host = process.env.SMTP_HOST || config?.config_value?.host;
         const port = process.env.SMTP_PORT || config?.config_value?.port || '465';
         const user = process.env.SMTP_USER || config?.config_value?.user;
-        const pass = process.env.SMTP_PASS; // Pass remains strictly an ENV secret
+        const pass = process.env.SMTP_PASS || config?.config_value?.pass;
 
         if (!host || !user || !pass) {
-            // Log simulation
+            console.warn('[EMAIL API] Missing SMTP configuration. Logging simulation.');
+            // Log simulation record for audit
             await supabase.from('sent_emails').insert({
                 recipient_email: Array.isArray(to) ? to.join(', ') : to,
                 recipient_name: recipientName,
@@ -31,11 +36,13 @@ export async function POST(request: Request) {
                 body_content: emailBody,
                 status: 'simulated'
             });
-            return NextResponse.json({ simulated: true });
+            return NextResponse.json({ simulated: true, message: 'SMTP credentials missing. Record logged in audit ledger.' });
         }
 
         const transporter = nodemailer.createTransport({
-            host, port: Number(port), secure: Number(port) === 465,
+            host, 
+            port: Number(port), 
+            secure: Number(port) === 465,
             auth: { user, pass },
             tls: { rejectUnauthorized: false }
         });
@@ -57,7 +64,7 @@ export async function POST(request: Request) {
             status: 'sent'
         });
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, message: 'Correspondence dispatched successfully.' });
 
     } catch (error: any) {
         console.error('[SMTP ERROR]:', error.message);

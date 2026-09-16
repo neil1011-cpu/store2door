@@ -1,38 +1,47 @@
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { headers } from 'next/headers';
 
 /**
  * @fileOverview Secure Document Upload Bridge to Vultr Object Storage.
- * Bypasses Firebase Storage authorization failures by using a standard S3 interface.
+ * Now standardized on Supabase system_configs for credential storage.
  */
 
 export async function POST(request: Request) {
+    const requestId = Math.random().toString(36).slice(2, 9);
+    const headerList = await headers();
+    const authHeader = headerList.get('authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
     try {
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
+        const supabase = await createClient();
+        let caller;
+
+        if (token) {
+            const { data } = await supabase.auth.getUser(token);
+            caller = data?.user;
+        } else {
+            const { data } = await supabase.auth.getUser();
+            caller = data?.user;
         }
 
-        const idToken = authHeader.split(' ')[1];
-        const decodedToken = await adminAuth.verifyIdToken(idToken);
-        const userId = decodedToken.uid;
+        if (!caller) return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
 
-        // 1. Fetch Vultr Credentials from protected Admin metadata
-        const vultrConfigSnap = await adminDb.collection('metadata').doc('vultr_config').get();
-        if (!vultrConfigSnap.exists) {
-            console.error('[VULTR BRIDGE] Missing configuration doc in metadata/vultr_config');
-            return NextResponse.json({ 
-                message: 'Vultr Cloud Storage not configured in Admin Settings.',
-                code: 'CONFIG_MISSING'
-            }, { status: 500 });
-        }
+        const adminClient = await createAdminClient();
+        
+        // 1. Fetch Vultr Credentials from Supabase
+        const { data: configData } = await adminClient
+            .from('system_configs')
+            .select('config_value')
+            .eq('config_key', 'vultr_config')
+            .maybeSingle();
 
-        const config = vultrConfigSnap.data();
+        const config = configData?.config_value;
         if (!config?.accessKey || !config?.secretKey || !config?.bucket) {
-             return NextResponse.json({ 
-                message: 'Vultr configuration is incomplete. Check Admin Settings.',
-                code: 'CONFIG_INCOMPLETE'
+            return NextResponse.json({ 
+                message: 'Vultr Cloud Storage not configured in System Console.',
+                code: 'CONFIG_MISSING'
             }, { status: 500 });
         }
 
@@ -45,7 +54,7 @@ export async function POST(request: Request) {
 
         const buffer = Buffer.from(await file.arrayBuffer());
         const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-        const key = `invoices/${userId}/${fileName}`;
+        const key = `invoices/${caller.id}/${fileName}`;
 
         // 3. Initialize S3 Client (Vultr Compatible)
         const s3Client = new S3Client({
@@ -76,7 +85,7 @@ export async function POST(request: Request) {
         });
 
     } catch (error: any) {
-        console.error('[VULTR UPLOAD ERROR]:', error);
+        console.error(`[STORAGE_UPLOAD:${requestId}] FATAL:`, error);
         return NextResponse.json({
             message: 'Cloud transfer failed: ' + (error.message || 'Unknown S3 error'),
             code: error.code || 'S3_ERROR'

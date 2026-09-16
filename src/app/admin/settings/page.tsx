@@ -8,16 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound, Moon, Sun, Laptop, Edit, Check, Eye, EyeOff, Zap, ExternalLink, RefreshCw, ShieldCheck, Save, Loader2, Mail, Cloud, Database } from 'lucide-react';
+import { ArrowLeft, Moon, Sun, Laptop, Edit, Check, Eye, EyeOff, Zap, RefreshCw, ShieldCheck, Save, Loader2, Mail, Cloud, Database } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { logicwareMeta } from '@/lib/logicware';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useSupabase } from '@/components/supabase-provider';
 
 type ApiKeyState = {
     key: string;
@@ -45,7 +43,7 @@ type VultrState = {
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const firestore = useFirestore();
+  const { supabase } = useSupabase();
   const [avatar, setAvatar] = useState('https://placehold.co/128x128.png');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -58,7 +56,7 @@ export default function SettingsPage() {
   const [smtp, setSmtp] = useState<SmtpState>({
       host: 'smtp.gmail.com',
       port: '465',
-      user: 'admin@neilussolutions.com',
+      user: '',
       pass: '',
       isVisible: false,
       isSaved: false
@@ -76,66 +74,50 @@ export default function SettingsPage() {
   const [isSavingKey, setIsSavingKey] = useState(false);
   const [isSavingSmtp, setIsSavingSmtp] = useState(false);
   const [isSavingVultr, setIsSavingVultr] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
+  const [isLoadingConfigs, setIsLoadingConfigs] = useState(true);
 
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  const logicwareRef = useMemoFirebase(() => doc(firestore!, 'metadata', 'logicware'), [firestore]);
-  const { data: logicwareConfig } = useDoc(logicwareRef);
-
-  const smtpRef = useMemoFirebase(() => doc(firestore!, 'metadata', 'email_config'), [firestore]);
-  const { data: smtpConfig, isLoading: isLoadingSmtp } = useDoc(smtpRef);
-
-  const vultrRef = useMemoFirebase(() => doc(firestore!, 'metadata', 'vultr_config'), [firestore]);
-  const { data: vultrConfig, isLoading: isLoadingVultr } = useDoc(vultrRef);
-  
   useEffect(() => {
     setMounted(true);
+    fetchConfigs();
   }, []);
 
-  useEffect(() => {
-      if (logicwareConfig?.apiKey) {
-          setLogicwareApi(prev => ({ ...prev, key: logicwareConfig.apiKey, isSaved: true }));
-      }
-  }, [logicwareConfig]);
+  const fetchConfigs = async () => {
+    setIsLoadingConfigs(true);
+    try {
+        const { data, error } = await supabase.from('system_configs').select('*');
+        if (error) throw error;
 
-  useEffect(() => {
-      if (smtpConfig) {
-          setSmtp(prev => ({ 
-              ...prev, 
-              host: smtpConfig.host || 'smtp.gmail.com',
-              port: smtpConfig.port || '465',
-              user: smtpConfig.user || '',
-              pass: smtpConfig.pass || '',
-              isSaved: true 
-          }));
-      }
-  }, [smtpConfig]);
-
-  useEffect(() => {
-      if (vultrConfig) {
-          setVultr(prev => ({
-              ...prev,
-              accessKey: vultrConfig.accessKey || '',
-              secretKey: vultrConfig.secretKey || '',
-              endpoint: vultrConfig.endpoint || 'ewr1.vultrobjects.com',
-              bucket: vultrConfig.bucket || '',
-              isSaved: true
-          }));
-      }
-  }, [vultrConfig]);
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatar(reader.result as string);
-        toast({ title: 'Profile Picture Updated' });
-      };
-      reader.readAsDataURL(file);
+        data.forEach(config => {
+            const val = config.config_value;
+            if (config.config_key === 'logicware') {
+                setLogicwareApi(prev => ({ ...prev, key: val.apiKey || '', isSaved: true }));
+            } else if (config.config_key === 'email_config') {
+                setSmtp(prev => ({ 
+                    ...prev, 
+                    host: val.host || 'smtp.gmail.com',
+                    port: val.port || '465',
+                    user: val.user || '',
+                    pass: val.pass || '',
+                    isSaved: true 
+                }));
+            } else if (config.config_key === 'vultr_config') {
+                setVultr(prev => ({
+                    ...prev,
+                    accessKey: val.accessKey || '',
+                    secretKey: val.secretKey || '',
+                    endpoint: val.endpoint || 'ewr1.vultrobjects.com',
+                    bucket: val.bucket || '',
+                    isSaved: true
+                }));
+            }
+        });
+    } catch (e: any) {
+        console.error('Config fetch failed:', e);
+    } finally {
+        setIsLoadingConfigs(false);
     }
   };
 
@@ -143,10 +125,11 @@ export default function SettingsPage() {
     if (!logicwareApi.key) return;
     setIsSavingKey(true);
     try {
-        await setDoc(doc(firestore!, 'metadata', 'logicware'), {
-            apiKey: logicwareApi.key,
-            updatedAt: serverTimestamp()
-        }, { merge: true });
+        const { error } = await supabase.from('system_configs').upsert({
+            config_key: 'logicware',
+            config_value: { apiKey: logicwareApi.key }
+        });
+        if (error) throw error;
         setLogicwareApi(prev => ({ ...prev, isSaved: true, isVisible: false }));
         toast({ title: 'Logicware Configuration Saved' });
     } catch (e: any) {
@@ -157,16 +140,19 @@ export default function SettingsPage() {
   };
 
   const handleSaveSmtp = async () => {
-      if (!smtp.user || !smtp.pass) return;
+      if (!smtp.user) return;
       setIsSavingSmtp(true);
       try {
-          await setDoc(doc(firestore!, 'metadata', 'email_config'), {
-              host: smtp.host,
-              port: smtp.port,
-              user: smtp.user,
-              pass: smtp.pass,
-              updatedAt: serverTimestamp()
-          }, { merge: true });
+          const { error } = await supabase.from('system_configs').upsert({
+              config_key: 'email_config',
+              config_value: {
+                  host: smtp.host,
+                  port: smtp.port,
+                  user: smtp.user,
+                  pass: smtp.pass // NOTE: In production, pass should ideally stay in ENV
+              }
+          });
+          if (error) throw error;
           setSmtp(prev => ({ ...prev, isSaved: true, isVisible: false }));
           toast({ title: "Email Configuration Saved" });
       } catch (e: any) {
@@ -183,15 +169,18 @@ export default function SettingsPage() {
       }
       setIsSavingVultr(true);
       try {
-          await setDoc(doc(firestore!, 'metadata', 'vultr_config'), {
-              accessKey: vultr.accessKey,
-              secretKey: vultr.secretKey,
-              endpoint: vultr.endpoint,
-              bucket: vultr.bucket,
-              updatedAt: serverTimestamp()
-          }, { merge: true });
+          const { error } = await supabase.from('system_configs').upsert({
+              config_key: 'vultr_config',
+              config_value: {
+                  accessKey: vultr.accessKey,
+                  secretKey: vultr.secretKey,
+                  endpoint: vultr.endpoint,
+                  bucket: vultr.bucket
+              }
+          });
+          if (error) throw error;
           setVultr(prev => ({ ...prev, isSaved: true, isVisible: false }));
-          toast({ title: "Vultr Cloud Storage Linked", description: "All document uploads will now proceed to your Vultr primary bucket." });
+          toast({ title: "Vultr Cloud Storage Linked" });
       } catch (e: any) {
           toast({ title: "Vultr Sync Failed", description: e.message, variant: 'destructive' });
       } finally {
@@ -199,33 +188,32 @@ export default function SettingsPage() {
       }
   };
 
-  const handleTestConnection = async () => {
-      if (!logicwareApi.key) return;
-      setIsTesting(true);
-      try {
-          const response = await fetch('/api/admin/logicware-test-connection', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ apiKey: logicwareApi.key })
-          });
-          const data = await response.json();
-          if (data.success) {
-              setIsVerified(true);
-              toast({ title: "Connection Verified" });
-          } else throw new Error(data.message);
-      } catch (e: any) {
-          toast({ title: "Verification Failed", description: e.message, variant: "destructive" });
-      } finally {
-          setIsTesting(false);
-      }
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatar(reader.result as string);
+        toast({ title: 'Profile Picture Updated' });
+      };
+      reader.readAsDataURL(file);
+    }
   };
+
+  if (isLoadingConfigs) {
+      return (
+          <div className="flex h-screen items-center justify-center">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          </div>
+      );
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-20">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter">System Console</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Global settings and integrations center.</p>
+          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Global settings and Supabase integrations center.</p>
         </div>
         <Button variant="outline" asChild className="font-bold border-2">
             <Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" /> Dashboard</Link>
@@ -234,59 +222,15 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
-            {/* Vultr Cloud Storage - The New Primary */}
-            <Card className="border-orange-200 shadow-xl overflow-hidden rounded-2xl">
-                <CardHeader className="bg-orange-50/50 flex flex-row items-center gap-4">
-                    <div className="bg-orange-100 p-3 rounded-xl"><Cloud className="h-6 w-6 text-orange-600" /></div>
-                    <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm font-black uppercase tracking-widest italic text-orange-700">Vultr Primary Cloud Storage</CardTitle>
-                            {vultr.isSaved && <Badge className="bg-green-500 text-white uppercase text-[8px] font-black italic">Cloud ACTIVE</Badge>}
-                        </div>
-                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-orange-600/70">Connect your Vultr account to bypass Google Storage limitations.</CardDescription>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-6 pt-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold uppercase opacity-60">Access Key</Label>
-                            <Input value={vultr.accessKey} onChange={e => setVultr({...vultr, accessKey: e.target.value, isSaved: false})} className="h-11 border-2 font-mono" placeholder="VULTR_ACCESS_KEY" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold uppercase opacity-60">Secret Key</Label>
-                            <div className="relative">
-                                <Input 
-                                    type={vultr.isVisible ? 'text' : 'password'} 
-                                    value={vultr.secretKey} 
-                                    onChange={e => setVultr({...vultr, secretKey: e.target.value, isSaved: false})} 
-                                    className="h-11 border-2 font-mono pr-12" 
-                                    placeholder="VULTR_SECRET_KEY" 
-                                />
-                                <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9" onClick={() => setVultr({...vultr, isVisible: !vultr.isVisible})}><Eye className="h-4 w-4" /></Button>
-                            </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold uppercase opacity-60">Hostname / Endpoint</Label>
-                            <Input value={vultr.endpoint} onChange={e => setVultr({...vultr, endpoint: e.target.value, isSaved: false})} className="h-11 border-2 font-mono" placeholder="ewr1.vultrobjects.com" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold uppercase opacity-60">Bucket Name</Label>
-                            <Input value={vultr.bucket} onChange={e => setVultr({...vultr, bucket: e.target.value, isSaved: false})} className="h-11 border-2 font-mono" placeholder="store2door-docs" />
-                        </div>
-                    </div>
-                    <Button onClick={handleSaveVultr} disabled={isSavingVultr || isLoadingVultr} className="w-full h-14 text-lg font-black uppercase italic shadow-xl bg-orange-600 hover:bg-orange-700">
-                        {isSavingVultr ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <Database className="mr-2 h-6 w-6" />}
-                        Finalize Vultr Primary Link
-                    </Button>
-                </CardContent>
-            </Card>
-
             {/* SMTP Configuration */}
-            <Card className="border-primary/20 shadow-lg overflow-hidden rounded-2xl opacity-60 hover:opacity-100 transition-opacity">
+            <Card className="border-primary/20 shadow-xl overflow-hidden rounded-2xl">
                 <CardHeader className="bg-primary/5 flex flex-row items-center gap-4">
                     <div className="bg-primary/10 p-3 rounded-xl"><Mail className="h-6 w-6 text-primary" /></div>
                     <div className="flex-1">
-                        <CardTitle className="text-sm font-black uppercase tracking-widest italic">Email Relay Settings</CardTitle>
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm font-black uppercase tracking-widest italic">Email Relay Settings</CardTitle>
+                            {smtp.isSaved && <Badge className="bg-green-500 text-white uppercase text-[8px] font-black italic">Relay ACTIVE</Badge>}
+                        </div>
                         <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Master SMTP credentials for automated dispatches.</CardDescription>
                     </div>
                 </CardHeader>
@@ -294,8 +238,61 @@ export default function SettingsPage() {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Host</Label><Input value={smtp.host} onChange={e => setSmtp({...smtp, host: e.target.value, isSaved: false})} className="h-11 border-2" /></div>
                         <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Port</Label><Input value={smtp.port} onChange={e => setSmtp({...smtp, port: e.target.value, isSaved: false})} className="h-11 border-2" /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">User / Email</Label><Input value={smtp.user} onChange={e => setSmtp({...smtp, user: e.target.value, isSaved: false})} className="h-11 border-2" /></div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Password / App Key</Label>
+                            <div className="relative">
+                                <Input type={smtp.isVisible ? 'text' : 'password'} value={smtp.pass} onChange={e => setSmtp({...smtp, pass: e.target.value, isSaved: false})} className="h-11 border-2 pr-12" />
+                                <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2" onClick={() => setSmtp({...smtp, isVisible: !smtp.isVisible})}><Eye className="h-4 w-4" /></Button>
+                            </div>
+                        </div>
                     </div>
-                    <Button onClick={handleSaveSmtp} disabled={isSavingSmtp} className="w-full h-12 font-black uppercase italic shadow-lg">Save Email Relay</Button>
+                    <Button onClick={handleSaveSmtp} disabled={isSavingSmtp} className="w-full h-14 text-lg font-black uppercase italic shadow-xl">
+                        {isSavingSmtp ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <Save className="mr-2 h-6 w-6" />}
+                        Save Email Relay
+                    </Button>
+                </CardContent>
+            </Card>
+
+            {/* Vultr Cloud Storage */}
+            <Card className="border-orange-200 shadow-lg overflow-hidden rounded-2xl">
+                <CardHeader className="bg-orange-50/50 flex flex-row items-center gap-4">
+                    <div className="bg-orange-100 p-3 rounded-xl"><Cloud className="h-6 w-6 text-orange-600" /></div>
+                    <div className="flex-1">
+                        <CardTitle className="text-sm font-black uppercase tracking-widest italic text-orange-700">Vultr Cloud Storage</CardTitle>
+                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Connect your Vultr account for documentation storage.</CardDescription>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-6 pt-8">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Access Key</Label><Input value={vultr.accessKey} onChange={e => setVultr({...vultr, accessKey: e.target.value, isSaved: false})} className="h-11 border-2 font-mono" /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Bucket</Label><Input value={vultr.bucket} onChange={e => setVultr({...vultr, bucket: e.target.value, isSaved: false})} className="h-11 border-2 font-mono" /></div>
+                    </div>
+                    <Button onClick={handleSaveVultr} disabled={isSavingVultr} variant="outline" className="w-full h-12 font-black uppercase border-orange-200 text-orange-700 hover:bg-orange-50">
+                        {isSavingVultr ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
+                        Update Vultr Link
+                    </Button>
+                </CardContent>
+            </Card>
+
+            {/* Logicware Integration */}
+            <Card className="border-blue-200 shadow-lg overflow-hidden rounded-2xl">
+                <CardHeader className="bg-blue-50/50 flex flex-row items-center gap-4">
+                    <div className="bg-blue-100 p-3 rounded-xl"><Zap className="h-6 w-6 text-blue-600" /></div>
+                    <div className="flex-1">
+                        <CardTitle className="text-sm font-black uppercase tracking-widest italic text-blue-700">Logicware Hub Sync</CardTitle>
+                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest">External logistics portal API synchronization.</CardDescription>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-6 pt-8">
+                    <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase opacity-60">API Key</Label>
+                        <Input value={logicwareApi.key} onChange={e => setLogicwareApi({...logicwareApi, key: e.target.value, isSaved: false})} className="h-11 border-2 font-mono" />
+                    </div>
+                    <Button onClick={handleSaveLogicwareKey} disabled={isSavingKey} variant="outline" className="w-full h-12 font-black uppercase border-blue-200 text-blue-700 hover:bg-blue-50">
+                        {isSavingKey ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Update API Sync
+                    </Button>
                 </CardContent>
             </Card>
 
@@ -334,8 +331,8 @@ export default function SettingsPage() {
                     <Input type="file" ref={fileInputRef} onChange={handleAvatarChange} className="hidden" accept="image/*" />
                     <Separator className="opacity-10" />
                     <div className="w-full space-y-4">
-                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest"><span className="opacity-40">System Version</span><span className="text-primary italic">v2.5.0-VULTR</span></div>
-                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest"><span className="opacity-40">Last Sync</span><span className="text-primary italic">{new Date().toLocaleDateString()}</span></div>
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest"><span className="opacity-40">System Version</span><span className="text-primary italic">v3.0.0-SUPABASE</span></div>
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest"><span className="opacity-40">Last Config Sync</span><span className="text-primary italic">{new Date().toLocaleDateString()}</span></div>
                     </div>
                 </CardContent>
             </Card>

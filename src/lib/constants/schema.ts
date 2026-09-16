@@ -81,6 +81,22 @@ CREATE TABLE IF NOT EXISTS public.financial_ledger (
     legacy_firebase_id text UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS public.system_configs (
+    config_key text PRIMARY KEY,
+    config_value jsonb NOT NULL,
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.sent_emails (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    recipient_email text NOT NULL,
+    recipient_name text,
+    subject text,
+    body_content text,
+    status text,
+    sent_at timestamptz DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS public.system_logs (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     log_type text NOT NULL,
