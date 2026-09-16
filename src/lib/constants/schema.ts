@@ -91,7 +91,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- ATOMIC PROFILE TRIGGER
+-- ATOMIC PROFILE TRIGGER (Ensures idempotency)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
@@ -101,10 +101,12 @@ BEGIN
     COALESCE(new.raw_user_meta_data->>'full_name', 'New User'),
     new.email,
     'FSTD' || nextval('public.mailbox_seq')
-  );
+  )
+  ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.app_roles (user_id, role)
-  VALUES (new.id, 'customer');
+  VALUES (new.id, 'customer')
+  ON CONFLICT (user_id, role) DO NOTHING;
 
   RETURN new;
 END;

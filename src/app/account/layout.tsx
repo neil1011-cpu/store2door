@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode, useState } from 'react';
+import { useEffect, type ReactNode, useState, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSupabase } from '@/components/supabase-provider';
 import type { UserProfile } from '@/lib/types';
@@ -36,34 +36,31 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const [isDataLoading, setIsDataLoading] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
+    const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+    // 1. Stickier Auth Check: Only redirect if we are CERTAIN no user exists
     useEffect(() => {
         if (!isAuthLoading && !user) {
             router.push('/signin');
         }
     }, [user, isAuthLoading, router]);
 
-    useEffect(() => {
+    const fetchData = useCallback(async () => {
         if (!user) return;
 
-        const fetchData = async () => {
-            setIsDataLoading(true);
-            setError(null);
-            try {
-                const { data: profileData, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', user.id)
-                    .maybeSingle();
-                
-                if (profileError) throw profileError;
-                
-                if (!profileData) {
-                    // Profile might still be provisioning via the DB trigger
-                    console.warn("Profile not found for UID:", user.id);
-                    return;
-                }
-
+        setIsDataLoading(true);
+        setError(null);
+        try {
+            const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .maybeSingle();
+            
+            if (profileError) throw profileError;
+            
+            if (profileData) {
                 setProfile(profileData);
 
                 // Fetch Balance from the ledger
@@ -74,23 +71,43 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 
                 const totalBalance = ledgerData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
                 setBalance(totalBalance);
-            } catch (error: any) {
-                console.error('Error fetching account data:', error);
-                setError(error.message);
-            } finally {
-                setIsDataLoading(false);
+                
+                // Clear any pending retries
+                if (retryTimerRef.current) {
+                    clearTimeout(retryTimerRef.current);
+                    retryTimerRef.current = null;
+                }
+            } else {
+                // Profile not found yet, trigger a retry if within limits
+                if (retryCount < 10) {
+                    retryTimerRef.current = setTimeout(() => {
+                        setRetryCount(prev => prev + 1);
+                    }, 2000);
+                } else {
+                    console.warn("Profile provisioning timeout for UID:", user.id);
+                }
             }
-        };
+        } catch (error: any) {
+            console.error('Error fetching account data:', error);
+            setError(error.message);
+        } finally {
+            setIsDataLoading(false);
+        }
+    }, [user, supabase, retryCount]);
 
+    useEffect(() => {
         fetchData();
-    }, [user, supabase]);
+        return () => {
+            if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+        };
+    }, [fetchData]);
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
         router.push('/signin');
     };
 
-    if (isAuthLoading || (user && isDataLoading && !profile)) {
+    if (isAuthLoading || (user && isDataLoading && !profile && retryCount === 0)) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-6" />
@@ -120,7 +137,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         );
     }
 
-    // GRACEFUL PROVISIONING STATE: If Auth user exists but profile row is still being created
+    // GRACEFUL PROVISIONING STATE: Auto-polls while showing this UI
     if (user && !profile && !isDataLoading) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[80vh] text-center">
@@ -129,11 +146,17 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 </div>
                 <h1 className="text-3xl font-black italic uppercase tracking-tighter mb-2">Finalizing Identity</h1>
                 <p className="text-muted-foreground max-w-sm mb-10 text-sm font-medium uppercase tracking-widest leading-relaxed">
-                    We are currently establishing your global mailbox in our PostgreSQL registry. This usually takes a few seconds.
+                    We are establishing your global mailbox in our registry. This takes a few seconds.
                 </p>
-                <Button onClick={() => window.location.reload()} variant="outline" size="lg" className="font-black uppercase italic border-2">
-                    Refresh Dashboard
-                </Button>
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-primary animate-pulse">
+                        <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        Awaiting Postgres Confirmation (Attempt {retryCount}/10)
+                    </div>
+                    <Button variant="ghost" onClick={handleSignOut} className="text-xs font-bold uppercase opacity-60">
+                        Sign Out & Try Again
+                    </Button>
+                </div>
             </div>
         );
     }
