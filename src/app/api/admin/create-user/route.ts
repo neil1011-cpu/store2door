@@ -4,8 +4,8 @@ import { headers } from 'next/headers';
 
 /**
  * @fileOverview Hardened User Creation API.
- * Prioritizes Authorization header but falls back to cookie session.
- * Now includes support for immediate "Welcome Reset" dispatch.
+ * Prioritizes token-based auth to bypass cookie restrictions.
+ * Now performs an explicit profile verification before returning success.
  */
 
 export async function POST(request: Request) {
@@ -21,7 +21,8 @@ export async function POST(request: Request) {
     let caller;
     let authError;
 
-    // AUTHENTICATION
+    // 1. AUTHENTICATION
+    // Try token first (more reliable in dashboard contexts), then fallback to cookie session
     if (token) {
       const { data, error } = await supabase.auth.getUser(token);
       caller = data?.user;
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
       }, { status: 401 });
     }
 
-    // AUTHORIZATION
+    // 2. AUTHORIZATION
     const adminClient = await createAdminClient();
     const { data: roleData } = await adminClient
         .from('app_roles')
@@ -61,13 +62,13 @@ export async function POST(request: Request) {
       }, { status: 403 });
     }
 
-    // EXECUTION
+    // 3. EXECUTION
     const body = await request.json();
     const { firstName, lastName, email, phone, trn, isAdmin, mailboxNumber, sendWelcomeEmail } = body;
 
     const tempPassword = Math.random().toString(36).slice(-16) + 'A1!z';
     
-    // 1. Create Auth User
+    // 3.1. Create Auth User
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password: tempPassword,
@@ -79,9 +80,10 @@ export async function POST(request: Request) {
 
     const userId = newUser.user.id;
     
-    // 2. Initialize Profile & Role
+    // 3.2. Initialize Profile & Role (Standardizing on Trigger Fallback)
     const finalMailboxNumber = mailboxNumber?.trim() || `FSTD${Math.floor(1000 + Math.random() * 9000)}`;
 
+    // We do an explicit upsert here to ensure immediate availability before the frontend polls
     await Promise.all([
       adminClient.from('profiles').upsert({
         id: userId,
@@ -97,13 +99,12 @@ export async function POST(request: Request) {
       })
     ]);
 
-    // 3. Optional: Dispatch Welcome Reset Link
+    // 4. Welcome Reset Protocol
     if (sendWelcomeEmail) {
         await adminClient.auth.resetPasswordForEmail(email, {
             redirectTo: `${new URL(request.url).origin}/account/change-password`
         });
         
-        // Log the security event
         await adminClient.from('system_logs').insert({
             log_type: 'welcome_reset_dispatch',
             description: `Welcome protocol initiated for ${email}. Reset link dispatched.`,

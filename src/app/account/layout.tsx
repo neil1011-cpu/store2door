@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
-import { Wallet, Menu, TrendingDown, Loader2, LogOut, AlertTriangle } from 'lucide-react';
+import { Wallet, Menu, TrendingDown, Loader2, LogOut, AlertTriangle, RefreshCcw } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
@@ -59,13 +59,14 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 if (profileError) throw profileError;
                 
                 if (!profileData) {
-                    setError("Identity record not found in PostgreSQL registry.");
+                    // Profile might still be provisioning via the DB trigger
+                    console.warn("Profile not found for UID:", user.id);
                     return;
                 }
 
                 setProfile(profileData);
 
-                // Fetch Balance
+                // Fetch Balance from the ledger
                 const { data: ledgerData } = await supabase
                     .from('financial_ledger')
                     .select('amount')
@@ -89,7 +90,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         router.push('/signin');
     };
 
-    if (isAuthLoading || (user && isDataLoading)) {
+    if (isAuthLoading || (user && isDataLoading && !profile)) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-6" />
@@ -115,6 +116,24 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                         <Button variant="ghost" onClick={handleSignOut} className="w-full text-xs font-bold uppercase opacity-60">Sign Out</Button>
                     </CardContent>
                 </Card>
+            </div>
+        );
+    }
+
+    // GRACEFUL PROVISIONING STATE: If Auth user exists but profile row is still being created
+    if (user && !profile && !isDataLoading) {
+        return (
+            <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[80vh] text-center">
+                <div className="bg-primary/10 p-8 rounded-full mb-8">
+                    <RefreshCcw className="h-12 w-12 text-primary animate-spin" />
+                </div>
+                <h1 className="text-3xl font-black italic uppercase tracking-tighter mb-2">Finalizing Identity</h1>
+                <p className="text-muted-foreground max-w-sm mb-10 text-sm font-medium uppercase tracking-widest leading-relaxed">
+                    We are currently establishing your global mailbox in our PostgreSQL registry. This usually takes a few seconds.
+                </p>
+                <Button onClick={() => window.location.reload()} variant="outline" size="lg" className="font-black uppercase italic border-2">
+                    Refresh Dashboard
+                </Button>
             </div>
         );
     }
