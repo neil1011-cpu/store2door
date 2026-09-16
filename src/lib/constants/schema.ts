@@ -1,7 +1,7 @@
 /**
  * @fileOverview Definitive Production SQL Schema for FromStore2Door OS.
  * This is used by the Setup Admin recovery tool.
- * Updated to include the missing Financial Ledger table, Atomic Profile Generation, and Backfill Logic.
+ * Updated to include Master Admin RLS bypass and hardened identity functions.
  */
 
 export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA
@@ -109,11 +109,26 @@ CREATE TABLE IF NOT EXISTS public.addresses (
 );
 
 -- 4. FUNCTIONS
+-- Updated with Master Admin Bypass for RLS
 CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
+DECLARE
+  caller_email text;
 BEGIN 
-  RETURN EXISTS (SELECT 1 FROM public.app_roles WHERE user_id = auth.uid() AND role = 'admin'); 
+  -- 1. Check explicit role table
+  IF EXISTS (SELECT 1 FROM public.app_roles WHERE user_id = auth.uid() AND role = 'admin') THEN
+    RETURN TRUE;
+  END IF;
+
+  -- 2. Check hardcoded master admin email bypass
+  -- Security Definer ensures this has access to the auth schema
+  caller_email := (SELECT email FROM auth.users WHERE id = auth.uid());
+  IF caller_email = 'admin@neilussolutions.com' THEN
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
@@ -154,6 +169,11 @@ CREATE POLICY "Profiles are viewable by owner or admin"
 ON public.profiles FOR SELECT 
 USING (auth.uid() = id OR is_admin());
 
+DROP POLICY IF EXISTS "Profiles are updatable by owner or admin" ON public.profiles;
+CREATE POLICY "Profiles are updatable by owner or admin" 
+ON public.profiles FOR UPDATE
+USING (auth.uid() = id OR is_admin());
+
 DROP POLICY IF EXISTS "Users can view their own roles" ON public.app_roles;
 CREATE POLICY "Users can view their own roles" 
 ON public.app_roles FOR SELECT 
@@ -174,11 +194,16 @@ CREATE POLICY "Users can view their own shipments"
 ON public.shipments FOR SELECT 
 USING (auth.uid() = profile_id OR is_admin());
 
--- 7. BACKFILL UTILITY (Optional: Run once if you have existing users)
--- INSERT INTO public.profiles (id, full_name, email, mailbox_number)
--- SELECT id, COALESCE(raw_user_meta_data->>'full_name', 'Legacy User'), email, 'FSTD' || nextval('public.mailbox_seq')
--- FROM auth.users u WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id)
--- ON CONFLICT DO NOTHING;
+-- 7. IDEMPOTENT BACKFILL (Run this to sync existing Auth users)
+INSERT INTO public.profiles (id, full_name, email, mailbox_number)
+SELECT id, COALESCE(raw_user_meta_data->>'full_name', 'Legacy User'), email, 'FSTD' || nextval('public.mailbox_seq')
+FROM auth.users u WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.app_roles (user_id, role)
+SELECT id, 'customer'::public.user_role
+FROM auth.users u WHERE NOT EXISTS (SELECT 1 FROM public.app_roles r WHERE r.user_id = u.id)
+ON CONFLICT DO NOTHING;
 
 -- FORCE SCHEMA RELOAD
 NOTIFY pgrst, 'reload schema';`;
