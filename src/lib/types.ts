@@ -1,4 +1,3 @@
-
 import type { Timestamp } from "firebase/firestore";
 
 export type DropoffAddress = {
@@ -14,28 +13,23 @@ export type PickupPerson = {
   idNumber: string;
 };
 
-
 export type UserProfile = {
-  id: string; // This is the Firebase Auth UID
-  fullName: string;
-  firstName?: string;
-  lastName?: string;
+  id: string;
+  full_name: string;
   email: string;
-  phone: string;
-  mailboxNumber: string;
-  trn: string;
-  address: {
+  phone?: string;
+  mailbox_number: string;
+  trn?: string;
+  wallet_balance?: number;
+  created_at: any;
+  updated_at?: any;
+  address?: {
     address1: string;
     address2: string;
     city: string;
     state: string;
     zip: string;
   };
-  createdAt: Timestamp | any;
-  needsPasswordReset?: boolean;
-  dropoffAddresses?: DropoffAddress[];
-  pickupPersonnel?: PickupPerson[];
-  walletBalance?: number;
 };
 
 export type ShipmentStatus = 
@@ -61,55 +55,15 @@ export type Shipment = {
   id: string;
   trackingNumber: string;
   internalBarcode?: string;
-  contents: string; // Map to description
-  description?: string;
+  contents: string; 
   status: ShipmentStatus | string;
-  shippingDate: Timestamp | any; 
-  
-  merchant?: string;
-  sourceMarketplace?: string;
-  location?: string;
-
+  shippingDate: any; 
   weight: number;
-  length?: number;
-  width?: number;
-  height?: number;
-
-  dimensionalWeight?: number;
-  billableWeight?: number;
-
-  declaredValueUsd?: number;
-  shippingCostUsd?: number;
-  cost?: number; // Total JMD
-
-  customsExempt?: boolean;
-  clearanceRate?: number;
-  estimatedClearanceJmd?: number;
-  exchangeRate?: number;
-
-  invoiceUploaded?: boolean;
-  invoiceUrl: string; // This is the generated HTML invoice
-  uploadedInvoiceUrl?: string; // This is the user's original uploaded receipt
-  invoiceId?: string;
-
-  fragile?: boolean;
-
-  shipperId: string | null;
-  shipperName?: string | null;
-
-  manifestId?: string | null;
-  pickupBranch?: string | null;
-
-  timeline?: ShipmentTimelineEvent[];
-  notes?: string[];
-
+  total_cost_jmd?: number;
+  paymentStatus?: 'Paid' | 'Unpaid';
+  customerId: string;
   createdAt: any;
   updatedAt: any;
-  
-  customerId: string;
-  paymentStatus?: 'Paid' | 'Unpaid';
-  source?: 'firebase' | 'logicware';
-  isLogicware?: boolean;
 };
 
 export type ManifestStatus = 'Open' | 'Closed' | 'Scheduled' | 'Departed' | 'Arrived';
@@ -134,10 +88,8 @@ export type PreAlert = {
   contents: string;
   weight?: number;
   status: 'Pending' | 'Processed';
-  submissionDate: Timestamp | any;
-  invoiceHtml: string; // The generated HTML invoice for viewing
-  uploadedInvoiceUrl: string; // The original data URI of the user's uploaded image
-  source?: 'firebase' | 'logicware';
+  submissionDate: any;
+  uploadedInvoiceUrl: string;
   isLogicware?: boolean;
 };
 
@@ -152,11 +104,11 @@ export type Invoice = {
   invoiceId: string;
   customerId: string;
   customerName: string;
-  date: Timestamp | any;
+  date: any;
   amount: number;
   status: 'Paid' | 'Unpaid';
   invoiceUrl: string;
-  lineItems: LineItem[];
+  lineItems?: LineItem[];
 }
 
 export type Transaction = {
@@ -164,7 +116,8 @@ export type Transaction = {
   type: 'revenue' | 'expense';
   description: string;
   amount: number;
-  date: Timestamp | any;
+  date: any;
+  customerId?: string;
 }
 
 export type SystemLog = {
@@ -173,6 +126,6 @@ export type SystemLog = {
     description: string;
     userId?: string;
     userName?: string;
-    timestamp: Timestamp | any;
+    timestamp: any;
     metadata?: any;
 };

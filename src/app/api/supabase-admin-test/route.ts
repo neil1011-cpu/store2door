@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Diagnostic endpoint to verify Supabase Admin connectivity.
  * This proves that the SUPABASE_SECRET_KEY is working correctly.
@@ -10,7 +12,6 @@ export async function GET() {
     const supabase = await createAdminClient();
     
     // We attempt a simple operation that would normally require RLS bypass or admin permissions
-    // In this case, we'll just check if the client can initialize and perform a simple metadata check
     const { data, error } = await supabase.auth.admin.listUsers({
       page: 1,
       perPage: 1

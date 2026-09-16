@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Diagnostic endpoint to prove the existence of tables in the public schema.
  * Returns the Project URL being used for absolute transparency.
@@ -34,6 +36,7 @@ export async function GET() {
     });
 
   } catch (err: any) {
+    console.error('[DB-PROOF ERROR]', err.message);
     return NextResponse.json({
       status: 'ERROR',
       tables: [],
