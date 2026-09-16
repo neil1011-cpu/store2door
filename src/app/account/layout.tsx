@@ -8,11 +8,12 @@ import { Button } from '@/components/ui/button';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
-import { Wallet, Menu, TrendingDown, Loader2, LogOut } from 'lucide-react';
+import { Wallet, Menu, TrendingDown, Loader2, LogOut, AlertTriangle } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { Card, CardContent } from '@/components/ui/card';
 
 const UserProfileContext = createContext<{ profile: UserProfile | null; balance: number }>({ profile: null, balance: 0 });
 export const useAccountProfile = () => useContext(UserProfileContext);
@@ -34,6 +35,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const [balance, setBalance] = useState(0);
     const [isDataLoading, setIsDataLoading] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!isAuthLoading && !user) {
@@ -46,17 +48,24 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
         const fetchData = async () => {
             setIsDataLoading(true);
+            setError(null);
             try {
-                // Fetch Profile
-                const { data: profileData } = await supabase
+                const { data: profileData, error: profileError } = await supabase
                     .from('profiles')
                     .select('*')
                     .eq('id', user.id)
                     .maybeSingle();
                 
+                if (profileError) throw profileError;
+                
+                if (!profileData) {
+                    setError("Identity record not found in PostgreSQL registry.");
+                    return;
+                }
+
                 setProfile(profileData);
 
-                // Fetch Balance from Ledger
+                // Fetch Balance
                 const { data: ledgerData } = await supabase
                     .from('financial_ledger')
                     .select('amount')
@@ -64,26 +73,15 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 
                 const totalBalance = ledgerData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
                 setBalance(totalBalance);
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error fetching account data:', error);
+                setError(error.message);
             } finally {
                 setIsDataLoading(false);
             }
         };
 
         fetchData();
-
-        // Real-time Ledger Updates for Balance
-        const channel = supabase
-            .channel(`ledger-${user.id}`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'financial_ledger', filter: `profile_id=eq.${user.id}` }, () => {
-                fetchData();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
     }, [user, supabase]);
 
     const handleSignOut = async () => {
@@ -95,8 +93,28 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-6" />
-                <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2">Connecting to Hub</h2>
-                <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">Establishing secure worldwide link...</p>
+                <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2">Establishing Uplink</h2>
+                <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">Syncing with worldwide registry...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="container mx-auto py-24 px-4 flex items-center justify-center min-h-[80vh]">
+                <Card className="max-w-md w-full border-destructive/20 shadow-2xl">
+                    <CardContent className="pt-10 pb-10 text-center space-y-6">
+                        <div className="bg-destructive/10 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto">
+                            <AlertTriangle className="h-10 w-10 text-destructive" />
+                        </div>
+                        <div className="space-y-2">
+                            <h2 className="text-2xl font-black uppercase italic tracking-tighter">Registry Failure</h2>
+                            <p className="text-muted-foreground text-sm font-medium leading-relaxed">{error}</p>
+                        </div>
+                        <Button onClick={() => window.location.reload()} className="w-full h-12 font-black uppercase italic">Retry Connection</Button>
+                        <Button variant="ghost" onClick={handleSignOut} className="w-full text-xs font-bold uppercase opacity-60">Sign Out</Button>
+                    </CardContent>
+                </Card>
             </div>
         );
     }

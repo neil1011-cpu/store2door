@@ -1,17 +1,20 @@
 /**
  * @fileOverview Definitive Production SQL Schema for FromStore2Door OS.
  * This is used by the Setup Admin recovery tool.
+ * Updated to include Atomic Profile Generation Triggers.
  */
 
 export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA
 -- Run this in your Supabase SQL Editor
 
--- 1. TYPES & EXTENSIONS
+-- 1. EXTENSIONS & SEQUENCES
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-DO $$ BEGIN CREATE TYPE public.user_role AS ENUM ('customer', 'staff', 'admin'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE TYPE public.address_type AS ENUM ('pickup', 'delivery_destination'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+CREATE SEQUENCE IF NOT EXISTS public.mailbox_seq START 1000;
 
--- 2. TABLES
+-- 2. TYPES
+DO $$ BEGIN CREATE TYPE public.user_role AS ENUM ('customer', 'staff', 'admin'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- 3. TABLES
 CREATE TABLE IF NOT EXISTS public.profiles (
     id uuid REFERENCES auth.users ON DELETE CASCADE NOT NULL PRIMARY KEY,
     full_name text NOT NULL,
@@ -40,8 +43,7 @@ CREATE TABLE IF NOT EXISTS public.pre_alerts (
     weight_lbs numeric(10,2) DEFAULT 0,
     status text DEFAULT 'Pending' NOT NULL,
     invoice_url text,
-    submission_date timestamptz DEFAULT now(),
-    legacy_firebase_id text UNIQUE
+    submission_date timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.shipments (
@@ -54,31 +56,7 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     total_cost_jmd numeric(12,2) DEFAULT 0,
     payment_status text DEFAULT 'Unpaid' NOT NULL,
     shipping_date timestamptz,
-    created_at timestamptz DEFAULT now(),
-    legacy_firebase_id text UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS public.invoices (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    invoice_number text UNIQUE NOT NULL,
-    amount numeric(12,2) NOT NULL,
-    status text DEFAULT 'Unpaid' NOT NULL,
-    invoice_url text,
-    created_at timestamptz DEFAULT now(),
-    legacy_firebase_id text UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS public.financial_ledger (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    amount numeric(12,2) NOT NULL,
-    transaction_type text NOT NULL,
-    source text,
-    method text,
-    description text,
-    transaction_date timestamptz DEFAULT now(),
-    legacy_firebase_id text UNIQUE
+    created_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.system_configs (
@@ -106,13 +84,51 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
     created_at timestamptz DEFAULT now()
 );
 
--- 3. FUNCTIONS & SECURITY
+-- 4. FUNCTIONS
 CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
-BEGIN RETURN EXISTS (SELECT 1 FROM public.app_roles WHERE user_id = auth.uid() AND role = 'admin'); END;
+BEGIN 
+  RETURN EXISTS (SELECT 1 FROM public.app_roles WHERE user_id = auth.uid() AND role = 'admin'); 
+END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- ATOMIC PROFILE TRIGGER
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, email, mailbox_number)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'full_name', 'New User'),
+    new.email,
+    'FSTD' || nextval('public.mailbox_seq')
+  );
+
+  INSERT INTO public.app_roles (user_id, role)
+  VALUES (new.id, 'customer');
+
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 5. TRIGGERS
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 6. RLS POLICIES
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public profiles are viewable by owner or admin" ON public.profiles FOR SELECT USING (auth.uid() = id OR is_admin());
+ALTER TABLE public.app_roles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Profiles are viewable by owner or admin" ON public.profiles;
+CREATE POLICY "Profiles are viewable by owner or admin" 
+ON public.profiles FOR SELECT 
+USING (auth.uid() = id OR is_admin());
+
+DROP POLICY IF EXISTS "Users can view their own roles" ON public.app_roles;
+CREATE POLICY "Users can view their own roles" 
+ON public.app_roles FOR SELECT 
+USING (auth.uid() = user_id OR is_admin());
 
 -- FORCE SCHEMA RELOAD
 NOTIFY pgrst, 'reload schema';`;
