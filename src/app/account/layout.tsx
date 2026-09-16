@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, type ReactNode, useState } from 'react';
@@ -23,6 +22,7 @@ const accountNavLinks = [
     { href: '/account/pre-alert', label: 'Pre-Alert' },
     { href: '/account/packages', label: 'Packages' },
     { href: '/account/profile', label: 'Profile' },
+    { href: '/account/support', label: 'Support' },
 ];
 
 export default function AccountLayout({ children }: { children: ReactNode }) {

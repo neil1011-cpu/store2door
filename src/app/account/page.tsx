@@ -43,6 +43,13 @@ const featureCards = [
         icon: <User className="h-5 w-5 sm:h-6 sm:w-6" />,
         color: 'bg-red-500 text-white',
     },
+    {
+        href: '/account/support',
+        title: 'Support',
+        description: 'Need help? Contact our team.',
+        icon: <LifeBuoy className="h-5 w-5 sm:h-6 sm:w-6" />,
+        color: 'bg-purple-500 text-white',
+    },
 ];
 
 export default function AccountPage() {
@@ -132,7 +139,7 @@ export default function AccountPage() {
                 </Card>
 
                 {/* Compact Feature Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     {featureCards.map(card => (
                         <Link href={card.href} key={card.href}>
                             <Card className="h-full cursor-pointer hover:shadow-lg transition-all group overflow-hidden border-none shadow-md rounded-xl active:scale-[0.98]">
