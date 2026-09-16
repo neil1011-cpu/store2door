@@ -39,13 +39,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const [retryCount, setRetryCount] = useState(0);
     const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // 1. Stickier Auth Check: Only redirect if we are CERTAIN no user exists
-    useEffect(() => {
-        if (!isAuthLoading && !user) {
-            router.push('/signin');
-        }
-    }, [user, isAuthLoading, router]);
-
     const fetchData = useCallback(async () => {
         if (!user) return;
 
@@ -63,32 +56,32 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             if (profileData) {
                 setProfile(profileData);
 
-                // Fetch Balance from the ledger
-                const { data: ledgerData } = await supabase
+                // Fetch Balance from the ledger (Table now strictly defined in schema)
+                const { data: ledgerData, error: ledgerError } = await supabase
                     .from('financial_ledger')
                     .select('amount')
                     .eq('profile_id', user.id);
                 
-                const totalBalance = ledgerData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
-                setBalance(totalBalance);
+                if (!ledgerError) {
+                    const totalBalance = ledgerData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+                    setBalance(totalBalance);
+                }
                 
-                // Clear any pending retries
                 if (retryTimerRef.current) {
                     clearTimeout(retryTimerRef.current);
                     retryTimerRef.current = null;
                 }
             } else {
-                // Profile not found yet, trigger a retry if within limits
-                if (retryCount < 10) {
+                if (retryCount < 12) { // 24 seconds of total polling
                     retryTimerRef.current = setTimeout(() => {
                         setRetryCount(prev => prev + 1);
                     }, 2000);
                 } else {
-                    console.warn("Profile provisioning timeout for UID:", user.id);
+                    setError("Identity sync timed out. Please check if your account was created correctly in the registry.");
                 }
             }
         } catch (error: any) {
-            console.error('Error fetching account data:', error);
+            console.error('Account Fetch Error:', error);
             setError(error.message);
         } finally {
             setIsDataLoading(false);
@@ -96,17 +89,24 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     }, [user, supabase, retryCount]);
 
     useEffect(() => {
-        fetchData();
+        if (!isAuthLoading && !user) {
+            router.push('/signin');
+        }
+    }, [user, isAuthLoading, router]);
+
+    useEffect(() => {
+        if (user) fetchData();
         return () => {
             if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
         };
-    }, [fetchData]);
+    }, [fetchData, user]);
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
         router.push('/signin');
     };
 
+    // LOADING: Auth is working but we haven't checked for profile yet
     if (isAuthLoading || (user && isDataLoading && !profile && retryCount === 0)) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
@@ -117,6 +117,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         );
     }
 
+    // ERROR: Database or Sync failed
     if (error) {
         return (
             <div className="container mx-auto py-24 px-4 flex items-center justify-center min-h-[80vh]">
@@ -137,8 +138,8 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         );
     }
 
-    // GRACEFUL PROVISIONING STATE: Auto-polls while showing this UI
-    if (user && !profile && !isDataLoading) {
+    // PROVISIONING: User logged in, but Profile row hasn't arrived in Postgres yet
+    if (user && !profile) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[80vh] text-center">
                 <div className="bg-primary/10 p-8 rounded-full mb-8">
@@ -151,7 +152,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 <div className="flex flex-col gap-4">
                     <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-primary animate-pulse">
                         <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        Awaiting Postgres Confirmation (Attempt {retryCount}/10)
+                        Awaiting Postgres Confirmation (Attempt {retryCount}/12)
                     </div>
                     <Button variant="ghost" onClick={handleSignOut} className="text-xs font-bold uppercase opacity-60">
                         Sign Out & Try Again
