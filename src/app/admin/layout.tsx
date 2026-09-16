@@ -2,7 +2,7 @@
 
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger, SidebarFooter } from '@/components/ui/sidebar';
 import Link from 'next/link';
-import { LayoutDashboard, Users, Package, Settings, LogOut, Loader2, Inbox, Truck, DollarSign, Mail, Plane, Tag, Calculator, Bell, ShoppingCart, History } from 'lucide-react';
+import { LayoutDashboard, Users, Package, Settings, LogOut, Loader2, Inbox, Truck, DollarSign, Mail, Plane, Tag, Calculator, Bell, ShoppingCart, History, DatabaseZap } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -83,6 +83,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/admin/finance", icon: <DollarSign />, label: "Finance" },
     { href: "/admin/communications", icon: <Mail />, label: "Communications" },
     { href: "/admin/manifests", icon: <Plane />, label: "Manifests" },
+    { href: "/admin/migration", icon: <DatabaseZap />, label: "Migration" },
     { href: "/admin/rates", icon: <Tag />, label: "Rates" },
     { href: "/admin/customs-calculator", icon: <Calculator />, label: "Calculator" },
     { href: "/admin/logs", icon: <History />, label: "Activity Logs" },
