@@ -1,7 +1,7 @@
 /**
  * @fileOverview Definitive Production SQL Schema for FromStore2Door OS.
  * This is used by the Setup Admin recovery tool.
- * Updated to include the missing Financial Ledger table and Atomic Profile Generation.
+ * Updated to include the missing Financial Ledger table, Atomic Profile Generation, and Backfill Logic.
  */
 
 export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA
@@ -115,7 +115,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- ATOMIC PROFILE TRIGGER (Ensures idempotency)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
@@ -174,6 +173,12 @@ DROP POLICY IF EXISTS "Users can view their own shipments" ON public.shipments;
 CREATE POLICY "Users can view their own shipments" 
 ON public.shipments FOR SELECT 
 USING (auth.uid() = profile_id OR is_admin());
+
+-- 7. BACKFILL UTILITY (Optional: Run once if you have existing users)
+-- INSERT INTO public.profiles (id, full_name, email, mailbox_number)
+-- SELECT id, COALESCE(raw_user_meta_data->>'full_name', 'Legacy User'), email, 'FSTD' || nextval('public.mailbox_seq')
+-- FROM auth.users u WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id)
+-- ON CONFLICT DO NOTHING;
 
 -- FORCE SCHEMA RELOAD
 NOTIFY pgrst, 'reload schema';`;
