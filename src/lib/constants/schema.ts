@@ -120,7 +120,6 @@ BEGIN
   END IF;
 
   -- 2. Check hardcoded master admin email bypass
-  -- Security Definer ensures this has access to the auth schema
   caller_email := (SELECT email FROM auth.users WHERE id = auth.uid());
   IF caller_email = 'admin@neilussolutions.com' THEN
     RETURN TRUE;
@@ -129,6 +128,27 @@ BEGIN
   RETURN FALSE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+
+-- ATOMIC BALANCE SYNC (Keeps profile column matched to ledger sum)
+CREATE OR REPLACE FUNCTION public.sync_profile_balance()
+RETURNS trigger AS $$
+BEGIN
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE public.profiles 
+    SET wallet_balance = wallet_balance + NEW.amount
+    WHERE id = NEW.profile_id;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE public.profiles 
+    SET wallet_balance = wallet_balance - OLD.amount
+    WHERE id = OLD.profile_id;
+  ELSIF (TG_OP = 'UPDATE') THEN
+    UPDATE public.profiles 
+    SET wallet_balance = wallet_balance - OLD.amount + NEW.amount
+    WHERE id = NEW.profile_id;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
@@ -155,6 +175,11 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+DROP TRIGGER IF EXISTS on_ledger_change ON public.financial_ledger;
+CREATE TRIGGER on_ledger_change
+  AFTER INSERT OR UPDATE OR DELETE ON public.financial_ledger
+  FOR EACH ROW EXECUTE FUNCTION public.sync_profile_balance();
 
 -- 6. RLS POLICIES
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -183,6 +208,11 @@ DROP POLICY IF EXISTS "Users can view their own ledger" ON public.financial_ledg
 CREATE POLICY "Users can view their own ledger" 
 ON public.financial_ledger FOR SELECT 
 USING (auth.uid() = profile_id OR is_admin());
+
+DROP POLICY IF EXISTS "Admins can insert into ledger" ON public.financial_ledger;
+CREATE POLICY "Admins can insert into ledger" 
+ON public.financial_ledger FOR INSERT
+WITH CHECK (is_admin());
 
 DROP POLICY IF EXISTS "Users can view their own alerts" ON public.pre_alerts;
 CREATE POLICY "Users can view their own alerts" 

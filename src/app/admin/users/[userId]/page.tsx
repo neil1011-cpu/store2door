@@ -1,9 +1,7 @@
-
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
-import type { UserProfile, Shipment } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
@@ -356,9 +354,28 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
         try {
             const newBalance = parseFloat(amount);
             if (isNaN(newBalance)) throw new Error("Invalid amount.");
-            const { error } = await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', userId);
+            
+            const diff = newBalance - currentBalance;
+            if (diff === 0) {
+                setOpen(false);
+                return;
+            }
+
+            // Financial Integrity: Manual adjustment MUST be logged in the ledger
+            // The sync_profile_balance trigger in Postgres will handle updating the profile column automatically
+            const { error } = await supabase.from('financial_ledger').insert({
+                profile_id: userId,
+                amount: diff,
+                description: `Manual Administrative Adjustment`
+            });
+
             if (error) throw error;
-            toast({ title: "Credit Adjusted" });
+
+            toast({ 
+                title: "Credit Adjusted", 
+                description: `${diff > 0 ? 'Added' : 'Subtracted'} JMD $${Math.abs(diff).toLocaleString()} in audit ledger.` 
+            });
+            
             setOpen(false);
             onSuccess();
         } catch (error: any) {
