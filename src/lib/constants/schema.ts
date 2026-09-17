@@ -13,6 +13,7 @@ CREATE SEQUENCE IF NOT EXISTS public.mailbox_seq START 1000;
 
 -- 2. TYPES
 DO $$ BEGIN CREATE TYPE public.user_role AS ENUM ('customer', 'staff', 'admin'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE public.ledger_transaction_type AS ENUM ('payment', 'refund', 'adjustment', 'shipping_fee'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- 3. TABLES
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS public.financial_ledger (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
     amount numeric(12,2) NOT NULL,
+    transaction_type public.ledger_transaction_type DEFAULT 'adjustment' NOT NULL,
     description text,
     transaction_date timestamptz DEFAULT now()
 );

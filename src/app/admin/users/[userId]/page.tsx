@@ -362,10 +362,11 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
             }
 
             // Financial Integrity: Manual adjustment MUST be logged in the ledger
-            // The sync_profile_balance trigger in Postgres will handle updating the profile column automatically
+            // Providing transaction_type to satisfy the NOT NULL constraint
             const { error } = await supabase.from('financial_ledger').insert({
                 profile_id: userId,
                 amount: diff,
+                transaction_type: 'adjustment',
                 description: `Manual Administrative Adjustment`
             });
 
@@ -409,5 +410,4 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    );
 }
