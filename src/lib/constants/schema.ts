@@ -1,7 +1,7 @@
 /**
  * @fileOverview Definitive Production SQL Schema for FromStore2Door OS.
  * This is used by the Setup Admin recovery tool.
- * Updated to include Master Admin RLS bypass and hardened identity functions.
+ * Updated to include JWT-based Master Admin bypass and robust financial ledger policies.
  */
 
 export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA
@@ -109,19 +109,16 @@ CREATE TABLE IF NOT EXISTS public.addresses (
 );
 
 -- 4. FUNCTIONS
--- Updated with Master Admin Bypass for RLS
+-- Optimized is_admin with JWT claims and hardened security definer
 CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
-DECLARE
-  caller_email text;
 BEGIN 
   -- 1. Check explicit role table
   IF EXISTS (SELECT 1 FROM public.app_roles WHERE user_id = auth.uid() AND role = 'admin') THEN
     RETURN TRUE;
   END IF;
 
-  -- 2. Check hardcoded master admin email bypass
-  caller_email := (SELECT email FROM auth.users WHERE id = auth.uid());
-  IF caller_email = 'admin@neilussolutions.com' THEN
+  -- 2. Check hardcoded master admin email bypass via JWT claim
+  IF (auth.jwt() ->> 'email') = 'admin@neilussolutions.com' THEN
     RETURN TRUE;
   END IF;
 
@@ -148,7 +145,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
@@ -168,7 +165,7 @@ BEGIN
 
   RETURN new;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- 5. TRIGGERS
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
@@ -197,21 +194,20 @@ USING (auth.uid() = id OR is_admin());
 DROP POLICY IF EXISTS "Profiles are updatable by owner or admin" ON public.profiles;
 CREATE POLICY "Profiles are updatable by owner or admin" 
 ON public.profiles FOR UPDATE
-USING (auth.uid() = id OR is_admin());
+USING (auth.uid() = id OR is_admin())
+WITH CHECK (auth.uid() = id OR is_admin());
 
 DROP POLICY IF EXISTS "Users can view their own roles" ON public.app_roles;
 CREATE POLICY "Users can view their own roles" 
 ON public.app_roles FOR SELECT 
 USING (auth.uid() = user_id OR is_admin());
 
-DROP POLICY IF EXISTS "Users can view their own ledger" ON public.financial_ledger;
-CREATE POLICY "Users can view their own ledger" 
-ON public.financial_ledger FOR SELECT 
-USING (auth.uid() = profile_id OR is_admin());
-
-DROP POLICY IF EXISTS "Admins can insert into ledger" ON public.financial_ledger;
-CREATE POLICY "Admins can insert into ledger" 
-ON public.financial_ledger FOR INSERT
+-- Hardened Financial Ledger Policy
+DROP POLICY IF EXISTS "Financial ledger access" ON public.financial_ledger;
+CREATE POLICY "Financial ledger access" 
+ON public.financial_ledger FOR ALL
+TO authenticated
+USING (auth.uid() = profile_id OR is_admin())
 WITH CHECK (is_admin());
 
 DROP POLICY IF EXISTS "Users can view their own alerts" ON public.pre_alerts;
@@ -224,7 +220,7 @@ CREATE POLICY "Users can view their own shipments"
 ON public.shipments FOR SELECT 
 USING (auth.uid() = profile_id OR is_admin());
 
--- 7. IDEMPOTENT BACKFILL (Run this to sync existing Auth users)
+-- 7. IDEMPOTENT BACKFILL
 INSERT INTO public.profiles (id, full_name, email, mailbox_number)
 SELECT id, COALESCE(raw_user_meta_data->>'full_name', 'Legacy User'), email, 'FSTD' || nextval('public.mailbox_seq')
 FROM auth.users u WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id)
@@ -236,4 +232,4 @@ FROM auth.users u WHERE NOT EXISTS (SELECT 1 FROM public.app_roles r WHERE r.use
 ON CONFLICT DO NOTHING;
 
 -- FORCE SCHEMA RELOAD
-NOTIFY pgrst, 'reload schema';`;
+NOTIFY pgrst, 'reload schema';`
