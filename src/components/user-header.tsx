@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { Button } from './ui/button';
-import { User, LogIn, UserPlus, Menu } from 'lucide-react';
+import { User, Menu } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './theme-toggle';
@@ -61,9 +61,12 @@ export function UserHeader() {
                         ))}
                         <div className="pt-4 flex flex-col gap-3">
                             {showAuthActions ? (
-                                <Button asChild className="w-full h-12 font-bold"><Link href="/signin">Sign In</Link></Button>
+                                <>
+                                    <Button asChild variant="outline" className="w-full h-12 font-bold"><Link href="/signin" onClick={() => setIsOpen(false)}>Sign In</Link></Button>
+                                    <Button asChild className="w-full h-12 font-bold"><Link href="/signup" onClick={() => setIsOpen(false)}>Sign Up</Link></Button>
+                                </>
                             ) : (
-                                <Button asChild className="w-full h-12 font-bold"><Link href="/account">Dashboard</Link></Button>
+                                <Button asChild className="w-full h-12 font-bold"><Link href="/account" onClick={() => setIsOpen(false)}>Dashboard</Link></Button>
                             )}
                         </div>
                     </nav>
@@ -83,7 +86,10 @@ export function UserHeader() {
         <div className="flex flex-1 items-center justify-end space-x-2 sm:space-x-4">
              <ThemeToggle />
              {showAuthActions ? (
-                <Button asChild size="sm" className="font-bold"><Link href="/signin">Sign In</Link></Button>
+                <>
+                    <Button asChild variant="ghost" size="sm" className="font-bold hidden sm:flex"><Link href="/signin">Sign In</Link></Button>
+                    <Button asChild size="sm" className="font-bold"><Link href="/signup">Sign Up</Link></Button>
+                </>
              ) : (
                 <Button asChild size="sm" className="font-bold"><Link href="/account"><User className="mr-2 h-4 w-4" /> Account</Link></Button>
              )}
