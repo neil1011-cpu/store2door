@@ -163,7 +163,9 @@ export default function UserDetailsPage() {
                         <CardContent className="text-sm space-y-4 pt-6">
                              <div className="flex items-center gap-3">
                                 <div className="bg-muted p-2 rounded-lg"><Mail className="h-4 w-4 text-muted-foreground" /></div>
-                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Email</p><p className="font-medium">{profile.email}</p></div>
+                                {profile.email && (
+                                  <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Email</p><p className="font-medium">{profile.email}</p></div>
+                                )}
                             </div>
                              <div className="flex items-center gap-3">
                                 <div className="bg-muted p-2 rounded-lg"><Phone className="h-4 w-4 text-muted-foreground" /></div>
@@ -361,8 +363,6 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
                 return;
             }
 
-            // Financial Integrity: Manual adjustment MUST be logged in the ledger
-            // Providing transaction_type to satisfy the NOT NULL constraint
             const { error } = await supabase.from('financial_ledger').insert({
                 profile_id: userId,
                 amount: diff,
@@ -410,4 +410,5 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
 }
