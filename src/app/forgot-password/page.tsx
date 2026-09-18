@@ -34,13 +34,12 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setRateLimited(false);
     try {
-        // CRITICAL: Use the browser's actual origin to avoid build-time env var leakage
+        // Use the browser's actual origin at runtime to avoid build-time env leakage
         const origin = window.location.origin;
         
         // Exact matching for Supabase Redirect Whitelist
-        // Points to /auth/callback which handles the PKCE exchange
         const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-            redirectTo: `${origin}/auth/callback`
+            redirectTo: `${origin}/auth/callback?next=/reset-password`
         });
 
         if (error) {
@@ -78,12 +77,7 @@ export default function ForgotPasswordPage() {
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle className="text-xs font-black uppercase">Email Rate Limit</AlertTitle>
                 <AlertDescription className="text-[10px] leading-relaxed mt-1">
-                    Supabase allows 1 email per hour by default. To unblock testing:
-                    <ol className="list-decimal pl-4 mt-2 space-y-1">
-                        <li>Go to Supabase Dashboard > Authentication</li>
-                        <li>Provider Settings > Email</li>
-                        <li>Set "Rate Limit" to 1 second and Save.</li>
-                    </ol>
+                    Supabase allows 1 email per hour by default. Adjust the rate limit in your Supabase Auth settings to unblock testing.
                 </AlertDescription>
             </Alert>
           )}

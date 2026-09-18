@@ -17,17 +17,11 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error && data?.session) {
-      // If the session was established via a recovery (password reset) flow,
-      // Supabase sets the 'amr' (Authentication Method Reference) or we can 
-      // assume that if they reached this from a reset email, they need the reset page.
-      
-      // Default destinations based on context
-      const defaultNext = next || '/account';
-      
-      // If we are coming from a password reset flow, force the reset password page
-      // unless 'next' specifically says otherwise.
-      const isRecovery = searchParams.get('type') === 'recovery' || next === '/reset-password';
-      const finalDestination = isRecovery ? '/reset-password' : defaultNext;
+      // Logic for determining next destination
+      // If we are in a password reset flow, 'next' is usually provided by the application
+      // or we can detect it via context.
+      const defaultNext = '/account';
+      const finalDestination = next || defaultNext;
 
       return NextResponse.redirect(`${origin}${finalDestination}`)
     }
