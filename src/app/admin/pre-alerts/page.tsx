@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useSupabase } from '@/components/supabase-provider';
 import { cn, calculateShippingCost } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import Image from 'next/image';
 
 export default function PreAlertsPage() {
     const { supabase } = useSupabase();
@@ -24,6 +25,7 @@ export default function PreAlertsPage() {
     const [users, setUsers] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCleaning, setIsCleaning] = useState(false);
     
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newAlert, setNewAlert] = useState({ profileId: '', trackingNumber: '', contents: '', weight: '' });
@@ -60,6 +62,21 @@ export default function PreAlertsPage() {
 
         return () => { supabase.removeChannel(channel); };
     }, [fetchData, supabase]);
+
+    const handleRunCleanup = async () => {
+        setIsCleaning(true);
+        try {
+            const res = await fetch('/api/admin/maintenance/cleanup-invoices', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Cleanup failed');
+            toast({ title: "Maintenance Complete", description: `Purged ${data.purgedCount} expired invoice(s).` });
+            fetchData();
+        } catch (err: any) {
+            toast({ title: "Maintenance Error", description: err.message, variant: "destructive" });
+        } finally {
+            setIsCleaning(false);
+        }
+    };
 
     const handleCreateAlert = async () => {
         if (!newAlert.profileId || !newAlert.trackingNumber) {
@@ -155,6 +172,10 @@ export default function PreAlertsPage() {
                     <p className="text-muted-foreground font-medium uppercase text-[10px]">Universal Operational Registry</p>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleRunCleanup} disabled={isCleaning} className="font-bold border-2 border-orange-200 text-orange-700 hover:bg-orange-50">
+                        {isCleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock className="mr-2 h-4 w-4" />} 
+                        Retention Cleanup
+                    </Button>
                     <Button variant="outline" onClick={fetchData} className="font-bold border-2"><RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh Queue</Button>
                     
                     <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -249,35 +270,43 @@ export default function PreAlertsPage() {
                             <TableRow className="h-12">
                                 <TableHead className="pl-6 text-[10px] font-black uppercase">Customer</TableHead>
                                 <TableHead className="text-[10px] font-black uppercase">Tracking ID</TableHead>
-                                <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase">Retention</TableHead>
                                 <TableHead className="text-[10px] font-black uppercase">Submission Date</TableHead>
                                 <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Action</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {preAlerts.map(alert => (
-                                <TableRow key={alert.id} className="hover:bg-primary/5 transition-colors h-20">
-                                    <TableCell className="pl-6">
-                                        <div className="flex flex-col">
-                                            <span className="font-black text-sm uppercase">{alert.profiles?.full_name || 'Legacy Account'}</span>
-                                            <span className="text-[9px] font-bold opacity-60 uppercase truncate max-w-[150px]">{alert.contents || 'No Description'}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="font-mono font-black text-primary uppercase text-sm">{alert.tracking_number}</TableCell>
-                                    <TableCell className="text-xs font-bold uppercase">{alert.weight_lbs} LBS</TableCell>
-                                    <TableCell className="text-[10px] font-medium opacity-60">{new Date(alert.submission_date).toLocaleDateString()}</TableCell>
-                                    <TableCell className="text-right pr-6">
-                                        <div className="flex justify-end gap-2">
-                                            {alert.invoice_url && (
-                                                <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase italic text-[10px] border-2">
-                                                    <Link href={alert.invoice_url} target="_blank">View Invoice</Link>
-                                                </Button>
-                                            )}
-                                            <IntakeDialog alert={alert} onProcess={handleProcessIntake} />
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            {preAlerts.map(alert => {
+                                const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(alert.submission_date).getTime()) / (1000 * 60 * 60 * 24)));
+                                return (
+                                    <TableRow key={alert.id} className="hover:bg-primary/5 transition-colors h-20">
+                                        <TableCell className="pl-6">
+                                            <div className="flex flex-col">
+                                                <span className="font-black text-sm uppercase">{alert.profiles?.full_name || 'Legacy Account'}</span>
+                                                <span className="text-[9px] font-bold opacity-60 uppercase truncate max-w-[150px]">{alert.contents || 'No Description'}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="font-mono font-black text-primary uppercase text-sm">{alert.tracking_number}</TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <Clock className={cn("h-3 w-3", daysLeft < 5 ? "text-red-500 animate-pulse" : "text-muted-foreground")} />
+                                                <span className={cn("text-[10px] font-bold uppercase", daysLeft < 5 && "text-red-600")}>{daysLeft} Days Left</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-[10px] font-medium opacity-60">{new Date(alert.submission_date).toLocaleDateString()}</TableCell>
+                                        <TableCell className="text-right pr-6">
+                                            <div className="flex justify-end gap-2">
+                                                {alert.invoice_url ? (
+                                                    <InvoicePreviewDialog url={alert.invoice_url} trackingNumber={alert.tracking_number} />
+                                                ) : (
+                                                    <Badge variant="outline" className="opacity-30 uppercase text-[8px]">No Document</Badge>
+                                                )}
+                                                <IntakeDialog alert={alert} onProcess={handleProcessIntake} />
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
                             {preAlerts.length === 0 && !isLoading && (
                                 <TableRow>
                                     <TableCell colSpan={5} className="h-64 text-center text-muted-foreground opacity-30 italic">
@@ -290,6 +319,40 @@ export default function PreAlertsPage() {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+function InvoicePreviewDialog({ url, trackingNumber }: { url: string, trackingNumber: string }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 font-black uppercase italic text-[10px] border-2">
+                    <Eye className="mr-2 h-3.5 w-3.5" /> Preview
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
+                <DialogHeader>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Documentation Review</DialogTitle>
+                    <DialogDescription className="text-center font-bold text-[10px] uppercase tracking-widest">Tracking: {trackingNumber}</DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 overflow-auto bg-muted/20 rounded-xl border-2 border-dashed flex items-center justify-center p-4 relative min-h-[500px]">
+                    <Image 
+                        src={url} 
+                        alt="Commercial Invoice" 
+                        fill 
+                        className="object-contain"
+                        data-ai-hint="invoice document"
+                    />
+                </div>
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" className="font-bold uppercase flex-1 h-12" asChild>
+                        <Link href={url} target="_blank"><Download className="mr-2 h-4 w-4" /> Original File</Link>
+                    </Button>
+                    <DialogClose asChild><Button className="font-black uppercase italic flex-1 h-12">Close Review</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 
