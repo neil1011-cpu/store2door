@@ -1,10 +1,10 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   CardFooter,
@@ -26,27 +26,22 @@ import {
   ShoppingCart, 
   User, 
   Package, 
-  DollarSign, 
   CheckCircle2, 
-  Printer, 
   Loader2, 
   X,
   CreditCard,
   Banknote,
   Building2,
   Trash2,
-  FileText,
   Edit3,
   FileDown,
-  Wallet,
-  AlertCircle,
   TrendingDown,
   TrendingUp,
-  History
+  History,
+  DollarSign
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, where, doc, updateDoc, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { useSupabase } from '@/components/supabase-provider';
 import { cn } from '@/lib/utils';
 import type { UserProfile, Invoice } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -65,17 +60,17 @@ import { Switch } from '@/components/ui/switch';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-/**
- * @fileOverview POS System with integrated PDF Receipt Generation and Finance linking.
- * Fixed wallet balance synchronization and added total outstanding transparency.
- */
-
 export default function POSPage() {
     const { toast } = useToast();
-    const firestore = useFirestore();
+    const { supabase } = useSupabase();
     const receiptRef = useRef<HTMLDivElement>(null);
+    
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+    const [users, setUsers] = useState<any[]>([]);
+    const [selectedUser, setSelectedUser] = useState<any | null>(null);
+    const [userInvoices, setUserInvoices] = useState<any[]>([]);
+    const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+    
     const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Transfer'>('Cash');
@@ -83,75 +78,67 @@ export default function POSPage() {
     const [checkoutComplete, setCheckoutComplete] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     
-    // Manual Amount States
     const [useManualAmount, setUseManualAmount] = useState(false);
     const [manualAmount, setManualAmount] = useState('');
+    const [receiptData, setReceiptData] = useState<any | null>(null);
 
-    // Receipt Snapshot Data
-    const [receiptData, setReceiptData] = useState<{
-        customer: UserProfile;
-        items: Invoice[];
-        total: number;
-        method: string;
-        date: Date;
-    } | null>(null);
+    // Fetch users based on search
+    useEffect(() => {
+        if (!searchTerm || searchTerm.length < 2) {
+            setUsers([]);
+            return;
+        }
 
-    // 1. Fetch All Users for Search
-    const usersQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
-    }, [firestore]);
-    const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+        const findUsers = async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('*')
+                .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mailbox_number.ilike.%${searchTerm}%`)
+                .limit(5);
+            setUsers(data || []);
+        };
 
-    // 2. Fetch Unpaid Invoices for Selected User
-    const invoicesQuery = useMemoFirebase(() => {
-        if (!firestore || !selectedUser) return null;
-        return query(
-            collection(firestore, 'invoices'), 
-            where('customerId', '==', selectedUser.id),
-            where('status', '==', 'Unpaid')
-        );
-    }, [firestore, selectedUser]);
-    const { data: userInvoices, isLoading: isLoadingInvoices } = useCollection<Invoice>(invoicesQuery);
+        const timer = setTimeout(findUsers, 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm, supabase]);
 
-    // 3. Search Filter
-    const filteredUsers = useMemo(() => {
-        if (!searchTerm || searchTerm.length < 2) return [];
-        const lower = searchTerm.toLowerCase();
-        return (users || []).filter(u => 
-            u.fullName.toLowerCase().includes(lower) || 
-            u.email.toLowerCase().includes(lower) || 
-            u.mailboxNumber?.toLowerCase().includes(lower)
-        ).slice(0, 5);
-    }, [users, searchTerm]);
+    // Fetch invoices when user is selected
+    useEffect(() => {
+        if (!selectedUser) {
+            setUserInvoices([]);
+            return;
+        }
+
+        const fetchInvoices = async () => {
+            setIsLoadingInvoices(true);
+            const { data } = await supabase
+                .from('invoices')
+                .select('*')
+                .eq('profile_id', selectedUser.id)
+                .eq('status', 'Unpaid');
+            setUserInvoices(data || []);
+            setIsLoadingInvoices(false);
+        };
+
+        fetchInvoices();
+    }, [selectedUser, supabase]);
 
     const calculatedSelectedTotal = useMemo(() => {
-        if (!userInvoices) return 0;
         return userInvoices
             .filter(inv => selectedInvoices.has(inv.id))
-            .reduce((sum, inv) => sum + inv.amount, 0);
+            .reduce((sum, inv) => sum + Number(inv.amount), 0);
     }, [userInvoices, selectedInvoices]);
 
     const totalOutstandingInvoices = useMemo(() => {
-        if (!userInvoices) return 0;
-        return userInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+        return userInvoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
     }, [userInvoices]);
 
     const finalAmount = useMemo(() => {
-        if (useManualAmount) {
-            return parseFloat(manualAmount) || 0;
-        }
+        if (useManualAmount) return parseFloat(manualAmount) || 0;
         return calculatedSelectedTotal;
     }, [useManualAmount, manualAmount, calculatedSelectedTotal]);
 
-    // Update manual amount input when selection changes if manual mode is off
-    useEffect(() => {
-        if (!useManualAmount) {
-            setManualAmount(calculatedSelectedTotal.toString());
-        }
-    }, [calculatedSelectedTotal, useManualAmount]);
-
-    const handleSelectUser = (user: UserProfile) => {
+    const handleSelectUser = (user: any) => {
         setSelectedUser(user);
         setSearchTerm('');
         setSelectedInvoices(new Set());
@@ -166,47 +153,36 @@ export default function POSPage() {
     };
 
     const handleProcessPayment = async () => {
-        if (!selectedUser || !firestore) return;
-        
+        if (!selectedUser) return;
         setIsProcessing(true);
-        const batch = writeBatch(firestore);
         
         try {
-            const itemsToSnap: Invoice[] = userInvoices?.filter(inv => selectedInvoices.has(inv.id)) || [];
+            const itemsToSnap = userInvoices.filter(inv => selectedInvoices.has(inv.id));
 
-            // 1. Update Selected Invoices
-            selectedInvoices.forEach(id => {
-                const invRef = doc(firestore, 'invoices', id);
-                batch.update(invRef, { 
-                    status: 'Paid',
-                    paymentMethod,
-                    paidAt: serverTimestamp(),
-                    actualAmountPaid: useManualAmount ? (finalAmount / selectedInvoices.size) : null 
-                });
+            // 1. Update Invoices
+            await supabase
+                .from('invoices')
+                .update({ status: 'Paid' })
+                .in('id', Array.from(selectedInvoices));
+
+            // 2. Record in Financial Ledger (Triggers update profiles.wallet_balance automatically)
+            const { error: ledgerError } = await supabase.from('financial_ledger').insert({
+                profile_id: selectedUser.id,
+                amount: finalAmount, // Positive for payment
+                transaction_type: 'payment',
+                description: `POS Payment via ${paymentMethod} - MAILBOX ${selectedUser.mailbox_number}`
             });
 
-            // 2. Log Finance Transaction
-            const transactionRef = doc(collection(firestore, 'transactions'));
-            batch.set(transactionRef, {
-                type: 'revenue',
-                source: 'POS',
-                amount: finalAmount,
-                description: `POS Payment ${useManualAmount ? '(Override)' : ''} - ${selectedUser.fullName} (${selectedUser.mailboxNumber})`,
-                date: serverTimestamp(),
-                method: paymentMethod,
-                customerId: selectedUser.id,
-                invoiceIds: Array.from(selectedInvoices)
+            if (ledgerError) throw ledgerError;
+
+            // 3. System Log
+            await supabase.from('system_logs').insert({
+                log_type: 'pos_transaction',
+                description: `POS Checkout Complete: ${selectedUser.full_name}. JMD $${finalAmount.toLocaleString()}`,
+                actor_id: (await supabase.auth.getUser()).data.user?.id,
+                metadata: { customerId: selectedUser.id, method: paymentMethod, amount: finalAmount }
             });
 
-            // 3. CREDIT USER WALLET: Payment reduces debt (adds to balance)
-            batch.update(doc(firestore, 'users', selectedUser.id), {
-                walletBalance: increment(finalAmount),
-                updatedAt: serverTimestamp()
-            });
-
-            await batch.commit();
-            
-            // 4. Set Receipt Snapshot for printing
             setReceiptData({
                 customer: selectedUser,
                 items: itemsToSnap,
@@ -216,24 +192,9 @@ export default function POSPage() {
             });
 
             setCheckoutComplete(true);
-            toast({ title: "Payment Secured", description: `JMD $${finalAmount.toLocaleString()} credited to client ledger.` });
-            
-            // 5. System Activity Log
-            fetch('/api/log-activity', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'pos_payment',
-                    description: `POS Checkout: ${selectedUser.fullName}. Amount: JMD $${finalAmount.toFixed(2)} via ${paymentMethod}.`,
-                    userId: 'admin',
-                    userName: 'System Admin',
-                    metadata: { customerId: selectedUser.id, amount: finalAmount, method: paymentMethod, overridden: useManualAmount }
-                })
-            });
-
+            toast({ title: "Payment Secured", description: "Registry items marked as paid and account credited." });
         } catch (error: any) {
-            console.error("Checkout Error:", error);
-            toast({ title: "Checkout Aborted", description: error.message, variant: "destructive" });
+            toast({ title: "Checkout Error", description: error.message, variant: "destructive" });
         } finally {
             setIsProcessing(false);
         }
@@ -241,29 +202,16 @@ export default function POSPage() {
 
     const handlePrintReceipt = async () => {
         if (!receiptRef.current || !receiptData) return;
-        
         setIsGeneratingPdf(true);
         try {
-            const element = receiptRef.current;
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                logging: false,
-            });
-            
+            const canvas = await html2canvas(receiptRef.current, { scale: 2, backgroundColor: '#ffffff' });
             const imgData = canvas.toDataURL('image/png');
-            const pdfWidth = 80;
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfWidth, pdfHeight] });
-            
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Receipt-${receiptData.customer.mailboxNumber}-${Date.now()}.pdf`);
-            
-            toast({ title: "Receipt Document Generated" });
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, 200] });
+            pdf.addImage(imgData, 'PNG', 0, 0, 80, (canvas.height * 80) / canvas.width);
+            pdf.save(`Receipt-${receiptData.customer.mailbox_number}.pdf`);
+            toast({ title: "Receipt Generated" });
         } catch (error) {
-            console.error("PDF Error:", error);
-            toast({ title: "Document Conversion Failed", variant: "destructive" });
+            toast({ title: "PDF Error", variant: "destructive" });
         } finally {
             setIsGeneratingPdf(false);
         }
@@ -275,59 +223,39 @@ export default function POSPage() {
         setCheckoutComplete(false);
         setIsCheckoutOpen(false);
         setReceiptData(null);
-        setUseManualAmount(false);
-        setManualAmount('');
+        setSearchTerm('');
     };
-
-    const userBalance = selectedUser?.walletBalance || 0;
-    const isIndebted = userBalance < 0;
 
     return (
         <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-            {/* Thermal Receipt Capture Template */}
+            {/* Hidden Receipt Template */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
                     <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
                         <div className="text-center border-b-2 border-black pb-4 mb-6">
-                            <h1 className="text-2xl font-black uppercase tracking-tighter">FromStore2Door</h1>
-                            <p className="text-xs mt-1">3507 NW 19th ST</p>
-                            <p className="text-xs">Lauderdale Lake, FL, 33311-4224</p>
-                            <p className="text-xs font-bold mt-2">info@fromstore2door.com</p>
+                            <h1 className="text-2xl font-black uppercase">FromStore2Door</h1>
+                            <p className="text-xs mt-1">Global Logistics POS</p>
                         </div>
                         <div className="space-y-2 text-xs mb-6">
                             <div className="flex justify-between"><span>DATE:</span> <span>{receiptData.date.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span>CUSTOMER:</span> <span className="font-bold">{receiptData.customer.fullName}</span></div>
-                            <div className="flex justify-between"><span>MAILBOX:</span> <span className="font-bold">{receiptData.customer.mailboxNumber}</span></div>
+                            <div className="flex justify-between"><span>MAILBOX:</span> <span className="font-bold">{receiptData.customer.mailbox_number}</span></div>
                         </div>
-                        <Separator className="border-black border-dashed my-4" />
-                        <div className="space-y-3 text-xs">
-                            <div className="grid grid-cols-4 font-black border-b border-black pb-2">
-                                <span className="col-span-2 text-left">DESCRIPTION</span>
-                                <span className="text-right">QTY</span>
-                                <span className="text-right">TOTAL</span>
+                        <div className="space-y-2 text-xs">
+                            <div className="flex justify-between font-black border-b border-black pb-2">
+                                <span>DESCRIPTION</span>
+                                <span>TOTAL</span>
                             </div>
-                            {receiptData.items.map(item => (
-                                <div key={item.id} className="grid grid-cols-4 py-1">
-                                    <span className="col-span-2 text-left truncate">{item.lineItems?.[0]?.description || 'Logistics Service'}</span>
-                                    <span className="text-right">1</span>
-                                    <span className="text-right">${item.amount.toFixed(2)}</span>
+                            {receiptData.items.map((item: any) => (
+                                <div key={item.id} className="flex justify-between py-1">
+                                    <span>{item.invoice_number || 'Registry Item'}</span>
+                                    <span>JMD ${Number(item.amount).toLocaleString()}</span>
                                 </div>
                             ))}
                         </div>
                         <Separator className="border-black border-dashed my-6" />
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-xl font-black">
-                                <span>TOTAL PAID:</span>
-                                <span>JMD ${receiptData.total.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between text-xs font-bold uppercase">
-                                <span>PAID VIA:</span>
-                                <span>{receiptData.method}</span>
-                            </div>
-                        </div>
-                        <div className="text-center mt-12 pt-8 border-t border-dashed border-black">
-                            <p className="text-xs font-black italic uppercase">*** THANK YOU FOR SHIPPING ***</p>
-                            <p className="text-[10px] mt-2 opacity-60">FSTD OS Transaction Receipt</p>
+                        <div className="flex justify-between text-xl font-black">
+                            <span>TOTAL PAID:</span>
+                            <span>JMD ${receiptData.total.toLocaleString()}</span>
                         </div>
                     </div>
                 )}
@@ -335,10 +263,8 @@ export default function POSPage() {
 
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
-                        <ShoppingCart className="h-8 w-8" /> POS Checkout System
-                    </h1>
-                    <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Universal Financial Gateway</p>
+                    <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">POS Checkout</h1>
+                    <p className="text-muted-foreground font-medium uppercase text-[10px]">Unified PostgreSQL Financial Gateway</p>
                 </div>
                 <Button variant="outline" onClick={resetPOS} className="font-bold border-2">
                     <Trash2 className="mr-2 h-4 w-4" /> Clear Station
@@ -349,8 +275,8 @@ export default function POSPage() {
                 <div className="lg:col-span-8 space-y-6">
                     <Card className="border-none shadow-xl">
                         <CardHeader className="bg-muted/10 pb-4">
-                            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                                <User className="h-4 w-4 text-primary" /> 1. Identify Client Identity
+                            <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                                <User className="h-4 w-4 text-primary" /> Identify Customer
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-6">
@@ -363,36 +289,29 @@ export default function POSPage() {
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
                                     />
-                                    {filteredUsers.length > 0 && (
+                                    {users.length > 0 && (
                                         <div className="absolute w-full mt-2 bg-background border-2 rounded-xl shadow-2xl z-50 overflow-hidden">
-                                            {filteredUsers.map(u => (
+                                            {users.map(u => (
                                                 <div key={u.id} onClick={() => handleSelectUser(u)} className="p-4 hover:bg-primary/5 cursor-pointer flex items-center justify-between border-b last:border-0">
-                                                    <div><p className="font-black text-primary uppercase">{u.fullName}</p><p className="text-xs font-bold text-muted-foreground">{u.email}</p></div>
-                                                    <Badge className="h-8 px-4 text-sm font-black italic tracking-tighter uppercase">{u.mailboxNumber}</Badge>
+                                                    <div><p className="font-black text-primary uppercase">{u.full_name}</p><p className="text-xs font-bold text-muted-foreground">{u.email}</p></div>
+                                                    <Badge className="h-8 px-4 text-sm font-black italic tracking-tighter uppercase">{u.mailbox_number}</Badge>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
                                 </div>
                             ) : (
-                                <div className={cn("p-8 rounded-2xl shadow-inner flex flex-col md:flex-row items-center justify-between gap-6 transition-all duration-500", isIndebted ? "bg-red-500 text-white" : "bg-primary text-primary-foreground")}>
-                                    <div className="flex items-center gap-6">
-                                        <div className="bg-white/20 p-5 rounded-full shadow-lg"><User className="h-10 w-10" /></div>
-                                        <div>
-                                            <div className="flex items-center gap-3"><p className="text-4xl font-black italic uppercase tracking-tighter">{selectedUser.fullName}</p><Badge className="bg-white/20 text-white border-white/40 uppercase text-[10px] font-black italic">{selectedUser.mailboxNumber}</Badge></div>
-                                            <p className="font-bold opacity-80 uppercase tracking-widest text-[10px] mt-1">{selectedUser.email}</p>
-                                        </div>
+                                <div className={cn("p-8 rounded-2xl shadow-inner flex flex-col md:flex-row items-center justify-between gap-6 transition-all", Number(selectedUser.wallet_balance) < 0 ? "bg-red-500 text-white" : "bg-primary text-primary-foreground")}>
+                                    <div>
+                                        <div className="flex items-center gap-3"><p className="text-4xl font-black italic uppercase tracking-tighter">{selectedUser.full_name}</p><Badge className="bg-white/20 text-white uppercase text-[10px] font-black italic">{selectedUser.mailbox_number}</Badge></div>
+                                        <p className="font-bold opacity-80 uppercase tracking-widest text-[10px] mt-1">{selectedUser.email}</p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-8 text-right">
                                         <div>
-                                            <p className="text-[10px] font-black uppercase opacity-60">Calculated Debt</p>
-                                            <p className="text-2xl font-black italic tracking-tighter">JMD ${totalOutstandingInvoices.toLocaleString()}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase opacity-60">Wallet Balance</p>
+                                            <p className="text-[10px] font-bold uppercase opacity-60">Ledger Standing</p>
                                             <div className="flex items-center justify-end gap-2">
-                                                {isIndebted ? <TrendingDown className="h-5 w-5 animate-pulse" /> : <TrendingUp className="h-5 w-5" />}
-                                                <span className="text-4xl font-black italic tracking-tighter">JMD ${userBalance.toLocaleString()}</span>
+                                                {Number(selectedUser.wallet_balance) < 0 ? <TrendingDown className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
+                                                <span className="text-4xl font-black italic tracking-tighter">JMD ${Math.abs(Number(selectedUser.wallet_balance || 0)).toLocaleString()}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -404,47 +323,34 @@ export default function POSPage() {
 
                     <Card className="border-none shadow-xl overflow-hidden min-h-[400px]">
                         <CardHeader className="bg-muted/10 pb-4">
-                            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                                <Package className="h-4 w-4 text-primary" /> 2. Process Pending Registry Items
+                            <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                                <Package className="h-4 w-4 text-primary" /> Unpaid Registry Items
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             {isLoadingInvoices ? (
-                                <div className="h-64 flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                                    <Loader2 className="h-10 w-10 animate-spin opacity-20" />
-                                    <p className="text-xs font-bold uppercase tracking-widest">Scanning Ledger...</p>
-                                </div>
+                                <div className="h-64 flex flex-col items-center justify-center gap-4"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-xs font-black uppercase tracking-widest">Scanning Registry...</p></div>
                             ) : !selectedUser ? (
-                                <div className="h-64 flex flex-col items-center justify-center text-muted-foreground opacity-30 italic">
-                                    <Search className="h-12 w-12 mb-2" />
-                                    <p>Select a customer to load unpaid items.</p>
-                                </div>
-                            ) : (userInvoices?.length || 0) === 0 ? (
-                                <div className="h-64 flex flex-col items-center justify-center gap-4 text-center p-8">
-                                    <div className="bg-green-100 p-6 rounded-full"><CheckCircle2 className="h-12 w-12 text-green-600" /></div>
-                                    <div><p className="text-2xl font-black italic uppercase tracking-tighter">Identity Clean</p><p className="text-muted-foreground text-sm font-medium">No outstanding registry items detected.</p></div>
-                                </div>
+                                <div className="h-64 flex flex-col items-center justify-center text-muted-foreground opacity-30 italic"><Search className="h-12 w-12 mb-2" /><p>Select a customer to load items.</p></div>
+                            ) : userInvoices.length === 0 ? (
+                                <div className="h-64 flex flex-col items-center justify-center gap-4 text-center p-8"><div className="bg-green-100 p-6 rounded-full"><CheckCircle2 className="h-12 w-12 text-green-600" /></div><div><p className="text-2xl font-black italic uppercase tracking-tighter">Registry Clean</p><p className="text-muted-foreground text-sm font-medium">All items fully settled in Supabase.</p></div></div>
                             ) : (
                                 <Table>
                                     <TableHeader className="bg-muted/50">
                                         <TableRow>
                                             <TableHead className="w-[50px] pl-6"></TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase">Reference</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase">Line Item Memo</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Invoice #</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Memo</TableHead>
                                             <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Total</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {userInvoices?.map((inv) => (
-                                            <TableRow key={inv.id} className={cn("hover:bg-primary/5 cursor-pointer h-20 transition-colors", selectedInvoices.has(inv.id) && "bg-primary/10")} onClick={() => toggleInvoice(inv.id)}>
+                                        {userInvoices.map((inv) => (
+                                            <TableRow key={inv.id} className={cn("hover:bg-primary/5 cursor-pointer h-20", selectedInvoices.has(inv.id) && "bg-primary/10")} onClick={() => toggleInvoice(inv.id)}>
                                                 <TableCell className="pl-6"><Checkbox checked={selectedInvoices.has(inv.id)} onCheckedChange={() => toggleInvoice(inv.id)} className="h-6 w-6 border-2" /></TableCell>
-                                                <TableCell className="font-mono font-black text-primary uppercase text-sm">{inv.invoiceId}</TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col"><span className="font-bold text-xs uppercase italic">{inv.lineItems?.[0]?.description || 'Shipment Service'}</span><span className="text-[10px] text-muted-foreground uppercase tracking-widest">Qty: {inv.lineItems?.[0]?.quantity || 1}</span></div>
-                                                </TableCell>
-                                                <TableCell className="text-xs font-bold opacity-60">{inv.date?.toDate ? inv.date.toDate().toLocaleDateString() : 'N/A'}</TableCell>
-                                                <TableCell className="text-right pr-6 font-black text-xl tracking-tighter">JMD ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                                                <TableCell className="font-mono font-black text-primary uppercase text-sm">{inv.invoice_number || inv.id.slice(0,8)}</TableCell>
+                                                <TableCell className="text-xs uppercase font-bold opacity-60">Logistics Service</TableCell>
+                                                <TableCell className="text-right pr-6 font-black text-xl tracking-tighter">JMD ${Number(inv.amount).toLocaleString()}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -454,60 +360,32 @@ export default function POSPage() {
                     </Card>
                 </div>
 
-                <div className="lg:col-span-4 space-y-6">
-                    <Card className="border-none shadow-2xl bg-zinc-950 text-zinc-100 sticky top-24 overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-primary animate-pulse" />
-                        <CardHeader className="pb-8">
-                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Checkout Terminal</CardTitle>
-                        </CardHeader>
+                <div className="lg:col-span-4">
+                    <Card className="border-none shadow-2xl bg-zinc-950 text-zinc-100 sticky top-24">
+                        <CardHeader className="pb-8"><CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Checkout Terminal</CardTitle></CardHeader>
                         <CardContent className="space-y-8">
                             <div className="space-y-4">
-                                <div className="flex justify-between items-center text-sm font-bold uppercase tracking-widest opacity-60"><span>Items Selected</span><span>{selectedInvoices.size}</span></div>
-                                <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                                    {userInvoices?.filter(i => selectedInvoices.has(i.id)).map(i => (
-                                        <div key={i.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
-                                            <div className="text-[10px] font-mono font-bold text-primary truncate max-w-[150px]">{i.lineItems?.[0]?.description || i.invoiceId}</div>
-                                            <div className="text-sm font-black italic">${i.amount.toLocaleString()}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            <Separator className="bg-white/10" />
-                            {selectedUser && (
-                                <div className="bg-primary/10 p-4 rounded-xl border border-primary/20 space-y-3">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-primary text-center">Projected Ledger State</p>
-                                    <div className="flex justify-between items-center"><span className="text-[10px] font-bold opacity-60 uppercase">Stored Balance</span><span className={cn("text-sm font-black", isIndebted ? "text-red-400" : "text-green-400")}>JMD ${userBalance.toLocaleString()}</span></div>
-                                    <div className="flex justify-between items-center"><span className="text-[10px] font-bold opacity-60 uppercase">Tendered Funds</span><span className="text-sm font-black text-blue-400">+ JMD ${finalAmount.toLocaleString()}</span></div>
-                                    <Separator className="opacity-10" />
-                                    <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase">New Net Standing</span><span className="text-lg font-black italic tracking-tighter">JMD ${(userBalance + finalAmount).toLocaleString()}</span></div>
-                                </div>
-                            )}
-                            <div className="space-y-6">
-                                <div className="flex items-center justify-between"><Label htmlFor="manual-override" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2 cursor-pointer"><Edit3 className="h-3 w-3" /> Overridden Total</Label><Switch id="manual-override" checked={useManualAmount} onCheckedChange={setUseManualAmount} /></div>
+                                <div className="flex justify-between items-center text-sm font-bold uppercase tracking-widest opacity-60"><span>Tendered Amount</span></div>
                                 <div className="text-center space-y-2 py-4">
                                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Authorized Grand Total</p>
-                                    {useManualAmount ? (
-                                        <div className="relative max-w-[200px] mx-auto"><span className="absolute left-0 top-1/2 -translate-y-1/2 text-xl font-bold text-primary opacity-50">JMD $</span><Input type="number" value={manualAmount} onChange={e => setManualAmount(e.target.value)} className="bg-transparent border-b-2 border-primary border-t-0 border-x-0 rounded-none h-16 text-4xl font-black italic text-center focus-visible:ring-0 px-10" placeholder="0.00" /></div>
-                                    ) : (
-                                        <div className="flex items-center justify-center gap-2"><span className="text-2xl font-bold opacity-30 text-primary">JMD</span><span className="text-6xl font-black italic tracking-tighter text-white">${calculatedSelectedTotal.toLocaleString()}</span></div>
-                                    )}
+                                    <div className="flex items-center justify-center gap-2"><span className="text-2xl font-bold opacity-30 text-primary">JMD</span><span className="text-6xl font-black italic tracking-tighter text-white">${calculatedSelectedTotal.toLocaleString()}</span></div>
                                 </div>
                             </div>
                             <div className="space-y-4 pt-4 border-t border-white/10">
                                 <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Form of Tender</Label>
                                 <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-3 gap-2">
                                     {['Cash', 'Card', 'Transfer'].map(m => (
-                                        <Label key={m} className={cn("flex flex-col items-center justify-center p-3 rounded-xl border-2 border-white/10 cursor-pointer hover:bg-white/5 transition-all", paymentMethod === m && "border-primary bg-primary/10 text-primary")}>
-                                            {m === 'Cash' ? <Banknote className="h-6 w-6 mb-1" /> : m === 'Card' ? <CreditCard className="h-6 w-6 mb-1" /> : <Building2 className="h-6 w-6 mb-1" />}
-                                            <span className="text-[9px] font-black uppercase italic">{m}</span><RadioGroupItem value={m} className="sr-only" />
+                                        <Label key={m} className={cn("flex flex-col items-center justify-center p-3 rounded-xl border-2 border-white/10 cursor-pointer hover:bg-white/5", paymentMethod === m && "border-primary bg-primary/10 text-primary")}>
+                                            {m === 'Cash' ? <Banknote /> : m === 'Card' ? <CreditCard /> : <Building2 />}
+                                            <span className="text-[9px] font-black uppercase italic mt-1">{m}</span><RadioGroupItem value={m} className="sr-only" />
                                         </Label>
                                     ))}
                                 </RadioGroup>
                             </div>
                         </CardContent>
-                        <CardFooter className="pt-4 pb-8">
-                            <Button onClick={() => setIsCheckoutOpen(true)} disabled={selectedInvoices.size === 0 || (useManualAmount && !manualAmount)} className="w-full h-20 text-2xl font-black italic uppercase tracking-tighter shadow-2xl group overflow-hidden">
-                                <span className="relative z-10 flex items-center gap-3">Finalize Checkout <ShoppingCart className="h-8 w-8 group-hover:translate-x-2 transition-transform" /></span>
+                        <CardFooter className="pb-8">
+                            <Button onClick={() => setIsCheckoutOpen(true)} disabled={selectedInvoices.size === 0} className="w-full h-20 text-2xl font-black italic uppercase tracking-tighter shadow-2xl">
+                                Finalize Settlement
                             </Button>
                         </CardFooter>
                     </Card>
@@ -518,32 +396,24 @@ export default function POSPage() {
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Transaction Confirmation</DialogTitle>
-                        <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Authorized Administrative Terminal</DialogDescription>
                     </DialogHeader>
                     {!checkoutComplete ? (
                         <div className="space-y-6 py-6">
                             <div className="p-6 rounded-2xl bg-muted/30 border-2 border-dashed flex flex-col items-center gap-4 text-center">
                                 <DollarSign className="h-12 w-12 text-primary animate-bounce" />
-                                <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Confirm Receipt of Funds</p><p className="text-4xl font-black tracking-tighter">JMD ${finalAmount.toLocaleString()}</p><p className="text-[11px] font-bold text-primary mt-2 uppercase">VIA {paymentMethod}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-60">Confirm Receipt of Funds</p><p className="text-4xl font-black tracking-tighter">JMD ${calculatedSelectedTotal.toLocaleString()}</p></div>
                             </div>
-                            <div className="bg-primary/5 p-4 rounded-xl space-y-1"><p className="text-[10px] font-black uppercase opacity-60">Account Impacted</p><p className="font-bold text-lg">{selectedUser?.fullName}</p><p className="text-xs font-mono opacity-60">Registry Items: {selectedInvoices.size}</p></div>
+                            <Button onClick={handleProcessPayment} disabled={isProcessing} className="w-full h-14 font-black uppercase italic tracking-tight">{isProcessing ? <Loader2 className="animate-spin" /> : "Authorize Settlement"}</Button>
                         </div>
                     ) : (
-                        <div className="space-y-6 py-8 text-center animate-in zoom-in-95">
-                            <div className="bg-green-500 h-24 w-24 rounded-full flex items-center justify-center mx-auto shadow-xl shadow-green-500/20"><CheckCircle2 className="h-16 w-12 text-white" /></div>
+                        <div className="space-y-6 py-8 text-center">
+                            <div className="bg-green-500 h-24 w-24 rounded-full flex items-center justify-center mx-auto shadow-xl"><CheckCircle2 className="h-16 w-12 text-white" /></div>
                             <div><p className="text-3xl font-black italic uppercase tracking-tighter">Registry Cleared</p><p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Funds Received & Account Credited</p></div>
-                            <Separator className="bg-muted" />
-                            <div className="grid grid-cols-2 gap-4">
-                                <Button className="h-14 font-black uppercase tracking-tight" onClick={handlePrintReceipt} disabled={isGeneratingPdf}>{isGeneratingPdf ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileDown className="mr-2 h-5 w-5" />} Receipt PDF</Button>
-                                <Button variant="outline" className="h-14 font-black border-2 uppercase tracking-tight" onClick={resetPOS}>Next Client</Button>
+                            <div className="grid grid-cols-2 gap-4 pt-4">
+                                <Button className="h-14 font-black uppercase" onClick={handlePrintReceipt} disabled={isGeneratingPdf}>{isGeneratingPdf ? <Loader2 className="animate-spin" /> : <FileDown className="mr-2 h-5 w-5" />} Receipt</Button>
+                                <Button variant="outline" className="h-14 font-black border-2 uppercase" onClick={resetPOS}>Next Client</Button>
                             </div>
                         </div>
-                    )}
-                    {!checkoutComplete && (
-                        <DialogFooter className="flex-col sm:flex-row gap-2">
-                            <DialogClose asChild><Button variant="ghost" className="font-bold uppercase h-12">Abort</Button></DialogClose>
-                            <Button onClick={handleProcessPayment} disabled={isProcessing || finalAmount <= 0} className="flex-1 h-12 font-black uppercase italic tracking-tight">{isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Authorize Settlement"}</Button>
-                        </DialogFooter>
                     )}
                 </DialogContent>
             </Dialog>

@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Production Log Activity API for Supabase.
+ * @fileOverview Standardized Activity Logging API.
+ * Ensures consistent log format across the global registry.
  */
 
 export async function POST(request: Request) {
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error('[LOG ERROR]:', error);
+        console.error('[LOG API ERROR]:', error.message);
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }

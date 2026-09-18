@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,115 +15,40 @@ import { Bell, ScanText, Truck, CircleDot, Check, Loader2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collectionGroup, query, limit } from 'firebase/firestore';
-import type { PreAlert, Shipment } from '@/lib/types';
-
-const READ_NOTIFICATIONS_KEY = 'read-notifications';
-
-type Notification = {
-  id: string;
-  type: 'pre-alert' | 'status-update';
-  title: string;
-  description: string;
-  isRead: boolean;
-  timestamp: any;
-  href: string;
-};
-
-const getNotificationIcon = (type: Notification['type']) => {
-  switch (type) {
-    case 'pre-alert':
-      return <ScanText className="h-4 w-4 text-muted-foreground" />;
-    case 'status-update':
-      return <Truck className="h-4 w-4 text-muted-foreground" />;
-    default:
-      return <CircleDot className="h-4 w-4 text-muted-foreground" />;
-  }
-};
+import { useSupabase } from '@/components/supabase-provider';
 
 export function Notifications() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const firestore = useFirestore();
+  const { supabase } = useSupabase();
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // REMOVED orderBy to avoid index requirements for collectionGroups
-  const preAlertsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collectionGroup(firestore, 'pre_alerts'), limit(20));
-  }, [firestore]);
-  const { data: preAlerts, isLoading: isLoadingPreAlerts } = useCollection<PreAlert>(preAlertsQuery);
-
-  const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collectionGroup(firestore, 'shipments'), limit(20));
-  }, [firestore]);
-  const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
-
-  useEffect(() => {
-    if (!preAlerts && !shipments) return;
-
-    const getReadNotificationIds = (): string[] => {
-      try {
-        const stored = localStorage.getItem(READ_NOTIFICATIONS_KEY);
-        return stored ? JSON.parse(stored) : [];
-      } catch (e) {
-        return [];
-      }
-    };
-
-    const readIds = getReadNotificationIds();
-    const combined: Notification[] = [];
-
-    preAlerts?.forEach((pa) => {
-      combined.push({
-        id: `pa-${pa.id}`,
-        type: 'pre-alert',
-        title: `New Pre-Alert: ${pa.trackingNumber}`,
-        description: `${pa.customerName} submitted a pre-alert for ${pa.contents}.`,
-        isRead: readIds.includes(`pa-${pa.id}`),
-        timestamp: pa.submissionDate,
-        href: '/admin/pre-alerts',
-      });
-    });
-
-    shipments?.forEach((s) => {
-      combined.push({
-        id: `ship-${s.id}`,
-        type: 'status-update',
-        title: `Shipment: ${s.status}`,
-        description: `Package ${s.trackingNumber} (${s.contents}) is now ${s.status}.`,
-        isRead: readIds.includes(`ship-${s.id}`),
-        timestamp: s.shippingDate,
-        href: '/admin/shipping',
-      });
-    });
-
-    // SORT IN MEMORY to avoid index requirement
-    const sorted = combined.sort((a, b) => {
-      const timeA = a.timestamp?.toMillis?.() || (a.timestamp ? new Date(a.timestamp).getTime() : 0);
-      const timeB = b.timestamp?.toMillis?.() || (b.timestamp ? new Date(b.timestamp).getTime() : 0);
-      return timeB - timeA;
-    });
-
-    setNotifications(sorted.slice(0, 15));
-  }, [preAlerts, shipments]);
-
-  const handleMarkAsRead = (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const fetchFeed = async () => {
+    setIsLoading(true);
+    // Pull the latest activity from system_logs instead of separate tables
+    const { data } = await supabase
+        .from('system_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
     
-    try {
-      const stored = localStorage.getItem(READ_NOTIFICATIONS_KEY);
-      const readIds = stored ? JSON.parse(stored) : [];
-      if (!readIds.includes(id)) {
-        localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify([...readIds, id]));
-      }
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    } catch (e) {}
+    setNotifications(data || []);
+    setIsLoading(false);
   };
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const isLoading = isLoadingPreAlerts || isLoadingShipments;
+  useEffect(() => {
+    fetchFeed();
+    
+    // Subscribe to new log entries for real-time notifications
+    const channel = supabase.channel('realtime_logs')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'system_logs' }, () => {
+            fetchFeed();
+        })
+        .subscribe();
+    
+    return () => { supabase.removeChannel(channel); };
+  }, [supabase]);
+
+  const unreadCount = notifications.length; // Simplified for MVP
 
   return (
     <DropdownMenu>
@@ -130,54 +56,41 @@ export function Notifications() {
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0">
+            <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 text-[10px] animate-pulse">
               {unreadCount}
             </Badge>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel className="flex justify-between items-center">
-          <span>Activity Feed</span>
-          {unreadCount > 0 && <Badge variant="secondary">{unreadCount} New</Badge>}
+      <DropdownMenuContent align="end" className="w-80 shadow-2xl border-2">
+        <DropdownMenuLabel className="flex justify-between items-center py-4">
+          <span className="text-xs font-black uppercase tracking-widest italic">Operations Feed</span>
+          <Badge variant="secondary" className="text-[8px] font-black uppercase">Live Updates</Badge>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-[400px] overflow-y-auto">
           {isLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
+            <div className="p-12 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto opacity-20" /></div>
           ) : notifications.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground px-4 text-sm">
-              No recent activity found.
-            </div>
+            <div className="py-16 text-center text-muted-foreground italic text-xs">No recent operational activity.</div>
           ) : (
             notifications.map((n) => (
-              <DropdownMenuItem key={n.id} asChild className={cn("p-3 cursor-pointer", n.isRead && "opacity-60")}>
-                <Link href={n.href} className="flex items-start gap-3 group">
-                  <div className="mt-1">{getNotificationIcon(n.type)}</div>
+              <DropdownMenuItem key={n.id} className="p-4 cursor-pointer focus:bg-primary/5 border-b last:border-0 h-auto">
+                <div className="flex items-start gap-4">
+                  <div className="bg-primary/10 p-2 rounded-lg mt-1"><CircleDot className="h-3 w-3 text-primary" /></div>
                   <div className="flex-1 space-y-1">
-                    <p className={cn("text-sm font-medium leading-none", !n.isRead && "font-bold")}>{n.title}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{n.description}</p>
+                    <p className="text-xs font-black uppercase italic tracking-tighter leading-tight">{n.log_type.replace(/_/g, ' ')}</p>
+                    <p className="text-[10px] font-medium leading-relaxed opacity-60">{n.description}</p>
+                    <p className="text-[8px] font-bold uppercase opacity-30 mt-1">{new Date(n.created_at).toLocaleTimeString()}</p>
                   </div>
-                  {!n.isRead && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => handleMarkAsRead(n.id, e)}
-                    >
-                      <Check className="h-3 w-3" />
-                    </Button>
-                  )}
-                </Link>
+                </div>
               </DropdownMenuItem>
             ))
           )}
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild className="justify-center text-primary font-medium cursor-pointer">
-          <Link href="/admin/notifications">View All Notifications</Link>
+        <DropdownMenuItem asChild className="justify-center py-4 focus:bg-transparent">
+          <Link href="/admin/logs" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">View Master Audit Trail</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

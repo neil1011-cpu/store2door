@@ -7,510 +7,254 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye, CheckCircle2, AlertCircle, ShieldAlert, Weight, DollarSign } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye, CheckCircle2, AlertCircle, Weight, DollarSign } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
-import type { Shipment, PreAlert, UserProfile, LineItem } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, collectionGroup, query, serverTimestamp, doc, addDoc, writeBatch, orderBy, getDoc, increment } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { useSupabase } from '@/components/supabase-provider';
 import { cn, calculateShippingCost } from '@/lib/utils';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-
-const getStatusVariant = (status: string) => {
-  switch (status) {
-    case 'Pending': 
-    case 'Pre-Alert':
-        return 'destructive';
-    case 'Processed': 
-        return 'secondary';
-    default: 
-        return 'default';
-  }
-};
-
-const generateInvoiceHtml = (invoiceData: {
-  invoiceId: string;
-  customerName: string;
-  invoiceDate: Date;
-  lineItems: LineItem[];
-  totalAmount: number;
-}): string => {
-  const { invoiceId, customerName, invoiceDate, lineItems, totalAmount } = invoiceData;
-  const lineItemsHtml = lineItems.map((item) => `
-    <tr>
-      <td>${item.description}</td>
-      <td class="text-center">${item.quantity}</td>
-      <td class="text-right">JMD $${item.price.toFixed(2)}</td>
-      <td class="text-right">JMD $${(item.quantity * item.price).toFixed(2)}</td>
-    </tr>
-  `).join('');
-
-  return `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8"><title>Invoice ${invoiceId}</title>
-      <style>
-        body { font-family: sans-serif; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 800px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 8px; }
-        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0d6efd; padding-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 30px; }
-        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
-        .text-right { text-align: right; }
-        .grand-total { font-size: 1.5em; font-weight: bold; color: #0d6efd; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header"><h1>INVOICE</h1><div><strong>FromStore2Door</strong><br>3507 NW 19th ST, Lauderdale Lake, FL 33311-4224</div></div>
-        <div style="margin-top: 20px;"><strong>BILL TO:</strong> ${customerName}<br>Invoice #: ${invoiceId}<br>Date: ${invoiceDate.toLocaleDateString()}</div>
-        <table><thead><tr><th>Description</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${lineItemsHtml}</tbody></table>
-        <div class="text-right" style="margin-top: 20px;"><div class="grand-total">Total: JMD $${totalAmount.toFixed(2)}</div></div>
-      </div>
-    </body></html>`;
-};
 
 export default function PreAlertsPage() {
-  const [open, setOpen] = useState(false);
-  const { toast } = useToast();
-  const [newAlert, setNewAlert] = useState({ customerId: '', trackingNumber: '', contents: '', weight: '' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFetchingLogicware, setIsFetchingLogicware] = useState(false);
-  const [logicwarePreAlerts, setLogicwarePreAlerts] = useState<PreAlert[]>([]);
-  
-  const firestore = useFirestore();
+    const { supabase } = useSupabase();
+    const { toast } = useToast();
+    
+    const [preAlerts, setPreAlerts] = useState<any[]>([]);
+    const [users, setUsers] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const [isAddOpen, setIsAddOpen] = useState(false);
+    const [newAlert, setNewAlert] = useState({ profileId: '', trackingNumber: '', contents: '', weight: '' });
 
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'users'), orderBy('fullName', 'asc'));
-  }, [firestore]);
-  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
-
-  const preAlertsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collectionGroup(firestore, 'pre_alerts'));
-  }, [firestore]);
-  const { data: firebasePreAlerts, isLoading: isLoadingPreAlerts, error: firebaseError } = useCollection<PreAlert>(preAlertsQuery);
-
-  const fetchLogicwarePreAlerts = async () => {
-    try {
-      setIsFetchingLogicware(true);
-      const response = await fetch('/api/admin/logicware-shipments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-              apiKey: localStorage.getItem('LOGICWARE_API_KEY')
-          })
-      });
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data?.message || 'Sync failed');
-
-      const rawShipments = Array.isArray(data) ? data : data.shipments || data.data || [];
-      
-      const mappedPreAlerts: PreAlert[] = rawShipments
-        .filter((s: any) => {
-            const status = (s.status?.name || s.status || '').toLowerCase();
-            return status.includes('pre-alert') || status.includes('pending') || status.includes('received');
-        })
-        .map((s: any) => ({
-            id: `lw-${s.id}`,
-            trackingNumber: (s.trackingNumber || s.referenceCode || s.reference_code || 'N/A').toUpperCase(),
-            customerName: s.shipperName || s.customer_name || s.shipper?.name || 'Logicware Client',
-            customerId: s.shipperId || s.customer_id || '',
-            contents: s.contents || s.description || s.item_description || 'Incoming Package',
-            weight: Number(s.weight || 0),
-            status: 'Pending', 
-            submissionDate: s.createdAt || s.created_at || new Date().toISOString(),
-            invoiceHtml: '',
-            uploadedInvoiceUrl: s.invoiceUrl || s.invoice_url || '',
-            source: 'logicware',
-            isLogicware: true
-        }));
-
-      setLogicwarePreAlerts(mappedPreAlerts);
-    } catch (error: any) {
-      toast({ title: 'Hub Sync Failed', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsFetchingLogicware(false);
-    }
-  };
-
-  useEffect(() => {
-      fetchLogicwarePreAlerts();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const combinedPreAlerts = useMemo(() => {
-      const fb = (firebasePreAlerts || [])
-        .map(pa => ({ ...pa, source: 'firebase' as const, isLogicware: false }));
-      
-      return [...fb, ...logicwarePreAlerts]
-        .filter(pa => pa.status === 'Pending') // Only show ACTIVE pending queue
-        .sort((a, b) => {
-            const dateA = a.submissionDate?.toMillis?.() || new Date(a.submissionDate).getTime() || 0;
-            const dateB = b.submissionDate?.toMillis?.() || new Date(b.submissionDate).getTime() || 0;
-            return dateB - dateA;
-        });
-  }, [firebasePreAlerts, logicwarePreAlerts]);
-
-  const handleCreateAlert = async () => {
-    const selectedUser = users?.find(u => u.id === newAlert.customerId);
-    if (!selectedUser || !newAlert.trackingNumber || !newAlert.contents) {
-      toast({ title: 'Missing Fields', variant: 'destructive' });
-      return;
-    }
-    setIsSubmitting(true);
-    const alertData = {
-      customerName: selectedUser.fullName,
-      customerId: selectedUser.id,
-      trackingNumber: newAlert.trackingNumber.toUpperCase(),
-      contents: newAlert.contents,
-      weight: parseFloat(newAlert.weight) || 0,
-      status: 'Pending' as const,
-      submissionDate: serverTimestamp(),
-      invoiceHtml: '', uploadedInvoiceUrl: '', 
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            const [paRes, usersRes] = await Promise.all([
+                supabase.from('pre_alerts').select('*, profiles(full_name)').eq('status', 'Pending').order('submission_date', { ascending: false }),
+                supabase.from('profiles').select('*').order('full_name', { ascending: true })
+            ]);
+            setPreAlerts(paRes.data || []);
+            setUsers(usersRes.data || []);
+        } catch (error: any) {
+            toast({ title: "Fetch Failure", description: error.message, variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
     };
-    addDoc(collection(firestore, 'users', selectedUser.id, 'pre_alerts'), alertData)
-      .then(() => {
-        toast({ title: 'Pre-Alert Created' });
-        setOpen(false);
-        setNewAlert({ customerId: '', trackingNumber: '', contents: '', weight: '' });
-      })
-      .catch(error => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `users/${selectedUser.id}/pre_alerts`,
-            operation: 'create',
-            requestResourceData: alertData
-        }));
-      })
-      .finally(() => setIsSubmitting(false));
-  };
-  
-  const handleShipmentCreated = async (preAlert: PreAlert, weight: number, cost: number) => {
-    const batch = writeBatch(firestore);
-    const invoiceId = `INV-${Date.now()}`;
-    const invoiceHtml = generateInvoiceHtml({
-      invoiceId, customerName: preAlert.customerName, invoiceDate: new Date(),
-      lineItems: [{ description: `${preAlert.contents} (${weight} lbs)`, quantity: 1, price: cost }], totalAmount: cost,
-    });
-    
-    // 1. Create Invoice
-    batch.set(doc(firestore, 'invoices', invoiceId), {
-        invoiceId, customerId: preAlert.customerId, customerName: preAlert.customerName,
-        date: serverTimestamp(), amount: cost, status: 'Unpaid', invoiceUrl: invoiceHtml,
-    });
 
-    // 2. Create Shipment
-    batch.set(doc(collection(firestore, 'users', preAlert.customerId, 'shipments')), {
-        customerId: preAlert.customerId, 
-        trackingNumber: preAlert.trackingNumber.toUpperCase(), 
-        contents: preAlert.contents,
-        status: 'Processed', 
-        shippingDate: serverTimestamp(), 
-        cost, 
-        paymentStatus: 'Unpaid', 
-        invoiceId, 
-        invoiceUrl: invoiceHtml, 
-        uploadedInvoiceUrl: preAlert.uploadedInvoiceUrl || '', 
-        weight,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-    });
-    
-    // 3. Mark Pre-Alert as Processed
-    if (!preAlert.isLogicware) {
-        batch.update(doc(firestore, 'users', preAlert.customerId, 'pre_alerts', preAlert.id), { status: 'Processed' });
-    }
+    useEffect(() => {
+        fetchData();
+    }, []);
 
-    // 4. DEBIT USER WALLET (Represented as debt/negative balance if unpaid)
-    // NOTE: If your system uses positive balance as debt, change this to positive. 
-    // Standard courier apps subtract from credit or add to debt.
-    batch.update(doc(firestore, 'users', preAlert.customerId), {
-        walletBalance: increment(-cost)
-    });
+    const handleCreateAlert = async () => {
+        if (!newAlert.profileId || !newAlert.trackingNumber) return;
+        setIsSubmitting(true);
+        try {
+            const { error } = await supabase.from('pre_alerts').insert({
+                profile_id: newAlert.profileId,
+                tracking_number: newAlert.trackingNumber.toUpperCase(),
+                contents: newAlert.contents,
+                weight_lbs: parseFloat(newAlert.weight) || 0,
+                status: 'Pending'
+            });
+            if (error) throw error;
+            toast({ title: "Pre-Alert Established" });
+            setIsAddOpen(false);
+            fetchData();
+        } catch (error: any) {
+            toast({ title: "Creation Failed", description: error.message, variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
-    // 5. Record Activity
-    await fetch('/api/log-activity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            type: 'pre_alert_processed',
-            description: `Intake complete for ${preAlert.trackingNumber}. Weight: ${weight} lbs. Cost: JMD $${cost.toFixed(2)}.`,
-            userId: 'admin',
-            userName: 'System Admin',
-            metadata: { trackingNumber: preAlert.trackingNumber, cost, weight, customerId: preAlert.customerId }
-        })
-    });
+    const handleProcessIntake = async (alert: any, verifiedWeight: number, calculatedCost: number) => {
+        try {
+            // 1. Create Shipment record
+            const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
+                profile_id: alert.profile_id,
+                tracking_number: alert.tracking_number,
+                contents: alert.contents,
+                weight_lbs: verifiedWeight,
+                total_cost_jmd: calculatedCost,
+                status: 'Processed',
+                payment_status: 'Unpaid'
+            }).select().single();
 
-    batch.commit()
-      .then(() => {
-          toast({ title: "Shipment Secured", description: `JMD $${cost.toFixed(2)} debited from customer wallet.` });
-          if (preAlert.isLogicware) {
-              setLogicwarePreAlerts(prev => prev.filter(p => p.id !== preAlert.id));
-          }
-      })
-      .catch((e) => {
-          console.error("[PRE-ALERT PROCESSING ERROR]", e);
-          toast({ title: "Processing Failure", description: "Failed to update financial registry.", variant: "destructive" });
-      });
-  }
+            if (shipError) throw shipError;
 
-  if (isLoadingUsers || (isLoadingPreAlerts && !firebaseError)) {
+            // 2. Generate Invoice record
+            await supabase.from('invoices').insert({
+                profile_id: alert.profile_id,
+                amount: calculatedCost,
+                status: 'Unpaid',
+                invoice_number: `INV-${alert.tracking_number.slice(-4)}-${Date.now().toString().slice(-4)}`
+            });
+
+            // 3. Record in Financial Ledger (Auto-syncs profile.wallet_balance via DB trigger)
+            await supabase.from('financial_ledger').insert({
+                profile_id: alert.profile_id,
+                amount: -calculatedCost, // Negative for debt/charge
+                transaction_type: 'shipping_fee',
+                description: `Shipping Fee: ${alert.tracking_number} (${verifiedWeight} lbs)`
+            });
+
+            // 4. Update Pre-Alert status
+            await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
+
+            // 5. Audit Log
+            await supabase.from('system_logs').insert({
+                log_type: 'intake_processed',
+                description: `Package intake complete for ${alert.tracking_number}. Weight: ${verifiedWeight} lbs. Cost: JMD $${calculatedCost.toLocaleString()}`,
+                actor_id: (await supabase.auth.getUser()).data.user?.id,
+                metadata: { trackingNumber: alert.tracking_number, profileId: alert.profile_id }
+            });
+
+            toast({ title: "Intake Secured", description: "Shipment active and client ledger charged." });
+            fetchData();
+        } catch (error: any) {
+            toast({ title: "Intake Failure", description: error.message, variant: "destructive" });
+        }
+    };
+
+    if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div>;
+
     return (
-        <div className="flex h-screen items-center justify-center bg-background">
-            <div className="flex flex-col items-center gap-4">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="font-bold uppercase tracking-widest text-xs animate-pulse">Establishing Worldwide Uplink...</p>
+        <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Pre-Alert Queue</h1>
+                    <p className="text-muted-foreground font-medium uppercase text-[10px]">Universal Registry Monitoring</p>
+                </div>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={fetchData} className="font-bold border-2"><RefreshCw className="mr-2 h-4 w-4" /> Refresh Registry</Button>
+                    <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                        <DialogTrigger asChild><Button className="font-black uppercase italic shadow-lg"><PlusCircle className="mr-2 h-4 w-4" /> New Alert</Button></DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader><DialogTitle className="uppercase italic text-center">Manual Registry Entry</DialogTitle></DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] font-bold uppercase opacity-60">Customer Identity</Label>
+                                    <Select value={newAlert.profileId} onValueChange={(v) => setNewAlert({...newAlert, profileId: v})}>
+                                        <SelectTrigger className="h-11 border-2"><SelectValue placeholder="Select account" /></SelectTrigger>
+                                        <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1"><Label className="text-[10px] font-bold uppercase opacity-60">Tracking #</Label><Input value={newAlert.trackingNumber} onChange={e => setNewAlert({...newAlert, trackingNumber: e.target.value.toUpperCase()})} className="h-11 border-2 font-mono" /></div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1"><Label className="text-[10px] font-bold uppercase opacity-60">Weight (LBS)</Label><Input type="number" value={newAlert.weight} onChange={e => setNewAlert({...newAlert, weight: e.target.value})} className="h-11 border-2" /></div>
+                                    <div className="space-y-1"><Label className="text-[10px] font-bold uppercase opacity-60">Contents</Label><Input value={newAlert.contents} onChange={e => setNewAlert({...newAlert, contents: e.target.value})} className="h-11 border-2" /></div>
+                                </div>
+                            </div>
+                            <DialogFooter><Button onClick={handleCreateAlert} disabled={isSubmitting} className="w-full h-12 font-black uppercase italic shadow-xl">{isSubmitting ? <Loader2 className="animate-spin" /> : "Authorize Alert"}</Button></DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                    <Button variant="outline" asChild className="font-bold border-2"><Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" /> Dashboard</Link></Button>
+                </div>
             </div>
+
+            <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
+                <CardHeader className="bg-muted/10 border-b">
+                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><Zap className="h-4 w-4 text-primary" /> Incoming Logistics Documentation</CardTitle>
+                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Verify and process customer-submitted pre-alerts for clearance.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <Table>
+                        <TableHeader className="bg-muted/30">
+                            <TableRow className="h-12">
+                                <TableHead className="pl-6 text-[10px] font-black uppercase">Customer</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase">Tracking ID</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
+                                <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {preAlerts.map(alert => (
+                                <TableRow key={alert.id} className="hover:bg-primary/5 transition-colors h-20">
+                                    <TableCell className="pl-6">
+                                        <div className="flex flex-col"><span className="font-black text-sm uppercase">{alert.profiles?.full_name}</span><span className="text-[9px] font-bold opacity-60 uppercase">{alert.contents || 'No Description'}</span></div>
+                                    </TableCell>
+                                    <TableCell className="font-mono font-black text-primary uppercase text-sm">{alert.tracking_number}</TableCell>
+                                    <TableCell className="text-xs font-bold uppercase">{alert.weight_lbs} LBS</TableCell>
+                                    <TableCell className="text-[10px] font-medium opacity-60">{new Date(alert.submission_date).toLocaleDateString()}</TableCell>
+                                    <TableCell className="text-right pr-6">
+                                        <div className="flex justify-end gap-2">
+                                            {alert.invoice_url && (
+                                                <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase italic text-[10px] border-2"><Link href={alert.invoice_url} target="_blank"><FileText className="mr-2 h-3.5 w-3.5" /> View Receipt</Link></Button>
+                                            )}
+                                            <IntakeDialog alert={alert} onProcess={handleProcessIntake} />
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                            {preAlerts.length === 0 && <TableRow><TableCell colSpan={5} className="h-64 text-center text-muted-foreground opacity-30 italic">Pre-alert queue is empty.</TableCell></TableRow>}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
         </div>
     );
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Incoming Pre-Alert Queue</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Real-time worldwide documentation synchronization</p>
-        </div>
-        <div className="flex gap-2">
-            <Button onClick={fetchLogicwarePreAlerts} variant="outline" disabled={isFetchingLogicware} className="font-bold border-primary/20">
-                {isFetchingLogicware ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
-                Sync Hub
-            </Button>
-            <Button variant="outline" asChild className="font-bold"><Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link></Button>
-            <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button className="font-bold"><PlusCircle className="mr-2 h-4 w-4" />Create Pre-Alert</Button></DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-center">Manual Pre-Alert Entry</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Customer</Label>
-                    <Select onValueChange={(value) => setNewAlert({...newAlert, customerId: value})} >
-                        <SelectTrigger className="col-span-3 h-11"><SelectValue placeholder="Select Account" /></SelectTrigger>
-                        <SelectContent>{users?.map(u => <SelectItem key={u.id} value={u.id} className="font-medium">{u.fullName}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Tracking #</Label><Input value={newAlert.trackingNumber} onChange={(e) => setNewAlert({...newAlert, trackingNumber: e.target.value})} className="col-span-3 h-11 font-mono uppercase" /></div>
-                <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Contents</Label><Input value={newAlert.contents} onChange={(e) => setNewAlert({...newAlert, contents: e.target.value})} className="col-span-3 h-11" /></div>
-                <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right text-xs font-bold uppercase">Weight</Label><Input type="number" placeholder="LBS" value={newAlert.weight} onChange={(e) => setNewAlert({...newAlert, weight: e.target.value})} className="col-span-3 h-11" /></div>
-                </div>
-                <DialogFooter><Button onClick={handleCreateAlert} disabled={isSubmitting} className="w-full h-11 font-bold uppercase tracking-tight">{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authorize Alert"}</Button></DialogFooter>
-            </DialogContent>
-            </Dialog>
-        </div>
-      </div>
-
-      {firebaseError && (
-          <Alert variant="destructive" className="border-2 shadow-lg">
-              <ShieldAlert className="h-5 w-5" />
-              <AlertTitle className="font-black uppercase italic tracking-tight">Sync Failure Detected</AlertTitle>
-              <AlertDescription className="text-xs font-medium uppercase tracking-widest leading-relaxed mt-1">
-                  The real-time listener was unable to connect to the subcollection group. Sorting handled in-memory.
-              </AlertDescription>
-          </Alert>
-      )}
-
-      <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
-        <CardHeader className="bg-muted/10 border-b">
-          <CardTitle className="text-sm font-black uppercase tracking-[0.2em] flex items-center gap-2">
-              <Zap className="h-4 w-4 text-primary" /> Incoming Documentation Queue
-          </CardTitle>
-          <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Review and process user-uploaded invoices for customs clearance.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow className="h-12">
-                <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Status</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest">Customer</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest">Tracking #</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest">Weight</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest">Invoice</TableHead>
-                <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {combinedPreAlerts.map((alert) => (
-                  <TableRow key={alert.id} className={cn("hover:bg-primary/5 transition-colors h-20", alert.isLogicware && "bg-blue-50/20 dark:bg-blue-950/10")}>
-                    <TableCell className="pl-6">
-                        <Badge variant={getStatusVariant(alert.status)} className="px-3 py-1 uppercase text-[9px] font-black italic tracking-widest border-2">
-                            {alert.status}
-                        </Badge>
-                    </TableCell>
-                    <TableCell>
-                        <div className="flex flex-col">
-                            <span className="font-black text-sm uppercase">{alert.customerName}</span>
-                            {alert.isLogicware && <span className="text-[8px] font-bold text-blue-600 uppercase tracking-widest">Logicware Client</span>}
-                        </div>
-                    </TableCell>
-                    <TableCell className="font-mono font-black text-primary uppercase text-sm tracking-tighter">{alert.trackingNumber}</TableCell>
-                    <TableCell>
-                        <span className="font-bold text-xs uppercase tracking-tighter">{alert.weight || 0} LBS</span>
-                    </TableCell>
-                    <TableCell>
-                        {alert.uploadedInvoiceUrl ? (
-                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter shadow-inner">
-                                <CheckCircle2 className="h-3 w-3" /> Ready
-                            </Badge>
-                        ) : (
-                            <Badge variant="outline" className="text-muted-foreground border-dashed text-[9px] flex items-center gap-1 uppercase opacity-40">
-                                <AlertCircle className="h-3 w-3" /> Missing
-                            </Badge>
-                        )}
-                    </TableCell>
-                     <TableCell className="text-right pr-6">
-                       <div className="flex justify-end gap-2">
-                          <ViewReceiptDialog preAlert={alert} />
-                          <CreateShipmentDialog preAlert={alert} onShipmentCreated={handleShipmentCreated} />
-                       </div>
-                     </TableCell>
-                  </TableRow>
-                ))}
-                {combinedPreAlerts.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center h-64">
-                        <div className="flex flex-col items-center gap-2 opacity-20">
-                            <RefreshCw className="h-10 w-10 animate-spin" />
-                            <p className="text-xs font-black uppercase italic tracking-tighter">Monitoring Worldwide Uplink...</p>
-                        </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
 }
 
-function ViewReceiptDialog({ preAlert }: { preAlert: PreAlert }) {
-  const { toast } = useToast();
-  if (!preAlert.uploadedInvoiceUrl) return null;
-
-  const handleDownload = () => {
-    const isPdf = preAlert.uploadedInvoiceUrl.includes('application/pdf');
-    const link = document.createElement('a');
-    link.href = preAlert.uploadedInvoiceUrl;
-    link.download = `Invoice-${preAlert.trackingNumber}${isPdf ? '.pdf' : '.png'}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: "Downloading Original", description: `Documentation for ${preAlert.trackingNumber} saved.` });
-  };
-
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 font-black border-2 uppercase tracking-tighter text-[10px]" disabled={!preAlert.uploadedInvoiceUrl}>
-          <FileText className="mr-2 h-3.5 w-3.5 text-primary" />
-          Receipt
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="uppercase italic tracking-tighter flex items-center gap-2 text-2xl justify-center">
-            <Eye className="h-6 w-6 text-primary" /> Commercial Invoice Overview
-          </DialogTitle>
-          <DialogDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mt-1 text-center">
-            Tracking: {preAlert.trackingNumber} • Customer: {preAlert.customerName}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 overflow-auto rounded-xl border bg-muted/20 mt-4 min-h-[500px] flex items-center justify-center p-4 shadow-inner">
-          {preAlert.uploadedInvoiceUrl.startsWith('data:application/pdf') || preAlert.uploadedInvoiceUrl.toLowerCase().endsWith('.pdf') ? (
-            <iframe 
-                src={preAlert.uploadedInvoiceUrl} 
-                className="w-full h-full min-h-[600px] rounded-md border shadow-lg bg-white" 
-                title="Invoice PDF"
-            />
-          ) : (
-            <img 
-                src={preAlert.uploadedInvoiceUrl} 
-                alt="Customer Invoice" 
-                className="max-w-full h-auto object-contain shadow-2xl rounded-md"
-            />
-          )}
-        </div>
-        <DialogFooter className="mt-6 flex gap-2">
-          <DialogClose asChild><Button variant="outline" className="px-8 font-bold h-12 uppercase w-full sm:w-auto">Close</Button></DialogClose>
-          <Button onClick={handleDownload} className="h-12 px-8 font-black uppercase tracking-tight italic shadow-lg flex-1">
-            <Download className="mr-2 h-4 w-4" /> Download Original
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function CreateShipmentDialog({ preAlert, onShipmentCreated }: { preAlert: PreAlert, onShipmentCreated: (p: PreAlert, weight: number, cost: number) => void }) {
+function IntakeDialog({ alert, onProcess }: { alert: any, onProcess: (a: any, w: number, c: number) => Promise<void> }) {
     const [open, setOpen] = useState(false);
-    const [weight, setWeight] = useState(preAlert.weight?.toString() || '');
+    const [weight, setWeight] = useState(alert.weight_lbs?.toString() || '');
     const [cost, setCost] = useState('');
     const [isCalculating, setIsCalculating] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
 
-    // Auto-calculate cost when weight changes
     useEffect(() => {
-        if (weight && !isNaN(parseFloat(weight))) {
+        const w = parseFloat(weight);
+        if (!isNaN(w) && w > 0) {
             setIsCalculating(true);
-            const calculated = calculateShippingCost(parseFloat(weight));
+            const calculated = calculateShippingCost(w);
             setCost(calculated.toString());
             setIsCalculating(false);
         }
     }, [weight]);
 
+    const handleConfirm = async () => {
+        setIsProcessing(true);
+        await onProcess(alert, parseFloat(weight), parseFloat(cost));
+        setIsProcessing(false);
+        setOpen(false);
+    };
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button variant="secondary" size="sm" className="h-9 font-black uppercase italic text-[10px] px-6" disabled={preAlert.status === 'Processed'}>Process</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="secondary" size="sm" className="h-9 font-black uppercase italic text-[10px] px-6">Process Intake</Button></DialogTrigger>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Authorize Global Intake</DialogTitle>
-                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">Converting documentation to active shipping record</DialogDescription>
-                </DialogHeader>
+                <DialogHeader><DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Authorize Global Intake</DialogTitle></DialogHeader>
                 <div className="space-y-6 py-6">
-                    <div className="p-4 rounded-xl bg-primary/5 border-2 border-dashed border-primary/20 flex items-center gap-4">
-                         <Zap className="h-8 w-8 text-primary animate-pulse" />
-                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground leading-none mb-1">Impacted Tracking Record</p>
-                            <p className="font-mono font-black text-xl text-primary">{preAlert.trackingNumber}</p>
-                         </div>
-                    </div>
-
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Verified Weight (LBS)</Label>
-                            <div className="relative">
-                                <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
-                                <Input type="number" placeholder="0.00" value={weight} onChange={(e) => setWeight(e.target.value)} className="pl-10 h-14 text-xl font-black border-2" />
-                            </div>
+                        <div className="space-y-1">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Verified Weight (LBS)</Label>
+                            <Input type="number" value={weight} onChange={e => setWeight(e.target.value)} className="h-14 text-2xl font-black border-2" />
                         </div>
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Logistics Cost (JMD $)</Label>
+                        <div className="space-y-1">
+                            <Label className="text-[10px] font-bold uppercase opacity-60">Calculated Cost (JMD $)</Label>
                             <div className="relative">
+                                <Input type="number" value={cost} onChange={e => setCost(e.target.value)} className="h-14 text-2xl font-black border-2 pl-14" />
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
-                                <Input type="number" placeholder="0.00" value={cost} onChange={(e) => setCost(e.target.value)} className="pl-16 h-14 text-xl font-black border-2 focus:border-primary" />
                                 {isCalculating && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />}
                             </div>
                         </div>
                     </div>
-
-                    <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3">
-                        <DollarSign className="h-5 w-5 text-amber-600 shrink-0" />
-                        <p className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
-                            Authorizing this intake will instantly debit **JMD ${parseFloat(cost || '0').toLocaleString()}** from the customer's wallet balance.
-                        </p>
-                    </div>
+                    <Alert className="bg-amber-50 border-amber-200">
+                        <DollarSign className="h-4 w-4 text-amber-600" />
+                        <AlertDescription className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
+                            This intake will instantly debit **JMD ${parseFloat(cost || '0').toLocaleString()}** from client credit.
+                        </AlertDescription>
+                    </Alert>
                 </div>
                 <DialogFooter className="gap-2">
                     <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
-                    <Button onClick={() => { onShipmentCreated(preAlert, parseFloat(weight), parseFloat(cost)); setOpen(false); }} className="flex-1 h-12 font-black uppercase tracking-tight italic shadow-xl">Finalize Intake & Log</Button>
+                    <Button onClick={handleConfirm} disabled={isProcessing || !cost} className="flex-1 h-12 font-black uppercase italic shadow-xl">
+                        {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Authorize Processing
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
