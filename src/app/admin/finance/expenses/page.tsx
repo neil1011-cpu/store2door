@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -6,27 +5,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, TrendingDown, History } from 'lucide-react';
+import { ArrowLeft, Loader2, TrendingDown, History, AlertCircle } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function ExpensesPage() {
   const { supabase } = useSupabase();
   const [ledger, setLedger] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchExpenses = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+          const { data, error: fetchError } = await supabase
+              .from('financial_ledger')
+              .select('*, profiles(full_name)')
+              .lt('amount', 0)
+              .order('transaction_date', { ascending: false });
+          
+          if (fetchError) throw fetchError;
+          setLedger(data || []);
+      } catch (err: any) {
+          console.error('[EXPENSES_FETCH_ERROR]', err);
+          setError(err.message || 'Access to outflow registry denied.');
+      } finally {
+          setIsLoading(false);
+      }
+  };
 
   useEffect(() => {
-    const fetchExpenses = async () => {
-        setIsLoading(true);
-        // Expenses are negative amounts in the hardened ledger
-        const { data } = await supabase
-            .from('financial_ledger')
-            .select('*, profiles(full_name)')
-            .lt('amount', 0)
-            .order('transaction_date', { ascending: false });
-        
-        setLedger(data || []);
-        setIsLoading(false);
-    };
     fetchExpenses();
   }, [supabase]);
 
@@ -35,7 +44,22 @@ export default function ExpensesPage() {
   }, [ledger]);
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
+    return <div className="flex h-screen items-center justify-center flex-col gap-4 text-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-[10px] font-black uppercase tracking-widest opacity-40">Verifying Outflow Records...</p></div>;
+  }
+
+  if (error) {
+      return (
+          <div className="max-w-xl mx-auto py-20">
+              <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Outflow Sync Failure</AlertTitle>
+                  <AlertDescription className="space-y-4 pt-2">
+                      <p className="text-xs">{error}</p>
+                      <Button onClick={fetchExpenses} variant="outline" size="sm" className="w-full">Retry Authorization</Button>
+                  </AlertDescription>
+              </Alert>
+          </div>
+      );
   }
 
   return (
@@ -51,7 +75,7 @@ export default function ExpensesPage() {
       </div>
       
       <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
-        <CardHeader className="bg-red-50 dark:bg-red-950/20 border-b border-red-100">
+        <CardHeader className="bg-red-50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
                 <TrendingDown className="h-5 w-5 text-red-600" /> Authorized Outflow
@@ -79,9 +103,9 @@ export default function ExpensesPage() {
                         <TableCell className="pl-6 text-[10px] font-medium opacity-60">{new Date(item.transaction_date).toLocaleString()}</TableCell>
                         <TableCell>
                             <p className="font-bold text-sm uppercase italic">{item.description}</p>
-                            <p className="text-[9px] font-mono opacity-40 uppercase">Ref: {item.id}</p>
+                            <p className="text-[9px] font-mono opacity-40 uppercase">Ref: {item.id.slice(0, 8)}</p>
                         </TableCell>
-                        <TableCell className="text-xs font-black uppercase">{item.profiles?.full_name || 'System'}</TableCell>
+                        <TableCell className="text-xs font-black uppercase italic">{item.profiles?.full_name || 'System'}</TableCell>
                         <TableCell className="text-right pr-6 text-red-600 font-black text-lg tracking-tighter">
                             JMD ${Math.abs(Number(item.amount)).toFixed(2)}
                         </TableCell>
