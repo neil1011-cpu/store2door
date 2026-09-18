@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
+import { getSiteOrigin } from '@/lib/utils';
 
 /**
  * @fileOverview Hardened User Creation API.
- * Prioritizes token-based auth to bypass cookie restrictions and handles welcome email redirects.
  */
 
 export async function POST(request: Request) {
@@ -75,8 +75,9 @@ export async function POST(request: Request) {
     ]);
 
     if (sendWelcomeEmail) {
+        const origin = getSiteOrigin(request);
         await adminClient.auth.resetPasswordForEmail(email, {
-            redirectTo: `${new URL(request.url).origin}/auth/callback?next=/account/change-password`
+            redirectTo: `${origin}/auth/callback?next=/reset-password`
         });
         
         await adminClient.from('system_logs').insert({

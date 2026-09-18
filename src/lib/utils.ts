@@ -46,7 +46,7 @@ export function calculateShippingCost(weight: number): number {
  * Prioritizes environment variables, then proxy headers, then falls back to request URL.
  */
 export function getSiteOrigin(request?: Request): string {
-    // 1. Prioritize configured environment variable
+    // 1. Prioritize configured environment variable (Crucial for production)
     if (process.env.NEXT_PUBLIC_SITE_URL) {
         return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
     }
@@ -56,16 +56,21 @@ export function getSiteOrigin(request?: Request): string {
         return window.location.origin;
     }
 
-    // 3. Server context with proxy headers (Firebase App Hosting)
+    // 3. Server context with proxy headers (Handles Firebase App Hosting correctly)
     if (request) {
-        const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-        const proto = request.headers.get('x-forwarded-proto') || 'https';
-        if (host) {
-            return `${proto}://${host}`;
+        const forwardedHost = request.headers.get('x-forwarded-host');
+        const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+        
+        if (forwardedHost) {
+            return `${forwardedProto}://${forwardedHost}`;
         }
-        return new URL(request.url).origin;
+        
+        const host = request.headers.get('host');
+        if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+            return `${forwardedProto}://${host}`;
+        }
     }
 
-    // 4. Ultimate fallback
+    // 4. Local Development Fallback
     return 'http://localhost:3000';
 }

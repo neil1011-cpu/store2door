@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
+import { getSiteOrigin } from '@/lib/utils';
 
 /**
  * @fileOverview Hardened Reset Password API for FromStore2Door OS.
- * Uses explicit token verification and the privileged Admin SDK to generate recovery links.
  */
 
 export async function POST(request: Request) {
@@ -16,7 +16,6 @@ export async function POST(request: Request) {
         const supabase = await createClient();
         let caller;
 
-        // AUTHENTICATION
         if (token) {
             const { data } = await supabase.auth.getUser(token);
             caller = data?.user;
@@ -29,7 +28,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Administrative session required.' }, { status: 401 });
         }
 
-        // AUTHORIZATION
         const adminClient = await createAdminClient();
         const { data: roleData } = await adminClient
             .from('app_roles')
@@ -47,22 +45,20 @@ export async function POST(request: Request) {
         const { userId } = await request.json();
         if (!userId) return NextResponse.json({ message: 'Target identity missing.' }, { status: 400 });
 
-        // FETCH TARGET EMAIL
         const { data: targetProfile } = await adminClient.from('profiles').select('email').eq('id', userId).single();
         if (!targetProfile?.email) return NextResponse.json({ message: 'Profile not found.' }, { status: 404 });
 
-        // GENERATE AND DISPATCH RESET LINK
+        const origin = getSiteOrigin(request);
         const { error } = await adminClient.auth.admin.generateLink({
             type: 'recovery',
             email: targetProfile.email,
             options: {
-                redirectTo: `${new URL(request.url).origin}/auth/callback?next=/account/change-password`
+                redirectTo: `${origin}/auth/callback?next=/reset-password`
             }
         });
 
         if (error) throw error;
 
-        // Log the security event
         await adminClient.from('system_logs').insert({
             log_type: 'password_reset_dispatch',
             description: `Security reset link dispatched to ${targetProfile.email}`,

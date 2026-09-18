@@ -41,8 +41,9 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     
     try {
+        // Use the browser location origin to ensure correct redirection on production URL
         const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-            redirectTo: `${window.location.origin}/auth/callback?next=/account/change-password`
+            redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`
         });
 
         if (error) throw error;
