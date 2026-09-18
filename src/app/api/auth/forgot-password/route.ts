@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getSiteOrigin } from '@/lib/utils';
 
 /**
  * @fileOverview Forgot Password API using Supabase Auth.
@@ -14,8 +15,8 @@ export async function POST(request: Request) {
 
         const supabase = await createAdminClient();
         
-        // Construct the full absolute URL for the callback
-        const origin = new URL(request.url).origin;
+        // Construct the full absolute URL for the callback using robust origin detection
+        const origin = getSiteOrigin(request);
         const redirectTo = `${origin}/auth/callback?next=/account/change-password`;
 
         console.log(`[AUTH] Dispatching reset link for ${email}. Redirecting to: ${redirectTo}`);

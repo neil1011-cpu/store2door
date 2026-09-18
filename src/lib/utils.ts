@@ -1,4 +1,3 @@
-
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -40,4 +39,33 @@ export function calculateShippingCost(weight: number): number {
     }
 
     return 12250; // Fallback to max tier
+}
+
+/**
+ * Robustly determines the site origin for redirects.
+ * Prioritizes environment variables, then proxy headers, then falls back to request URL.
+ */
+export function getSiteOrigin(request?: Request): string {
+    // 1. Prioritize configured environment variable
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+        return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+    }
+
+    // 2. Browser context
+    if (typeof window !== 'undefined') {
+        return window.location.origin;
+    }
+
+    // 3. Server context with proxy headers (Firebase App Hosting)
+    if (request) {
+        const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+        const proto = request.headers.get('x-forwarded-proto') || 'https';
+        if (host) {
+            return `${proto}://${host}`;
+        }
+        return new URL(request.url).origin;
+    }
+
+    // 4. Ultimate fallback
+    return 'http://localhost:3000';
 }
