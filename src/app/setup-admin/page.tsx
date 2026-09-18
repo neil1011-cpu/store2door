@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -51,7 +50,6 @@ export default function SetupAdminPage() {
 
   const copyToClipboard = async () => {
     try {
-        // Feature detection for Clipboard API
         if (!navigator.clipboard || !navigator.clipboard.writeText) {
             throw new Error("Clipboard API unavailable");
         }
@@ -59,7 +57,7 @@ export default function SetupAdminPage() {
         toast({ title: "SQL Copied", description: "Paste this into the Supabase SQL Editor." });
     } catch (err) {
         console.warn("[CLIPBOARD] Falling back to manual selection.", err);
-        toast({ title: "Automatic Copy Blocked", description: "Please manually select and copy the SQL code below.", variant: "default" });
+        toast({ title: "Manual Copy Required", description: "Please manually select and copy the SQL code below.", variant: "default" });
     }
   };
 
@@ -133,7 +131,7 @@ export default function SetupAdminPage() {
         <CardHeader className="bg-zinc-950 text-white flex flex-row items-center justify-between">
             <div>
                 <CardTitle className="text-xl font-black italic uppercase italic tracking-tighter">Master Schema Deployment</CardTitle>
-                <CardDescription className="text-zinc-500 font-bold uppercase text-[10px]">Required SQL for Project: otvxtkphevaliijqircs</CardDescription>
+                <CardDescription className="text-zinc-500 font-bold uppercase text-[10px]">Official Registry Structure (v3.2)</CardDescription>
             </div>
             <Button onClick={copyToClipboard} size="sm" variant="secondary" className="font-black uppercase text-[10px]">
                 <Copy className="h-3 w-3 mr-2" /> Copy SQL
