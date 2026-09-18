@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign } from 'lucide-react';
+import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { cn, calculateShippingCost } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+
+const SHIPMENT_STATUSES = [
+  'Received at Warehouse (FL)',
+  'Processed',
+  'Being Shipped',
+  'In Transit',
+  'Arrived in Jamaica',
+  'Customs',
+  'On Route',
+  'Available for pickup',
+  'Delivered'
+];
 
 export default function ShippingPage() {
   const { supabase } = useSupabase();
@@ -100,10 +112,11 @@ export default function ShippingPage() {
         });
 
         // 4. Audit Log
+        const { data: { user } } = await supabase.auth.getUser();
         await supabase.from('system_logs').insert({
             log_type: 'manual_shipment_created',
             description: `Manual shipment created for ${trackingNumber}. JMD $${parseFloat(cost).toLocaleString()}`,
-            actor_id: (await supabase.auth.getUser()).data.user?.id,
+            actor_id: user?.id,
             metadata: { trackingNumber, profileId }
         });
 
@@ -117,11 +130,36 @@ export default function ShippingPage() {
     }
   };
 
+  const handleStatusUpdate = async (shipmentId: string, trackingNumber: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('shipments')
+        .update({ status: newStatus })
+        .eq('id', shipmentId);
+
+      if (error) throw error;
+
+      // Log the event
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('system_logs').insert({
+        log_type: 'status_update',
+        description: `Shipment ${trackingNumber} status updated to: ${newStatus}`,
+        actor_id: user?.id,
+        metadata: { shipmentId, trackingNumber, newStatus }
+      });
+
+      toast({ title: "Status Updated", description: `${trackingNumber} is now ${newStatus}.` });
+      fetchData();
+    } catch (error: any) {
+      toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-            <h1 className="text-3xl font-black italic uppercase tracking-tighter">Shipping Ledger</h1>
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Shipping Ledger</h1>
             <p className="text-muted-foreground font-medium uppercase text-[10px]">Real-time Supabase Logistics Gateway</p>
         </div>
         <div className="flex gap-2">
@@ -167,12 +205,13 @@ export default function ShippingPage() {
                     <TableHead className="pl-6 text-[10px] font-black uppercase">Tracking ID</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
-                    <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Cost (JMD)</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Cost (JMD)</TableHead>
+                    <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Actions</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {isLoading && filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /></TableCell></TableRow>
                 ) : filtered.map(s => (
                     <TableRow key={s.id} className="h-20 hover:bg-primary/5 transition-colors">
                         <TableCell className="pl-6">
@@ -181,17 +220,78 @@ export default function ShippingPage() {
                         </TableCell>
                         <TableCell className="font-bold text-xs uppercase italic">{s.profiles?.full_name}</TableCell>
                         <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
-                        <TableCell className="text-right pr-6 font-black tracking-tighter text-lg text-primary">
+                        <TableCell className="font-black tracking-tighter text-lg text-primary">
                             JMD ${Number(s.total_cost_jmd).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right pr-6">
+                          <StatusUpdateDialog 
+                            shipment={s} 
+                            onUpdate={(newStatus) => handleStatusUpdate(s.id, s.tracking_number, newStatus)} 
+                          />
                         </TableCell>
                     </TableRow>
                 ))}
-                {filtered.length === 0 && !isLoading && <TableRow><TableCell colSpan={4} className="text-center py-20 opacity-40 italic">No shipments detected.</TableCell></TableRow>}
+                {filtered.length === 0 && !isLoading && <TableRow><TableCell colSpan={5} className="text-center py-20 opacity-40 italic">No shipments detected.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function StatusUpdateDialog({ shipment, onUpdate }: { shipment: any, onUpdate: (status: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState(shipment.status);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleConfirm = async () => {
+    setIsUpdating(true);
+    await onUpdate(status);
+    setIsUpdating(false);
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="hover:bg-primary/5">
+          <ListRestart className="h-4 w-4 text-primary" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Package Transit State</DialogTitle>
+          <DialogDescription className="text-center font-bold text-[10px] uppercase tracking-widest mt-1">Updating tracking for {shipment.tracking_number}</DialogDescription>
+        </DialogHeader>
+        <div className="py-6 space-y-4">
+          <div className="space-y-1">
+            <Label className="text-[10px] font-bold uppercase opacity-60">New Status Stage</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-14 text-lg font-black border-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SHIPMENT_STATUSES.map(st => (
+                  <SelectItem key={st} value={st} className="font-bold uppercase text-xs">{st}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+          <Button 
+            onClick={handleConfirm} 
+            disabled={isUpdating || status === shipment.status} 
+            className="flex-1 h-12 font-black uppercase italic shadow-xl"
+          >
+            {isUpdating ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
+            Update State
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -268,10 +368,9 @@ function ManualShipmentForm({ users, onSubmit, isSubmitting }: { users: any[], o
             <DialogFooter className="gap-2">
                 <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
                 <Button type="submit" disabled={isSubmitting || !formData.cost} className="flex-1 h-12 font-black uppercase italic shadow-xl">
-                    {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Zap className="mr-2 h-4 w-4" />} Authorize Shipment
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin mr-2" /> : <Zap className="mr-2 h-4 w-4" />} Authorize Shipment
                 </Button>
             </DialogFooter>
         </form>
     );
 }
-
