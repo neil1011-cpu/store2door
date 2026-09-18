@@ -4,7 +4,7 @@
  * Made fully idempotent for safe re-runs.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v3.2)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v3.3)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -92,7 +92,8 @@ CREATE TABLE IF NOT EXISTS public.shipments (
 CREATE TABLE IF NOT EXISTS public.system_configs (
     config_key text PRIMARY KEY,
     config_value jsonb NOT NULL,
-    updated_at timestamptz DEFAULT now() NOT NULL
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    updated_by uuid REFERENCES public.profiles(id)
 );
 
 CREATE TABLE IF NOT EXISTS public.sent_emails (

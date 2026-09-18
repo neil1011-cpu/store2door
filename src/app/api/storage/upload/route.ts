@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { headers } from 'next/headers';
+import { getS3Client, VultrConfig } from '@/lib/integrations/vultr-service';
 
 /**
- * @fileOverview Secure Document Upload Bridge to Vultr Object Storage.
- * Now standardized on Supabase system_configs for credential storage.
+ * @fileOverview Authorized Cloud Documentation Porter.
+ * Refactored to use the centralized VultrService and System Registry.
  */
 
 export async function POST(request: Request) {
@@ -30,65 +31,43 @@ export async function POST(request: Request) {
 
         const adminClient = await createAdminClient();
         
-        // 1. Fetch Vultr Credentials from Supabase
+        // 1. Fetch Storage Registry
         const { data: configData } = await adminClient
             .from('system_configs')
             .select('config_value')
             .eq('config_key', 'vultr_config')
             .maybeSingle();
 
-        const config = configData?.config_value;
+        const config = configData?.config_value as VultrConfig;
         if (!config?.accessKey || !config?.secretKey || !config?.bucket) {
-            return NextResponse.json({ 
-                message: 'Vultr Cloud Storage not configured in System Console.',
-                code: 'CONFIG_MISSING'
-            }, { status: 500 });
+            return NextResponse.json({ message: 'Cloud Registry Incomplete.', code: 'CONFIG_MISSING' }, { status: 500 });
         }
 
-        const { accessKey, secretKey, endpoint, bucket } = config;
-
-        // 2. Parse Incoming File
+        // 2. Porter Logic
         const formData = await request.formData();
         const file = formData.get('file') as File;
-        if (!file) return NextResponse.json({ message: 'No file provided' }, { status: 400 });
+        if (!file) return NextResponse.json({ message: 'Payload missing file segment.' }, { status: 400 });
 
         const buffer = Buffer.from(await file.arrayBuffer());
         const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
         const key = `invoices/${caller.id}/${fileName}`;
 
-        // 3. Initialize S3 Client (Vultr Compatible)
-        const s3Client = new S3Client({
-            region: 'us-east-1',
-            endpoint: `https://${endpoint || 'ewr1.vultrobjects.com'}`,
-            credentials: {
-                accessKeyId: accessKey,
-                secretKeyId: secretKey,
-            },
-            forcePathStyle: true,
-        });
-
-        // 4. Execute Upload
-        await s3Client.send(new PutObjectCommand({
-            Bucket: bucket,
+        // 3. Dispatch to Cloud
+        const s3 = getS3Client(config);
+        await s3.send(new PutObjectCommand({
+            Bucket: config.bucket,
             Key: key,
             Body: buffer,
             ContentType: file.type || 'application/octet-stream',
             ACL: 'public-read',
         }));
 
-        const publicUrl = `https://${bucket}.${endpoint || 'ewr1.vultrobjects.com'}/${key}`;
+        const publicUrl = `https://${config.bucket}.${config.endpoint || 'ewr1.vultrobjects.com'}/${key}`;
 
-        return NextResponse.json({
-            success: true,
-            url: publicUrl,
-            key: key
-        });
+        return NextResponse.json({ success: true, url: publicUrl, key: key });
 
     } catch (error: any) {
-        console.error(`[STORAGE_UPLOAD:${requestId}] FATAL:`, error);
-        return NextResponse.json({
-            message: 'Cloud transfer failed: ' + (error.message || 'Unknown S3 error'),
-            code: error.code || 'S3_ERROR'
-        }, { status: 500 });
+        console.error(`[STORAGE_PORTER:${requestId}] FATAL:`, error);
+        return NextResponse.json({ message: error.message || 'Cloud transfer failed.' }, { status: 500 });
     }
 }
