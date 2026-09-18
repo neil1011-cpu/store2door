@@ -1,125 +1,137 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
-import { Button } from '@/components/ui/button';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
 import { useState } from 'react';
-import { Loader2, ArrowLeft, Mail, ShieldAlert } from 'lucide-react';
-import { useSupabase } from '@/components/supabase-provider';
-
-const formSchema = z.object({
-  email: z.string().email({ message: 'Please enter a valid email address.' }),
-});
+import { createClient } from '@/lib/supabase/client';
+import { getSiteOrigin } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ArrowLeft, Mail, AlertTriangle, CheckCircle, ShieldAlert } from 'lucide-react';
+import Link from 'next/link';
 
 export default function ForgotPasswordPage() {
-  const { toast } = useToast();
-  const { supabase } = useSupabase();
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSent, setIsSent] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isRateLimit, setIsRateLimit] = useState(false);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: '',
-    },
-  });
-
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
-    
+    setError(null);
+    setIsRateLimit(false);
+
     try {
-        // Use the browser location origin to ensure correct redirection on production URL
-        const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-            redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`
-        });
+      const supabase = createClient();
+      const origin = getSiteOrigin();
+      
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${origin}/auth/callback?next=/reset-password`,
+      });
 
-        if (error) throw error;
+      if (resetError) {
+        if (resetError.message?.toLowerCase().includes('rate limit')) {
+          setIsRateLimit(true);
+          throw new Error('Supabase email protection rate limit exceeded.');
+        }
+        throw resetError;
+      }
 
-        toast({
-            title: 'Instructions Dispatched',
-            description: 'Check your inbox for a secure reset link.',
-        });
-        setIsSent(true);
-    } catch (error: any) {
-        console.error("Password reset error:", error);
-        toast({
-            title: 'System Interruption',
-            description: error.message || 'There was an issue processing your request.',
-            variant: 'destructive',
-        });
+      setSuccess(true);
+    } catch (err: any) {
+      console.error('[PASSWORD_RESET_ERROR]', err);
+      setError(err.message || 'An unexpected authentication disruption occurred.');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto py-12 px-4 md:px-6 max-w-lg min-h-[70vh] flex items-center justify-center">
-      <Card className="w-full shadow-2xl border-none">
-        <CardHeader className="text-center space-y-2 pb-8">
-            <div className="mx-auto bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mb-2">
-                <Mail className="h-8 w-8 text-primary" />
-            </div>
-            <CardTitle className="text-3xl font-black italic uppercase tracking-tighter">Reset Secure Key</CardTitle>
-            <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">
-                Authorize instructions for your logistics identity.
-            </CardDescription>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 font-body">
+      <Card className="w-full max-w-md shadow-lg border">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-headline font-bold text-center">
+            Account Recovery
+          </CardTitle>
+          <CardDescription className="text-center">
+            Provide your email address to receive a secure recovery key.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {!isSent ? (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-[10px] font-bold uppercase opacity-60">Verified Email Address</FormLabel>
-                      <FormControl>
-                        <Input placeholder="you@example.com" {...field} className="h-12 border-2 focus:border-primary" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" size="lg" className="w-full h-14 text-lg font-black uppercase italic shadow-xl" disabled={loading}>
-                   {loading ? <><Loader2 className="mr-2 h-6 w-6 animate-spin" /> Authorizing...</> : 'Dispatch Reset Link'}
-                </Button>
-              </form>
-            </Form>
-          ) : (
-            <div className="py-8 text-center space-y-6">
-               <div className="bg-green-50 border-2 border-dashed border-green-200 p-6 rounded-2xl">
-                 <ShieldAlert className="h-10 w-10 text-green-600 mx-auto mb-4" />
-                 <p className="text-sm font-bold uppercase tracking-tight text-green-800">Uplink Successful</p>
-                 <p className="text-xs text-green-700/70 font-medium leading-relaxed mt-2">
-                   We have dispatched a one-time secure link to your registered email. Follow the instructions to finalize your new access key.
-                 </p>
-               </div>
-               <Button variant="outline" className="w-full h-12 font-black uppercase italic border-2" asChild>
-                 <Link href="/signin">Return to Sign In</Link>
-               </Button>
+        <CardContent>
+          {success ? (
+            <div className="space-y-4 py-2">
+              <Alert className="border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle className="h-4 w-4" />
+                <AlertTitle className="font-semibold font-headline">Dispatched Successfully</AlertTitle>
+                <AlertDescription className="text-sm">
+                  A verification link has been sent to <strong>{email}</strong>. Check your inbox and spam folders.
+                </AlertDescription>
+              </Alert>
+              <p className="text-xs text-muted-foreground text-center">
+                Clicking the secure link will automatically authorize your session and open the password configuration form.
+              </p>
             </div>
+          ) : (
+            <form onSubmit={handleReset} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle className="font-headline font-semibold">System Notification</AlertTitle>
+                  <AlertDescription className="text-sm">{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {isRateLimit && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2 text-xs text-amber-700 dark:text-amber-400">
+                  <div className="flex items-center gap-1.5 font-semibold text-sm">
+                    <ShieldAlert className="h-4 w-4 text-amber-600" />
+                    How to fix this in your Dashboard:
+                  </div>
+                  <ol className="list-decimal pl-4 space-y-1">
+                    <li>Go to your <strong>Supabase Dashboard</strong>.</li>
+                    <li>Navigate to <strong>Authentication</strong> &rarr; <strong>Provider Settings</strong>.</li>
+                    <li>Expand the <strong>Email</strong> section.</li>
+                    <li>Change <strong>Rate Limit</strong> (or <em>Minimum time between emails</em>) from <code>3600</code> to <code>5</code> seconds.</li>
+                    <li>Click <strong>Save changes</strong> to completely unblock continuous testing.</li>
+                  </ol>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Registered Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="name@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-9"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full font-headline" disabled={loading}>
+                {loading ? 'Processing Registry Request...' : 'Dispatch Reset Link'}
+              </Button>
+            </form>
           )}
-          
-          <div className="pt-6 text-center border-t border-dashed flex flex-col gap-4">
-              <Link href="/signin" className="text-xs font-bold text-primary hover:underline flex items-center justify-center gap-2 uppercase tracking-widest">
-                <ArrowLeft className="h-3 w-3" /> Back to Secure Sign In
-              </Link>
-          </div>
         </CardContent>
+        <CardFooter className="flex justify-center border-t pt-4">
+          <Link
+            href="/signin"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Return to authentication gate
+          </Link>
+        </CardFooter>
       </Card>
     </div>
   );
