@@ -240,8 +240,8 @@ DROP POLICY IF EXISTS "logs_select_admin" ON public.system_logs;
 CREATE POLICY "logs_select_admin" ON public.system_logs FOR SELECT USING (is_admin());
 DROP POLICY IF EXISTS "emails_select_admin" ON public.sent_emails;
 CREATE POLICY "emails_select_admin" ON public.sent_emails FOR SELECT USING (is_admin());
-DROP POLICY IF EXISTS "configs_select_admin" ON public.system_configs;
-CREATE POLICY "configs_select_admin" ON public.system_configs FOR SELECT USING (is_admin());
+DROP POLICY IF EXISTS "configs_all_admin" ON public.system_configs;
+CREATE POLICY "configs_all_admin" ON public.system_configs FOR ALL USING (is_admin());
 
 -- 10. BACKFILL (Idempotent)
 DO $$ 

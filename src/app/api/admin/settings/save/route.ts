@@ -13,12 +13,22 @@ export async function POST(request: Request) {
         if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
         const adminClient = await createAdminClient();
+        
+        // Use RPC check to ensure RLS-compliant admin status
         const { data: isAdmin } = await adminClient.rpc('is_admin');
-        if (!isAdmin && user.email !== 'admin@neilussolutions.com') {
+        const isMaster = user.email === 'admin@neilussolutions.com';
+        
+        if (!isAdmin && !isMaster) {
             return NextResponse.json({ message: 'Access Denied' }, { status: 403 });
         }
 
         const { key, value } = await request.json();
+
+        // VALIDATION: Ensure only authorized system keys are modified
+        const authorizedKeys = ['email_config', 'vultr_config', 'logicware'];
+        if (!authorizedKeys.includes(key)) {
+            return NextResponse.json({ message: 'Invalid configuration key.' }, { status: 400 });
+        }
 
         // 1. Fetch current config to check for existing secrets
         const { data: current } = await adminClient
@@ -58,6 +68,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true });
     } catch (err: any) {
+        console.error('[SETTINGS_SAVE_ERROR]', err.message);
         return NextResponse.json({ message: err.message }, { status: 500 });
     }
 }
