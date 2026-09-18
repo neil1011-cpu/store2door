@@ -29,20 +29,20 @@ export function calculateShippingCost(weight: number): number {
 
 /**
  * Robustly determines the site origin for redirects.
- * Updated to trust production headers and environment variables over localhost defaults.
+ * Prioritizes the current window origin in the browser to avoid build-time leakage.
  */
 export function getSiteOrigin(request?: Request): string {
-    // 1. Environment variable is the absolute source of truth
-    if (process.env.NEXT_PUBLIC_SITE_URL) {
-        return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
-    }
-
-    // 2. Client-side fallback
+    // 1. Client-side: Always trust the current browser URL
     if (typeof window !== 'undefined') {
         return window.location.origin;
     }
 
-    // 3. Server-side proxy header detection
+    // 2. Server-side: Trust environment variable first (Production)
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+        return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+    }
+
+    // 3. Server-side: Detect from request headers (Firebase Proxy)
     if (request) {
         const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
         const proto = request.headers.get('x-forwarded-proto') || 'https';
@@ -52,6 +52,6 @@ export function getSiteOrigin(request?: Request): string {
         }
     }
 
-    // 4. Local Development Fallback
+    // 4. Fallback
     return 'http://localhost:3000';
 }

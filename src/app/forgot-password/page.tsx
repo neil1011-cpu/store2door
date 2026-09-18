@@ -12,7 +12,6 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2, ArrowLeft, Mail, ShieldAlert, AlertCircle } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
-import { getSiteOrigin } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const formSchema = z.object({
@@ -35,10 +34,11 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setRateLimited(false);
     try {
-        const origin = getSiteOrigin();
+        // CRITICAL: Use the browser's actual origin to avoid build-time env var leakage
+        const origin = window.location.origin;
         
         // Exact matching for Supabase Redirect Whitelist
-        // We use the clean callback path and let the callback route handle the final destination.
+        // Points to /auth/callback which handles the PKCE exchange
         const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
             redirectTo: `${origin}/auth/callback`
         });
