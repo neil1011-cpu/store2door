@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
@@ -52,12 +51,12 @@ export async function POST(request: Request) {
         const { data: targetProfile } = await adminClient.from('profiles').select('email').eq('id', userId).single();
         if (!targetProfile?.email) return NextResponse.json({ message: 'Profile not found.' }, { status: 404 });
 
-        // GENERATE AND DISPATCH RESET LINK
+        // GENERATE AND DISPATCH RESET LINK via Callback
         const { error } = await adminClient.auth.admin.generateLink({
             type: 'recovery',
             email: targetProfile.email,
             options: {
-                redirectTo: `${new URL(request.url).origin}/account/change-password`
+                redirectTo: `${new URL(request.url).origin}/auth/confirm?next=/account/change-password`
             }
         });
 

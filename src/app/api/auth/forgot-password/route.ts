@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Forgot Password API using Supabase Auth.
- * Dispatches a password reset email with a redirection to the change-password page.
+ * Dispatches a password reset email with a redirection to the confirm callback.
  */
 
 export async function POST(request: Request) {
@@ -14,9 +14,9 @@ export async function POST(request: Request) {
 
         const supabase = await createAdminClient();
         
-        // Use the site's origin to build the redirect URL
+        // Point to /auth/confirm to establish the session before showing the reset form
         const origin = new URL(request.url).origin;
-        const redirectTo = `${origin}/account/change-password`;
+        const redirectTo = `${origin}/auth/confirm?next=/account/change-password`;
 
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: redirectTo,

@@ -8,23 +8,35 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
-import { Loader2, Eye, EyeOff, Lock } from 'lucide-react';
+import { useState, useEffect, Suspense } from 'react';
+import { Loader2, Eye, EyeOff, Lock, AlertCircle } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Enter valid email.' }),
   password: z.string().min(1, { message: 'Password required.' }),
 });
 
-export default function SignInPage() {
+function SignInForm() {
   const { supabase } = useSupabase();
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const errorCode = searchParams.get('error');
+    if (errorCode === 'link_expired_or_invalid') {
+      setAuthError('The recovery link has expired or has already been used. Please request a new one.');
+    } else if (errorCode === 'auth_callback_failed') {
+      setAuthError('Authentication synchronization failed. Please try signing in again.');
+    }
+  }, [searchParams]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -33,6 +45,7 @@ export default function SignInPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
+    setAuthError(null);
     const { error } = await supabase.auth.signInWithPassword({
         email: values.email,
         password: values.password,
@@ -48,8 +61,7 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="container mx-auto py-24 px-4 flex justify-center items-center min-h-[80vh]">
-      <Card className="w-full max-w-md shadow-2xl border-none">
+    <Card className="w-full max-w-md shadow-2xl border-none">
         <CardHeader className="text-center space-y-2 pb-8">
             <div className="mx-auto bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mb-2">
                 <Lock className="h-8 w-8 text-primary" />
@@ -59,7 +71,15 @@ export default function SignInPage() {
                 Authorize your global logistics session.
             </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          {authError && (
+            <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle className="text-[10px] font-black uppercase">Security Alert</AlertTitle>
+              <AlertDescription className="text-[11px] font-medium leading-relaxed">{authError}</AlertDescription>
+            </Alert>
+          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField control={form.control} name="email" render={({ field }) => (
@@ -101,6 +121,15 @@ export default function SignInPage() {
           </div>
         </CardContent>
       </Card>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <div className="container mx-auto py-24 px-4 flex justify-center items-center min-h-[80vh]">
+      <Suspense fallback={<Loader2 className="animate-spin h-10 w-10 text-primary" />}>
+        <SignInForm />
+      </Suspense>
     </div>
   );
 }
