@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -134,7 +135,7 @@ export default function UserDetailsPage() {
         <div className="flex flex-col gap-6 max-w-7xl mx-auto">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-black italic uppercase tracking-tighter">Account Intelligence</h1>
+                    <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Account Intelligence</h1>
                     <p className="text-muted-foreground font-medium text-[10px] uppercase tracking-widest mt-1">Identity: {profile.full_name}</p>
                 </div>
                 <Button variant="outline" asChild className="font-bold border-2">
@@ -144,7 +145,7 @@ export default function UserDetailsPage() {
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-6">
-                    <Card className="overflow-hidden border-none shadow-lg">
+                    <Card className="overflow-hidden border-none shadow-lg rounded-2xl">
                         <CardHeader className="items-center bg-primary/5 pb-8">
                             <Avatar className="h-24 w-24 border-4 border-background shadow-xl">
                                 <AvatarFallback className="text-2xl font-black">{profile.full_name.charAt(0)}</AvatarFallback>
@@ -168,24 +169,24 @@ export default function UserDetailsPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-primary/20 shadow-md">
+                    <Card className="border-primary/20 shadow-xl rounded-2xl overflow-hidden">
                         <CardHeader className="bg-primary/5 pb-4">
                             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                                <Wallet className="h-4 w-4 text-primary" /> Financial Registry
+                                <Wallet className="h-4 w-4 text-primary" /> Financial Standing
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-6">
-                            <div className="text-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed">
+                            <div className={cn("text-center p-6 rounded-2xl border-2 border-dashed transition-colors", Number(profile.wallet_balance) < 0 ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/10")}>
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Ledger Standing</p>
-                                <p className={cn("text-4xl font-black italic tracking-tighter", profile.wallet_balance < 0 ? "text-red-600" : "text-primary")}>
-                                    JMD ${Math.abs(profile.wallet_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                <p className={cn("text-4xl font-black italic tracking-tighter", Number(profile.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
+                                    JMD ${Math.abs(Number(profile.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </p>
                             </div>
-                            <AdjustBalanceDialog userId={profile.id} userName={profile.full_name} currentBalance={profile.wallet_balance || 0} onSuccess={fetchData} />
+                            <AdjustBalanceDialog userId={profile.id} userName={profile.full_name} currentBalance={Number(profile.wallet_balance || 0)} onSuccess={fetchData} />
                         </CardContent>
                     </Card>
 
-                    <Card className={cn("border-2", isAdmin ? "border-primary/40 bg-primary/5" : "border-dashed opacity-80")}>
+                    <Card className={cn("border-2 rounded-2xl overflow-hidden", isAdmin ? "border-primary/40 bg-primary/5" : "border-dashed opacity-80")}>
                         <CardHeader className="pb-4">
                             <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
                                 <ShieldCheck className="h-4 w-4 text-primary" /> Authority Level
@@ -204,7 +205,7 @@ export default function UserDetailsPage() {
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="rounded-2xl overflow-hidden">
                         <CardHeader className="bg-muted/10">
                             <CardTitle className="text-sm font-bold uppercase opacity-60">Identity Management</CardTitle>
                         </CardHeader>
@@ -217,15 +218,15 @@ export default function UserDetailsPage() {
                                         Purge Identity Record
                                     </Button>
                                 </AlertDialogTrigger>
-                                <AlertDialogContent>
+                                <AlertDialogContent className="rounded-2xl border-2">
                                     <AlertDialogHeader>
                                         <AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter italic text-center">Confirm Deep Purge?</AlertDialogTitle>
                                         <AlertDialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center">
                                             This will permanently remove <strong>{profile.full_name}</strong> from Auth and all Registry tables.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel className="font-bold uppercase">Abort</AlertDialogCancel>
+                                    <AlertDialogFooter className="gap-2">
+                                        <AlertDialogCancel className="font-bold uppercase h-12">Abort</AlertDialogCancel>
                                         <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg">Authorize Purge</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
@@ -235,7 +236,7 @@ export default function UserDetailsPage() {
                 </div>
 
                 <div className="lg:col-span-2 space-y-6">
-                    <Card className="shadow-lg border-none rounded-2xl overflow-hidden">
+                    <Card className="shadow-2xl border-none rounded-2xl overflow-hidden">
                         <CardHeader className="bg-muted/10 border-b">
                             <CardTitle className="text-sm font-black uppercase tracking-widest italic">Worldwide Transit History</CardTitle>
                         </CardHeader>
@@ -243,27 +244,27 @@ export default function UserDetailsPage() {
                             <Table>
                                 <TableHeader className="bg-muted/20">
                                     <TableRow>
-                                        <TableHead className="pl-6">Tracking ID</TableHead>
-                                        <TableHead>Contents</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right pr-6">Cost (JMD)</TableHead>
+                                        <TableHead className="pl-6 text-[10px] font-black uppercase">Tracking ID</TableHead>
+                                        <TableHead className="text-[10px] font-black uppercase">Contents</TableHead>
+                                        <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
+                                        <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Cost (JMD)</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {shipments.length > 0 ? (
                                         shipments.map((s) => (
-                                        <TableRow key={s.id} className="h-16">
+                                        <TableRow key={s.id} className="h-20 hover:bg-primary/5 transition-colors">
                                             <TableCell className="pl-6 font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</TableCell>
-                                            <TableCell className="text-xs uppercase font-medium opacity-70">{s.contents}</TableCell>
-                                            <TableCell><Badge className="font-black italic uppercase text-[9px] border-2">{s.status}</Badge></TableCell>
-                                            <TableCell className="text-right pr-6 font-black tracking-tighter">
+                                            <TableCell className="text-xs uppercase font-medium opacity-70 italic line-clamp-1 max-w-[200px]">{s.contents}</TableCell>
+                                            <TableCell><Badge variant="outline" className="font-black italic uppercase text-[9px] border-2">{s.status}</Badge></TableCell>
+                                            <TableCell className="text-right pr-6 font-black tracking-tighter text-lg">
                                                 ${Number(s.total_cost_jmd || 0).toLocaleString()}
                                             </TableCell>
                                         </TableRow>
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center h-48 italic text-muted-foreground opacity-30">No transit records found.</TableCell>
+                                            <TableCell colSpan={4} className="text-center h-64 italic text-muted-foreground opacity-30">No transit records found.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
@@ -316,7 +317,7 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
                     <KeyRound className="mr-2 h-4 w-4" /> Reset Access Key
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md rounded-2xl border-2">
                 <DialogHeader>
                     <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Authorize Reset Protocol</DialogTitle>
                 </DialogHeader>
@@ -384,21 +385,21 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
             <DialogTrigger asChild>
                 <Button variant="outline" className="w-full font-bold border-2"><PlusCircle className="mr-2 h-4 w-4 text-primary" /> Adjust Account Balance</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader><DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Adjust Balance</DialogTitle></DialogHeader>
+            <DialogContent className="sm:max-w-md rounded-2xl border-2">
+                <DialogHeader><DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Update Financial Standing</DialogTitle></DialogHeader>
                 <div className="space-y-6 py-4">
                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 text-center">
-                        <p className="text-[10px] font-bold uppercase opacity-60">Current</p>
-                        <p className="text-2xl font-black italic">JMD ${currentBalance.toLocaleString()}</p>
+                        <p className="text-[10px] font-bold uppercase opacity-60">Current Standing</p>
+                        <p className="text-2xl font-black italic">JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase opacity-60">Set New Balance (JMD $)</Label>
+                        <Label className="text-[10px] font-bold uppercase opacity-60">Define New Standing (JMD $)</Label>
                         <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-14 text-2xl font-black border-2" />
                     </div>
                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3">
-                        <ShieldAlert className="h-4 w-4 text-amber-600" />
+                        <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0" />
                         <p className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
-                            Adjustment will be logged as an immutable audit record in the financial ledger.
+                            Adjustment will be logged as an immutable audit record in the financial ledger. This action is tracked.
                         </p>
                     </div>
                 </div>

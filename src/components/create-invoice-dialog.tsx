@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -18,127 +19,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, PlusCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { Invoice, UserProfile, LineItem } from '@/lib/types';
-import { useFirestore } from '@/firebase';
-import { doc, setDoc, serverTimestamp, writeBatch, increment } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-
-
-const generateInvoiceHtml = (invoiceData: {
-  invoiceId: string;
-  customerName: string;
-  invoiceDate: string;
-  lineItems: LineItem[];
-  totalAmount: number;
-}): string => {
-  const { invoiceId, customerName, invoiceDate, lineItems, totalAmount } = invoiceData;
-
-  const lineItemsHtml = lineItems
-    .map(
-      (item) => `
-    <tr>
-      <td>${item.description}</td>
-      <td class="text-center">${item.quantity}</td>
-      <td class="text-right">JMD $${item.price.toFixed(2)}</td>
-      <td class="text-right">JMD $${(item.quantity * item.price).toFixed(2)}</td>
-    </tr>
-  `
-    )
-    .join('');
-
-  return `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Invoice ${invoiceId}</title>
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; color: #212529; }
-        .container { max-width: 800px; margin: 40px auto; padding: 30px; background-color: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0d6efd; padding-bottom: 20px; margin-bottom: 30px; }
-        .header h1 { margin: 0; font-size: 2.5em; color: #0d6efd; }
-        .header .company-details { text-align: right; }
-        .header .company-details p { margin: 0; font-size: 0.9em; color: #6c757d; }
-        .invoice-details { display: flex; justify-content: space-between; margin-bottom: 30px; }
-        .invoice-details .bill-to p { margin: 0; }
-        .invoice-details .invoice-meta { text-align: right; }
-        .invoice-details .invoice-meta p { margin: 0; }
-        .invoice-details .invoice-meta .label { font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px 15px; border-bottom: 1px solid #dee2e6; }
-        thead th { background-color: #e9ecef; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 0.85em; }
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-        .total-section { margin-top: 30px; text-align: right; }
-        .total-section table { width: auto; margin-left: auto; }
-        .total-section th, .total-section td { border: none; padding: 8px 15px; }
-        .total-section .grand-total { font-size: 1.4em; font-weight: bold; color: #0d6efd; }
-        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6; text-align: center; font-size: 0.9em; color: #6c757d; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>INVOICE</h1>
-          <div class="company-details">
-            <p style="font-weight: bold; font-size: 1.2em;">FromStore2Door</p>
-            <p>3507 NW 19th ST</p>
-            <p>Lauderdale Lake, FL, 33311-4224</p>
-            <p>info@fromstore2door.com</p>
-          </div>
-        </div>
-        <div class="invoice-details">
-          <div class="bill-to">
-            <p style="color: #6c757d; margin-bottom: 5px;">BILL TO</p>
-            <p style="font-weight: bold; font-size: 1.2em;">${customerName}</p>
-          </div>
-          <div class="invoice-meta">
-            <p><span class="label">Invoice #:</span> ${invoiceId}</p>
-            <p><span class="label">Date:</span> ${new Date(invoiceDate).toLocaleDateString()}</p>
-          </div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th class="text-center">Quantity</th>
-              <th class="text-right">Unit Price</th>
-              <th class="text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${lineItemsHtml}
-          </tbody>
-        </table>
-        <div class="total-section">
-          <table>
-            <tr>
-              <td class="label">Total:</td>
-              <td class="grand-total">JMD $${totalAmount.toFixed(2)}</td>
-            </tr>
-          </table>
-        </div>
-        <div class="footer">
-          <p>Thank you for your business!</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-};
+import type { UserProfile, LineItem } from '@/lib/types';
+import { useSupabase } from '@/components/supabase-provider';
 
 const initialLineItems = [{ description: '', quantity: 1, price: 0 }];
 
 type CreateInvoiceDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  users: UserProfile[];
-  preselectedUser?: UserProfile;
-  onInvoiceCreated: (invoice: Invoice) => void;
+  users: any[];
+  preselectedUser?: any;
+  onInvoiceCreated: () => void;
 };
-
 
 export function CreateInvoiceDialog({
   open,
@@ -148,25 +40,21 @@ export function CreateInvoiceDialog({
   onInvoiceCreated,
 }: CreateInvoiceDialogProps) {
   const { toast } = useToast();
-  const firestore = useFirestore();
+  const { supabase } = useSupabase();
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [customerId, setCustomerId] = useState(preselectedUser?.id || '');
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [lineItems, setLineItems] = useState(initialLineItems);
   
-  // Effect to reset state when dialog closes or preselected user changes
   useEffect(() => {
     if (!open) {
         setCustomerId(preselectedUser?.id || '');
-        setInvoiceDate(new Date().toISOString().split('T')[0]);
         setLineItems(initialLineItems);
         setIsGenerating(false);
     } else {
         setCustomerId(preselectedUser?.id || '');
     }
-}, [open, preselectedUser]);
-
+  }, [open, preselectedUser]);
 
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, price: 0 }]);
   const removeLineItem = (index: number) => setLineItems(lineItems.filter((_, i) => i !== index));
@@ -185,68 +73,45 @@ export function CreateInvoiceDialog({
 
   const handleGenerateInvoice = async () => {
     const selectedUser = users.find(u => u.id === customerId);
-    if (!selectedUser || !firestore || lineItems.some(item => !item.description || item.price <= 0)) {
-      toast({ title: 'Missing Fields', description: 'Please select a customer and fill in all line item details.', variant: 'destructive' });
+    if (!selectedUser || lineItems.some(item => !item.description || item.price <= 0)) {
+      toast({ title: 'Missing Fields', description: 'Complete all line item details.', variant: 'destructive' });
       return;
     }
 
     setIsGenerating(true);
 
     try {
-      const invoiceId = `INV-${Date.now()}`;
       const totalAmount = calculateTotal();
-      const customerName = selectedUser.fullName;
+      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
 
-      const html = generateInvoiceHtml({
-        invoiceId,
-        customerName,
-        invoiceDate,
-        lineItems,
-        totalAmount,
-      });
-      
-      const newInvoiceData = {
-        invoiceId,
-        customerId: selectedUser.id,
-        customerName,
-        date: serverTimestamp(),
+      // 1. Create Invoice
+      const { data: inv, error: invError } = await supabase.from('invoices').insert({
+        profile_id: selectedUser.id,
         amount: totalAmount,
-        status: 'Unpaid' as 'Unpaid',
-        lineItems,
-        invoiceUrl: html,
-      };
+        invoice_number: invoiceNumber,
+        status: 'Unpaid'
+      }).select().single();
 
-      const batch = writeBatch(firestore);
-      const invoiceDocRef = doc(firestore, 'invoices', invoiceId);
-      const userProfileRef = doc(firestore, 'users', selectedUser.id);
+      if (invError) throw invError;
 
-      // 1. Set Invoice
-      batch.set(invoiceDocRef, newInvoiceData);
-
-      // 2. Debit User Wallet (Represent debt as negative)
-      batch.update(userProfileRef, {
-        walletBalance: increment(-totalAmount),
-        updatedAt: serverTimestamp()
+      // 2. Record Debt in Ledger (Trigger will sync profile.wallet_balance)
+      const { error: ledgerError } = await supabase.from('financial_ledger').insert({
+        profile_id: selectedUser.id,
+        amount: -totalAmount,
+        transaction_type: 'shipping_fee',
+        description: `Invoice Created: ${invoiceNumber}`,
+        reference_id: inv.id
       });
 
-      await batch.commit();
+      if (ledgerError) throw ledgerError;
 
-      toast({ title: 'Invoice Generated', description: `Invoice ${invoiceId} created and account debited JMD $${totalAmount.toFixed(2)}.` });
-      
-      onInvoiceCreated({ ...newInvoiceData, id: invoiceId, date: new Date() });
+      toast({ title: 'Invoice Secured', description: `Invoice ${invoiceNumber} created and client account charged.` });
+      onInvoiceCreated();
       onOpenChange(false);
 
     } catch (error: any) {
-      console.error("Invoice Generation Error:", error);
-       if (error.message?.includes('permission-denied')) {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `invoices/INV-${Date.now()}`,
-                operation: 'create',
-                requestResourceData: { customerId, amount: calculateTotal() },
-            }));
-        } else {
-            toast({ title: 'Invoice Generation Failed', description: error.message, variant: 'destructive' });
-        }
+      console.error("Invoice Error:", error);
+      toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
     } finally {
       setIsGenerating(false);
     }
@@ -256,57 +121,55 @@ export function CreateInvoiceDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-4xl">
             <DialogHeader>
-            <DialogTitle>Create New Invoice</DialogTitle>
-            <DialogDescription>Fill in the details below to generate a new invoice for a customer.</DialogDescription>
+            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Issue Global Invoice</DialogTitle>
+            <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Generate bill and debit client registry</DialogDescription>
             </DialogHeader>
             <ScrollArea className="max-h-[70vh] p-1">
                 <div className="grid gap-6 py-4 px-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="customerName">Customer Name</Label>
-                            <Select value={customerId} onValueChange={setCustomerId} disabled={!!preselectedUser}>
-                                <SelectTrigger id="customerName">
-                                    <SelectValue placeholder={"Select a customer"} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {users.map(user => (
-                                        <SelectItem key={user.id} value={user.id}>{user.fullName}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2"><Label htmlFor="invoiceDate">Invoice Date</Label><Input id="invoiceDate" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} /></div>
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase opacity-60">Recipient Selection</Label>
+                        <Select value={customerId} onValueChange={setCustomerId} disabled={!!preselectedUser}>
+                            <SelectTrigger className="h-12 border-2">
+                                <SelectValue placeholder={"Select a customer"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {users.map(user => (
+                                    <SelectItem key={user.id} value={user.id} className="font-bold uppercase text-xs">{user.full_name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
+                    
                     <div className="space-y-4">
-                        <Label>Line Items</Label>
+                        <Label className="text-[10px] font-bold uppercase opacity-60">Service Line Items</Label>
                         <div className="relative w-full overflow-auto">
                             <Table>
-                                <TableHeader><TableRow><TableHead>Description</TableHead><TableHead className="w-24">Qty</TableHead><TableHead className="text-right">Price (JMD)</TableHead><TableHead className="text-right">Total (JMD)</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
+                                <TableHeader className="bg-muted/50"><TableRow><TableHead className="text-[10px] font-black uppercase">Description</TableHead><TableHead className="w-24 text-[10px] font-black uppercase">Qty</TableHead><TableHead className="text-right text-[10px] font-black uppercase">JMD $</TableHead><TableHead className="text-right text-[10px] font-black uppercase">Total</TableHead><TableHead className="w-12"></TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {lineItems.map((item, index) => (
                                         <TableRow key={index}>
-                                            <TableCell><Input placeholder="Item or service description" value={item.description} onChange={(e) => handleLineItemChange(index, 'description', e.target.value)} /></TableCell>
-                                            <TableCell><Input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)} min="1" /></TableCell>
-                                            <TableCell><Input type="number" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', e.target.value)} className="text-right" placeholder="0.00" /></TableCell>
-                                            <TableCell className="text-right font-medium">JMD ${(item.quantity * item.price).toFixed(2)}</TableCell>
-                                            <TableCell><Button variant="ghost" size="icon" onClick={() => removeLineItem(index)} disabled={lineItems.length <= 1}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                                            <TableCell><Input placeholder="e.g. Air Freight" value={item.description} onChange={(e) => handleLineItemChange(index, 'description', e.target.value)} className="h-10 font-bold uppercase text-xs" /></TableCell>
+                                            <TableCell><Input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)} min="1" className="h-10" /></TableCell>
+                                            <TableCell><Input type="number" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', e.target.value)} className="text-right h-10 font-bold" placeholder="0.00" /></TableCell>
+                                            <TableCell className="text-right font-black italic text-sm">JMD ${(item.quantity * item.price).toFixed(2)}</TableCell>
+                                            <TableCell><Button variant="ghost" size="icon" onClick={() => removeLineItem(index)} disabled={lineItems.length <= 1} className="text-destructive"><Trash2 className="h-4 w-4" /></Button></TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
                         </div>
-                        <Button variant="outline" size="sm" onClick={addLineItem} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Add Line Item</Button>
+                        <Button variant="outline" size="sm" onClick={addLineItem} className="font-bold uppercase text-[10px] border-2"><PlusCircle className="mr-2 h-3.5 w-3.5" /> Add Service</Button>
                     </div>
-                    <div className="flex justify-end pt-4 border-t">
-                        <div className="text-right"><p className="text-muted-foreground">Total Amount (JMD)</p><p className="text-2xl font-bold">JMD ${calculateTotal().toFixed(2)}</p></div>
+                    <div className="flex justify-end pt-4 border-t-2 border-dashed">
+                        <div className="text-right"><p className="text-[10px] font-bold uppercase opacity-60">Authorized Grand Total</p><p className="text-4xl font-black italic tracking-tighter text-primary">JMD ${calculateTotal().toLocaleString(undefined, { minimumFractionDigits: 2 })}</p></div>
                     </div>
                 </div>
             </ScrollArea>
-            <DialogFooter>
-                <DialogClose asChild><Button variant="outline" disabled={isGenerating}>Cancel</Button></DialogClose>
-                <Button type="submit" onClick={handleGenerateInvoice} disabled={isGenerating}>
-                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                    {isGenerating ? 'Generating...' : 'Finalize & Debit Account'}
+            <DialogFooter className="gap-2">
+                <DialogClose asChild><Button variant="outline" className="h-14 font-bold uppercase" disabled={isGenerating}>Cancel</Button></DialogClose>
+                <Button type="submit" onClick={handleGenerateInvoice} disabled={isGenerating} className="flex-1 h-14 text-lg font-black uppercase italic shadow-xl">
+                    {isGenerating ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <PlusCircle className="mr-2 h-6 w-6" />}
+                    Authorize Bill
                 </Button>
             </DialogFooter>
         </DialogContent>
