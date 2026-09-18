@@ -395,12 +395,12 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
                         <Label className="text-[10px] font-bold uppercase opacity-60">Set New Balance (JMD $)</Label>
                         <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-14 text-2xl font-black border-2" />
                     </div>
-                    <Alert className="bg-amber-50 border-amber-200">
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3">
                         <ShieldAlert className="h-4 w-4 text-amber-600" />
-                        <AlertDescription className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
+                        <p className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
                             Adjustment will be logged as an immutable audit record in the financial ledger.
-                        </AlertDescription>
-                    </Alert>
+                        </p>
+                    </div>
                 </div>
                 <DialogFooter>
                     <Button onClick={handleAdjustBalance} disabled={isUpdating} className="w-full h-14 font-black uppercase italic shadow-xl">
