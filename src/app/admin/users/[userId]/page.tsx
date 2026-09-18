@@ -4,9 +4,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -26,15 +26,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
 import { cn } from '@/lib/utils';
-
-const getStatusVariant = (status: string) => {
-  const s = (status || '').toLowerCase();
-  if (s.includes('transit')) return 'default';
-  if (s.includes('customs')) return 'secondary';
-  if (s.includes('delivered')) return 'outline';
-  if (s.includes('pending')) return 'destructive';
-  return 'default';
-};
 
 export default function UserDetailsPage() {
     const params = useParams();
@@ -163,9 +154,7 @@ export default function UserDetailsPage() {
                         <CardContent className="text-sm space-y-4 pt-6">
                              <div className="flex items-center gap-3">
                                 <div className="bg-muted p-2 rounded-lg"><Mail className="h-4 w-4 text-muted-foreground" /></div>
-                                {profile.email && (
-                                  <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Email</p><p className="font-medium">{profile.email}</p></div>
-                                )}
+                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Email</p><p className="font-medium">{profile.email}</p></div>
                             </div>
                              <div className="flex items-center gap-3">
                                 <div className="bg-muted p-2 rounded-lg"><Phone className="h-4 w-4 text-muted-foreground" /></div>
@@ -265,7 +254,7 @@ export default function UserDetailsPage() {
                                         <TableRow key={s.id} className="h-16">
                                             <TableCell className="pl-6 font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</TableCell>
                                             <TableCell className="text-xs uppercase font-medium opacity-70">{s.contents}</TableCell>
-                                            <TableCell><Badge variant={getStatusVariant(s.status)} className="font-black italic uppercase text-[9px] border-2">{s.status}</Badge></TableCell>
+                                            <TableCell><Badge className="font-black italic uppercase text-[9px] border-2">{s.status}</Badge></TableCell>
                                             <TableCell className="text-right pr-6 font-black tracking-tighter">
                                                 ${Number(s.total_cost_jmd || 0).toLocaleString()}
                                             </TableCell>
@@ -405,7 +394,7 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
                 </div>
                 <DialogFooter>
                     <Button onClick={handleAdjustBalance} disabled={isUpdating} className="w-full h-14 font-black uppercase italic shadow-xl">
-                        {isUpdating ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : "Authorize Adjustment"}
+                        {isUpdating ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Authorize Adjustment
                     </Button>
                 </DialogFooter>
             </DialogContent>
