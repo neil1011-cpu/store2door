@@ -4,14 +4,12 @@ import { headers } from 'next/headers';
 
 /**
  * @fileOverview Hardened User Creation API.
- * Prioritizes token-based auth to bypass cookie restrictions.
+ * Prioritizes token-based auth to bypass cookie restrictions and handles welcome email redirects.
  */
 
 export async function POST(request: Request) {
-  const requestId = Math.random().toString(36).slice(2, 9);
   const headerList = await headers();
   const authHeader = headerList.get('authorization');
-  
   const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
   try {
@@ -78,7 +76,7 @@ export async function POST(request: Request) {
 
     if (sendWelcomeEmail) {
         await adminClient.auth.resetPasswordForEmail(email, {
-            redirectTo: `${new URL(request.url).origin}/auth/confirm?next=/account/change-password`
+            redirectTo: `${new URL(request.url).origin}/auth/callback?next=/account/change-password`
         });
         
         await adminClient.from('system_logs').insert({

@@ -4,7 +4,7 @@ import { headers } from 'next/headers';
 
 /**
  * @fileOverview Hardened Reset Password API for FromStore2Door OS.
- * Uses explicit token verification and the privileged Admin SDK.
+ * Uses explicit token verification and the privileged Admin SDK to generate recovery links.
  */
 
 export async function POST(request: Request) {
@@ -51,18 +51,18 @@ export async function POST(request: Request) {
         const { data: targetProfile } = await adminClient.from('profiles').select('email').eq('id', userId).single();
         if (!targetProfile?.email) return NextResponse.json({ message: 'Profile not found.' }, { status: 404 });
 
-        // GENERATE AND DISPATCH RESET LINK via Callback
+        // GENERATE AND DISPATCH RESET LINK
         const { error } = await adminClient.auth.admin.generateLink({
             type: 'recovery',
             email: targetProfile.email,
             options: {
-                redirectTo: `${new URL(request.url).origin}/auth/confirm?next=/account/change-password`
+                redirectTo: `${new URL(request.url).origin}/auth/callback?next=/account/change-password`
             }
         });
 
         if (error) throw error;
 
-        // ALSO log the security event
+        // Log the security event
         await adminClient.from('system_logs').insert({
             log_type: 'password_reset_dispatch',
             description: `Security reset link dispatched to ${targetProfile.email}`,
