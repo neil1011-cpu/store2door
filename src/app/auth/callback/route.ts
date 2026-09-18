@@ -17,13 +17,15 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
-      // Successful exchange: Redirect to the destination (e.g., /account/change-password)
+      // Successful exchange: Redirect to the destination
       return NextResponse.redirect(`${origin}${next}`)
     }
     
     console.error('[AUTH CALLBACK ERROR]', error.message)
+    // If the code is invalid or expired, redirect to sign-in with error param
+    return NextResponse.redirect(`${origin}/signin?error=link_expired_or_invalid`)
   }
 
-  // Fallback: If verification fails or code is missing, redirect to sign-in with error
+  // Fallback: If code is missing, redirect home
   return NextResponse.redirect(`${origin}/signin?error=auth_callback_failed`)
 }

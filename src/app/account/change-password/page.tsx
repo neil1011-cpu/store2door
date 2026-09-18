@@ -25,6 +25,7 @@ export default function ChangePasswordPage() {
     const router = useRouter();
 
     useEffect(() => {
+        // Verification: Password update requires an active session (created by /auth/callback)
         if (!isAuthLoading && !user) {
             setSessionError('No active recovery session detected. Please request a new reset link.');
         }
@@ -50,7 +51,18 @@ export default function ChangePasswordPage() {
 
             toast({ title: "Identity Secured", description: "Your new credentials are now active." });
             
-            // Allow a small delay for user to read toast before redirect
+            // Log the activity
+            await fetch('/api/log-activity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'password_reset_success',
+                    description: 'User successfully defined a new access key via recovery flow.',
+                    userId: user?.id
+                })
+            });
+
+            // Small delay for user to read toast before redirect
             setTimeout(() => router.push('/account'), 1500);
         } catch (error: any) {
             console.error("[SECURITY RESET ERROR]", error);

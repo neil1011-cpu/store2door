@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Forgot Password API using Supabase Auth.
- * Dispatches a password reset email with a redirection to the callback for PKCE code exchange.
+ * Dispatches a password reset email via the callback for PKCE code exchange.
  */
 
 export async function POST(request: Request) {
@@ -14,9 +14,11 @@ export async function POST(request: Request) {
 
         const supabase = await createAdminClient();
         
-        // Use /auth/callback to exchange the code for a session before showing the reset form
+        // Construct the full absolute URL for the callback
         const origin = new URL(request.url).origin;
         const redirectTo = `${origin}/auth/callback?next=/account/change-password`;
+
+        console.log(`[AUTH] Dispatching reset link for ${email}. Redirecting to: ${redirectTo}`);
 
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: redirectTo,
