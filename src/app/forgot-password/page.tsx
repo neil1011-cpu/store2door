@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,7 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Loader2, ArrowLeft, Mail } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, ShieldAlert } from 'lucide-react';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -27,6 +26,7 @@ const formSchema = z.object({
 export default function ForgotPasswordPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [isSent, setIsSent] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -50,9 +50,9 @@ export default function ForgotPasswordPage() {
         if (response.ok) {
             toast({
                 title: 'Instructions Dispatched',
-                description: data.message || 'Check your inbox for a secure reset link.',
+                description: 'Check your inbox for a secure reset link.',
             });
-            form.reset();
+            setIsSent(true);
         } else {
             throw new Error(data.message || 'Failed to request reset.');
         }
@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
         console.error("Password reset error:", error);
         toast({
             title: 'System Interruption',
-            description: error.message || 'There was an issue processing your request. Please try again later.',
+            description: error.message || 'There was an issue processing your request.',
             variant: 'destructive',
         });
     } finally {
@@ -81,29 +81,45 @@ export default function ForgotPasswordPage() {
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase opacity-60">Verified Email Address</FormLabel>
-                    <FormControl>
-                      <Input placeholder="you@example.com" {...field} className="h-12 border-2 focus:border-primary" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" size="lg" className="w-full h-14 text-lg font-black uppercase italic shadow-xl" disabled={loading}>
-                 {loading ? <><Loader2 className="mr-2 h-6 w-6 animate-spin" /> Authorizing...</> : 'Dispatch Reset Link'}
-              </Button>
-            </form>
-          </Form>
+          {!isSent ? (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-[10px] font-bold uppercase opacity-60">Verified Email Address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="you@example.com" {...field} className="h-12 border-2 focus:border-primary" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" size="lg" className="w-full h-14 text-lg font-black uppercase italic shadow-xl" disabled={loading}>
+                   {loading ? <><Loader2 className="mr-2 h-6 w-6 animate-spin" /> Authorizing...</> : 'Dispatch Reset Link'}
+                </Button>
+              </form>
+            </Form>
+          ) : (
+            <div className="py-8 text-center space-y-6">
+               <div className="bg-green-50 border-2 border-dashed border-green-200 p-6 rounded-2xl">
+                 <ShieldAlert className="h-10 w-10 text-green-600 mx-auto mb-4" />
+                 <p className="text-sm font-bold uppercase tracking-tight text-green-800">Uplink Successful</p>
+                 <p className="text-xs text-green-700/70 font-medium leading-relaxed mt-2">
+                   We have dispatched a one-time secure link to your registered email. Follow the instructions to finalize your new access key.
+                 </p>
+               </div>
+               <Button variant="outline" className="w-full h-12 font-black uppercase italic border-2" asChild>
+                 <Link href="/signin">Return to Sign In</Link>
+               </Button>
+            </div>
+          )}
+          
           <div className="pt-6 text-center border-t border-dashed flex flex-col gap-4">
-              <Link href="/signin" className="text-xs font-bold text-primary hover:underline flex items-center justify-center gap-2">
-                <ArrowLeft className="h-4 w-4" /> Return to Secure Sign In
+              <Link href="/signin" className="text-xs font-bold text-primary hover:underline flex items-center justify-center gap-2 uppercase tracking-widest">
+                <ArrowLeft className="h-3 w-3" /> Back to Secure Sign In
               </Link>
           </div>
         </CardContent>
