@@ -1,36 +1,31 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getSiteOrigin } from '@/lib/utils'
 
 /**
- * Universal PKCE Callback Handler.
- * Exchanges the code for a session and redirects to the final destination.
+ * @fileOverview Universal PKCE Callback Handler.
+ * Exchanges the authorization code for a session and redirects to the password update interface.
  */
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
+  const { searchParams, origin: requestOrigin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next')
-  const origin = getSiteOrigin(request)
+  
+  // AUTH_FIX: Correctly determine origin from headers to prevent localhost redirection in proxied production environments.
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
+  const protocol = request.headers.get('x-forwarded-proto') || 'https'
+  const origin = host ? `${protocol}://${host}` : requestOrigin
 
   if (code) {
     const supabase = await createClient()
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
     
-    if (!error && data?.session) {
-      // Logic for determining next destination
-      // If we are in a password reset flow, 'next' is usually provided by the application
-      // or we can detect it via context.
-      const defaultNext = '/account';
-      const finalDestination = next || defaultNext;
-
-      return NextResponse.redirect(`${origin}${finalDestination}`)
+    if (!error) {
+      // AUTH_FIX: For recovery flows, explicitly redirect to the unified reset interface.
+      return NextResponse.redirect(`${origin}/reset-password`)
     }
     
-    console.error('[AUTH_CALLBACK] Session exchange failed:', error?.message)
-    return NextResponse.redirect(`${origin}/signin?error=auth_callback_failed`)
+    console.error('[AUTH_CALLBACK] PKCE session exchange failed:', error?.message)
   }
 
-  // Fallback for missing code
-  console.error('[AUTH_CALLBACK] No authorization code found in URL')
+  // Fallback for missing, invalid, or expired recovery codes.
   return NextResponse.redirect(`${origin}/signin?error=link_expired_or_invalid`)
 }

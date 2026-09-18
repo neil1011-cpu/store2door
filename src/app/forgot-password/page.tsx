@@ -34,12 +34,12 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setRateLimited(false);
     try {
-        // Use the browser's actual origin at runtime to avoid build-time env leakage
-        const origin = window.location.origin;
+        // AUTH_FIX: Use absolute browser origin to prevent build-time localhost leakage.
+        // This ensures Supabase receives the correct production domain for the PKCE redirect.
+        const redirectTo = `${window.location.origin}/auth/callback`;
         
-        // Exact matching for Supabase Redirect Whitelist
         const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-            redirectTo: `${origin}/auth/callback?next=/reset-password`
+            redirectTo
         });
 
         if (error) {
@@ -77,7 +77,7 @@ export default function ForgotPasswordPage() {
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle className="text-xs font-black uppercase">Email Rate Limit</AlertTitle>
                 <AlertDescription className="text-[10px] leading-relaxed mt-1">
-                    Supabase allows 1 email per hour by default. Adjust the rate limit in your Supabase Auth settings to unblock testing.
+                    Supabase allows only one authentication email per hour per user by default. Adjust the "Rate Limit" in your Supabase Auth settings to unblock testing.
                 </AlertDescription>
             </Alert>
           )}
