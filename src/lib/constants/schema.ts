@@ -1,7 +1,7 @@
 /**
  * @fileOverview Definitive Production SQL Schema for FromStore2Door OS.
  * This is used by the Setup Admin recovery tool.
- * Updated to include the invoices table and JWT-based Master Admin bypass.
+ * Updated to include the invoices table, transaction types, and atomic triggers.
  */
 
 export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA
@@ -80,6 +80,22 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     legacy_firebase_id text UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS public.system_configs (
+    config_key text PRIMARY KEY,
+    config_value jsonb NOT NULL,
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.sent_emails (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    recipient_email text NOT NULL,
+    recipient_name text,
+    subject text,
+    body_content text,
+    status text,
+    sent_at timestamptz DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS public.system_logs (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     log_type text NOT NULL,
@@ -92,17 +108,14 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
 -- 4. FUNCTIONS
 CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
 BEGIN 
-  IF EXISTS (SELECT 1 FROM public.app_roles WHERE user_id = auth.uid() AND role = 'admin') THEN
-    RETURN TRUE;
-  END IF;
   IF (auth.jwt() ->> 'email') = 'admin@neilussolutions.com' THEN
     RETURN TRUE;
   END IF;
-  RETURN FALSE;
+  RETURN EXISTS (SELECT 1 FROM public.app_roles WHERE user_id = auth.uid() AND role = 'admin'); 
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- ATOMIC BALANCE SYNC
+-- ATOMIC BALANCE SYNC TRIGGER
 CREATE OR REPLACE FUNCTION public.sync_profile_balance()
 RETURNS trigger AS $$
 BEGIN
@@ -132,8 +145,10 @@ ALTER TABLE public.pre_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shipments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Financial ledger access" ON public.financial_ledger FOR ALL USING (auth.uid() = profile_id OR is_admin());
-CREATE POLICY "Invoices access" ON public.invoices FOR SELECT USING (auth.uid() = profile_id OR is_admin());
+CREATE POLICY "Invoices access" ON public.invoices FOR ALL USING (auth.uid() = profile_id OR is_admin());
 CREATE POLICY "Profiles access" ON public.profiles FOR SELECT USING (auth.uid() = id OR is_admin());
+CREATE POLICY "Pre-alerts access" ON public.pre_alerts FOR ALL USING (auth.uid() = profile_id OR is_admin());
+CREATE POLICY "Shipments access" ON public.shipments FOR ALL USING (auth.uid() = profile_id OR is_admin());
 
 -- FORCE SCHEMA RELOAD
 NOTIFY pgrst, 'reload schema';`;

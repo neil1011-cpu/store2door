@@ -87,10 +87,10 @@ export function UserHeader() {
              {showAuthActions ? (
                 <>
                     <Button asChild variant="ghost" size="sm" className="font-bold hidden sm:flex"><Link href="/signin">Sign In</Link></Button>
-                    <Button asChild size="sm" className="font-bold"><Link href="/signup">Sign Up</Link></Button>
+                    <Button asChild size="sm" className="font-bold h-9 px-6"><Link href="/signup">Sign Up</Link></Button>
                 </>
              ) : (
-                <Button asChild size="sm" className="font-bold"><Link href="/account"><User className="mr-2 h-4 w-4" /> Account</Link></Button>
+                <Button asChild size="sm" className="font-bold h-9 px-6"><Link href="/account"><User className="mr-2 h-4 w-4" /> Account</Link></Button>
              )}
         </div>
       </div>
