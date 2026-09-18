@@ -29,15 +29,15 @@ export function calculateShippingCost(weight: number): number {
 
 /**
  * Robustly determines the site origin for redirects.
- * Essential for Firebase App Hosting where the internal URL may be localhost.
+ * Updated to trust production headers and environment variables over localhost defaults.
  */
 export function getSiteOrigin(request?: Request): string {
-    // 1. Environment variable is the source of truth for production
+    // 1. Environment variable is the absolute source of truth
     if (process.env.NEXT_PUBLIC_SITE_URL) {
         return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
     }
 
-    // 2. Client-side fallback (Guaranteed correct in browser)
+    // 2. Client-side fallback
     if (typeof window !== 'undefined') {
         return window.location.origin;
     }
@@ -47,7 +47,7 @@ export function getSiteOrigin(request?: Request): string {
         const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
         const proto = request.headers.get('x-forwarded-proto') || 'https';
         
-        if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+        if (host) {
             return `${proto}://${host}`;
         }
     }

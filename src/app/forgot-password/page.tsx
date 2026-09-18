@@ -10,9 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Loader2, ArrowLeft, Mail, ShieldAlert } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, ShieldAlert, AlertCircle } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import { getSiteOrigin } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Enter a valid registered email.' }),
@@ -23,6 +24,7 @@ export default function ForgotPasswordPage() {
   const { supabase } = useSupabase();
   const [loading, setLoading] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -31,15 +33,23 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
+    setRateLimited(false);
     try {
         const origin = getSiteOrigin();
-        // Redirect through callback to /reset-password
-        // Explicitly targeting the callback route for PKCE exchange
+        
+        // Exact matching for Supabase Redirect Whitelist
+        // We use the clean callback path and let the callback route handle the final destination.
         const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-            redirectTo: `${origin}/auth/callback?next=/reset-password`
+            redirectTo: `${origin}/auth/callback`
         });
 
-        if (error) throw error;
+        if (error) {
+            if (error.status === 429 || error.message.toLowerCase().includes('rate limit')) {
+                setRateLimited(true);
+                throw new Error("Supabase security limit reached.");
+            }
+            throw error;
+        }
 
         toast({ title: 'Link Dispatched', description: 'Check your inbox for security instructions.' });
         setIsSent(true);
@@ -63,6 +73,21 @@ export default function ForgotPasswordPage() {
             <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Request access key restoration.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {rateLimited && (
+            <Alert variant="destructive" className="bg-destructive/5 border-dashed">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle className="text-xs font-black uppercase">Email Rate Limit</AlertTitle>
+                <AlertDescription className="text-[10px] leading-relaxed mt-1">
+                    Supabase allows 1 email per hour by default. To unblock testing:
+                    <ol className="list-decimal pl-4 mt-2 space-y-1">
+                        <li>Go to Supabase Dashboard > Authentication</li>
+                        <li>Provider Settings > Email</li>
+                        <li>Set "Rate Limit" to 1 second and Save.</li>
+                    </ol>
+                </AlertDescription>
+            </Alert>
+          )}
+
           {!isSent ? (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
