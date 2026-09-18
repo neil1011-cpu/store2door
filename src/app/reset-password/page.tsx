@@ -13,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 /**
  * Universal Set New Password Page.
+ * This page is shown after the /auth/callback exchanges the PKCE code for a session.
  */
 export default function ResetPasswordPage() {
     const [newPassword, setNewPassword] = useState('');
@@ -24,19 +25,19 @@ export default function ResetPasswordPage() {
     const router = useRouter();
 
     useEffect(() => {
-        // Recovery requires an active session established by the /auth/callback
+        // Verification: If auth loading is done and there's no user, the callback failed to establish a session
         if (!isAuthLoading && !user) {
-            setSessionError('Security session missing. Please request a new recovery link from the entry portal.');
+            setSessionError('Security session missing. The reset link may have expired or was used already.');
         }
     }, [user, isAuthLoading]);
 
     const handleUpdate = async () => {
         if (!newPassword || newPassword.length < 8) {
-            toast({ title: "Validation Error", description: "Minimum 8 characters required.", variant: "destructive" });
+            toast({ title: "Security Alert", description: "Minimum 8 characters required.", variant: "destructive" });
             return;
         }
         if (newPassword !== confirmPassword) {
-            toast({ title: "Mismatch", description: "Confirm password does not match.", variant: "destructive" });
+            toast({ title: "Mismatch", description: "Verification password does not match.", variant: "destructive" });
             return;
         }
 
@@ -45,7 +46,7 @@ export default function ResetPasswordPage() {
             const { error } = await supabase.auth.updateUser({ password: newPassword });
             if (error) throw error;
 
-            toast({ title: "Access Key Updated", description: "Your new credentials are now active." });
+            toast({ title: "Access Key Updated", description: "Identity registry updated successfully." });
             setTimeout(() => router.push('/account'), 1500);
         } catch (error: any) {
             toast({ title: "Update Failed", description: error.message, variant: "destructive" });
@@ -55,7 +56,12 @@ export default function ResetPasswordPage() {
     };
 
     if (isAuthLoading) {
-        return <div className="container mx-auto py-24 flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
+        return (
+            <div className="container mx-auto py-24 flex flex-col items-center justify-center min-h-[60vh]">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Verifying Security Session...</p>
+            </div>
+        );
     }
 
     return (
@@ -70,10 +76,12 @@ export default function ResetPasswordPage() {
                     {sessionError ? (
                         <Alert variant="destructive" className="bg-destructive/5 border-dashed">
                             <AlertCircle className="h-5 w-5" />
-                            <AlertTitle className="text-xs font-black uppercase">Unauthorized</AlertTitle>
+                            <AlertTitle className="text-xs font-black uppercase">Authentication Error</AlertTitle>
                             <AlertDescription className="text-xs leading-relaxed mt-2">
                                 {sessionError}
-                                <Button variant="link" className="p-0 h-auto font-black uppercase text-[10px] ml-2" onClick={() => router.push('/forgot-password')}>Request Link</Button>
+                                <div className="mt-4">
+                                    <Button variant="outline" className="w-full h-10 font-black uppercase text-[10px]" onClick={() => router.push('/forgot-password')}>Request New Link</Button>
+                                </div>
                             </AlertDescription>
                         </Alert>
                     ) : (
@@ -100,7 +108,7 @@ export default function ResetPasswordPage() {
                             {isUpdating ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <CheckCircle2 className="mr-2 h-6 w-6" />} Finalize Protocol
                         </Button>
                     ) : (
-                        <Button variant="outline" onClick={() => router.push('/signin')} className="w-full h-12 font-black uppercase italic border-2">Return to Login</Button>
+                        <Button variant="ghost" onClick={() => router.push('/signin')} className="w-full h-12 font-black uppercase italic opacity-60">Return to Sign In</Button>
                     )}
                 </CardFooter>
             </Card>

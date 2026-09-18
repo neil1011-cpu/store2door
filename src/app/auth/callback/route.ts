@@ -21,10 +21,11 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}${next}`)
     }
     
-    console.error('[AUTH_CALLBACK] Exchange failed:', error.message)
+    console.error('[AUTH_CALLBACK] Session exchange failed:', error.message)
     return NextResponse.redirect(`${origin}/signin?error=link_expired_or_invalid`)
   }
 
   // Fallback for missing code
+  console.error('[AUTH_CALLBACK] No authorization code found in URL')
   return NextResponse.redirect(`${origin}/signin?error=auth_callback_failed`)
 }

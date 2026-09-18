@@ -34,16 +34,21 @@ export default function ForgotPasswordPage() {
     try {
         const origin = getSiteOrigin();
         // Redirect through callback to /reset-password
+        // Explicitly targeting the callback route for PKCE exchange
         const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
             redirectTo: `${origin}/auth/callback?next=/reset-password`
         });
 
         if (error) throw error;
 
-        toast({ title: 'Link Dispatched', description: 'Authorize your reset via the email instructions.' });
+        toast({ title: 'Link Dispatched', description: 'Check your inbox for security instructions.' });
         setIsSent(true);
     } catch (error: any) {
-        toast({ title: 'Request Denied', description: error.message, variant: 'destructive' });
+        toast({ 
+            title: 'Request Denied', 
+            description: error.message, 
+            variant: 'destructive' 
+        });
     } finally {
         setLoading(false);
     }
@@ -78,7 +83,7 @@ export default function ForgotPasswordPage() {
                <div className="bg-green-50 border-2 border-dashed border-green-200 p-6 rounded-2xl">
                  <ShieldAlert className="h-10 w-10 text-green-600 mx-auto mb-4" />
                  <p className="text-sm font-bold uppercase tracking-tight text-green-800">Dispatch Successful</p>
-                 <p className="text-xs text-green-700/70 font-medium leading-relaxed mt-2">Instructions have been sent to your inbox. Follow the secure link to define your new access key.</p>
+                 <p className="text-xs text-green-700/70 font-medium leading-relaxed mt-2">Follow the link in your email to define your new access key.</p>
                </div>
                <Button variant="outline" className="w-full h-12 font-black uppercase italic border-2" asChild><Link href="/signin">Return to Sign In</Link></Button>
             </div>

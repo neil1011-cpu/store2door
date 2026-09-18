@@ -37,7 +37,7 @@ export function getSiteOrigin(request?: Request): string {
         return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
     }
 
-    // 2. Client-side fallback
+    // 2. Client-side fallback (Guaranteed correct in browser)
     if (typeof window !== 'undefined') {
         return window.location.origin;
     }
