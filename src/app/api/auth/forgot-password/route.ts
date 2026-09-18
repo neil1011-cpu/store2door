@@ -3,44 +3,24 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getSiteOrigin } from '@/lib/utils';
 
 /**
- * @fileOverview Forgot Password API using Supabase Auth.
- * Dispatches a password reset email via the callback for PKCE code exchange.
+ * Forgot Password API for manual dispatches.
  */
-
 export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { email } = body;
-        if (!email) return NextResponse.json({ message: 'Email identifier required.' }, { status: 400 });
+        if (!email) return NextResponse.json({ message: 'Email required.' }, { status: 400 });
 
         const supabase = await createAdminClient();
-        
-        // Construct the full absolute URL for the callback using robust origin detection
         const origin = getSiteOrigin(request);
-        const redirectTo = `${origin}/auth/callback?next=/account/change-password`;
+        const redirectTo = `${origin}/auth/callback?next=/reset-password`;
 
-        console.log(`[AUTH] Dispatching reset link for ${email}. Redirecting to: ${redirectTo}`);
-
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: redirectTo,
-        });
-
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
         if (error) throw error;
 
-        // Log the attempt in system logs for audit
-        await supabase.from('system_logs').insert({
-            log_type: 'recovery_request',
-            description: `Password recovery protocol initiated for ${email}.`,
-            metadata: { email, redirectTo }
-        });
-
-        return NextResponse.json({ 
-            success: true, 
-            message: 'Reset instructions dispatched via Supabase.' 
-        });
-
+        return NextResponse.json({ success: true, message: 'Reset link dispatched.' });
     } catch (error: any) {
-        console.error('[FORGOT PASSWORD ERROR]:', error.message);
+        console.error('[API_FORGOT_PASSWORD] FATAL:', error.message);
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }

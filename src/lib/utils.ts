@@ -17,57 +17,38 @@ export const pricingTiers: Record<number, number> = {
 
 /**
  * Calculates the shipping cost based on weight (lbs).
- * Implements standard tiers + linear interpolation for mid-ranges.
  */
 export function calculateShippingCost(weight: number): number {
     if (!weight || weight <= 0) return 0;
     const roundedWeight = Math.ceil(weight);
-    
-    // Exact Tier Match
-    if (roundedWeight in pricingTiers) {
-        return pricingTiers[roundedWeight];
-    }
-    
-    // Range: 11 - 22 lbs
-    if (roundedWeight > 10 && roundedWeight < 23) {
-        return 4850 + (roundedWeight - 10) * 450;
-    }
-    
-    // Range: 31+ lbs
-    if (roundedWeight > 30) {
-        return 12250 + (roundedWeight - 30) * 400;
-    }
-
-    return 12250; // Fallback to max tier
+    if (roundedWeight in pricingTiers) return pricingTiers[roundedWeight];
+    if (roundedWeight > 10 && roundedWeight < 23) return 4850 + (roundedWeight - 10) * 450;
+    if (roundedWeight > 30) return 12250 + (roundedWeight - 30) * 400;
+    return 12250;
 }
 
 /**
  * Robustly determines the site origin for redirects.
- * Prioritizes environment variables, then proxy headers, then falls back to request URL.
+ * Essential for Firebase App Hosting where the internal URL may be localhost.
  */
 export function getSiteOrigin(request?: Request): string {
-    // 1. Prioritize configured environment variable (Crucial for production)
+    // 1. Environment variable is the source of truth for production
     if (process.env.NEXT_PUBLIC_SITE_URL) {
         return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
     }
 
-    // 2. Browser context
+    // 2. Client-side fallback
     if (typeof window !== 'undefined') {
         return window.location.origin;
     }
 
-    // 3. Server context with proxy headers (Handles Firebase App Hosting correctly)
+    // 3. Server-side proxy header detection
     if (request) {
-        const forwardedHost = request.headers.get('x-forwarded-host');
-        const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+        const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+        const proto = request.headers.get('x-forwarded-proto') || 'https';
         
-        if (forwardedHost) {
-            return `${forwardedProto}://${forwardedHost}`;
-        }
-        
-        const host = request.headers.get('host');
         if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-            return `${forwardedProto}://${host}`;
+            return `${proto}://${host}`;
         }
     }
 
