@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -33,30 +32,24 @@ import {
   Banknote,
   Building2,
   Trash2,
-  Edit3,
   FileDown,
   TrendingDown,
   TrendingUp,
-  History,
   DollarSign
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
 import { cn } from '@/lib/utils';
-import type { UserProfile, Invoice } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { 
     Dialog, 
     DialogContent, 
-    DialogDescription, 
     DialogHeader, 
     DialogTitle, 
-    DialogFooter, 
-    DialogClose 
+    DialogFooter 
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Switch } from '@/components/ui/switch';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -66,10 +59,11 @@ export default function POSPage() {
     const receiptRef = useRef<HTMLDivElement>(null);
     
     const [searchTerm, setSearchTerm] = useState('');
-    const [users, setUsers] = useState<any[]>([]);
+    const [searchResults, setSearchResults] = useState<any[]>([]);
     const [selectedUser, setSelectedUser] = useState<any | null>(null);
     const [userInvoices, setUserInvoices] = useState<any[]>([]);
     const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
     
     const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -78,71 +72,53 @@ export default function POSPage() {
     const [checkoutComplete, setCheckoutComplete] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     
-    const [useManualAmount, setUseManualAmount] = useState(false);
-    const [manualAmount, setManualAmount] = useState('');
     const [receiptData, setReceiptData] = useState<any | null>(null);
 
     // Fetch users based on search
     useEffect(() => {
         if (!searchTerm || searchTerm.length < 2) {
-            setUsers([]);
+            setSearchResults([]);
             return;
         }
 
         const findUsers = async () => {
+            setIsSearching(true);
             const { data } = await supabase
                 .from('profiles')
                 .select('*')
                 .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mailbox_number.ilike.%${searchTerm}%`)
                 .limit(5);
-            setUsers(data || []);
+            setSearchResults(data || []);
+            setIsSearching(false);
         };
 
         const timer = setTimeout(findUsers, 300);
         return () => clearTimeout(timer);
     }, [searchTerm, supabase]);
 
-    // Fetch invoices when user is selected
-    useEffect(() => {
-        if (!selectedUser) {
-            setUserInvoices([]);
-            return;
-        }
+    // Fetch invoices and refresh profile when user is selected
+    const refreshUserData = async (userId: string) => {
+        setIsLoadingInvoices(true);
+        try {
+            const [profileRes, invoicesRes] = await Promise.all([
+                supabase.from('profiles').select('*').eq('id', userId).single(),
+                supabase.from('invoices').select('*').eq('profile_id', userId).eq('status', 'Unpaid')
+            ]);
 
-        const fetchInvoices = async () => {
-            setIsLoadingInvoices(true);
-            const { data } = await supabase
-                .from('invoices')
-                .select('*')
-                .eq('profile_id', selectedUser.id)
-                .eq('status', 'Unpaid');
-            setUserInvoices(data || []);
+            if (profileRes.data) setSelectedUser(profileRes.data);
+            setUserInvoices(invoicesRes.data || []);
+        } catch (error) {
+            console.error("POS DATA FETCH ERROR", error);
+        } finally {
             setIsLoadingInvoices(false);
-        };
-
-        fetchInvoices();
-    }, [selectedUser, supabase]);
-
-    const calculatedSelectedTotal = useMemo(() => {
-        return userInvoices
-            .filter(inv => selectedInvoices.has(inv.id))
-            .reduce((sum, inv) => sum + Number(inv.amount), 0);
-    }, [userInvoices, selectedInvoices]);
-
-    const totalOutstandingInvoices = useMemo(() => {
-        return userInvoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
-    }, [userInvoices]);
-
-    const finalAmount = useMemo(() => {
-        if (useManualAmount) return parseFloat(manualAmount) || 0;
-        return calculatedSelectedTotal;
-    }, [useManualAmount, manualAmount, calculatedSelectedTotal]);
+        }
+    };
 
     const handleSelectUser = (user: any) => {
-        setSelectedUser(user);
         setSearchTerm('');
+        setSearchResults([]);
         setSelectedInvoices(new Set());
-        setUseManualAmount(false);
+        refreshUserData(user.id);
     };
 
     const toggleInvoice = (invoiceId: string) => {
@@ -152,12 +128,19 @@ export default function POSPage() {
         setSelectedInvoices(next);
     };
 
+    const calculatedSelectedTotal = useMemo(() => {
+        return userInvoices
+            .filter(inv => selectedInvoices.has(inv.id))
+            .reduce((sum, inv) => sum + Number(inv.amount), 0);
+    }, [userInvoices, selectedInvoices]);
+
     const handleProcessPayment = async () => {
         if (!selectedUser) return;
         setIsProcessing(true);
         
         try {
             const itemsToSnap = userInvoices.filter(inv => selectedInvoices.has(inv.id));
+            const totalToSettle = calculatedSelectedTotal;
 
             // 1. Update Invoices
             await supabase
@@ -165,12 +148,12 @@ export default function POSPage() {
                 .update({ status: 'Paid' })
                 .in('id', Array.from(selectedInvoices));
 
-            // 2. Record in Financial Ledger (Triggers update profiles.wallet_balance automatically)
+            // 2. Record in Financial Ledger
             const { error: ledgerError } = await supabase.from('financial_ledger').insert({
                 profile_id: selectedUser.id,
-                amount: finalAmount, // Positive for payment
+                amount: totalToSettle, 
                 transaction_type: 'payment',
-                description: `POS Payment via ${paymentMethod} - MAILBOX ${selectedUser.mailbox_number}`
+                description: `POS Payment via ${paymentMethod}`
             });
 
             if (ledgerError) throw ledgerError;
@@ -178,21 +161,24 @@ export default function POSPage() {
             // 3. System Log
             await supabase.from('system_logs').insert({
                 log_type: 'pos_transaction',
-                description: `POS Checkout Complete: ${selectedUser.full_name}. JMD $${finalAmount.toLocaleString()}`,
+                description: `POS Checkout Complete: ${selectedUser.full_name}. JMD $${totalToSettle.toLocaleString()}`,
                 actor_id: (await supabase.auth.getUser()).data.user?.id,
-                metadata: { customerId: selectedUser.id, method: paymentMethod, amount: finalAmount }
+                metadata: { customerId: selectedUser.id, method: paymentMethod, amount: totalToSettle }
             });
 
             setReceiptData({
                 customer: selectedUser,
                 items: itemsToSnap,
-                total: finalAmount,
+                total: totalToSettle,
                 method: paymentMethod,
                 date: new Date()
             });
 
             setCheckoutComplete(true);
             toast({ title: "Payment Secured", description: "Registry items marked as paid and account credited." });
+            
+            // Refresh state for next step or persistence
+            refreshUserData(selectedUser.id);
         } catch (error: any) {
             toast({ title: "Checkout Error", description: error.message, variant: "destructive" });
         } finally {
@@ -282,16 +268,16 @@ export default function POSPage() {
                         <CardContent className="pt-6">
                             {!selectedUser ? (
                                 <div className="relative">
-                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground", isSearching && "animate-pulse")} />
                                     <Input 
                                         placeholder="SEARCH NAME, EMAIL, OR MAILBOX #..." 
                                         className="h-16 pl-12 text-xl font-bold uppercase border-4 border-muted focus:border-primary transition-all"
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
                                     />
-                                    {users.length > 0 && (
+                                    {searchResults.length > 0 && (
                                         <div className="absolute w-full mt-2 bg-background border-2 rounded-xl shadow-2xl z-50 overflow-hidden">
-                                            {users.map(u => (
+                                            {searchResults.map(u => (
                                                 <div key={u.id} onClick={() => handleSelectUser(u)} className="p-4 hover:bg-primary/5 cursor-pointer flex items-center justify-between border-b last:border-0">
                                                     <div><p className="font-black text-primary uppercase">{u.full_name}</p><p className="text-xs font-bold text-muted-foreground">{u.email}</p></div>
                                                     <Badge className="h-8 px-4 text-sm font-black italic tracking-tighter uppercase">{u.mailbox_number}</Badge>
@@ -306,13 +292,11 @@ export default function POSPage() {
                                         <div className="flex items-center gap-3"><p className="text-4xl font-black italic uppercase tracking-tighter">{selectedUser.full_name}</p><Badge className="bg-white/20 text-white uppercase text-[10px] font-black italic">{selectedUser.mailbox_number}</Badge></div>
                                         <p className="font-bold opacity-80 uppercase tracking-widest text-[10px] mt-1">{selectedUser.email}</p>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-8 text-right">
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase opacity-60">Ledger Standing</p>
-                                            <div className="flex items-center justify-end gap-2">
-                                                {Number(selectedUser.wallet_balance) < 0 ? <TrendingDown className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
-                                                <span className="text-4xl font-black italic tracking-tighter">JMD ${Math.abs(Number(selectedUser.wallet_balance || 0)).toLocaleString()}</span>
-                                            </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-bold uppercase opacity-60">Ledger Standing</p>
+                                        <div className="flex items-center justify-end gap-2">
+                                            {Number(selectedUser.wallet_balance) < 0 ? <TrendingDown className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
+                                            <span className="text-4xl font-black italic tracking-tighter">JMD ${Math.abs(Number(selectedUser.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                         </div>
                                     </div>
                                     <Button variant="ghost" onClick={() => setSelectedUser(null)} className="text-white hover:bg-white/10 h-12 w-12 rounded-full"><X className="h-6 w-6" /></Button>
@@ -340,7 +324,7 @@ export default function POSPage() {
                                         <TableRow>
                                             <TableHead className="w-[50px] pl-6"></TableHead>
                                             <TableHead className="text-[10px] font-black uppercase">Invoice #</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase">Memo</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
                                             <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Total</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -348,9 +332,9 @@ export default function POSPage() {
                                         {userInvoices.map((inv) => (
                                             <TableRow key={inv.id} className={cn("hover:bg-primary/5 cursor-pointer h-20", selectedInvoices.has(inv.id) && "bg-primary/10")} onClick={() => toggleInvoice(inv.id)}>
                                                 <TableCell className="pl-6"><Checkbox checked={selectedInvoices.has(inv.id)} onCheckedChange={() => toggleInvoice(inv.id)} className="h-6 w-6 border-2" /></TableCell>
-                                                <TableCell className="font-mono font-black text-primary uppercase text-sm">{inv.invoice_number || inv.id.slice(0,8)}</TableCell>
-                                                <TableCell className="text-xs uppercase font-bold opacity-60">Logistics Service</TableCell>
-                                                <TableCell className="text-right pr-6 font-black text-xl tracking-tighter">JMD ${Number(inv.amount).toLocaleString()}</TableCell>
+                                                <TableCell className="font-mono font-black text-primary uppercase text-sm">{inv.invoice_number}</TableCell>
+                                                <TableCell className="text-[10px] font-medium opacity-60">{new Date(inv.created_at).toLocaleDateString()}</TableCell>
+                                                <TableCell className="text-right pr-6 font-black text-xl tracking-tighter">JMD ${Number(inv.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -365,17 +349,16 @@ export default function POSPage() {
                         <CardHeader className="pb-8"><CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Checkout Terminal</CardTitle></CardHeader>
                         <CardContent className="space-y-8">
                             <div className="space-y-4">
-                                <div className="flex justify-between items-center text-sm font-bold uppercase tracking-widest opacity-60"><span>Tendered Amount</span></div>
                                 <div className="text-center space-y-2 py-4">
                                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Authorized Grand Total</p>
-                                    <div className="flex items-center justify-center gap-2"><span className="text-2xl font-bold opacity-30 text-primary">JMD</span><span className="text-6xl font-black italic tracking-tighter text-white">${calculatedSelectedTotal.toLocaleString()}</span></div>
+                                    <div className="flex items-center justify-center gap-2"><span className="text-2xl font-bold opacity-30 text-primary">JMD</span><span className="text-6xl font-black italic tracking-tighter text-white">${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
                                 </div>
                             </div>
                             <div className="space-y-4 pt-4 border-t border-white/10">
                                 <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Form of Tender</Label>
                                 <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-3 gap-2">
                                     {['Cash', 'Card', 'Transfer'].map(m => (
-                                        <Label key={m} className={cn("flex flex-col items-center justify-center p-3 rounded-xl border-2 border-white/10 cursor-pointer hover:bg-white/5", paymentMethod === m && "border-primary bg-primary/10 text-primary")}>
+                                        <Label key={m} className={cn("flex flex-col items-center justify-center p-3 rounded-xl border-2 border-white/10 cursor-pointer hover:bg-white/5 transition-colors", paymentMethod === m && "border-primary bg-primary/10 text-primary")}>
                                             {m === 'Cash' ? <Banknote /> : m === 'Card' ? <CreditCard /> : <Building2 />}
                                             <span className="text-[9px] font-black uppercase italic mt-1">{m}</span><RadioGroupItem value={m} className="sr-only" />
                                         </Label>
@@ -401,7 +384,7 @@ export default function POSPage() {
                         <div className="space-y-6 py-6">
                             <div className="p-6 rounded-2xl bg-muted/30 border-2 border-dashed flex flex-col items-center gap-4 text-center">
                                 <DollarSign className="h-12 w-12 text-primary animate-bounce" />
-                                <div><p className="text-[10px] font-black uppercase opacity-60">Confirm Receipt of Funds</p><p className="text-4xl font-black tracking-tighter">JMD ${calculatedSelectedTotal.toLocaleString()}</p></div>
+                                <div><p className="text-[10px] font-black uppercase opacity-60">Confirm Receipt of Funds</p><p className="text-4xl font-black tracking-tighter">JMD ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p></div>
                             </div>
                             <Button onClick={handleProcessPayment} disabled={isProcessing} className="w-full h-14 font-black uppercase italic tracking-tight">{isProcessing ? <Loader2 className="animate-spin" /> : "Authorize Settlement"}</Button>
                         </div>

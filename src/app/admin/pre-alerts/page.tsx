@@ -1,13 +1,12 @@
-
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, Download, FileText, Zap, RefreshCw, Eye, CheckCircle2, AlertCircle, Weight, DollarSign, User } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -32,7 +31,6 @@ export default function PreAlertsPage() {
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            // Parallel fetch of pending alerts and the user registry
             const [paRes, usersRes] = await Promise.all([
                 supabase.from('pre_alerts').select('*, profiles(full_name)').eq('status', 'Pending').order('submission_date', { ascending: false }),
                 supabase.from('profiles').select('*').order('full_name', { ascending: true })
@@ -54,7 +52,6 @@ export default function PreAlertsPage() {
     useEffect(() => {
         fetchData();
         
-        // Real-time subscription to the pre-alerts queue
         const channel = supabase.channel('pre-alert-queue-sync')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'pre_alerts' }, () => {
                 fetchData();
@@ -95,7 +92,7 @@ export default function PreAlertsPage() {
 
     const handleProcessIntake = async (alert: any, verifiedWeight: number, calculatedCost: number) => {
         try {
-            // 1. Establish the shipment record
+            // 1. Create Shipment
             const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
                 profile_id: alert.profile_id,
                 tracking_number: alert.tracking_number,
@@ -108,7 +105,7 @@ export default function PreAlertsPage() {
 
             if (shipError) throw shipError;
 
-            // 2. Issue the invoice
+            // 2. Issue Invoice
             await supabase.from('invoices').insert({
                 profile_id: alert.profile_id,
                 amount: calculatedCost,
@@ -116,26 +113,25 @@ export default function PreAlertsPage() {
                 invoice_number: `INV-${alert.tracking_number.slice(-4)}-${Date.now().toString().slice(-4)}`
             });
 
-            // 3. Charge the client ledger
+            // 3. Charge Ledger
             await supabase.from('financial_ledger').insert({
                 profile_id: alert.profile_id,
-                amount: -calculatedCost, // Negative indicates a charge
+                amount: -calculatedCost,
                 transaction_type: 'shipping_fee',
-                description: `Shipping Fee: ${alert.tracking_number} (${verifiedWeight} lbs)`
+                description: `Shipping Fee: ${alert.tracking_number}`
             });
 
             // 4. Mark documentation as processed
             await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
 
-            // 5. System audit log
+            // 5. System Log
             await supabase.from('system_logs').insert({
                 log_type: 'intake_processed',
-                description: `Package intake complete for ${alert.tracking_number}. Weight: ${verifiedWeight} lbs. Cost: JMD $${calculatedCost.toLocaleString()}`,
-                actor_id: (await supabase.auth.getUser()).data.user?.id,
-                metadata: { trackingNumber: alert.tracking_number, profileId: alert.profile_id }
+                description: `Package intake complete for ${alert.tracking_number}.`,
+                actor_id: (await supabase.auth.getUser()).data.user?.id
             });
 
-            toast({ title: "Intake Secured", description: "Package moved to transit and client ledger debited." });
+            toast({ title: "Intake Secured" });
             fetchData();
         } catch (error: any) {
             toast({ title: "Intake Failure", description: error.message, variant: "destructive" });
@@ -146,7 +142,7 @@ export default function PreAlertsPage() {
         return (
             <div className="flex h-screen items-center justify-center flex-col gap-4">
                 <Loader2 className="animate-spin h-10 w-10 text-primary" />
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Syncing Universal Registry...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Syncing Registry...</p>
             </div>
         );
     }
@@ -170,7 +166,6 @@ export default function PreAlertsPage() {
                         <DialogContent className="sm:max-w-md">
                             <DialogHeader>
                                 <DialogTitle className="uppercase italic tracking-tighter text-center text-2xl">Manual Registry Entry</DialogTitle>
-                                <DialogDescription className="text-center font-bold text-[10px] uppercase tracking-widest">Register a documented alert on behalf of a client</DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                 <div className="space-y-1">
@@ -247,7 +242,6 @@ export default function PreAlertsPage() {
                     <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
                         <Zap className="h-4 w-4 text-primary" /> Incoming Documentation Stream
                     </CardTitle>
-                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Process customer dispatches for customs clearance and hub intake.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
@@ -266,7 +260,7 @@ export default function PreAlertsPage() {
                                     <TableCell className="pl-6">
                                         <div className="flex flex-col">
                                             <span className="font-black text-sm uppercase">{alert.profiles?.full_name || 'Legacy Account'}</span>
-                                            <span className="text-[9px] font-bold opacity-60 uppercase truncate max-w-[150px]">{alert.contents || 'No Description Provided'}</span>
+                                            <span className="text-[9px] font-bold opacity-60 uppercase truncate max-w-[150px]">{alert.contents || 'No Description'}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell className="font-mono font-black text-primary uppercase text-sm">{alert.tracking_number}</TableCell>
@@ -276,9 +270,7 @@ export default function PreAlertsPage() {
                                         <div className="flex justify-end gap-2">
                                             {alert.invoice_url && (
                                                 <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase italic text-[10px] border-2">
-                                                    <Link href={alert.invoice_url} target="_blank">
-                                                        <FileText className="mr-2 h-3.5 w-3.5" /> View Invoice
-                                                    </Link>
+                                                    <Link href={alert.invoice_url} target="_blank">View Invoice</Link>
                                                 </Button>
                                             )}
                                             <IntakeDialog alert={alert} onProcess={handleProcessIntake} />
@@ -305,16 +297,12 @@ function IntakeDialog({ alert, onProcess }: { alert: any, onProcess: (a: any, w:
     const [open, setOpen] = useState(false);
     const [weight, setWeight] = useState(alert.weight_lbs?.toString() || '');
     const [cost, setCost] = useState('');
-    const [isCalculating, setIsCalculating] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
         const w = parseFloat(weight);
         if (!isNaN(w) && w > 0) {
-            setIsCalculating(true);
-            const calculated = calculateShippingCost(w);
-            setCost(calculated.toString());
-            setIsCalculating(false);
+            setCost(calculateShippingCost(w).toString());
         } else {
             setCost('');
         }
@@ -341,42 +329,22 @@ function IntakeDialog({ alert, onProcess }: { alert: any, onProcess: (a: any, w:
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <Label className="text-[10px] font-bold uppercase opacity-60">Verified Weight (LBS)</Label>
-                            <Input 
-                                type="number" 
-                                value={weight} 
-                                onChange={e => setWeight(e.target.value)} 
-                                className="h-14 text-2xl font-black border-2" 
-                            />
+                            <Input type="number" value={weight} onChange={e => setWeight(e.target.value)} className="h-14 text-2xl font-black border-2" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[10px] font-bold uppercase opacity-60">Calculated Cost (JMD $)</Label>
-                            <div className="relative">
-                                <Input 
-                                    type="number" 
-                                    value={cost} 
-                                    onChange={e => setCost(e.target.value)} 
-                                    className="h-14 text-2xl font-black border-2 pl-14" 
-                                />
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs opacity-40">JMD $</span>
-                                {isCalculating && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />}
-                            </div>
+                            <Input type="number" value={cost} readOnly className="h-14 text-2xl font-black border-2 bg-muted/50" />
                         </div>
                     </div>
-                    <Alert className="bg-amber-50 border-amber-200">
-                        <DollarSign className="h-4 w-4 text-amber-600" />
-                        <AlertDescription className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
-                            Authorizing this intake will instantly debit **JMD ${parseFloat(cost || '0').toLocaleString()}** from the client's credit ledger.
-                        </AlertDescription>
-                    </Alert>
                 </div>
                 <DialogFooter className="gap-2">
                     <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
                     <Button 
                         onClick={handleConfirm} 
-                        disabled={isProcessing || !cost || parseFloat(weight) <= 0} 
+                        disabled={isProcessing || !cost} 
                         className="flex-1 h-12 font-black uppercase italic shadow-xl"
                     >
-                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
+                        {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
                         Authorize Intake
                     </Button>
                 </DialogFooter>
