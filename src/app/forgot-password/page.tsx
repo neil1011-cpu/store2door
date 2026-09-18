@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2, ArrowLeft, Mail, ShieldAlert } from 'lucide-react';
+import { useSupabase } from '@/components/supabase-provider';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -25,6 +26,7 @@ const formSchema = z.object({
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast();
+  const { supabase } = useSupabase();
   const [loading, setLoading] = useState(false);
   const [isSent, setIsSent] = useState(false);
 
@@ -39,23 +41,17 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     
     try {
-        const response = await fetch('/api/auth/forgot-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: values.email }),
+        const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
+            redirectTo: `${window.location.origin}/auth/callback?next=/account/change-password`
         });
 
-        const data = await response.json();
+        if (error) throw error;
 
-        if (response.ok) {
-            toast({
-                title: 'Instructions Dispatched',
-                description: 'Check your inbox for a secure reset link.',
-            });
-            setIsSent(true);
-        } else {
-            throw new Error(data.message || 'Failed to request reset.');
-        }
+        toast({
+            title: 'Instructions Dispatched',
+            description: 'Check your inbox for a secure reset link.',
+        });
+        setIsSent(true);
     } catch (error: any) {
         console.error("Password reset error:", error);
         toast({
