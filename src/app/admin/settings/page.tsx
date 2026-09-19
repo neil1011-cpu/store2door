@@ -10,13 +10,12 @@ import { useToast } from '@/hooks/use-toast';
 import { 
     ArrowLeft, Moon, Sun, Laptop, Eye, EyeOff, Zap, 
     RefreshCw, ShieldCheck, Save, Loader2, Mail, Cloud, 
-    Database, CheckCircle2, AlertCircle, Terminal 
+    Database, CheckCircle2, AlertCircle, Terminal, Copy, Link as LinkIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { cn } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/skeleton';
+import { cn, getSiteOrigin } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 
 type StatusState = 'IDLE' | 'TESTING' | 'CONNECTED' | 'FAILED' | 'SAVING';
@@ -27,6 +26,7 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [siteUrl, setSiteUrl] = useState('');
   
   // SMTP State
   const [smtp, setSmtp] = useState({ host: '', port: '465', user: '', pass: '', fromEmail: '', fromName: '', isVisible: false });
@@ -39,12 +39,13 @@ export default function SettingsPage() {
   const [vultrMsg, setVultrMsg] = useState('');
 
   // Logicware State
-  const [logicware, setLogicware] = useState({ apiKey: '', baseUrl: 'https://from-store-to-door-api.logicware.app', isVisible: false });
+  const [logicware, setLogicware] = useState({ apiKey: '', baseUrl: 'https://from-store-to-door-api.logicware.app', webhookSecret: '', isVisible: false });
   const [logicwareStatus, setLogicwareStatus] = useState<StatusState>('IDLE');
   const [logicwareMsg, setLogicwareMsg] = useState('');
 
   useEffect(() => {
     setMounted(true);
+    setSiteUrl(getSiteOrigin());
     fetchConfigs();
   }, []);
 
@@ -123,6 +124,12 @@ export default function SettingsPage() {
         msgSetter(e.message);
         toast({ title: "Handshake Failed", description: e.message, variant: "destructive" });
     }
+  };
+
+  const copyWebhook = () => {
+    const url = `${siteUrl}/api/webhooks/logicware`;
+    navigator.clipboard.writeText(url);
+    toast({ title: "URL Copied", description: "Provide this endpoint to Logicware." });
   };
 
   if (isLoading || !mounted) {
@@ -245,7 +252,7 @@ export default function SettingsPage() {
                         <CardDescription className="text-[10px] font-bold uppercase tracking-widest">External logistics portal synchronization.</CardDescription>
                     </div>
                 </CardHeader>
-                <CardContent className="space-y-6 pt-8">
+                <CardContent className="space-y-8 pt-8">
                     <div className="space-y-4">
                         <div className="space-y-1.5">
                             <Label className="text-[10px] font-bold uppercase opacity-60">API Key</Label>
@@ -258,14 +265,52 @@ export default function SettingsPage() {
                         </div>
                         <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">API Base URL</Label><Input value={logicware.baseUrl} onChange={e => setLogicware({...logicware, baseUrl: e.target.value})} className="h-11 border-2 font-mono" /></div>
                     </div>
+
+                    <Separator className="opacity-10" />
+
+                    <div className="space-y-6">
+                        <div className="p-5 rounded-2xl bg-blue-50/50 border-2 border-dashed border-blue-200 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xs font-black uppercase text-blue-700 flex items-center gap-2">
+                                    <LinkIcon className="h-4 w-4" /> Webhook Connectivity
+                                </h3>
+                                <Badge variant="outline" className="bg-white text-[9px] font-black uppercase italic border-blue-200">Production Hub</Badge>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold uppercase opacity-60 text-blue-600">Inbound Endpoint URL</Label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1 h-11 bg-white border-2 rounded-xl flex items-center px-4 font-mono text-[10px] overflow-hidden truncate opacity-80">
+                                            {siteUrl}/api/webhooks/logicware
+                                        </div>
+                                        <Button onClick={copyWebhook} variant="outline" className="shrink-0 h-11 w-11 border-2 border-blue-200 text-blue-600 rounded-xl hover:bg-blue-100">
+                                            <Copy className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <p className="text-[9px] font-medium text-blue-700/60 uppercase">Provide this to the Logicware team to receive live status updates.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold uppercase opacity-60 text-blue-600">Validation Secret (Optional)</Label>
+                                    <Input 
+                                        placeholder="Enter secret for x-logicware-signature check" 
+                                        value={logicware.webhookSecret} 
+                                        onChange={e => setLogicware({...logicware, webhookSecret: e.target.value})}
+                                        className="h-11 border-2 border-blue-100 bg-white"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {logicwareMsg && <p className="text-[10px] font-mono text-red-500 bg-red-50 p-2 rounded border border-red-100">{logicwareMsg}</p>}
+                    
                     <div className="flex gap-4">
                         <Button onClick={() => handleTest('logicware', logicware, setLogicwareStatus, setLogicwareMsg)} disabled={logicwareStatus === 'TESTING'} variant="outline" className="flex-1 h-14 font-black uppercase italic border-2 border-blue-200 text-blue-700">
-                             Verify API
+                             Verify API Handshake
                         </Button>
                         <Button onClick={() => handleSave('logicware', logicware, setLogicwareStatus)} disabled={logicwareStatus === 'SAVING'} className="flex-1 h-14 text-lg font-black uppercase italic shadow-xl bg-blue-600 hover:bg-blue-700">
                             {logicwareStatus === 'SAVING' ? <Loader2 className="animate-spin mr-2 h-6 w-6" /> : <RefreshCw className="mr-2 h-6 w-6" />}
-                            Update Sync
+                            Update Registry
                         </Button>
                     </div>
                 </CardContent>
