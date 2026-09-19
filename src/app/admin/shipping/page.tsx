@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart } from 'lucide-react';
+import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -203,7 +203,9 @@ export default function ShippingPage() {
             <TableHeader className="bg-muted/30">
                 <TableRow>
                     <TableHead className="pl-6 text-[10px] font-black uppercase">Tracking ID</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Cost (JMD)</TableHead>
                     <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Actions</TableHead>
@@ -211,14 +213,26 @@ export default function ShippingPage() {
             </TableHeader>
             <TableBody>
                 {isLoading && filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /></TableCell></TableRow>
                 ) : filtered.map(s => (
                     <TableRow key={s.id} className="h-20 hover:bg-primary/5 transition-colors">
                         <TableCell className="pl-6">
                             <p className="font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</p>
                             <p className="text-[9px] font-bold opacity-40 uppercase truncate max-w-[150px]">{s.contents || 'No Description'}</p>
                         </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 text-[10px] font-bold uppercase opacity-60">
+                            <CalendarDays className="h-3 w-3" />
+                            {new Date(s.created_at).toLocaleDateString()}
+                          </div>
+                        </TableCell>
                         <TableCell className="font-bold text-xs uppercase italic">{s.profiles?.full_name}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 text-xs font-black italic">
+                            <Weight className="h-3 w-3 opacity-40" />
+                            {s.weight_lbs} LBS
+                          </div>
+                        </TableCell>
                         <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
                         <TableCell className="font-black tracking-tighter text-lg text-primary">
                             JMD ${Number(s.total_cost_jmd).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -231,7 +245,7 @@ export default function ShippingPage() {
                         </TableCell>
                     </TableRow>
                 ))}
-                {filtered.length === 0 && !isLoading && <TableRow><TableCell colSpan={5} className="text-center py-20 opacity-40 italic">No shipments detected.</TableCell></TableRow>}
+                {filtered.length === 0 && !isLoading && <TableRow><TableCell colSpan={7} className="text-center py-20 opacity-40 italic">No shipments detected.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
