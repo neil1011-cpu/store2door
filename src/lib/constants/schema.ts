@@ -4,7 +4,7 @@
  * Made fully idempotent for safe re-runs.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v3.3)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v3.4)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     total_cost_jmd numeric(12,2) DEFAULT 0 CHECK (total_cost_jmd >= 0),
     payment_status text DEFAULT 'Unpaid' NOT NULL CHECK (payment_status IN ('Paid', 'Unpaid', 'Partial')),
     shipping_date timestamptz,
+    invoice_url text,
     created_at timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
 );

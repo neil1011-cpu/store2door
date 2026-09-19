@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays, Trash2, FileText } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -231,9 +231,9 @@ export default function ShippingPage() {
                     <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase">Cost (JMD)</TableHead>
-                    <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Actions</TableHead>
+                    <TableHead className="text-[10px) font-black uppercase">Status</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-right">Invoice</TableHead>
+                    <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Cost (JMD)</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -259,7 +259,18 @@ export default function ShippingPage() {
                           </div>
                         </TableCell>
                         <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
-                        <TableCell className="font-black tracking-tighter text-lg text-primary">
+                        <TableCell className="text-right">
+                            {s.invoice_url ? (
+                                <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[10px]">
+                                    <Link href={`/api/storage/view?key=${encodeURIComponent(s.invoice_url)}`} target="_blank">
+                                        <FileText className="h-3.5 w-3.5 mr-1" /> Doc
+                                    </Link>
+                                </Button>
+                            ) : (
+                                <span className="text-[9px] opacity-20 italic">No File</span>
+                            )}
+                        </TableCell>
+                        <TableCell className="text-right pr-6 font-black tracking-tighter text-lg text-primary">
                             JMD ${Number(s.total_cost_jmd).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell className="text-right pr-6">

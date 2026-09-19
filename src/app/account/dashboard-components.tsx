@@ -59,9 +59,18 @@ export function DashboardTab({ details }: { details: UserProfile }) {
         ) : recentShipment ? (
           <div className="space-y-4">
             <div className="bg-muted/20 p-4 rounded-lg flex justify-between items-center">
-              <div>
+              <div className="flex-1">
                 <p className="text-[10px] font-bold uppercase opacity-60">Tracking Number</p>
-                <p className="font-mono font-bold text-lg text-primary">{recentShipment.tracking_number || (recentShipment as any).trackingNumber}</p>
+                <div className="flex items-center gap-3">
+                    <p className="font-mono font-bold text-lg text-primary">{recentShipment.tracking_number || (recentShipment as any).trackingNumber}</p>
+                    {recentShipment.invoice_url && (
+                        <Button variant="ghost" size="sm" asChild className="h-7 text-primary font-bold uppercase text-[9px] border-2 border-primary/10">
+                            <Link href={`/api/storage/view?key=${encodeURIComponent(recentShipment.invoice_url)}`} target="_blank">
+                                <FileText className="h-3 w-3 mr-1" /> Doc
+                            </Link>
+                        </Button>
+                    )}
+                </div>
               </div>
               <Badge variant={getStatusVariant(recentShipment.status)}>{recentShipment.status}</Badge>
             </div>
@@ -111,12 +120,13 @@ export function PackagesTab({ profileId }: { profileId: string }) {
             <TableRow>
               <TableHead className="text-[10px] font-black uppercase">Package</TableHead>
               <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
+              <TableHead className="text-right text-[10px] font-black uppercase">Invoice</TableHead>
               <TableHead className="text-right text-[10px] font-black uppercase">Cost (JMD)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={3} className="text-center py-10"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center py-10"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
             ) : packages.map((pkg) => (
               <TableRow key={pkg.id}>
                 <TableCell>
@@ -124,13 +134,24 @@ export function PackagesTab({ profileId }: { profileId: string }) {
                   <p className="text-[10px] uppercase opacity-60 truncate max-w-[150px]">{pkg.contents}</p>
                 </TableCell>
                 <TableCell><Badge variant={getStatusVariant(pkg.status)} className="text-[8px] font-black uppercase italic">{pkg.status}</Badge></TableCell>
+                <TableCell className="text-right">
+                    {pkg.invoice_url ? (
+                        <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[9px]">
+                            <Link href={`/api/storage/view?key=${encodeURIComponent(pkg.invoice_url)}`} target="_blank">
+                                <FileText className="h-3.5 w-3.5 mr-1" /> Doc
+                            </Link>
+                        </Button>
+                    ) : (
+                        <span className="text-[9px] opacity-20 italic">No File</span>
+                    )}
+                </TableCell>
                 <TableCell className="text-right font-black italic tracking-tighter">
                   {pkg.total_cost_jmd ? `JMD $${pkg.total_cost_jmd.toLocaleString()}` : 'TBD'}
                 </TableCell>
               </TableRow>
             ))}
             {packages.length === 0 && !isLoading && (
-                <TableRow><TableCell colSpan={3} className="text-center py-20 opacity-30 italic">No package history found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="text-center py-20 opacity-30 italic">No package history found.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

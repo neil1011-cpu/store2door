@@ -126,7 +126,7 @@ export default function PreAlertsPage() {
 
     const handleProcessIntake = async (alert: any, verifiedWeight: number, calculatedCost: number) => {
         try {
-            // 1. Create Shipment
+            // 1. Create Shipment (Copying invoice_url metadata)
             const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
                 profile_id: alert.profile_id,
                 tracking_number: alert.tracking_number,
@@ -134,7 +134,8 @@ export default function PreAlertsPage() {
                 weight_lbs: verifiedWeight,
                 total_cost_jmd: calculatedCost,
                 status: 'Processed',
-                payment_status: 'Unpaid'
+                payment_status: 'Unpaid',
+                invoice_url: alert.invoice_url // CRITICAL: Persist document reference
             }).select().single();
 
             if (shipError) throw shipError;
