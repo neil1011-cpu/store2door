@@ -5,6 +5,7 @@ import { getSiteOrigin } from '@/lib/utils';
 
 /**
  * @fileOverview Hardened User Creation API.
+ * Sets a default password and forces a reset on first sign-in.
  */
 
 export async function POST(request: Request) {
@@ -45,13 +46,17 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { firstName, lastName, email, phone, trn, isAdmin, mailboxNumber, sendWelcomeEmail } = body;
 
-    const tempPassword = Math.random().toString(36).slice(-16) + 'A1!z';
+    // Use a standard default password as requested
+    const defaultPassword = 'FSTD-Welcome2025!';
     
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
-        password: tempPassword,
+        password: defaultPassword,
         email_confirm: true,
-        user_metadata: { full_name: `${firstName} ${lastName}` }
+        user_metadata: { 
+            full_name: `${firstName} ${lastName}`,
+            needs_password_reset: true // Flag to force reset on first sign-in
+        }
     });
 
     if (createError) throw createError;
@@ -91,7 +96,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
         success: true, 
         uid: userId, 
-        mailboxNumber: finalMailboxNumber
+        mailboxNumber: finalMailboxNumber,
+        defaultPassword: defaultPassword // Return to admin so they can inform the user
     });
 
   } catch (error: any) {

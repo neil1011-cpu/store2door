@@ -14,7 +14,7 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Unified Password Reset Interface.
- * Handles the final credential update using the session established by the PKCE callback.
+ * Handles both the forced first-time reset and the PKCE recovery flow.
  */
 export default function ResetPasswordPage() {
     const [newPassword, setNewPassword] = useState('');
@@ -27,7 +27,8 @@ export default function ResetPasswordPage() {
     const router = useRouter();
 
     useEffect(() => {
-        // AUTH_FIX: Ensure a recovery session was established by the callback.
+        // Only trigger session missing error if we aren't loading and there's no user at all.
+        // If there's a user, it's either an active recovery session or a forced-reset session.
         if (!isAuthLoading && !user) {
             setSessionError('Security session missing. Your recovery link may have expired or been used already.');
         }
@@ -45,9 +46,10 @@ export default function ResetPasswordPage() {
 
         setIsUpdating(true);
         try {
-            // AUTH_FIX: Use the established session to write the new password to the registry.
+            // Update the password and clear the force-reset flag in one go
             const { error } = await supabase.auth.updateUser({ 
-                password: newPassword 
+                password: newPassword,
+                data: { needs_password_reset: false } 
             });
             
             if (error) throw error;
@@ -84,7 +86,7 @@ export default function ResetPasswordPage() {
                     <CardContent className="pt-8 text-center">
                         <p className="text-sm font-medium text-muted-foreground mb-8">Your new access key is now active across the global logistics OS.</p>
                         <Button className="w-full h-14 font-black uppercase italic text-lg shadow-lg" asChild>
-                            <Link href="/signin">Proceed to Sign In</Link>
+                            <Link href="/account">Proceed to Dashboard</Link>
                         </Button>
                     </CardContent>
                 </Card>
@@ -92,13 +94,19 @@ export default function ResetPasswordPage() {
         );
     }
 
+    const isForcedReset = user?.user_metadata?.needs_password_reset;
+
     return (
         <div className="container mx-auto py-12 px-4 flex justify-center items-center min-h-[80vh]">
             <Card className="w-full max-w-md shadow-2xl border-primary/20">
                 <CardHeader className="text-center space-y-2 pb-8 bg-primary/5">
                     <div className="mx-auto bg-orange-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-2"><Lock className="h-8 w-8 text-orange-600" /></div>
-                    <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">New Access Key</CardTitle>
-                    <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Define your secure entry credentials.</CardDescription>
+                    <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">
+                        {isForcedReset ? 'Finalize Setup' : 'New Access Key'}
+                    </CardTitle>
+                    <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {isForcedReset ? 'You must define your own password to continue.' : 'Define your secure entry credentials.'}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-8 space-y-6">
                     {sessionError ? (
@@ -135,7 +143,7 @@ export default function ResetPasswordPage() {
                 <CardFooter className="pb-8">
                     {!sessionError ? (
                         <Button onClick={handleUpdate} disabled={isUpdating} className="w-full h-14 text-lg font-black uppercase italic shadow-xl">
-                            {isUpdating ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <CheckCircle2 className="mr-2 h-6 w-6" />} Finalize Update
+                            {isUpdating ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <CheckCircle2 className="mr-2 h-6 w-6" />} Finalize Setup
                         </Button>
                     ) : (
                         <Button variant="ghost" onClick={() => router.push('/signin')} className="w-full h-12 font-black uppercase italic opacity-60">Return to Sign In</Button>

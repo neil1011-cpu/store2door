@@ -39,6 +39,13 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const [retryCount, setRetryCount] = useState(0);
     const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+    // SECURITY: Force password reset if flag is present in user metadata
+    useEffect(() => {
+        if (!isAuthLoading && user?.user_metadata?.needs_password_reset) {
+            router.push('/reset-password');
+        }
+    }, [user, isAuthLoading, router]);
+
     const fetchData = useCallback(async () => {
         if (!user) return;
 
@@ -56,7 +63,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             if (profileData) {
                 setProfile(profileData);
 
-                // Fetch Balance from the ledger (Table now strictly defined in schema)
+                // Fetch Balance from the ledger
                 const { data: ledgerData, error: ledgerError } = await supabase
                     .from('financial_ledger')
                     .select('amount')
@@ -106,7 +113,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         router.push('/signin');
     };
 
-    // LOADING: Auth is working but we haven't checked for profile yet
     if (isAuthLoading || (user && isDataLoading && !profile && retryCount === 0)) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center">
@@ -117,7 +123,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         );
     }
 
-    // ERROR: Database or Sync failed
     if (error) {
         return (
             <div className="container mx-auto py-24 px-4 flex items-center justify-center min-h-[80vh]">
@@ -138,7 +143,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         );
     }
 
-    // PROVISIONING: User logged in, but Profile row hasn't arrived in Postgres yet
     if (user && !profile) {
         return (
             <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[80vh] text-center">
