@@ -64,11 +64,12 @@ export default function ManifestsPage() {
     if (!isMounted) return;
     setIsFetching(true);
     try {
-      const apiKey = localStorage.getItem('LOGICWARE_API_KEY');
+      // We no longer send the API key from client-side localStorage.
+      // The server retrieves it from the Supabase system_configs registry.
       const response = await fetch('/api/admin/logicware-manifests', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey })
+          body: JSON.stringify({})
       });
       const data = await response.json();
 

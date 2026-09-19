@@ -1,10 +1,9 @@
-
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Secure server-side bridge for Logicware Shipment Sync.
+ * @fileOverview Secure server-side bridge for Logicware Shipment Sync using Supabase config.
  */
 
 async function getSafeBody(request: Request) {
@@ -25,9 +24,15 @@ export async function POST(request: Request) {
 
         if (!apiKey) {
             try {
-                const configSnap = await adminDb.collection('metadata').doc('logicware').get();
-                if (configSnap.exists) {
-                    apiKey = configSnap.data()?.apiKey;
+                const adminClient = await createAdminClient();
+                const { data: configDoc } = await adminClient
+                    .from('system_configs')
+                    .select('config_value')
+                    .eq('config_key', 'logicware')
+                    .maybeSingle();
+                
+                if (configDoc?.config_value?.apiKey) {
+                    apiKey = configDoc.config_value.apiKey;
                 }
             } catch (dbError) {}
         }
@@ -35,7 +40,7 @@ export async function POST(request: Request) {
         if (!apiKey) apiKey = process.env.LOGICWARE_API_KEY;
 
         if (!apiKey) {
-            return NextResponse.json({ success: false, message: 'Configuration missing.' }, { status: 400 });
+            return NextResponse.json({ success: false, message: 'Configuration missing in registry.' }, { status: 400 });
         }
 
         const client = getLogicwareClient(apiKey);
@@ -45,7 +50,6 @@ export async function POST(request: Request) {
         if (client.shipments) {
             results = await client.shipments.list({ limit: 100, sort: 'desc' });
         } else if (client.shippers) {
-            // Fallback for key modules
             results = await client.shippers.list();
         }
 

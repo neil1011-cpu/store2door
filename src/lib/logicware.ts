@@ -1,9 +1,8 @@
-
 import { LogicwareConnect } from '@logicware.app/connect-sdk';
 
 /**
  * @fileOverview Logicware Connect SDK utility.
- * Refactored to prevent runtime crashes by using a factory function.
+ * Refactored to be more resilient and support dynamic configuration.
  */
 
 /**
@@ -14,10 +13,8 @@ export function getLogicwareClient(apiKey?: string) {
   const finalKey = apiKey || process.env.LOGICWARE_API_KEY;
   
   if (!finalKey) {
-    // Only throw if on server side to prevent browser crashes during import
-    if (typeof window === 'undefined') {
-      throw new Error('Logicware API key is required on server side.');
-    }
+    // Return null instead of throwing to prevent build/import crashes.
+    // The calling route should handle the null case.
     return null;
   }
 
@@ -27,9 +24,9 @@ export function getLogicwareClient(apiKey?: string) {
   });
 }
 
-export async function fetchLogicwareShippers() {
+export async function fetchLogicwareShippers(apiKey?: string) {
   try {
-    const client = getLogicwareClient();
+    const client = getLogicwareClient(apiKey);
     if (!client?.shippers) return [];
     const shippers = await client.shippers.list({ limit: 100 });
     return Array.isArray(shippers) ? shippers : (shippers as any).data || (shippers as any).shippers || [];
@@ -39,9 +36,9 @@ export async function fetchLogicwareShippers() {
   }
 }
 
-export async function fetchLogicwareShipments() {
+export async function fetchLogicwareShipments(apiKey?: string) {
   try {
-    const client = getLogicwareClient();
+    const client = getLogicwareClient(apiKey);
     if (!client?.shipments) return [];
     const shipments = await client.shipments.list({ limit: 100 });
     return Array.isArray(shipments) ? shipments : (shipments as any).data || (shipments as any).shipments || [];
@@ -51,9 +48,9 @@ export async function fetchLogicwareShipments() {
   }
 }
 
-export async function fetchLogicwareManifests() {
+export async function fetchLogicwareManifests(apiKey?: string) {
     try {
-        const client = getLogicwareClient();
+        const client = getLogicwareClient(apiKey);
         if (!client?.manifests) return [];
         const manifests = await client.manifests.list({ limit: 100, sort: 'desc' });
         return Array.isArray(manifests) ? manifests : (manifests as any).data || (manifests as any).manifests || [];

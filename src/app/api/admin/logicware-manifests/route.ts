@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Fetches live manifests from the Logicware portal.
+ * @fileOverview Fetches live manifests from the Logicware portal using Supabase config.
  */
 
 async function getSafeBody(request: Request) {
@@ -22,17 +22,25 @@ export async function POST(request: Request) {
         const payload = await getSafeBody(request);
         let apiKey = payload.apiKey;
 
+        // 1. If no key in payload, try Supabase system_configs
         if (!apiKey) {
             try {
-                const configSnap = await adminDb.collection('metadata').doc('logicware').get();
-                if (configSnap.exists) {
-                    apiKey = configSnap.data()?.apiKey;
+                const adminClient = await createAdminClient();
+                const { data: configDoc } = await adminClient
+                    .from('system_configs')
+                    .select('config_value')
+                    .eq('config_key', 'logicware')
+                    .maybeSingle();
+                
+                if (configDoc?.config_value?.apiKey) {
+                    apiKey = configDoc.config_value.apiKey;
                 }
             } catch (dbError) {
-                console.error('Firestore Metadata Fetch Error:', dbError);
+                console.error('Supabase Config Fetch Error:', dbError);
             }
         }
 
+        // 2. Fallback to ENV
         if (!apiKey) {
             apiKey = process.env.LOGICWARE_API_KEY;
         }
@@ -40,11 +48,12 @@ export async function POST(request: Request) {
         if (!apiKey) {
             return NextResponse.json({ 
                 success: false, 
-                message: 'Logicware configuration missing.' 
+                message: 'Logicware configuration missing in registry.' 
             }, { status: 400 });
         }
 
         const client = getLogicwareClient(apiKey);
+        if (!client) throw new Error('SDK Initialization Failed');
         
         let results: any[] = [];
         if (client.manifests) {
