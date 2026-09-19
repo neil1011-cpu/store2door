@@ -126,7 +126,6 @@ export default function PreAlertsPage() {
 
     const handleProcessIntake = async (alert: any, verifiedWeight: number, calculatedCost: number) => {
         try {
-            // 1. Create Shipment (Copying invoice_url metadata)
             const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
                 profile_id: alert.profile_id,
                 tracking_number: alert.tracking_number,
@@ -135,12 +134,11 @@ export default function PreAlertsPage() {
                 total_cost_jmd: calculatedCost,
                 status: 'Processed',
                 payment_status: 'Unpaid',
-                invoice_url: alert.invoice_url // CRITICAL: Persist document reference
+                invoice_url: alert.invoice_url
             }).select().single();
 
             if (shipError) throw shipError;
 
-            // 2. Issue Invoice
             await supabase.from('invoices').insert({
                 profile_id: alert.profile_id,
                 amount: calculatedCost,
@@ -148,7 +146,6 @@ export default function PreAlertsPage() {
                 invoice_number: `INV-${alert.tracking_number.slice(-4)}-${Date.now().toString().slice(-4)}`
             });
 
-            // 3. Charge Ledger
             await supabase.from('financial_ledger').insert({
                 profile_id: alert.profile_id,
                 amount: -calculatedCost,
@@ -156,7 +153,6 @@ export default function PreAlertsPage() {
                 description: `Shipping Fee: ${alert.tracking_number}`
             });
 
-            // 4. Mark documentation as processed
             await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
 
             toast({ title: "Intake Secured" });
@@ -286,19 +282,14 @@ export default function PreAlertsPage() {
                                         <TableCell className="pl-6">
                                             {proxyUrl ? (
                                                 <div className="relative h-16 w-16 rounded-lg overflow-hidden border-2 border-muted bg-muted/20 flex items-center justify-center">
-                                                    {alert.invoice_url.toLowerCase().endsWith('.pdf') ? (
-                                                        <FileText className="h-8 w-8 text-primary opacity-40" />
-                                                    ) : (
-                                                        <img 
-                                                            src={proxyUrl} 
-                                                            alt="Thumbnail" 
-                                                            className="object-cover w-full h-full" 
-                                                            referrerPolicy="no-referrer"
-                                                            onError={(e) => {
-                                                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/%3E%3Cpolyline points="14 2 14 8 20 8"/%3E%3C/svg%3E';
-                                                            }}
-                                                        />
-                                                    )}
+                                                    <img 
+                                                        src={proxyUrl} 
+                                                        alt="Thumbnail" 
+                                                        className="object-cover w-full h-full" 
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).parentElement!.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary opacity-40"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>';
+                                                        }}
+                                                    />
                                                 </div>
                                             ) : (
                                                 <div className="h-16 w-16 rounded-lg bg-muted/10 border-2 border-dashed flex items-center justify-center text-muted-foreground/30">
@@ -377,11 +368,8 @@ export default function PreAlertsPage() {
 function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProcess }: { url: string, storageKey: string, trackingNumber: string, alert: any, onProcess: (a: any, w: number, c: number) => Promise<void> }) {
     const [open, setOpen] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [loadError, setLoadError] = useState(false);
     const [aiResult, setAiResult] = useState<GenerateCustomsFormOutput | null>(null);
     const { toast } = useToast();
-
-    const isPdf = storageKey.toLowerCase().endsWith('.pdf');
 
     const handleRunAi = async () => {
         setIsAnalyzing(true);
@@ -390,10 +378,10 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
                 trackingNumber: alert.tracking_number,
                 contentsDescription: alert.contents || 'Not specified',
                 weight: `${alert.weight_lbs || '0'} lbs`,
-                invoiceDataUri: storageKey // Pass the KEY, the flow is updated to handle S3 keys
+                invoiceDataUri: storageKey
             });
             setAiResult(result);
-            toast({ title: "Analysis Complete", description: "AI has extracted document details." });
+            toast({ title: "Analysis Complete" });
         } catch (error: any) {
             toast({ title: "AI Error", description: error.message, variant: "destructive" });
         } finally {
@@ -403,11 +391,11 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
-        toast({ title: "Copied", description: "Text copied to clipboard." });
+        toast({ title: "Copied" });
     };
 
     return (
-        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setLoadError(false); }}>
+        <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="h-10 font-black uppercase italic text-[10px] border-2 shadow-sm px-6">
                     <Eye className="mr-2 h-4 w-4" /> Review Document
@@ -432,36 +420,16 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
                 
                 <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
                     <div className="lg:col-span-7 bg-zinc-100 dark:bg-zinc-900 p-8 flex items-center justify-center relative min-h-[500px]">
-                        <div className="relative w-full h-full rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-white group">
-                            {isPdf ? (
-                                <embed src={url} type="application/pdf" className="w-full h-full rounded-xl" />
-                            ) : (
-                                <div className="relative w-full h-full">
-                                    {loadError && (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 p-6 text-center space-y-4">
-                                            <AlertCircle className="h-12 w-12 text-destructive" />
-                                            <div className="space-y-1">
-                                                <p className="font-black uppercase tracking-tight">Display Interrupted</p>
-                                                <p className="text-xs font-medium text-muted-foreground">The browser blocked direct rendering of this asset.</p>
-                                            </div>
-                                            <Button variant="secondary" className="font-black uppercase text-[10px]" asChild>
-                                                <Link href={url} target="_blank"><ExternalLink className="mr-2 h-3 w-3" /> Open in Secure Tab</Link>
-                                            </Button>
-                                        </div>
-                                    )}
-                                    <img 
-                                        src={url} 
-                                        alt="Commercial Invoice" 
-                                        className={cn("object-contain w-full h-full transition-opacity duration-300", loadError ? "opacity-0" : "opacity-100")}
-                                        referrerPolicy="no-referrer"
-                                        onError={() => setLoadError(true)}
-                                    />
-                                </div>
-                            )}
+                        <div className="relative w-full h-full rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-white">
+                            <iframe 
+                                src={url} 
+                                className="w-full h-full border-none rounded-xl bg-muted/10" 
+                                title="Invoice Preview"
+                            />
                         </div>
                     </div>
                     <div className="lg:col-span-5 bg-background p-8 border-l-4 flex flex-col gap-8 shadow-inner overflow-y-auto">
-                        {aiResult ? (
+                        {aiResult && (
                             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                                 <div className="p-5 rounded-2xl bg-indigo-50 border-2 border-indigo-200 space-y-4">
                                     <h4 className="text-xs font-black uppercase text-indigo-700 flex items-center gap-2">
@@ -471,25 +439,21 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
                                         <div>
                                             <p className="text-[10px] font-black uppercase opacity-60 text-indigo-600">Sender Info</p>
                                             <div className="flex items-start justify-between gap-2 mt-1">
-                                                <p className="text-xs font-bold leading-relaxed">{aiResult.customsForm.sender}</p>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-indigo-400" onClick={() => copyToClipboard(aiResult.customsForm.sender)}>
-                                                    <Copy className="h-3.5 w-3.5" />
-                                                </Button>
+                                                <p className="text-xs font-bold">{aiResult.customsForm.sender}</p>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(aiResult.customsForm.sender)}><Copy className="h-3.5 w-3.5" /></Button>
                                             </div>
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-black uppercase opacity-60 text-indigo-600">Recipient Info</p>
                                             <div className="flex items-start justify-between gap-2 mt-1">
-                                                <p className="text-xs font-bold leading-relaxed">{aiResult.customsForm.recipient}</p>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-indigo-400" onClick={() => copyToClipboard(aiResult.customsForm.recipient)}>
-                                                    <Copy className="h-3.5 w-3.5" />
-                                                </Button>
+                                                <p className="text-xs font-bold">{aiResult.customsForm.recipient}</p>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(aiResult.customsForm.recipient)}><Copy className="h-3.5 w-3.5" /></Button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        ) : null}
+                        )}
 
                         <div className="space-y-6">
                             <div className="p-5 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 space-y-2">
@@ -515,9 +479,14 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
                             </Alert>
                             
                             <div className="grid grid-cols-1 gap-3">
-                                <Button variant="outline" className="font-black uppercase h-14 border-2 shadow-sm rounded-xl text-xs tracking-widest" asChild>
-                                    <Link href={url} target="_blank" download><Download className="mr-2 h-4 w-4" /> Download Original</Link>
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" className="flex-1 font-black uppercase h-14 border-2 shadow-sm rounded-xl text-xs tracking-widest" asChild>
+                                        <Link href={url} target="_blank"><Download className="mr-2 h-4 w-4" /> Download Original</Link>
+                                    </Button>
+                                    <Button variant="outline" className="flex-1 font-black uppercase h-14 border-2 shadow-sm rounded-xl text-xs tracking-widest" asChild title="Open in New Tab">
+                                        <Link href={url} target="_blank"><ExternalLink className="mr-2 h-4 w-4" /> Secure Tab</Link>
+                                    </Button>
+                                </div>
                                 {alert.status === 'Pending' ? (
                                     <div className="space-y-3">
                                         <IntakeDialog 
