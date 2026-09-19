@@ -58,8 +58,7 @@ export async function POST(request: Request) {
             Bucket: config.bucket,
             Key: key,
             Body: buffer,
-            ContentType: file.type || 'application/octet-stream',
-            // Files are private by default, no ACL segment needed for maximum security
+            ContentType: file.type || 'application/octet-stream'
         }));
 
         // We return the KEY, not a public URL

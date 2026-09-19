@@ -22,7 +22,7 @@ export async function GET(request: Request) {
         
         // 1. Authorization Logic
         const { data: isAdmin } = await adminClient.rpc('is_admin');
-        const isOwner = key.includes(`invoices/${user.id}/`);
+        const isOwner = key.startsWith(`invoices/${user.id}/`);
         const isLegacyPublic = key.startsWith('http');
 
         if (isLegacyPublic) {
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
         }
 
         if (!isAdmin && !isOwner) {
-            return NextResponse.json({ message: 'Access Denied: You do not have permission to view this document.' }, { status: 403 });
+            return NextResponse.json({ message: 'Access Denied: Permission revoked for this asset.' }, { status: 403 });
         }
 
         // 2. Fetch Storage Config
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
             .maybeSingle();
 
         const config = configData?.config_value as VultrConfig;
-        if (!config) throw new Error('Storage configuration missing.');
+        if (!config) throw new Error('Storage configuration missing in registry.');
 
         // 3. Generate Signed URL
         const signedUrl = await getSignedUrl(config, key);

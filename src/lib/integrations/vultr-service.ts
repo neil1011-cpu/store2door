@@ -64,6 +64,8 @@ export async function getFileBuffer(config: VultrConfig, key: string) {
     });
 
     const response = await client.send(command);
-    const bytes = await response.Body?.transformToByteArray();
+    if (!response.Body) return null;
+    
+    const bytes = await response.Body.transformToByteArray();
     return bytes ? Buffer.from(bytes) : null;
 }
