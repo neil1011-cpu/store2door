@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, History } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, History, ImageIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -268,7 +268,8 @@ export default function PreAlertsPage() {
                     <Table>
                         <TableHeader className="bg-muted/30">
                             <TableRow className="h-12">
-                                <TableHead className="pl-6 text-[10px] font-black uppercase">Status</TableHead>
+                                <TableHead className="pl-6 text-[10px] font-black uppercase">Document</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                                 <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
                                 <TableHead className="text-[10px] font-black uppercase">Tracking ID</TableHead>
                                 <TableHead className="text-[10px] font-black uppercase">Retention</TableHead>
@@ -279,9 +280,20 @@ export default function PreAlertsPage() {
                             {preAlerts.map(alert => {
                                 const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(alert.submission_date).getTime()) / (1000 * 60 * 60 * 24)));
                                 return (
-                                    <TableRow key={alert.id} className={cn("hover:bg-primary/5 transition-colors h-20", alert.status === 'Processed' && "opacity-60")}>
+                                    <TableRow key={alert.id} className={cn("hover:bg-primary/5 transition-colors h-24", alert.status === 'Processed' && "opacity-60")}>
                                         <TableCell className="pl-6">
-                                            <Badge variant={alert.status === 'Processed' ? 'secondary' : 'default'} className="uppercase text-[8px] font-black italic">
+                                            {alert.invoice_url ? (
+                                                <div className="relative h-16 w-16 rounded-lg overflow-hidden border-2 border-muted bg-muted/20 flex items-center justify-center">
+                                                    <Image src={alert.invoice_url} alt="Thumbnail" fill className="object-cover" unoptimized />
+                                                </div>
+                                            ) : (
+                                                <div className="h-16 w-16 rounded-lg bg-muted/10 border-2 border-dashed flex items-center justify-center text-muted-foreground/30">
+                                                    <ImageIcon className="h-6 w-6" />
+                                                </div>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant={alert.status === 'Processed' ? 'secondary' : 'default'} className="uppercase text-[8px] font-black italic border-2">
                                                 {alert.status}
                                             </Badge>
                                         </TableCell>
@@ -291,7 +303,7 @@ export default function PreAlertsPage() {
                                                 <span className="text-[9px] font-bold opacity-60 uppercase truncate max-w-[150px]">{alert.contents || 'No Description'}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="font-mono font-black text-primary uppercase text-sm">{alert.tracking_number}</TableCell>
+                                        <TableCell className="font-mono font-black text-primary uppercase text-sm tracking-tighter">{alert.tracking_number}</TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <Clock className={cn("h-3 w-3", daysLeft < 5 ? "text-red-500 animate-pulse" : "text-muted-foreground")} />
@@ -303,10 +315,12 @@ export default function PreAlertsPage() {
                                                 {alert.invoice_url ? (
                                                     <InvoicePreviewDialog url={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
                                                 ) : (
-                                                    <Badge variant="outline" className="opacity-30 uppercase text-[8px] h-9 px-4 flex items-center">No Document</Badge>
-                                                )}
-                                                {alert.status === 'Pending' && !alert.invoice_url && (
-                                                    <IntakeDialog alert={alert} onProcess={handleProcessIntake} />
+                                                    <div className="flex flex-col gap-1 items-end">
+                                                        <Badge variant="outline" className="opacity-30 uppercase text-[8px] h-7 px-4 flex items-center">No Document</Badge>
+                                                        {alert.status === 'Pending' && (
+                                                            <IntakeDialog alert={alert} onProcess={handleProcessIntake} />
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
                                         </TableCell>
@@ -315,7 +329,7 @@ export default function PreAlertsPage() {
                             })}
                             {preAlerts.length === 0 && !isLoading && (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-64 text-center text-muted-foreground opacity-30 italic">
+                                    <TableCell colSpan={6} className="h-64 text-center text-muted-foreground opacity-30 italic">
                                         Pre-alert registry is currently clean.
                                     </TableCell>
                                 </TableRow>
@@ -333,62 +347,75 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 font-black uppercase italic text-[10px] border-2">
-                    <Eye className="mr-2 h-3.5 w-3.5" /> View Registry Document
+                <Button variant="outline" size="sm" className="h-10 font-black uppercase italic text-[10px] border-2 shadow-sm px-6">
+                    <Eye className="mr-2 h-4 w-4" /> Review Document
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-5xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
-                <DialogHeader className="p-6 pb-2">
-                    <div className="flex items-center justify-between">
+            <DialogContent className="sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden rounded-3xl border-4">
+                <DialogHeader className="p-8 pb-4 bg-muted/10 border-b">
+                    <div className="flex items-center justify-between w-full">
                         <div>
-                            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Documentation Review</DialogTitle>
-                            <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Tracking ID: {trackingNumber}</DialogDescription>
+                            <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter">Documentation Terminal</DialogTitle>
+                            <DialogDescription className="font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Universal Logistics ID: {trackingNumber}</DialogDescription>
                         </div>
-                        <Badge className="bg-primary text-[10px] font-black uppercase italic h-7 px-4">Verification Terminal</Badge>
+                        <Badge className="bg-primary text-[10px] font-black uppercase italic h-8 px-6 border-2 border-white/20">Security Verification Active</Badge>
                     </div>
                 </DialogHeader>
                 
                 <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-                    <div className="lg:col-span-8 bg-muted/40 p-4 flex items-center justify-center relative min-h-[500px]">
-                        <div className="relative w-full h-full rounded-xl overflow-hidden border shadow-inner bg-white">
+                    <div className="lg:col-span-8 bg-zinc-100 dark:bg-zinc-900 p-8 flex items-center justify-center relative min-h-[500px]">
+                        <div className="relative w-full h-full rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-white group cursor-zoom-in">
                             <Image 
                                 src={url} 
                                 alt="Commercial Invoice" 
                                 fill 
                                 className="object-contain"
+                                unoptimized
                                 data-ai-hint="invoice document"
                             />
                         </div>
                     </div>
-                    <div className="lg:col-span-4 bg-background p-6 border-l flex flex-col gap-6">
-                        <div className="space-y-4">
-                            <div className="p-4 rounded-xl bg-primary/5 border border-dashed border-primary/20 space-y-1">
-                                <p className="text-[9px] font-black uppercase opacity-60">Customer Name</p>
-                                <p className="font-bold uppercase tracking-tight">{alert.profiles?.full_name}</p>
+                    <div className="lg:col-span-4 bg-background p-8 border-l-4 flex flex-col gap-8 shadow-inner">
+                        <div className="space-y-6">
+                            <div className="p-5 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 space-y-2">
+                                <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Customer Identity</p>
+                                <p className="font-black uppercase text-lg tracking-tighter italic">{alert.profiles?.full_name}</p>
                             </div>
-                            <div className="p-4 rounded-xl bg-primary/5 border border-dashed border-primary/20 space-y-1">
-                                <p className="text-[9px] font-black uppercase opacity-60">Contents Reported</p>
-                                <p className="font-bold uppercase tracking-tight text-xs italic">"{alert.contents || 'No description'}"</p>
+                            <div className="p-5 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 space-y-2">
+                                <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Contents Declaration</p>
+                                <p className="font-bold uppercase text-xs italic opacity-80 leading-relaxed">"{alert.contents || 'No declaration provided'}"</p>
+                            </div>
+                            <div className="p-5 rounded-2xl bg-muted/30 border-2 space-y-1">
+                                <p className="text-[10px] font-black uppercase opacity-40">Declared Weight</p>
+                                <p className="font-mono font-black text-xl">{alert.weight_lbs || '0.00'} LBS</p>
                             </div>
                         </div>
 
                         <div className="flex-1 flex flex-col justify-end gap-4">
-                            <Alert className="bg-amber-50 border-amber-200">
-                                <AlertCircle className="h-4 w-4 text-amber-600" />
-                                <AlertDescription className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
-                                    Verify document details match package contents.
+                            <Alert className="bg-orange-50 border-orange-200 rounded-2xl border-2">
+                                <AlertCircle className="h-4 w-4 text-orange-600" />
+                                <AlertDescription className="text-[10px] font-black text-orange-800 uppercase leading-relaxed italic">
+                                    VERIFICATION REQUIRED: ENSURE DOCUMENT MATCHES REGISTRY DATA BEFORE SHIPMENT CREATION.
                                 </AlertDescription>
                             </Alert>
                             
-                            <div className="grid grid-cols-1 gap-2">
-                                <Button variant="outline" className="font-black uppercase h-12 border-2" asChild>
+                            <div className="grid grid-cols-1 gap-3">
+                                <Button variant="outline" className="font-black uppercase h-14 border-2 shadow-sm rounded-xl text-xs tracking-widest" asChild>
                                     <Link href={url} target="_blank" download><Download className="mr-2 h-4 w-4" /> Download Original</Link>
                                 </Button>
-                                {alert.status === 'Pending' && (
-                                    <IntakeDialog alert={alert} onProcess={onProcess} triggerLabel="Verify & Create Shipment" className="w-full h-14 text-lg" onIntakeSuccess={() => setOpen(false)} />
-                                )}
-                                {alert.status === 'Processed' && (
-                                    <Button disabled className="h-14 font-black uppercase opacity-40"><CheckCircle2 className="mr-2 h-5 w-5" /> Shipment Already Created</Button>
+                                {alert.status === 'Pending' ? (
+                                    <div className="space-y-3">
+                                        <IntakeDialog 
+                                            alert={alert} 
+                                            onProcess={onProcess} 
+                                            triggerLabel="Authorize Intake & Create Shipment" 
+                                            className="w-full h-16 text-lg rounded-2xl shadow-xl bg-primary hover:bg-primary/90" 
+                                            onIntakeSuccess={() => setOpen(false)} 
+                                        />
+                                        <p className="text-[9px] text-center font-bold uppercase opacity-40 tracking-tighter">Creation will generate invoice and debit client ledger.</p>
+                                    </div>
+                                ) : (
+                                    <Button disabled className="h-16 font-black uppercase opacity-40 rounded-2xl border-4"><CheckCircle2 className="mr-2 h-6 w-6 text-green-500" /> Registry Item Processed</Button>
                                 )}
                             </div>
                         </div>
@@ -426,39 +453,41 @@ function IntakeDialog({ alert, onProcess, triggerLabel = "Create Shipment", clas
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="secondary" size="sm" className={cn("font-black uppercase italic text-[10px]", !className && "h-9 px-6", className)}>
+                <Button variant="secondary" size="sm" className={cn("font-black uppercase italic text-[10px] border-2", !className && "h-10 px-8", className)}>
                     {triggerLabel === "Create Shipment" ? triggerLabel : <><Zap className="mr-2 h-4 w-4" /> {triggerLabel}</>}
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md rounded-3xl border-4">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Authorize Global Intake</DialogTitle>
+                    <DialogTitle className="uppercase italic tracking-tighter text-3xl text-center font-black">Authorize Global Intake</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-6 py-6">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <Label className="text-[10px] font-bold uppercase opacity-60">Verified Weight (LBS)</Label>
-                            <Input type="number" value={weight} onChange={e => setWeight(e.target.value)} className="h-14 text-2xl font-black border-2" />
+                <div className="space-y-8 py-8">
+                    <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase opacity-60 tracking-[0.2em] ml-1">Verified Weight (LBS)</Label>
+                            <Input type="number" value={weight} onChange={e => setWeight(e.target.value)} className="h-16 text-3xl font-black border-4 rounded-2xl focus-visible:ring-primary" />
                         </div>
-                        <div className="space-y-1">
-                            <Label className="text-[10px] font-bold uppercase opacity-60">Calculated Cost (JMD $)</Label>
-                            <Input type="number" value={cost} readOnly className="h-14 text-2xl font-black border-2 bg-muted/50" />
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase opacity-60 tracking-[0.2em] ml-1">Calculated Cost (JMD $)</Label>
+                            <Input type="number" value={cost} readOnly className="h-16 text-3xl font-black border-4 rounded-2xl bg-muted/30 border-dashed" />
                         </div>
                     </div>
-                    <Alert className="bg-primary/5 border-primary/20">
-                        <ArrowRight className="h-4 w-4 text-primary" />
-                        <AlertDescription className="text-[10px] font-bold uppercase">This action will generate an invoice and debit the client registry.</AlertDescription>
+                    <Alert className="bg-primary/5 border-primary/20 border-2 rounded-2xl shadow-inner">
+                        <ArrowRight className="h-5 w-5 text-primary" />
+                        <AlertDescription className="text-[11px] font-black uppercase italic text-primary leading-tight">
+                            AUTHENTICATION WARNING: THIS ACTION WILL GENERATE AN INVOICE AND DEBIT THE CLIENT REGISTRY INSTANTLY.
+                        </AlertDescription>
                     </Alert>
                 </div>
-                <DialogFooter className="gap-2">
-                    <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+                <DialogFooter className="gap-3">
+                    <DialogClose asChild><Button variant="outline" className="h-14 font-black uppercase w-full border-2 rounded-xl">Abort</Button></DialogClose>
                     <Button 
                         onClick={handleConfirm} 
                         disabled={isProcessing || !cost} 
-                        className="flex-1 h-12 font-black uppercase italic shadow-xl"
+                        className="flex-1 h-14 font-black uppercase italic shadow-2xl rounded-xl"
                     >
-                        {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
-                        Authorize Shipment
+                        {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-5 w-5" />} 
+                        Confirm & Create
                     </Button>
                 </DialogFooter>
             </DialogContent>
