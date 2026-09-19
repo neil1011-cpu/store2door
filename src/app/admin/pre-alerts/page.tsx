@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, History, ImageIcon, BrainCircuit, Copy } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, History, ImageIcon, BrainCircuit, Copy, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -310,7 +310,19 @@ export default function PreAlertsPage() {
                                         <TableCell className="pl-6">
                                             {alert.invoice_url ? (
                                                 <div className="relative h-16 w-16 rounded-lg overflow-hidden border-2 border-muted bg-muted/20 flex items-center justify-center">
-                                                    <img src={alert.invoice_url} alt="Thumbnail" className="object-cover w-full h-full" />
+                                                    {alert.invoice_url.toLowerCase().endsWith('.pdf') ? (
+                                                        <FileText className="h-8 w-8 text-primary opacity-40" />
+                                                    ) : (
+                                                        <img 
+                                                            src={alert.invoice_url} 
+                                                            alt="Thumbnail" 
+                                                            className="object-cover w-full h-full" 
+                                                            referrerPolicy="no-referrer"
+                                                            onError={(e) => {
+                                                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/%3E%3Cpolyline points="14 2 14 8 20 8"/%3E%3C/svg%3E';
+                                                            }}
+                                                        />
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <div className="h-16 w-16 rounded-lg bg-muted/10 border-2 border-dashed flex items-center justify-center text-muted-foreground/30">
@@ -396,8 +408,11 @@ export default function PreAlertsPage() {
 function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: string, trackingNumber: string, alert: any, onProcess: (a: any, w: number, c: number) => Promise<void> }) {
     const [open, setOpen] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [loadError, setLoadError] = useState(false);
     const [aiResult, setAiResult] = useState<GenerateCustomsFormOutput | null>(null);
     const { toast } = useToast();
+
+    const isPdf = url.toLowerCase().endsWith('.pdf');
 
     const handleRunAi = async () => {
         setIsAnalyzing(true);
@@ -423,7 +438,7 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
     };
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setLoadError(false); }}>
             <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="h-10 font-black uppercase italic text-[10px] border-2 shadow-sm px-6">
                     <Eye className="mr-2 h-4 w-4" /> Review Document
@@ -448,8 +463,32 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
                 
                 <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
                     <div className="lg:col-span-7 bg-zinc-100 dark:bg-zinc-900 p-8 flex items-center justify-center relative min-h-[500px]">
-                        <div className="relative w-full h-full rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-white group cursor-zoom-in">
-                            <img src={url} alt="Commercial Invoice" className="object-contain w-full h-full" />
+                        <div className="relative w-full h-full rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-white group">
+                            {isPdf ? (
+                                <embed src={url} type="application/pdf" className="w-full h-full rounded-xl" />
+                            ) : (
+                                <div className="relative w-full h-full">
+                                    {loadError && (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 p-6 text-center space-y-4">
+                                            <AlertCircle className="h-12 w-12 text-destructive" />
+                                            <div className="space-y-1">
+                                                <p className="font-black uppercase tracking-tight">Display Interrupted</p>
+                                                <p className="text-xs font-medium text-muted-foreground">The browser blocked direct rendering of this asset.</p>
+                                            </div>
+                                            <Button variant="secondary" className="font-black uppercase text-[10px]" asChild>
+                                                <Link href={url} target="_blank"><ExternalLink className="mr-2 h-3 w-3" /> Open in Secure Tab</Link>
+                                            </Button>
+                                        </div>
+                                    )}
+                                    <img 
+                                        src={url} 
+                                        alt="Commercial Invoice" 
+                                        className={cn("object-contain w-full h-full transition-opacity duration-300", loadError ? "opacity-0" : "opacity-100")}
+                                        referrerPolicy="no-referrer"
+                                        onError={() => setLoadError(true)}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="lg:col-span-5 bg-background p-8 border-l-4 flex flex-col gap-8 shadow-inner overflow-y-auto">
