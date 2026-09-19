@@ -47,6 +47,7 @@ export async function POST(request: Request) {
         const buffer = Buffer.from(arrayBuffer);
         
         // Convert Buffer to PostgreSQL-friendly Hex string for the 'bytea' column
+        // We prefix with \x to tell Postgres this is hex-encoded binary data
         const hexData = `\\x${buffer.toString('hex')}`;
 
         // 2. Persist directly in PostgreSQL
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
         // We return the asset ID as the durable reference
         return NextResponse.json({ 
             success: true, 
-            key: asset.id, // Using the key field name to maintain UI compatibility
+            key: asset.id, 
             fileName: file.name
         });
 
