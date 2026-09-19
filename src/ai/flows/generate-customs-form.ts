@@ -1,13 +1,12 @@
 'use server';
 /**
  * @fileOverview Generates a customs form and warehouse ticket from shipper input.
- * Refactored to handle secure S3 keys by automatically retrieving private documents.
+ * Refactored to fetch documentation assets directly from the database registry.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getFileBuffer, VultrConfig } from '@/lib/integrations/vultr-service';
 
 const GenerateCustomsFormInputSchema = z.object({
   trackingNumber: z.string().describe('The tracking number for the shipment, in JMXXX format.'),
@@ -16,7 +15,7 @@ const GenerateCustomsFormInputSchema = z.object({
   invoiceDataUri: z
     .string()
     .describe(
-      "A photo of a commercial invoice, as a data URI OR a secure S3 storage key. Format: 'data:<mimetype>;base64,<encoded_data>' or 'invoices/uid/filename'."
+      "A photo of a commercial invoice, as a data URI OR a database asset ID."
     ),
 });
 export type GenerateCustomsFormInput = z.infer<typeof GenerateCustomsFormInputSchema>;
@@ -71,24 +70,20 @@ const generateCustomsFormFlow = ai.defineFlow(
   async input => {
     let finalUri = input.invoiceDataUri;
 
-    // Detect if input is an S3 key rather than a Data URI
-    if (!finalUri.startsWith('data:') && !finalUri.startsWith('http')) {
+    // Detect if input is a DB asset ID rather than a Data URI
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.invoiceDataUri);
+    
+    if (isUuid) {
         const adminClient = await createAdminClient();
-        const { data: configData } = await adminClient
-            .from('system_configs')
-            .select('config_value')
-            .eq('config_key', 'vultr_config')
+        const { data: asset } = await adminClient
+            .from('document_assets')
+            .select('file_data, mime_type')
+            .eq('id', input.invoiceDataUri)
             .maybeSingle();
 
-        if (configData) {
-            const config = configData.config_value as VultrConfig;
-            const buffer = await getFileBuffer(config, input.invoiceDataUri);
-            if (buffer) {
-                // Determine mime type from extension
-                const ext = input.invoiceDataUri.split('.').pop()?.toLowerCase();
-                const mime = ext === 'pdf' ? 'application/pdf' : 'image/jpeg';
-                finalUri = `data:${mime};base64,${buffer.toString('base64')}`;
-            }
+        if (asset) {
+            const buffer = Buffer.from(asset.file_data);
+            finalUri = `data:${asset.mime_type};base64,${buffer.toString('base64')}`;
         }
     }
 

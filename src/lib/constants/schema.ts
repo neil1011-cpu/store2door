@@ -1,10 +1,9 @@
 /**
  * @fileOverview Definitive Production SQL Schema for FromStore2Door OS.
- * Hardened version with immutable ledger logic, corrected triggers, and granular RLS.
- * Made fully idempotent for safe re-runs.
+ * Hardened version with binary documentation storage, immutable ledger logic, and granular RLS.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v3.4)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.0)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -43,6 +42,16 @@ CREATE TABLE IF NOT EXISTS public.app_roles (
     UNIQUE(user_id, role)
 );
 
+CREATE TABLE IF NOT EXISTS public.document_assets (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    file_name text NOT NULL,
+    mime_type text NOT NULL,
+    file_size integer NOT NULL,
+    file_data bytea NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.financial_ledger (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
@@ -70,7 +79,7 @@ CREATE TABLE IF NOT EXISTS public.pre_alerts (
     contents text,
     weight_lbs numeric(10,2) DEFAULT 0 CHECK (weight_lbs >= 0),
     status text DEFAULT 'Pending' NOT NULL CHECK (status IN ('Pending', 'Processed', 'Cancelled')),
-    invoice_url text,
+    invoice_url text, -- Stores the ID of the document_asset
     submission_date timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
 );
@@ -85,7 +94,7 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     total_cost_jmd numeric(12,2) DEFAULT 0 CHECK (total_cost_jmd >= 0),
     payment_status text DEFAULT 'Unpaid' NOT NULL CHECK (payment_status IN ('Paid', 'Unpaid', 'Partial')),
     shipping_date timestamptz,
-    invoice_url text,
+    invoice_url text, -- Stores the ID of the document_asset
     created_at timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
 );
@@ -116,27 +125,13 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
     created_at timestamptz DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS public.addresses (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    address_line_1 text NOT NULL,
-    address_line_2 text,
-    city text NOT NULL,
-    state_parish text NOT NULL,
-    zip_code text,
-    address_type text DEFAULT 'delivery' NOT NULL,
-    is_default boolean DEFAULT false,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    UNIQUE(profile_id, address_type)
-);
-
 -- 5. INDEXES (Performance & RLS)
 CREATE INDEX IF NOT EXISTS idx_ledger_profile ON public.financial_ledger(profile_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_profile ON public.invoices(profile_id);
 CREATE INDEX IF NOT EXISTS idx_pre_alerts_profile ON public.pre_alerts(profile_id);
 CREATE INDEX IF NOT EXISTS idx_shipments_profile ON public.shipments(profile_id);
 CREATE INDEX IF NOT EXISTS idx_roles_user ON public.app_roles(user_id);
-CREATE INDEX IF NOT EXISTS idx_addresses_profile ON public.addresses(profile_id);
+CREATE INDEX IF NOT EXISTS idx_doc_assets_profile ON public.document_assets(profile_id);
 
 -- 6. FUNCTIONS
 CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
@@ -148,7 +143,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- SECURE SYNC TRIGGER (Handles Profile Switches correctly)
+-- SECURE SYNC TRIGGER
 CREATE OR REPLACE FUNCTION public.sync_profile_balance()
 RETURNS trigger AS $$
 BEGIN
@@ -179,7 +174,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 7. TRIGGERS (Idempotent: Drop before Create)
+-- 7. TRIGGERS
 DROP TRIGGER IF EXISTS on_ledger_change ON public.financial_ledger;
 CREATE TRIGGER on_ledger_change
   AFTER INSERT OR UPDATE OR DELETE ON public.financial_ledger
@@ -197,12 +192,18 @@ ALTER TABLE public.financial_ledger ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pre_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shipments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.document_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sent_emails ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.addresses ENABLE ROW LEVEL SECURITY;
 
--- 9. POLICIES (Idempotent: Drop before Create)
+-- 9. POLICIES
+
+-- Document Assets
+DROP POLICY IF EXISTS "doc_assets_select" ON public.document_assets;
+CREATE POLICY "doc_assets_select" ON public.document_assets FOR SELECT USING (auth.uid() = profile_id OR is_admin());
+DROP POLICY IF EXISTS "doc_assets_insert" ON public.document_assets;
+CREATE POLICY "doc_assets_insert" ON public.document_assets FOR INSERT WITH CHECK (auth.uid() = profile_id);
 
 -- Profiles
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
@@ -210,7 +211,7 @@ CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (auth.uid() 
 DROP POLICY IF EXISTS "profiles_update" ON public.profiles;
 CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
--- Ledger (APPEND ONLY for Admin, READ ONLY for User)
+-- Ledger
 DROP POLICY IF EXISTS "ledger_select" ON public.financial_ledger;
 CREATE POLICY "ledger_select" ON public.financial_ledger FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "ledger_insert_admin" ON public.financial_ledger;
@@ -228,7 +229,7 @@ CREATE POLICY "pre_alerts_select" ON public.pre_alerts FOR SELECT USING (auth.ui
 DROP POLICY IF EXISTS "pre_alerts_insert" ON public.pre_alerts;
 CREATE POLICY "pre_alerts_insert" ON public.pre_alerts FOR INSERT WITH CHECK (auth.uid() = profile_id);
 DROP POLICY IF EXISTS "pre_alerts_admin" ON public.pre_alerts;
-CREATE POLICY "pre_alerts_admin" ON public.pre_alerts FOR UPDATE USING (is_admin());
+CREATE POLICY "pre_alerts_admin" ON public.pre_alerts FOR ALL USING (is_admin());
 
 -- Shipments
 DROP POLICY IF EXISTS "shipments_select" ON public.shipments;
@@ -244,7 +245,7 @@ CREATE POLICY "emails_select_admin" ON public.sent_emails FOR SELECT USING (is_a
 DROP POLICY IF EXISTS "configs_all_admin" ON public.system_configs;
 CREATE POLICY "configs_all_admin" ON public.system_configs FOR ALL USING (is_admin());
 
--- 10. BACKFILL (Idempotent)
+-- 10. BACKFILL
 DO $$ 
 BEGIN
     INSERT INTO public.profiles (id, full_name, email)
@@ -258,5 +259,4 @@ BEGIN
     ON CONFLICT DO NOTHING;
 END $$;
 
--- FORCE SCHEMA RELOAD
 NOTIFY pgrst, 'reload schema';`

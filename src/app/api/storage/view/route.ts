@@ -1,38 +1,42 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
-import { getSignedUrl, VultrConfig } from '@/lib/integrations/vultr-service';
 
 /**
- * @fileOverview Secure Storage Proxy.
- * Generates temporary signed URLs for authorized users.
- * Refactored to properly decode keys and handle legacy/direct access correctly.
+ * @fileOverview Secure Database Documentation Proxy.
+ * Retrieves binary data from PostgreSQL and serves it to the browser.
  */
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
-    let key = searchParams.get('key');
+    let idOrKey = searchParams.get('key');
 
-    if (!key) return NextResponse.json({ message: 'Missing key' }, { status: 400 });
-
-    // Decode the key in case it was encoded for query string transport
-    key = decodeURIComponent(key);
+    if (!idOrKey) return NextResponse.json({ message: 'Missing document identifier' }, { status: 400 });
 
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-        const adminClient = await createAdminClient();
-        
-        // 1. Legacy/Direct URL Detection
-        const isLegacyPublic = key.startsWith('http');
-        if (isLegacyPublic) {
-            return Response.redirect(key, 307);
+        // 1. Legacy URL Detection (Redirect if still pointing at external sources)
+        if (idOrKey.startsWith('http')) {
+            return Response.redirect(idOrKey, 307);
         }
 
-        // 2. Authorization Logic
-        // We query the registry directly because SQL RPCs like 'is_admin()' 
-        // will fail to detect the user ID when called via the Service Role (adminClient).
+        const adminClient = await createAdminClient();
+
+        // 2. Fetch from Database
+        // Note: The SELECT will filter based on profile_id unless the caller is admin
+        const { data: asset, error: fetchError } = await adminClient
+            .from('document_assets')
+            .select('*')
+            .eq('id', idOrKey)
+            .maybeSingle();
+
+        if (fetchError || !asset) {
+            return NextResponse.json({ message: 'Document not found or access denied.' }, { status: 404 });
+        }
+
+        // 3. Authorization Check
         const { data: roleData } = await adminClient
             .from('app_roles')
             .select('role')
@@ -41,35 +45,26 @@ export async function GET(request: Request) {
             .maybeSingle();
 
         const isAdmin = !!roleData || user.email === 'admin@neilussolutions.com';
-        
-        // Ownership check: Key should be invoices/{userId}/{filename}
-        const isOwner = key.startsWith(`invoices/${user.id}/`);
-        
+        const isOwner = asset.profile_id === user.id;
+
         if (!isAdmin && !isOwner) {
-            console.error(`[STORAGE_ACCESS_DENIED] User ${user.id} attempted to access ${key}`);
-            return NextResponse.json({ message: 'Access Denied: Permission revoked for this asset.' }, { status: 403 });
+            return NextResponse.json({ message: 'Access Denied: You do not own this asset.' }, { status: 403 });
         }
 
-        // 3. Fetch Storage Config
-        const { data: configData } = await adminClient
-            .from('system_configs')
-            .select('config_value')
-            .eq('config_key', 'vultr_config')
-            .maybeSingle();
+        // 4. Return Binary Response
+        // asset.file_data is returned as a hex string or buffer by the driver
+        const buffer = Buffer.from(asset.file_data);
 
-        const config = configData?.config_value as VultrConfig;
-        if (!config || !config.accessKey || !config.secretKey) {
-            throw new Error('Cloud Storage is not correctly configured in the system registry.');
-        }
-
-        // 4. Generate Signed URL (15 minute expiry)
-        const signedUrl = await getSignedUrl(config, key, 900);
-
-        // 5. Redirect to the temporary secure location
-        return Response.redirect(signedUrl, 307);
+        return new Response(buffer, {
+            headers: {
+                'Content-Type': asset.mime_type,
+                'Content-Disposition': `inline; filename="${asset.file_name}"`,
+                'Cache-Control': 'private, max-age=3600'
+            }
+        });
 
     } catch (error: any) {
-        console.error('[STORAGE_VIEW_ERROR] FATAL:', error.message);
+        console.error('[DB_VIEW_ERROR] FATAL:', error.message);
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }

@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { headers } from 'next/headers';
-import { getS3Client, VultrConfig } from '@/lib/integrations/vultr-service';
 
 /**
- * @fileOverview Authorized Cloud Documentation Porter.
- * Uploads files as PRIVATE and returns the S3 KEY for the registry.
- * Hardened to ensure consistent key generation and error handling.
+ * @fileOverview Authorized Documentation Porter (Database Backed).
+ * Stores uploaded files directly in the Supabase PostgreSQL database as binary data (bytea).
+ * Limits upload size to 5MB to preserve database performance.
  */
 
 export async function POST(request: Request) {
@@ -35,60 +33,48 @@ export async function POST(request: Request) {
 
         const adminClient = await createAdminClient();
         
-        // 1. Fetch Storage Registry
-        const { data: configData } = await adminClient
-            .from('system_configs')
-            .select('config_value')
-            .eq('config_key', 'vultr_config')
-            .maybeSingle();
-
-        const config = configData?.config_value as VultrConfig;
-        if (!config?.accessKey || !config?.secretKey || !config?.bucket) {
-            return NextResponse.json({ 
-                message: 'Cloud Storage Registry is incomplete. Please configure Vultr in System Settings.', 
-                code: 'CONFIG_MISSING' 
-            }, { status: 500 });
-        }
-
-        // 2. Extract and Validate File
+        // 1. Extract and Validate File
         const formData = await request.formData();
         const file = formData.get('file') as File;
         if (!file) return NextResponse.json({ message: 'Payload missing file segment.' }, { status: 400 });
 
-        // Max 10MB check
-        if (file.size > 10 * 1024 * 1024) {
-            return NextResponse.json({ message: 'File size exceeds 10MB limit.' }, { status: 400 });
+        // Max 5MB check
+        if (file.size > 5 * 1024 * 1024) {
+            return NextResponse.json({ message: 'File size exceeds 5MB limit.' }, { status: 400 });
         }
 
-        const buffer = Buffer.from(await file.arrayBuffer());
-        // Sanitize filename: remove non-alphanumeric except dots
-        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-        const fileName = `${Date.now()}_${sanitizedName}`;
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
         
-        // Durable S3 Key: invoices/{userId}/{unique_filename}
-        const key = `invoices/${caller.id}/${fileName}`;
+        // Convert Buffer to PostgreSQL-friendly Hex string for the 'bytea' column
+        const hexData = `\\x${buffer.toString('hex')}`;
 
-        // 3. Dispatch to Vultr (PRIVATE ACL)
-        const s3 = getS3Client(config);
-        await s3.send(new PutObjectCommand({
-            Bucket: config.bucket,
-            Key: key,
-            Body: buffer,
-            ContentType: file.type || 'application/octet-stream',
-            // Note: ACL 'private' is default for most S3 buckets, but explicit is better
-        }));
+        // 2. Persist directly in PostgreSQL
+        const { data: asset, error: insertError } = await adminClient
+            .from('document_assets')
+            .insert({
+                profile_id: caller.id,
+                file_name: file.name,
+                mime_type: file.type || 'application/octet-stream',
+                file_size: file.size,
+                file_data: hexData
+            })
+            .select('id')
+            .single();
 
-        // We return the relative KEY for storage in the database
+        if (insertError) throw insertError;
+
+        // We return the asset ID as the durable reference
         return NextResponse.json({ 
             success: true, 
-            key: key,
+            key: asset.id, // Using the key field name to maintain UI compatibility
             fileName: file.name
         });
 
     } catch (error: any) {
-        console.error(`[STORAGE_PORTER_FATAL:${requestId}]`, error);
+        console.error(`[DB_STORAGE_FATAL:${requestId}]`, error);
         return NextResponse.json({ 
-            message: error.message || 'The cloud transfer handshake failed.',
+            message: error.message || 'The database transfer handshake failed.',
             code: error.name
         }, { status: 500 });
     }
