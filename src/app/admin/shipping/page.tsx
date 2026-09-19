@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -6,11 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays } from 'lucide-react';
+import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays, Trash2 } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -39,6 +39,7 @@ export default function ShippingPage() {
   
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -155,6 +156,30 @@ export default function ShippingPage() {
     }
   };
 
+  const handleDeleteShipment = async (shipmentId: string, trackingNumber: string) => {
+    setIsDeleting(shipmentId);
+    try {
+      const { error } = await supabase.from('shipments').delete().eq('id', shipmentId);
+      if (error) throw error;
+
+      // Log the event
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('system_logs').insert({
+        log_type: 'shipment_deleted',
+        description: `Shipment record ${trackingNumber} purged from registry by administrator.`,
+        actor_id: user?.id,
+        metadata: { shipmentId, trackingNumber }
+      });
+
+      toast({ title: "Record Purged", description: `Shipment ${trackingNumber} has been removed.` });
+      fetchData();
+    } catch (error: any) {
+      toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -238,10 +263,36 @@ export default function ShippingPage() {
                             JMD ${Number(s.total_cost_jmd).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell className="text-right pr-6">
-                          <StatusUpdateDialog 
-                            shipment={s} 
-                            onUpdate={(newStatus) => handleStatusUpdate(s.id, s.tracking_number, newStatus)} 
-                          />
+                          <div className="flex justify-end gap-2">
+                            <StatusUpdateDialog 
+                              shipment={s} 
+                              onUpdate={(newStatus) => handleStatusUpdate(s.id, s.tracking_number, newStatus)} 
+                            />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="font-black uppercase italic">Purge Shipment Record?</AlertDialogTitle>
+                                  <AlertDialogDescription className="text-[10px] font-bold uppercase">
+                                    This will permanently remove <strong>{s.tracking_number}</strong> from the global registry. This action is irreversible.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel className="font-bold h-12 uppercase">Abort</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeleteShipment(s.id, s.tracking_number)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg"
+                                  >
+                                    Authorize Purge
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </TableCell>
                     </TableRow>
                 ))}

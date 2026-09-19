@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -7,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, History, ImageIcon, BrainCircuit, Copy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,7 @@ export default function PreAlertsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCleaning, setIsCleaning] = useState(false);
+    const [isDeleting, setIsDeleting] = useState<string | null>(null);
     
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newAlert, setNewAlert] = useState({ profileId: '', trackingNumber: '', contents: '', weight: '' });
@@ -105,6 +106,30 @@ export default function PreAlertsPage() {
             toast({ title: "Creation Failed", description: error.message, variant: "destructive" });
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleDeletePreAlert = async (id: string, trackingNumber: string) => {
+        setIsDeleting(id);
+        try {
+            const { error } = await supabase.from('pre_alerts').delete().eq('id', id);
+            if (error) throw error;
+
+            // Log the event
+            const { data: { user } } = await supabase.auth.getUser();
+            await supabase.from('system_logs').insert({
+                log_type: 'pre_alert_deleted',
+                description: `Pre-alert record ${trackingNumber} purged from hub by administrator.`,
+                actor_id: user?.id,
+                metadata: { preAlertId: id, trackingNumber }
+            });
+
+            toast({ title: "Document Purged" });
+            fetchData();
+        } catch (error: any) {
+            toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
+        } finally {
+            setIsDeleting(null);
         }
     };
 
@@ -323,6 +348,31 @@ export default function PreAlertsPage() {
                                                         )}
                                                     </div>
                                                 )}
+                                                
+                                                <AlertDialog>
+                                                  <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive h-10 w-10">
+                                                      <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                  </AlertDialogTrigger>
+                                                  <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                      <AlertDialogTitle className="font-black uppercase italic">Purge Pre-Alert Record?</AlertDialogTitle>
+                                                      <AlertDialogDescription className="text-[10px] font-bold uppercase">
+                                                        This will permanently remove <strong>{alert.tracking_number}</strong> from the hub.
+                                                      </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                      <AlertDialogCancel className="font-bold h-12 uppercase">Abort</AlertDialogCancel>
+                                                      <AlertDialogAction 
+                                                        onClick={() => handleDeletePreAlert(alert.id, alert.tracking_number)}
+                                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg"
+                                                      >
+                                                        Authorize Purge
+                                                      </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                  </AlertDialogContent>
+                                                </AlertDialog>
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -356,7 +406,7 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
                 trackingNumber: alert.tracking_number,
                 contentsDescription: alert.contents || 'Not specified',
                 weight: `${alert.weight_lbs || '0'} lbs`,
-                invoiceDataUri: url // This is already a public URL that Gemini can fetch if configured, but for base64 I'd need to fetch first.
+                invoiceDataUri: url 
             });
             setAiResult(result);
             toast({ title: "Analysis Complete", description: "AI has extracted document details." });
