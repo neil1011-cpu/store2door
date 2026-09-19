@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -6,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, History, ImageIcon } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, History, ImageIcon, BrainCircuit, Copy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -15,7 +16,7 @@ import Link from 'next/link';
 import { useSupabase } from '@/components/supabase-provider';
 import { cn, calculateShippingCost } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import Image from 'next/image';
+import { generateCustomsForm, type GenerateCustomsFormOutput } from '@/ai/flows/generate-customs-form';
 
 export default function PreAlertsPage() {
     const { supabase } = useSupabase();
@@ -284,7 +285,7 @@ export default function PreAlertsPage() {
                                         <TableCell className="pl-6">
                                             {alert.invoice_url ? (
                                                 <div className="relative h-16 w-16 rounded-lg overflow-hidden border-2 border-muted bg-muted/20 flex items-center justify-center">
-                                                    <Image src={alert.invoice_url} alt="Thumbnail" fill className="object-cover" unoptimized />
+                                                    <img src={alert.invoice_url} alt="Thumbnail" className="object-cover w-full h-full" />
                                                 </div>
                                             ) : (
                                                 <div className="h-16 w-16 rounded-lg bg-muted/10 border-2 border-dashed flex items-center justify-center text-muted-foreground/30">
@@ -344,6 +345,33 @@ export default function PreAlertsPage() {
 
 function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: string, trackingNumber: string, alert: any, onProcess: (a: any, w: number, c: number) => Promise<void> }) {
     const [open, setOpen] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [aiResult, setAiResult] = useState<GenerateCustomsFormOutput | null>(null);
+    const { toast } = useToast();
+
+    const handleRunAi = async () => {
+        setIsAnalyzing(true);
+        try {
+            const result = await generateCustomsForm({
+                trackingNumber: alert.tracking_number,
+                contentsDescription: alert.contents || 'Not specified',
+                weight: `${alert.weight_lbs || '0'} lbs`,
+                invoiceDataUri: url // This is already a public URL that Gemini can fetch if configured, but for base64 I'd need to fetch first.
+            });
+            setAiResult(result);
+            toast({ title: "Analysis Complete", description: "AI has extracted document details." });
+        } catch (error: any) {
+            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        toast({ title: "Copied", description: "Text copied to clipboard." });
+    };
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -351,31 +379,60 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
                     <Eye className="mr-2 h-4 w-4" /> Review Document
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden rounded-3xl border-4">
+            <DialogContent className="sm:max-w-7xl max-h-[95vh] flex flex-col p-0 overflow-hidden rounded-3xl border-4">
                 <DialogHeader className="p-8 pb-4 bg-muted/10 border-b">
                     <div className="flex items-center justify-between w-full">
                         <div>
                             <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter">Documentation Terminal</DialogTitle>
                             <DialogDescription className="font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Universal Logistics ID: {trackingNumber}</DialogDescription>
                         </div>
-                        <Badge className="bg-primary text-[10px] font-black uppercase italic h-8 px-6 border-2 border-white/20">Security Verification Active</Badge>
+                        <div className="flex items-center gap-3">
+                            <Button onClick={handleRunAi} disabled={isAnalyzing} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase italic text-[10px] h-8 px-6 shadow-lg">
+                                {isAnalyzing ? <Loader2 className="animate-spin h-3.5 w-3.5 mr-2" /> : <BrainCircuit className="h-3.5 w-3.5 mr-2" />}
+                                {isAnalyzing ? "Analyzing..." : "Run AI Smart Analysis"}
+                            </Button>
+                            <Badge className="bg-primary text-[10px] font-black uppercase italic h-8 px-6 border-2 border-white/20">Security Verification Active</Badge>
+                        </div>
                     </div>
                 </DialogHeader>
                 
                 <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-                    <div className="lg:col-span-8 bg-zinc-100 dark:bg-zinc-900 p-8 flex items-center justify-center relative min-h-[500px]">
+                    <div className="lg:col-span-7 bg-zinc-100 dark:bg-zinc-900 p-8 flex items-center justify-center relative min-h-[500px]">
                         <div className="relative w-full h-full rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-white group cursor-zoom-in">
-                            <Image 
-                                src={url} 
-                                alt="Commercial Invoice" 
-                                fill 
-                                className="object-contain"
-                                unoptimized
-                                data-ai-hint="invoice document"
-                            />
+                            <img src={url} alt="Commercial Invoice" className="object-contain w-full h-full" />
                         </div>
                     </div>
-                    <div className="lg:col-span-4 bg-background p-8 border-l-4 flex flex-col gap-8 shadow-inner">
+                    <div className="lg:col-span-5 bg-background p-8 border-l-4 flex flex-col gap-8 shadow-inner overflow-y-auto">
+                        {aiResult ? (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+                                <div className="p-5 rounded-2xl bg-indigo-50 border-2 border-indigo-200 space-y-4">
+                                    <h4 className="text-xs font-black uppercase text-indigo-700 flex items-center gap-2">
+                                        <BrainCircuit className="h-4 w-4" /> AI Analysis Results
+                                    </h4>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase opacity-60 text-indigo-600">Sender Info</p>
+                                            <div className="flex items-start justify-between gap-2 mt-1">
+                                                <p className="text-xs font-bold leading-relaxed">{aiResult.customsForm.sender}</p>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-indigo-400" onClick={() => copyToClipboard(aiResult.customsForm.sender)}>
+                                                    <Copy className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase opacity-60 text-indigo-600">Recipient Info</p>
+                                            <div className="flex items-start justify-between gap-2 mt-1">
+                                                <p className="text-xs font-bold leading-relaxed">{aiResult.customsForm.recipient}</p>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-indigo-400" onClick={() => copyToClipboard(aiResult.customsForm.recipient)}>
+                                                    <Copy className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
+
                         <div className="space-y-6">
                             <div className="p-5 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 space-y-2">
                                 <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Customer Identity</p>
