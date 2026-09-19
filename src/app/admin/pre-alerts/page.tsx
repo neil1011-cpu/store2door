@@ -126,6 +126,7 @@ export default function PreAlertsPage() {
 
     const handleProcessIntake = async (alert: any, verifiedWeight: number, calculatedCost: number) => {
         try {
+            // 1. Insert Shipment (Include the invoice_url reference)
             const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
                 profile_id: alert.profile_id,
                 tracking_number: alert.tracking_number,
@@ -134,30 +135,37 @@ export default function PreAlertsPage() {
                 total_cost_jmd: calculatedCost,
                 status: 'Processed',
                 payment_status: 'Unpaid',
-                invoice_url: alert.invoice_url
+                invoice_url: alert.invoice_url // CRITICAL: Persist document ID
             }).select().single();
 
             if (shipError) throw shipError;
 
-            await supabase.from('invoices').insert({
+            // 2. Generate Invoice Record
+            const { error: invError } = await supabase.from('invoices').insert({
                 profile_id: alert.profile_id,
                 amount: calculatedCost,
                 status: 'Unpaid',
                 invoice_number: `INV-${alert.tracking_number.slice(-4)}-${Date.now().toString().slice(-4)}`
             });
+            if (invError) throw invError;
 
-            await supabase.from('financial_ledger').insert({
+            // 3. Update Financial Ledger
+            const { error: ledError } = await supabase.from('financial_ledger').insert({
                 profile_id: alert.profile_id,
                 amount: -calculatedCost,
                 transaction_type: 'shipping_fee',
                 description: `Shipping Fee: ${alert.tracking_number}`
             });
+            if (ledError) throw ledError;
 
-            await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
+            // 4. Update Pre-Alert Status
+            const { error: updError } = await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
+            if (updError) throw updError;
 
             toast({ title: "Intake Secured" });
             fetchData();
         } catch (error: any) {
+            console.error("[INTAKE_FAILURE]", error);
             toast({ title: "Intake Failure", description: error.message, variant: "destructive" });
         }
     };
@@ -421,7 +429,7 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
                 <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
                     <div className="lg:col-span-7 bg-zinc-100 dark:bg-zinc-900 p-8 flex items-center justify-center relative min-h-[500px]">
                         <div className="relative w-full h-full rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-white">
-                            <iframe 
+                             <iframe 
                                 src={url} 
                                 className="w-full h-full border-none rounded-xl bg-muted/10" 
                                 title="Invoice Preview"

@@ -3,7 +3,7 @@
  * Hardened version with binary documentation storage, immutable ledger logic, and granular RLS.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.1)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.2)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -99,6 +99,14 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     created_at timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
 );
+
+-- Evolution: Ensure shipments has invoice_url if table already existed
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='invoice_url') THEN
+        ALTER TABLE public.shipments ADD COLUMN invoice_url text;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.system_configs (
     config_key text PRIMARY KEY,
