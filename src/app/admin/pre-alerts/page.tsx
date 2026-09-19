@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, DollarSign, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, History } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -34,7 +34,7 @@ export default function PreAlertsPage() {
         setIsLoading(true);
         try {
             const [paRes, usersRes] = await Promise.all([
-                supabase.from('pre_alerts').select('*, profiles(full_name)').eq('status', 'Pending').order('submission_date', { ascending: false }),
+                supabase.from('pre_alerts').select('*, profiles(full_name)').order('submission_date', { ascending: false }),
                 supabase.from('profiles').select('*').order('full_name', { ascending: true })
             ]);
 
@@ -138,7 +138,7 @@ export default function PreAlertsPage() {
                 description: `Shipping Fee: ${alert.tracking_number}`
             });
 
-            // 4. Mark documentation as processed (this moves it out of the Pending list)
+            // 4. Mark documentation as processed
             await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
 
             // 5. System Log
@@ -168,15 +168,15 @@ export default function PreAlertsPage() {
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Pre-Alert Queue</h1>
-                    <p className="text-muted-foreground font-medium uppercase text-[10px]">Universal Operational Registry</p>
+                    <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Pre-Alert Hub</h1>
+                    <p className="text-muted-foreground font-medium uppercase text-[10px]">Document Registry & Intake Station</p>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={handleRunCleanup} disabled={isCleaning} className="font-bold border-2 border-orange-200 text-orange-700 hover:bg-orange-50">
                         {isCleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock className="mr-2 h-4 w-4" />} 
                         Retention Cleanup
                     </Button>
-                    <Button variant="outline" onClick={fetchData} className="font-bold border-2"><RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh Queue</Button>
+                    <Button variant="outline" onClick={fetchData} className="font-bold border-2"><RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh Feed</Button>
                     
                     <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                         <DialogTrigger asChild>
@@ -268,10 +268,10 @@ export default function PreAlertsPage() {
                     <Table>
                         <TableHeader className="bg-muted/30">
                             <TableRow className="h-12">
-                                <TableHead className="pl-6 text-[10px] font-black uppercase">Customer</TableHead>
+                                <TableHead className="pl-6 text-[10px] font-black uppercase">Status</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
                                 <TableHead className="text-[10px] font-black uppercase">Tracking ID</TableHead>
                                 <TableHead className="text-[10px] font-black uppercase">Retention</TableHead>
-                                <TableHead className="text-[10px] font-black uppercase">Submission Date</TableHead>
                                 <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Action</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -279,8 +279,13 @@ export default function PreAlertsPage() {
                             {preAlerts.map(alert => {
                                 const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(alert.submission_date).getTime()) / (1000 * 60 * 60 * 24)));
                                 return (
-                                    <TableRow key={alert.id} className="hover:bg-primary/5 transition-colors h-20">
+                                    <TableRow key={alert.id} className={cn("hover:bg-primary/5 transition-colors h-20", alert.status === 'Processed' && "opacity-60")}>
                                         <TableCell className="pl-6">
+                                            <Badge variant={alert.status === 'Processed' ? 'secondary' : 'default'} className="uppercase text-[8px] font-black italic">
+                                                {alert.status}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
                                             <div className="flex flex-col">
                                                 <span className="font-black text-sm uppercase">{alert.profiles?.full_name || 'Legacy Account'}</span>
                                                 <span className="text-[9px] font-bold opacity-60 uppercase truncate max-w-[150px]">{alert.contents || 'No Description'}</span>
@@ -293,7 +298,6 @@ export default function PreAlertsPage() {
                                                 <span className={cn("text-[10px] font-bold uppercase", daysLeft < 5 && "text-red-600")}>{daysLeft} Days Left</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-[10px] font-medium opacity-60">{new Date(alert.submission_date).toLocaleDateString()}</TableCell>
                                         <TableCell className="text-right pr-6">
                                             <div className="flex justify-end gap-2">
                                                 {alert.invoice_url ? (
@@ -301,7 +305,9 @@ export default function PreAlertsPage() {
                                                 ) : (
                                                     <Badge variant="outline" className="opacity-30 uppercase text-[8px] h-9 px-4 flex items-center">No Document</Badge>
                                                 )}
-                                                {!alert.invoice_url && <IntakeDialog alert={alert} onProcess={handleProcessIntake} />}
+                                                {alert.status === 'Pending' && !alert.invoice_url && (
+                                                    <IntakeDialog alert={alert} onProcess={handleProcessIntake} />
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -328,7 +334,7 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="h-9 font-black uppercase italic text-[10px] border-2">
-                    <Eye className="mr-2 h-3.5 w-3.5" /> View & Verify Invoice
+                    <Eye className="mr-2 h-3.5 w-3.5" /> View Registry Document
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-5xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
@@ -338,7 +344,7 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
                             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Documentation Review</DialogTitle>
                             <DialogDescription className="font-bold text-[10px] uppercase tracking-widest">Tracking ID: {trackingNumber}</DialogDescription>
                         </div>
-                        <Badge className="bg-primary text-[10px] font-black uppercase italic h-7 px-4">Verification Mode</Badge>
+                        <Badge className="bg-primary text-[10px] font-black uppercase italic h-7 px-4">Verification Terminal</Badge>
                     </div>
                 </DialogHeader>
                 
@@ -370,15 +376,20 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
                             <Alert className="bg-amber-50 border-amber-200">
                                 <AlertCircle className="h-4 w-4 text-amber-600" />
                                 <AlertDescription className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
-                                    Verify document matches contents before authorizing intake.
+                                    Verify document details match package contents.
                                 </AlertDescription>
                             </Alert>
                             
                             <div className="grid grid-cols-1 gap-2">
-                                <Button variant="outline" className="font-bold uppercase h-12" asChild>
-                                    <Link href={url} target="_blank"><Download className="mr-2 h-4 w-4" /> Download Original</Link>
+                                <Button variant="outline" className="font-black uppercase h-12 border-2" asChild>
+                                    <Link href={url} target="_blank" download><Download className="mr-2 h-4 w-4" /> Download Original</Link>
                                 </Button>
-                                <IntakeDialog alert={alert} onProcess={onProcess} triggerLabel="Verify & Move to Shipping" className="w-full h-14 text-lg" onIntakeSuccess={() => setOpen(false)} />
+                                {alert.status === 'Pending' && (
+                                    <IntakeDialog alert={alert} onProcess={onProcess} triggerLabel="Verify & Create Shipment" className="w-full h-14 text-lg" onIntakeSuccess={() => setOpen(false)} />
+                                )}
+                                {alert.status === 'Processed' && (
+                                    <Button disabled className="h-14 font-black uppercase opacity-40"><CheckCircle2 className="mr-2 h-5 w-5" /> Shipment Already Created</Button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -388,7 +399,7 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
     );
 }
 
-function IntakeDialog({ alert, onProcess, triggerLabel = "Process Intake", className, onIntakeSuccess }: { alert: any, onProcess: (a: any, w: number, c: number) => Promise<void>, triggerLabel?: string, className?: string, onIntakeSuccess?: () => void }) {
+function IntakeDialog({ alert, onProcess, triggerLabel = "Create Shipment", className, onIntakeSuccess }: { alert: any, onProcess: (a: any, w: number, c: number) => Promise<void>, triggerLabel?: string, className?: string, onIntakeSuccess?: () => void }) {
     const [open, setOpen] = useState(false);
     const [weight, setWeight] = useState(alert.weight_lbs?.toString() || '');
     const [cost, setCost] = useState('');
@@ -416,7 +427,7 @@ function IntakeDialog({ alert, onProcess, triggerLabel = "Process Intake", class
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button variant="secondary" size="sm" className={cn("font-black uppercase italic text-[10px]", !className && "h-9 px-6", className)}>
-                    {triggerLabel === "Process Intake" ? triggerLabel : <><Zap className="mr-2 h-4 w-4" /> {triggerLabel}</>}
+                    {triggerLabel === "Create Shipment" ? triggerLabel : <><Zap className="mr-2 h-4 w-4" /> {triggerLabel}</>}
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
@@ -436,7 +447,7 @@ function IntakeDialog({ alert, onProcess, triggerLabel = "Process Intake", class
                     </div>
                     <Alert className="bg-primary/5 border-primary/20">
                         <ArrowRight className="h-4 w-4 text-primary" />
-                        <AlertDescription className="text-[10px] font-bold uppercase">This package will move to active shipping status.</AlertDescription>
+                        <AlertDescription className="text-[10px] font-bold uppercase">This action will generate an invoice and debit the client registry.</AlertDescription>
                     </Alert>
                 </div>
                 <DialogFooter className="gap-2">
@@ -447,7 +458,7 @@ function IntakeDialog({ alert, onProcess, triggerLabel = "Process Intake", class
                         className="flex-1 h-12 font-black uppercase italic shadow-xl"
                     >
                         {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
-                        Confirm & Move
+                        Authorize Shipment
                     </Button>
                 </DialogFooter>
             </DialogContent>
