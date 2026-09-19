@@ -12,14 +12,12 @@ export async function POST(request: Request) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-        const adminClient = await createAdminClient();
-        
-        // Use RPC check to ensure RLS-compliant admin status
-        const { data: isAdmin } = await adminClient.rpc('is_admin');
+        // Use standard client for RPC to preserve user JWT context
+        const { data: isAdmin } = await supabase.rpc('is_admin');
         const isMaster = user.email === 'admin@neilussolutions.com';
         
         if (!isAdmin && !isMaster) {
-            return NextResponse.json({ message: 'Access Denied' }, { status: 403 });
+            return NextResponse.json({ message: 'Access Denied: Administrative authority required.' }, { status: 403 });
         }
 
         const { key, value } = await request.json();
@@ -29,6 +27,8 @@ export async function POST(request: Request) {
         if (!authorizedKeys.includes(key)) {
             return NextResponse.json({ message: 'Invalid configuration key.' }, { status: 400 });
         }
+
+        const adminClient = await createAdminClient();
 
         // 1. Fetch current config to check for existing secrets
         const { data: current } = await adminClient
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
         // 2. DELTA-SAVE Logic: If a field is '********', keep the original value
         secretFields.forEach(field => {
             if (newVal[field] === '********') {
-                newVal[field] = currentVal[field];
+                newVal[field] = currentVal[field] || '';
             }
         });
 

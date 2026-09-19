@@ -15,13 +15,14 @@ export async function POST(request: Request) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-        const adminClient = await createAdminClient();
-        const { data: isAdmin } = await adminClient.rpc('is_admin');
+        // Use standard client for RPC to preserve user JWT context
+        const { data: isAdmin } = await supabase.rpc('is_admin');
         if (!isAdmin && user.email !== 'admin@neilussolutions.com') {
             return NextResponse.json({ message: 'Access Denied' }, { status: 403 });
         }
 
         const { type, config } = await request.json();
+        const adminClient = await createAdminClient();
         
         // 1. Fetch persisted secrets if config fields are masked
         const { data: persisted } = await adminClient
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json(result);
     } catch (err: any) {
+        console.error('[SETTINGS_TEST_ERROR]', err.message);
         return NextResponse.json({ success: false, message: err.message }, { status: 500 });
     }
 }

@@ -12,17 +12,23 @@ export async function GET() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-        const adminClient = await createAdminClient();
-        const { data: isAdmin } = await adminClient.rpc('is_admin');
+        // Use standard client for RPC to preserve user JWT context
+        const { data: isAdmin } = await supabase.rpc('is_admin');
         if (!isAdmin && user.email !== 'admin@neilussolutions.com') {
             return NextResponse.json({ message: 'Access Denied' }, { status: 403 });
         }
 
+        const adminClient = await createAdminClient();
         const { data, error } = await adminClient.from('system_configs').select('*');
-        if (error) throw error;
+        
+        if (error) {
+            // Handle case where table might not exist yet
+            if (error.code === '42P01') return NextResponse.json([]);
+            throw error;
+        }
 
         // MASK SENSITIVE DATA
-        const maskedData = data.map(item => {
+        const maskedData = (data || []).map(item => {
             const val = { ...item.config_value };
             const secretFields = ['pass', 'secretKey', 'apiKey'];
             secretFields.forEach(field => {
@@ -33,6 +39,7 @@ export async function GET() {
 
         return NextResponse.json(maskedData);
     } catch (err: any) {
+        console.error('[SETTINGS_GET_ERROR]', err.message);
         return NextResponse.json({ message: err.message }, { status: 500 });
     }
 }

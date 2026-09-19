@@ -54,11 +54,13 @@ export default function SettingsPage() {
         const res = await fetch('/api/admin/settings');
         const data = await res.json();
         
-        data.forEach((config: any) => {
+        if (!res.ok) throw new Error(data.message || 'Failed to load registry.');
+
+        (data || []).forEach((config: any) => {
             const val = config.config_value;
             if (config.config_key === 'email_config') {
                 setSmtp(prev => ({ ...prev, ...val }));
-                setSmtpStatus('CONNECTED'); // Assumed if persisted and masked
+                setSmtpStatus('CONNECTED');
             } else if (config.config_key === 'vultr_config') {
                 setVultr(prev => ({ ...prev, ...val }));
                 setVultrStatus('CONNECTED');
@@ -67,8 +69,8 @@ export default function SettingsPage() {
                 setLogicwareStatus('CONNECTED');
             }
         });
-    } catch (e) {
-        toast({ title: "Sync Error", description: "Failed to load system dispatches.", variant: "destructive" });
+    } catch (e: any) {
+        toast({ title: "Sync Error", description: e.message, variant: "destructive" });
     } finally {
         setIsLoading(false);
     }
@@ -83,7 +85,13 @@ export default function SettingsPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key, value: data })
         });
-        if (!res.ok) throw new Error('Save operation failed.');
+        
+        const result = await res.json();
+        
+        if (!res.ok) {
+            throw new Error(result.message || 'Save operation failed.');
+        }
+
         toast({ title: "Configuration Secured" });
         statusSetter('CONNECTED');
     } catch (e: any) {
@@ -113,6 +121,7 @@ export default function SettingsPage() {
     } catch (e: any) {
         statusSetter('FAILED');
         msgSetter(e.message);
+        toast({ title: "Handshake Failed", description: e.message, variant: "destructive" });
     }
   };
 
@@ -120,7 +129,7 @@ export default function SettingsPage() {
       return <div className="flex h-screen items-center justify-center flex-col gap-4"><Loader2 className="animate-spin text-primary h-10 w-10" /><p className="text-[10px] font-black uppercase tracking-widest opacity-40">Decrypting System Keys...</p></div>;
   }
 
-  const StatusIndicator = ({ status, msg }: { status: StatusState, msg?: string }) => {
+  const StatusIndicator = ({ status }: { status: StatusState }) => {
     if (status === 'TESTING' || status === 'SAVING') return <Badge variant="outline" className="animate-pulse bg-muted">PROCESSING</Badge>;
     if (status === 'CONNECTED') return <Badge className="bg-green-500 hover:bg-green-600 font-black italic text-[9px] border-2 border-white/20 shadow-sm"><CheckCircle2 className="h-2 w-2 mr-1" /> ACTIVE</Badge>;
     if (status === 'FAILED') return <Badge variant="destructive" className="font-black italic text-[9px] shadow-sm"><AlertCircle className="h-2 w-2 mr-1" /> OFFLINE</Badge>;
@@ -131,7 +140,7 @@ export default function SettingsPage() {
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-20">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter">System Console</h1>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">System Console</h1>
           <p className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-1">Global settings and Supabase integrations center.</p>
         </div>
         <Button variant="outline" asChild className="font-bold border-2">
