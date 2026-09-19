@@ -3,15 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, ArrowRight, Wallet, TrendingDown, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, Wallet, TrendingDown, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DashboardTab } from './dashboard-components';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAccountProfile } from './layout';
 import { useState, useEffect } from 'react';
-import { Separator } from '@/components/ui/separator';
 import { useSupabase } from '@/components/supabase-provider';
 
 const featureCards = [
@@ -58,7 +57,7 @@ export default function AccountPage() {
     const { supabase } = useSupabase();
     const { profile: userProfile, balance: walletBalance } = useAccountProfile();
     const [mounted, setMounted] = useState(false);
-    const [year, setYear] = useState<number>(2024);
+    const [year, setYear] = useState<number>(new Date().getFullYear());
 
     useEffect(() => {
         setMounted(true);
@@ -99,46 +98,8 @@ export default function AccountPage() {
                 </div>
             </div>
 
-            <div className="space-y-6 mb-12">
-                {/* Horizontal Ledger Banner */}
-                <Card className={cn(
-                    "border-none shadow-xl rounded-2xl overflow-hidden relative group transition-all",
-                    isIndebted ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
-                )}>
-                    <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
-                        <Wallet size={100} />
-                    </div>
-                    <CardContent className="p-4 sm:p-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Official Ledger Standing</p>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl sm:text-4xl font-black italic tracking-tighter">
-                                        JMD ${Math.abs(walletBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                    </span>
-                                    <Badge className="bg-white/20 text-white border-white/10 uppercase text-[8px] font-black italic tracking-widest">
-                                        {isIndebted ? 'Outstanding' : 'Credit'}
-                                    </Badge>
-                                </div>
-                            </div>
-                            
-                            <div className="flex-1 sm:max-w-md bg-white/5 p-3 rounded-xl border border-white/10 flex items-center gap-3">
-                                {isIndebted ? <AlertCircle className="h-5 w-5 text-white/60 shrink-0" /> : <CheckCircle2 className="h-5 w-5 text-white/60 shrink-0" />}
-                                <p className="text-[9px] font-bold leading-tight uppercase tracking-tight opacity-90">
-                                    {isIndebted 
-                                        ? "Settlement required upon package arrival in Jamaica to facilitate delivery." 
-                                        : "Your account is in good standing. Credits are automatically applied to new transits."}
-                                </p>
-                            </div>
-
-                            <Button variant="outline" size="sm" className="bg-white/10 border-white/20 hover:bg-white/20 text-white font-black uppercase italic tracking-tighter h-10 px-6 shrink-0" asChild>
-                                <Link href="/account/packages">Billing Details</Link>
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Compact Feature Grid */}
+            <div className="space-y-8">
+                {/* Feature Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     {featureCards.map(card => (
                         <Link href={card.href} key={card.href}>
@@ -156,14 +117,75 @@ export default function AccountPage() {
                         </Link>
                     ))}
                 </div>
-            </div>
 
-            <div className="space-y-6 sm:space-y-8">
-                <h2 className="text-xl sm:text-2xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                    <LayoutGrid className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-                    Activity Terminal
-                </h2>
-                <DashboardTab details={userProfile} />
+                <div className="space-y-6">
+                    <h2 className="text-xl sm:text-2xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                        <LayoutGrid className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                        Activity Terminal
+                    </h2>
+                    <DashboardTab details={userProfile} />
+                </div>
+
+                {/* Thinner Ledger Card at the Bottom */}
+                <Card className={cn(
+                    "border-none shadow-lg rounded-2xl overflow-hidden transition-all",
+                    isIndebted ? "bg-red-50 border-l-4 border-l-red-600" : "bg-primary text-primary-foreground"
+                )}>
+                    <CardContent className="p-4 sm:p-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                <div className={cn(
+                                    "h-12 w-12 rounded-xl flex items-center justify-center shadow-sm",
+                                    isIndebted ? "bg-red-600 text-white" : "bg-white/10 text-white"
+                                )}>
+                                    <Wallet className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <p className={cn(
+                                        "text-[10px] font-black uppercase tracking-widest",
+                                        isIndebted ? "text-red-600/70" : "text-white/60"
+                                    )}>Ledger Standing</p>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className={cn(
+                                            "text-2xl font-black italic tracking-tighter",
+                                            isIndebted ? "text-red-600" : "text-white"
+                                        )}>
+                                            JMD ${Math.abs(walletBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </span>
+                                        <Badge className={cn(
+                                            "uppercase text-[8px] font-black italic tracking-widest",
+                                            isIndebted ? "bg-red-600 text-white" : "bg-white/20 text-white border-white/10"
+                                        )}>
+                                            {isIndebted ? 'Outstanding' : 'Credit'}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className={cn(
+                                "flex-1 sm:max-w-md p-3 rounded-xl flex items-center gap-3",
+                                isIndebted ? "bg-red-100/50" : "bg-white/5 border border-white/10"
+                            )}>
+                                {isIndebted ? <AlertCircle className="h-4 w-4 text-red-600 shrink-0" /> : <CheckCircle2 className="h-4 w-4 text-white/60 shrink-0" />}
+                                <p className={cn(
+                                    "text-[9px] font-bold leading-tight uppercase tracking-tight",
+                                    isIndebted ? "text-red-800" : "text-white/90"
+                                )}>
+                                    {isIndebted 
+                                        ? "Settlement required upon package arrival in Jamaica." 
+                                        : "Account in good standing. Credits auto-apply to transits."}
+                                </p>
+                            </div>
+
+                            <Button variant="outline" size="sm" className={cn(
+                                "font-black uppercase italic tracking-tighter h-10 px-6 shrink-0 border-2",
+                                isIndebted ? "border-red-200 text-red-600 hover:bg-red-100" : "bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                            )} asChild>
+                                <Link href="/account/packages">Billing Details</Link>
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             <div className="mt-16 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-8 opacity-40">
