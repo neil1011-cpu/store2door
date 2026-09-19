@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useAccountProfile } from '../layout';
 import { PreAlertTab } from '../dashboard-components';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, BellRing, History, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, BellRing, History, Loader2, FileText, ExternalLink, Download } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -60,7 +59,7 @@ export default function PreAlertPage() {
                             <BellRing className="h-6 w-6 text-orange-500" />
                             Pre-Alerts
                         </h1>
-                        <p className="text-muted-foreground">Notify our Florida warehouse via Supabase Realtime.</p>
+                        <p className="text-muted-foreground">Notify our Florida warehouse of incoming packages.</p>
                     </div>
                 </div>
             </div>
@@ -70,7 +69,7 @@ export default function PreAlertPage() {
                     <Card className="border-none shadow-lg">
                         <CardHeader>
                             <CardTitle>Submit New Document</CardTitle>
-                            <CardDescription>Upload your commercial invoice for Supabase processing.</CardDescription>
+                            <CardDescription>Upload your commercial invoice for processing.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <PreAlertTab profileId={profile.id} />
@@ -92,12 +91,13 @@ export default function PreAlertPage() {
                                     <TableRow>
                                         <TableHead className="pl-6">Status</TableHead>
                                         <TableHead>Tracking #</TableHead>
+                                        <TableHead>Invoice</TableHead>
                                         <TableHead className="text-right pr-6">Date</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {isLoading ? (
-                                        <TableRow><TableCell colSpan={3} className="text-center py-20"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                                     ) : history.length > 0 ? (
                                         history.map((alert) => (
                                             <TableRow key={alert.id}>
@@ -107,13 +107,24 @@ export default function PreAlertPage() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="font-mono font-bold uppercase">{alert.tracking_number}</TableCell>
+                                                <TableCell>
+                                                    {alert.invoice_url ? (
+                                                        <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[10px]">
+                                                            <Link href={`/api/storage/view?key=${alert.invoice_url}`} target="_blank">
+                                                                <FileText className="h-3 w-3 mr-1" /> View doc
+                                                            </Link>
+                                                        </Button>
+                                                    ) : (
+                                                        <span className="text-[10px] opacity-30 italic">No File</span>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell className="text-right pr-6 opacity-60">
                                                     {new Date(alert.submission_date).toLocaleDateString()}
                                                 </TableCell>
                                             </TableRow>
                                         ))
                                     ) : (
-                                        <TableRow><TableCell colSpan={3} className="text-center py-20 italic opacity-40">No documents found.</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={4} className="text-center py-20 italic opacity-40">No documents found.</TableCell></TableRow>
                                     )}
                                 </TableBody>
                             </Table>

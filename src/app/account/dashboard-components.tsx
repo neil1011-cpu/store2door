@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Zap, Calculator, Truck, DollarSign, Weight, Info } from 'lucide-react';
+import { Loader2, Zap, Calculator, Truck, DollarSign, Weight, Info, FileText, Download } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -151,7 +151,7 @@ export function PreAlertTab({ profileId, onSuccess }: { profileId: string, onSuc
         setIsSubmitting(true);
 
         try {
-            let finalUrl = '';
+            let finalKey = '';
             if (formData.file && user) {
                 const session = (await supabase.auth.getSession()).data.session;
                 const body = new FormData();
@@ -162,7 +162,8 @@ export function PreAlertTab({ profileId, onSuccess }: { profileId: string, onSuc
                     body
                 });
                 const uploadData = await res.json();
-                finalUrl = uploadData.url;
+                if (!res.ok) throw new Error(uploadData.message);
+                finalKey = uploadData.key;
             }
 
             const { error } = await supabase.from('pre_alerts').insert({
@@ -170,7 +171,7 @@ export function PreAlertTab({ profileId, onSuccess }: { profileId: string, onSuc
                 tracking_number: formData.trackingNumber.toUpperCase(),
                 contents: formData.contents,
                 weight_lbs: parseFloat(formData.weight) || 0,
-                invoice_url: finalUrl,
+                invoice_url: finalKey, // We store the KEY in this column for proxy resolution
                 status: 'Pending'
             });
 
@@ -406,15 +407,17 @@ export function CustomsCalculatorTab() {
                 </div>
                 <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase opacity-60">Category</Label>
-                    <Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}>
-                        <SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="GENERAL">General Items (20%)</SelectItem>
-                            <SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem>
-                            <SelectItem value="SHOES">Shoes (20%)</SelectItem>
-                            <SelectItem value="ELECTRONICS_OTHER">Electronics (20%)</SelectItem>
-                        </SelectContent>
-                    </Select>
+                    <div className="relative">
+                        <Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}>
+                            <SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="GENERAL">General Items (20%)</SelectItem>
+                                <SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem>
+                                <SelectItem value="SHOES">Shoes (20%)</SelectItem>
+                                <SelectItem value="ELECTRONICS_OTHER">Electronics (20%)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
             </CardContent>
             <CardFooter>

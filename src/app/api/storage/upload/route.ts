@@ -6,7 +6,7 @@ import { getS3Client, VultrConfig } from '@/lib/integrations/vultr-service';
 
 /**
  * @fileOverview Authorized Cloud Documentation Porter.
- * Refactored to use the centralized VultrService and System Registry.
+ * Uploads files as PRIVATE and returns the S3 KEY for the registry.
  */
 
 export async function POST(request: Request) {
@@ -52,19 +52,18 @@ export async function POST(request: Request) {
         const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
         const key = `invoices/${caller.id}/${fileName}`;
 
-        // 3. Dispatch to Cloud
+        // 3. Dispatch to Cloud (PRIVATE ACL)
         const s3 = getS3Client(config);
         await s3.send(new PutObjectCommand({
             Bucket: config.bucket,
             Key: key,
             Body: buffer,
             ContentType: file.type || 'application/octet-stream',
-            ACL: 'public-read',
+            // Files are private by default, no ACL segment needed for maximum security
         }));
 
-        const publicUrl = `https://${config.bucket}.${config.endpoint || 'ewr1.vultrobjects.com'}/${key}`;
-
-        return NextResponse.json({ success: true, url: publicUrl, key: key });
+        // We return the KEY, not a public URL
+        return NextResponse.json({ success: true, key: key });
 
     } catch (error: any) {
         console.error(`[STORAGE_PORTER:${requestId}] FATAL:`, error);

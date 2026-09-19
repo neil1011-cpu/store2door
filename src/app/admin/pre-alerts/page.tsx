@@ -115,15 +115,6 @@ export default function PreAlertsPage() {
             const { error } = await supabase.from('pre_alerts').delete().eq('id', id);
             if (error) throw error;
 
-            // Log the event
-            const { data: { user } } = await supabase.auth.getUser();
-            await supabase.from('system_logs').insert({
-                log_type: 'pre_alert_deleted',
-                description: `Pre-alert record ${trackingNumber} purged from hub by administrator.`,
-                actor_id: user?.id,
-                metadata: { preAlertId: id, trackingNumber }
-            });
-
             toast({ title: "Document Purged" });
             fetchData();
         } catch (error: any) {
@@ -167,28 +158,12 @@ export default function PreAlertsPage() {
             // 4. Mark documentation as processed
             await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
 
-            // 5. System Log
-            await supabase.from('system_logs').insert({
-                log_type: 'intake_processed',
-                description: `Package intake complete for ${alert.tracking_number}. Documentation verified.`,
-                actor_id: (await supabase.auth.getUser()).data.user?.id
-            });
-
             toast({ title: "Intake Secured" });
             fetchData();
         } catch (error: any) {
             toast({ title: "Intake Failure", description: error.message, variant: "destructive" });
         }
     };
-
-    if (isLoading && preAlerts.length === 0) {
-        return (
-            <div className="flex h-screen items-center justify-center flex-col gap-4">
-                <Loader2 className="animate-spin h-10 w-10 text-primary" />
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Syncing Registry...</p>
-            </div>
-        );
-    }
 
     return (
         <div className="flex flex-col gap-6">
@@ -225,13 +200,11 @@ export default function PreAlertsPage() {
                                             <SelectValue placeholder="Select customer profile" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {users.length > 0 ? users.map(u => (
+                                            {users.map(u => (
                                                 <SelectItem key={u.id} value={u.id} className="font-bold uppercase text-xs">
                                                     {u.full_name} ({u.mailbox_number})
                                                 </SelectItem>
-                                            )) : (
-                                                <div className="p-4 text-center text-xs opacity-40 italic">No users found.</div>
-                                            )}
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -305,16 +278,18 @@ export default function PreAlertsPage() {
                         <TableBody>
                             {preAlerts.map(alert => {
                                 const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(alert.submission_date).getTime()) / (1000 * 60 * 60 * 24)));
+                                const proxyUrl = alert.invoice_url ? `/api/storage/view?key=${encodeURIComponent(alert.invoice_url)}` : null;
+                                
                                 return (
                                     <TableRow key={alert.id} className={cn("hover:bg-primary/5 transition-colors h-24", alert.status === 'Processed' && "opacity-60")}>
                                         <TableCell className="pl-6">
-                                            {alert.invoice_url ? (
+                                            {proxyUrl ? (
                                                 <div className="relative h-16 w-16 rounded-lg overflow-hidden border-2 border-muted bg-muted/20 flex items-center justify-center">
                                                     {alert.invoice_url.toLowerCase().endsWith('.pdf') ? (
                                                         <FileText className="h-8 w-8 text-primary opacity-40" />
                                                     ) : (
                                                         <img 
-                                                            src={alert.invoice_url} 
+                                                            src={proxyUrl} 
                                                             alt="Thumbnail" 
                                                             className="object-cover w-full h-full" 
                                                             referrerPolicy="no-referrer"
@@ -350,8 +325,8 @@ export default function PreAlertsPage() {
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
                                             <div className="flex justify-end gap-2">
-                                                {alert.invoice_url ? (
-                                                    <InvoicePreviewDialog url={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
+                                                {proxyUrl ? (
+                                                    <InvoicePreviewDialog url={proxyUrl} storageKey={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
                                                 ) : (
                                                     <div className="flex flex-col gap-1 items-end">
                                                         <Badge variant="outline" className="opacity-30 uppercase text-[8px] h-7 px-4 flex items-center">No Document</Badge>
@@ -390,13 +365,6 @@ export default function PreAlertsPage() {
                                     </TableRow>
                                 );
                             })}
-                            {preAlerts.length === 0 && !isLoading && (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-64 text-center text-muted-foreground opacity-30 italic">
-                                        Pre-alert registry is currently clean.
-                                    </TableCell>
-                                </TableRow>
-                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
@@ -405,14 +373,14 @@ export default function PreAlertsPage() {
     );
 }
 
-function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: string, trackingNumber: string, alert: any, onProcess: (a: any, w: number, c: number) => Promise<void> }) {
+function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProcess }: { url: string, storageKey: string, trackingNumber: string, alert: any, onProcess: (a: any, w: number, c: number) => Promise<void> }) {
     const [open, setOpen] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [loadError, setLoadError] = useState(false);
     const [aiResult, setAiResult] = useState<GenerateCustomsFormOutput | null>(null);
     const { toast } = useToast();
 
-    const isPdf = url.toLowerCase().endsWith('.pdf');
+    const isPdf = storageKey.toLowerCase().endsWith('.pdf');
 
     const handleRunAi = async () => {
         setIsAnalyzing(true);
@@ -421,7 +389,7 @@ function InvoicePreviewDialog({ url, trackingNumber, alert, onProcess }: { url: 
                 trackingNumber: alert.tracking_number,
                 contentsDescription: alert.contents || 'Not specified',
                 weight: `${alert.weight_lbs || '0'} lbs`,
-                invoiceDataUri: url 
+                invoiceDataUri: storageKey // Pass the KEY, the flow is updated to handle S3 keys
             });
             setAiResult(result);
             toast({ title: "Analysis Complete", description: "AI has extracted document details." });

@@ -1,16 +1,13 @@
-
 'use server';
 /**
  * @fileOverview Generates a customs form and warehouse ticket from shipper input.
- *
- * - generateCustomsForm - A function that handles the generation of shipping documents.
- * - GenerateCustomsFormInput - The input type for the generateCustomsForm function.
- * - GenerateCustomsFormOutput - The return type for the generateCustomsForm function.
+ * Refactored to handle secure S3 keys by automatically retrieving private documents.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
+import { createAdminClient } from '@/lib/supabase/server';
+import { getFileBuffer, VultrConfig } from '@/lib/integrations/vultr-service';
 
 const GenerateCustomsFormInputSchema = z.object({
   trackingNumber: z.string().describe('The tracking number for the shipment, in JMXXX format.'),
@@ -19,7 +16,7 @@ const GenerateCustomsFormInputSchema = z.object({
   invoiceDataUri: z
     .string()
     .describe(
-      "A photo of a commercial invoice, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A photo of a commercial invoice, as a data URI OR a secure S3 storage key. Format: 'data:<mimetype>;base64,<encoded_data>' or 'invoices/uid/filename'."
     ),
 });
 export type GenerateCustomsFormInput = z.infer<typeof GenerateCustomsFormInputSchema>;
@@ -39,7 +36,6 @@ const GenerateCustomsFormOutputSchema = z.object({
   }).describe("The generated warehouse intake ticket.")
 });
 export type GenerateCustomsFormOutput = z.infer<typeof GenerateCustomsFormOutputSchema>;
-
 
 export async function generateCustomsForm(input: GenerateCustomsFormInput): Promise<GenerateCustomsFormOutput> {
   return generateCustomsFormFlow(input);
@@ -73,7 +69,33 @@ const generateCustomsFormFlow = ai.defineFlow(
     outputSchema: GenerateCustomsFormOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    let finalUri = input.invoiceDataUri;
+
+    // Detect if input is an S3 key rather than a Data URI
+    if (!finalUri.startsWith('data:') && !finalUri.startsWith('http')) {
+        const adminClient = await createAdminClient();
+        const { data: configData } = await adminClient
+            .from('system_configs')
+            .select('config_value')
+            .eq('config_key', 'vultr_config')
+            .maybeSingle();
+
+        if (configData) {
+            const config = configData.config_value as VultrConfig;
+            const buffer = await getFileBuffer(config, input.invoiceDataUri);
+            if (buffer) {
+                // Determine mime type from extension
+                const ext = input.invoiceDataUri.split('.').pop()?.toLowerCase();
+                const mime = ext === 'pdf' ? 'application/pdf' : 'image/jpeg';
+                finalUri = `data:${mime};base64,${buffer.toString('base64')}`;
+            }
+        }
+    }
+
+    const {output} = await prompt({
+        ...input,
+        invoiceDataUri: finalUri
+    });
     return output!;
   }
 );

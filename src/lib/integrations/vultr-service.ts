@@ -1,4 +1,5 @@
-import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, HeadBucketCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl as s3GetSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export type VultrConfig = {
     accessKey: string;
@@ -9,6 +10,7 @@ export type VultrConfig = {
 
 /**
  * @fileOverview Server-side Vultr (S3) Service.
+ * Hardened for secure, private document management.
  */
 
 export function getS3Client(config: VultrConfig) {
@@ -36,4 +38,32 @@ export async function testVultrConnection(config: VultrConfig) {
         console.error('[VULTR_TEST_ERROR]', error);
         return { success: false, message: error.message || 'Bucket unreachable or invalid keys.' };
     }
+}
+
+/**
+ * Generates a temporary signed URL for secure viewing.
+ */
+export async function getSignedUrl(config: VultrConfig, key: string, expiresIn = 900) {
+    const client = getS3Client(config);
+    const command = new GetObjectCommand({
+        Bucket: config.bucket,
+        Key: key,
+    });
+
+    return s3GetSignedUrl(client, command, { expiresIn });
+}
+
+/**
+ * Retrieves the raw file buffer from storage.
+ */
+export async function getFileBuffer(config: VultrConfig, key: string) {
+    const client = getS3Client(config);
+    const command = new GetObjectCommand({
+        Bucket: config.bucket,
+        Key: key,
+    });
+
+    const response = await client.send(command);
+    const bytes = await response.Body?.transformToByteArray();
+    return bytes ? Buffer.from(bytes) : null;
 }
