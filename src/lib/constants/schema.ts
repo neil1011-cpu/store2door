@@ -1,9 +1,10 @@
 /**
  * @fileOverview Definitive Production SQL Schema for FromStore2Door OS.
  * Hardened version with binary documentation storage, immutable ledger logic, and granular RLS.
+ * Includes evolution logic to handle missing columns in existing deployments.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.2)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.3)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -100,14 +101,6 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     legacy_firebase_id text UNIQUE
 );
 
--- Evolution: Ensure shipments has invoice_url if table already existed
-DO $$ 
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='invoice_url') THEN
-        ALTER TABLE public.shipments ADD COLUMN invoice_url text;
-    END IF;
-END $$;
-
 CREATE TABLE IF NOT EXISTS public.system_configs (
     config_key text PRIMARY KEY,
     config_value jsonb NOT NULL,
@@ -134,7 +127,26 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
     created_at timestamptz DEFAULT now() NOT NULL
 );
 
--- 5. INDEXES (Performance & RLS)
+-- 5. EVOLUTION LOGIC (Add missing columns to existing deployments)
+DO $$ 
+BEGIN
+    -- Shipments Evolution
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='invoice_url') THEN
+        ALTER TABLE public.shipments ADD COLUMN invoice_url text;
+    END IF;
+
+    -- System Configs Evolution
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='system_configs' AND column_name='updated_by') THEN
+        ALTER TABLE public.system_configs ADD COLUMN updated_by uuid REFERENCES public.profiles(id);
+    END IF;
+
+    -- Pre-Alerts Evolution (invoice_url check)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='pre_alerts' AND column_name='invoice_url') THEN
+        ALTER TABLE public.pre_alerts ADD COLUMN invoice_url text;
+    END IF;
+END $$;
+
+-- 6. INDEXES (Performance & RLS)
 CREATE INDEX IF NOT EXISTS idx_ledger_profile ON public.financial_ledger(profile_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_profile ON public.invoices(profile_id);
 CREATE INDEX IF NOT EXISTS idx_pre_alerts_profile ON public.pre_alerts(profile_id);
@@ -142,7 +154,7 @@ CREATE INDEX IF NOT EXISTS idx_shipments_profile ON public.shipments(profile_id)
 CREATE INDEX IF NOT EXISTS idx_roles_user ON public.app_roles(user_id);
 CREATE INDEX IF NOT EXISTS idx_doc_assets_profile ON public.document_assets(profile_id);
 
--- 6. FUNCTIONS
+-- 7. FUNCTIONS
 CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
 BEGIN 
   RETURN EXISTS (
@@ -183,7 +195,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 7. TRIGGERS
+-- 8. TRIGGERS
 DROP TRIGGER IF EXISTS on_ledger_change ON public.financial_ledger;
 CREATE TRIGGER on_ledger_change
   AFTER INSERT OR UPDATE OR DELETE ON public.financial_ledger
@@ -194,7 +206,7 @@ CREATE TRIGGER on_profile_created
   BEFORE INSERT ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.assign_mailbox_number();
 
--- 8. RLS ENABLING
+-- 9. RLS ENABLING
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.financial_ledger ENABLE ROW LEVEL SECURITY;
@@ -206,7 +218,7 @@ ALTER TABLE public.system_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sent_emails ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 
--- 9. POLICIES
+-- 10. POLICIES
 
 -- Document Assets
 DROP POLICY IF EXISTS "doc_assets_select" ON public.document_assets;
@@ -254,7 +266,7 @@ CREATE POLICY "emails_select_admin" ON public.sent_emails FOR SELECT USING (is_a
 DROP POLICY IF EXISTS "configs_all_admin" ON public.system_configs;
 CREATE POLICY "configs_all_admin" ON public.system_configs FOR ALL USING (is_admin());
 
--- 10. BACKFILL
+-- 11. BACKFILL
 DO $$ 
 BEGIN
     INSERT INTO public.profiles (id, full_name, email)
