@@ -4,7 +4,7 @@
  * Includes evolution logic to handle missing columns in existing deployments.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.3)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.4)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     shipping_date timestamptz,
     invoice_url text, -- Stores the ID of the document_asset
     created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
 );
 
@@ -133,6 +134,10 @@ BEGIN
     -- Shipments Evolution
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='invoice_url') THEN
         ALTER TABLE public.shipments ADD COLUMN invoice_url text;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='updated_at') THEN
+        ALTER TABLE public.shipments ADD COLUMN updated_at timestamptz DEFAULT now() NOT NULL;
     END IF;
 
     -- System Configs Evolution
@@ -280,4 +285,4 @@ BEGIN
     ON CONFLICT DO NOTHING;
 END $$;
 
-NOTIFY pgrst, 'reload schema';`
+NOTIFY pgrst, 'reload schema';

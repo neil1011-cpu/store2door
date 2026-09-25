@@ -173,7 +173,7 @@ export default function SettingsPage() {
                 <CardContent className="space-y-6 pt-8">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">SMTP Host</Label><Input value={smtp.host} onChange={e => setSmtp({...smtp, host: e.target.value})} className="h-11 border-2" /></div>
-                        <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Port</Label><Input value={smtp.port} onChange={e => setSmtp({...smtp, port: e.target.value})} className="h-11 border-2" /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px) font-bold uppercase opacity-60">Port</Label><Input value={smtp.port} onChange={e => setSmtp({...smtp, port: e.target.value})} className="h-11 border-2" /></div>
                         <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">User / Email</Label><Input value={smtp.user} onChange={e => setSmtp({...smtp, user: e.target.value})} className="h-11 border-2" /></div>
                         <div className="space-y-1.5">
                             <Label className="text-[10px] font-bold uppercase opacity-60">Password / App Key</Label>
