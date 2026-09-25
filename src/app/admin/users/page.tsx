@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -5,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, DatabaseZap, ArrowRight, RefreshCcw } from 'lucide-react';
+import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, DatabaseZap, ArrowRight, RefreshCcw, Zap } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -20,6 +21,7 @@ export default function UsersPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncingHub, setIsSyncingHub] = useState(false);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [lastError, setLastError] = useState<any>(null);
@@ -39,7 +41,6 @@ export default function UsersPage() {
     setIsLoading(true);
     setLastError(null);
     try {
-      // Hardened Query: Explicitly fetching roles to ensure RLS is bypassed correctly by is_admin()
       const { data, error } = await supabase
         .from('profiles')
         .select('*, app_roles(role)')
@@ -63,6 +64,24 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  const handleSyncToLogicware = async () => {
+      setIsSyncingHub(true);
+      try {
+          const res = await fetch('/api/admin/logicware-sync-all', { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message || 'Sync failed');
+          
+          toast({ 
+              title: "Global Hub Sync Complete", 
+              description: data.message,
+          });
+      } catch (err: any) {
+          toast({ title: "Sync Error", description: err.message, variant: "destructive" });
+      } finally {
+          setIsSyncingHub(false);
+      }
+  };
 
   const handleCreateUser = async () => {
       if (!newUser.email || !newUser.firstName || !newUser.lastName) {
@@ -118,18 +137,22 @@ export default function UsersPage() {
         </div>
         
         <div className="flex gap-2">
+            <Button onClick={handleSyncToLogicware} disabled={isSyncingHub || isLoading} variant="outline" className="font-bold border-2 border-blue-200 text-blue-700 hover:bg-blue-50">
+                {isSyncingHub ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />} 
+                Sync Registry to Hub
+            </Button>
             <Button variant="outline" onClick={fetchUsers} disabled={isLoading} className="font-bold border-2">
-                <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Sync Registry
+                <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Sync
             </Button>
             <Button variant="outline" asChild className="font-bold border-2">
                 <Link href="/admin/migration">
-                    <DatabaseZap className="mr-2 h-4 w-4" /> Migrate Legacy Data
+                    <DatabaseZap className="mr-2 h-4 w-4" /> Migrate
                 </Link>
             </Button>
             <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
                 <DialogTrigger asChild>
                     <Button className="font-black uppercase italic shadow-lg">
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add New Client
+                        <PlusCircle className="mr-2 h-4 w-4" /> New Client
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
