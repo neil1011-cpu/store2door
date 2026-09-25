@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -64,8 +63,6 @@ export default function ManifestsPage() {
     if (!isMounted) return;
     setIsFetching(true);
     try {
-      // We no longer send the API key from client-side localStorage.
-      // The server retrieves it from the Supabase system_configs registry.
       const response = await fetch('/api/admin/logicware-manifests', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -78,7 +75,8 @@ export default function ManifestsPage() {
       const raw = data.manifests || [];
       const mapped: Manifest[] = raw.map((m: any) => ({
           id: `lw-${m.id}`,
-          flightNumber: m.manifestNumber || m.voyageNumber || m.flightNumber || m.code || 'N/A',
+          // Hub can return code, manifestNumber, or flightNumber
+          flightNumber: m.code || m.manifestNumber || m.voyageNumber || m.flightNumber || 'HUBSYNC',
           date: m.departureDate || m.date || new Date().toISOString(),
           origin: m.originPort || m.origin || 'N/A',
           destination: m.destinationPort || m.destination || 'N/A',
@@ -91,10 +89,10 @@ export default function ManifestsPage() {
       setLogicwareManifests(mapped);
       toast({ 
           title: 'Success', 
-          description: `Loaded ${mapped.length + manifests.length} worldwide records` 
+          description: `Loaded ${mapped.length} worldwide records.` 
       });
     } catch (error: any) {
-      toast({ title: 'Sync Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Sync Error', description: error.message, variant: "destructive" });
     } finally {
       setIsFetching(false);
     }
@@ -138,16 +136,10 @@ export default function ManifestsPage() {
   };
 
   const getStatusVariant = (status: string) => {
-    switch (status) {
-        case 'Closed':
-        case 'Arrived':
-            return 'secondary';
-        case 'Open':
-        case 'Departed':
-            return 'default';
-        default:
-            return 'outline';
-    }
+    const s = (status || '').toLowerCase();
+    if (s.includes('closed') || s.includes('arrived')) return 'secondary';
+    if (s.includes('open') || s.includes('departed')) return 'default';
+    return 'outline';
   }
 
   return (
@@ -161,7 +153,7 @@ export default function ManifestsPage() {
         </div>
         <div className="flex gap-2">
             <Button onClick={fetchLogicwareManifests} variant="outline" disabled={isFetching} className="font-bold border-2">
-                {isFetching ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
+                {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
                 Sync External Hub
             </Button>
             <Button variant="outline" asChild className="font-bold border-2">

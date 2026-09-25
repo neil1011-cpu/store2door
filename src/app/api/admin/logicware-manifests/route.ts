@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Fetches live manifests from the Logicware portal using Supabase config.
+ * Simplified call to ensure compatibility with all Hub API versions.
  */
 
 async function getSafeBody(request: Request) {
@@ -22,21 +23,16 @@ export async function POST(request: Request) {
         const payload = await getSafeBody(request);
         let apiKey = payload.apiKey;
 
-        // 1. Fetch from Registry
         if (!apiKey) {
-            try {
-                const adminClient = await createAdminClient();
-                const { data: configDoc } = await adminClient
-                    .from('system_configs')
-                    .select('config_value')
-                    .eq('config_key', 'logicware')
-                    .maybeSingle();
-                
-                if (configDoc?.config_value?.apiKey) {
-                    apiKey = configDoc.config_value.apiKey;
-                }
-            } catch (dbError) {
-                console.error('Supabase Config Fetch Error:', dbError);
+            const adminClient = await createAdminClient();
+            const { data: configDoc } = await adminClient
+                .from('system_configs')
+                .select('config_value')
+                .eq('config_key', 'logicware')
+                .maybeSingle();
+            
+            if (configDoc?.config_value?.apiKey) {
+                apiKey = configDoc.config_value.apiKey;
             }
         }
 
@@ -45,34 +41,34 @@ export async function POST(request: Request) {
         if (!apiKey) {
             return NextResponse.json({ 
                 success: false, 
-                message: 'Logicware configuration missing in registry.' 
+                message: 'Logicware configuration missing.' 
             }, { status: 400 });
         }
 
         const client = getLogicwareClient(apiKey);
-        if (!client) throw new Error('SDK Initialization Failed');
-        
-        let results: any[] = [];
-        if (client.manifests) {
-            results = await client.manifests.list({
-                limit: 100,
-                sort: 'desc'
-            });
+        if (!client || !client.manifests) {
+             return NextResponse.json({ success: true, manifests: [] });
         }
-
-        // Standardize response format
-        let finalArray = Array.isArray(results) ? results : (results as any).data || (results as any).manifests || [];
+        
+        const results: any = await client.manifests.list({ limit: 100 });
+        
+        let manifestsArray = [];
+        if (Array.isArray(results)) {
+            manifestsArray = results;
+        } else if (results && typeof results === 'object') {
+            manifestsArray = results.data || results.manifests || results.results || [];
+        }
 
         return NextResponse.json({ 
             success: true, 
-            manifests: finalArray
+            manifests: manifestsArray 
         });
 
     } catch (error: any) {
-        console.error('Logicware Manifest Fetch Error:', error);
+        console.error('[API:LOGICWARE:MANIFESTS] ERROR:', error);
         return NextResponse.json({ 
             success: false, 
-            message: error.message || 'Logistics Hub communication failure.' 
+            message: error.message || 'Manifest registry unreachable.' 
         }, { status: 500 });
     }
 }

@@ -79,39 +79,68 @@ export default function ShippingPage() {
             body: JSON.stringify({})
         });
         const data = await response.json();
+        
         if (!response.ok) throw new Error(data.message || 'Sync failed');
 
         const external = data.shipments || [];
+        if (external.length === 0) {
+            toast({ title: "Sync Complete", description: "No new records found in Hub." });
+            setIsSyncing(false);
+            return;
+        }
+
         let importedCount = 0;
+        let skippedCount = 0;
 
         for (const s of external) {
-            const tracking = s.trackingNumber || s.code;
-            const mailbox = s.shipper?.referenceCode || s.referenceCode;
+            // Flexible identifier lookup
+            const tracking = (s.trackingNumber || s.code || s.reference || '').toString().toUpperCase();
+            // Look for mailbox number in various possible fields
+            const mailbox = (s.shipper?.referenceCode || s.referenceCode || s.externalId || '').toString().toUpperCase();
 
-            if (!tracking || !mailbox) continue;
+            if (!tracking || !mailbox) {
+                skippedCount++;
+                continue;
+            }
 
-            // Check if we have this tracking
-            const exists = shipments.find(ls => ls.tracking_number === tracking);
-            if (exists) continue;
+            // Check if we have this tracking locally
+            const exists = shipments.some(ls => ls.tracking_number === tracking);
+            if (exists) {
+                skippedCount++;
+                continue;
+            }
 
-            // Look up user
-            const profile = users.find(u => u.mailbox_number === mailbox);
-            if (!profile) continue;
+            // Look up local profile by mailbox
+            const profile = users.find(u => {
+                const uMailbox = (u.mailbox_number || '').toUpperCase();
+                return uMailbox === mailbox || uMailbox.replace(/[^A-Z0-9]/g, '') === mailbox.replace(/[^A-Z0-9]/g, '');
+            });
 
-            // Import
-            await supabase.from('shipments').insert({
+            if (!profile) {
+                console.warn(`[SYNC] No local profile found for mailbox: ${mailbox} (Tracking: ${tracking})`);
+                skippedCount++;
+                continue;
+            }
+
+            // Import to Supabase
+            const { error: insertError } = await supabase.from('shipments').insert({
                 profile_id: profile.id,
                 tracking_number: tracking,
-                contents: s.contents || 'Hub Sync',
+                contents: s.contents || s.description || 'Hub Sync',
                 weight_lbs: parseFloat(s.weight) || 0,
                 status: s.status?.name || s.status || 'Processed',
                 total_cost_jmd: 0,
                 payment_status: 'Unpaid'
             });
-            importedCount++;
+
+            if (!insertError) importedCount++;
+            else console.error(`[SYNC] Insert failed for ${tracking}:`, insertError.message);
         }
 
-        toast({ title: "Hub Sync Complete", description: `Imported ${importedCount} new worldwide records.` });
+        toast({ 
+            title: "Hub Sync Complete", 
+            description: `Imported ${importedCount} records. Skipped ${skippedCount} existing or unlinked entries.` 
+        });
         fetchData();
     } catch (err: any) {
         toast({ title: "Sync Error", description: err.message, variant: "destructive" });
@@ -134,7 +163,6 @@ export default function ShippingPage() {
     try {
         const { profileId, trackingNumber, contents, weight, cost } = data;
 
-        // 1. Create Shipment
         const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
             profile_id: profileId,
             tracking_number: trackingNumber.toUpperCase(),
@@ -147,7 +175,6 @@ export default function ShippingPage() {
 
         if (shipError) throw shipError;
 
-        // 2. Generate Invoice
         await supabase.from('invoices').insert({
             profile_id: profileId,
             amount: parseFloat(cost),
@@ -155,7 +182,6 @@ export default function ShippingPage() {
             invoice_number: `INV-${trackingNumber.slice(-4)}-${Date.now().toString().slice(-4)}`
         });
 
-        // 3. Record in Financial Ledger
         await supabase.from('financial_ledger').insert({
             profile_id: profileId,
             amount: -parseFloat(cost),
