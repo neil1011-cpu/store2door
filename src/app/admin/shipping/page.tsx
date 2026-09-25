@@ -83,8 +83,6 @@ export default function ShippingPage() {
         if (!response.ok) throw new Error(data.message || 'Sync failed');
 
         const external = data.shipments || [];
-        console.log(`[SYNC] Received ${external.length} shipments from Hub.`);
-
         if (external.length === 0) {
             toast({ title: "Sync Complete", description: "No records found in Hub." });
             setIsSyncing(false);
@@ -95,51 +93,32 @@ export default function ShippingPage() {
         let skippedCount = 0;
 
         for (const s of external) {
-            // 1. Extract Tracking ID
             const tracking = (s.trackingNumber || s.code || s.reference || '').toString().toUpperCase().trim();
-            
-            // 2. Extract Customer Mailbox (Check multiple Logicware fields)
-            const rawMailbox = (
-                s.shipper?.referenceCode || 
-                s.shipper?.externalId || 
-                s.shipper?.code ||
-                s.referenceCode || 
-                s.externalId || 
-                s.reference ||
-                ''
-            ).toString().toUpperCase().trim();
+            const rawMailbox = (s.shipper?.referenceCode || s.referenceCode || '').toString().toUpperCase().trim();
 
             if (!tracking || !rawMailbox) {
-                console.warn(`[SYNC] Skipping incomplete record: Tracking=${tracking}, Mailbox=${rawMailbox}`);
                 skippedCount++;
                 continue;
             }
 
-            // 3. Check if already in local DB
             const exists = shipments.some(ls => ls.tracking_number === tracking);
             if (exists) {
                 skippedCount++;
                 continue;
             }
 
-            // 4. Find Local Profile (Fuzzy Match)
             const profile = users.find(u => {
                 const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
                 const uNumeric = uMailbox.replace(/[^0-9]/g, '');
                 const rawNumeric = rawMailbox.replace(/[^0-9]/g, '');
-
-                // Match exact (e.g. FSTD101 == FSTD101) 
-                // OR numeric (e.g. 101 == 101) to handle missing prefixes
                 return uMailbox === rawMailbox || (uNumeric !== '' && uNumeric === rawNumeric);
             });
 
             if (!profile) {
-                console.warn(`[SYNC] Unlinked: No user found for mailbox "${rawMailbox}" (Tracking: ${tracking})`);
                 skippedCount++;
                 continue;
             }
 
-            // 5. Authorize Intake
             const { error: insertError } = await supabase.from('shipments').insert({
                 profile_id: profile.id,
                 tracking_number: tracking,
@@ -150,18 +129,11 @@ export default function ShippingPage() {
                 payment_status: 'Unpaid'
             });
 
-            if (!insertError) {
-                importedCount++;
-            } else {
-                console.error(`[SYNC] DB Error for ${tracking}:`, insertError.message);
-                skippedCount++;
-            }
+            if (!insertError) importedCount++;
+            else skippedCount++;
         }
 
-        toast({ 
-            title: "Hub Sync Complete", 
-            description: `Imported ${importedCount} records. Skipped ${skippedCount} existing or unlinked entries.` 
-        });
+        toast({ title: "Hub Sync Complete", description: `Imported ${importedCount} records.` });
         fetchData();
     } catch (err: any) {
         toast({ title: "Sync Error", description: err.message, variant: "destructive" });
@@ -170,20 +142,13 @@ export default function ShippingPage() {
     }
   };
 
-  const filtered = useMemo(() => {
-    if (!searchTerm) return shipments;
-    const s = searchTerm.toLowerCase();
-    return shipments.filter(ship => 
-        ship.tracking_number.toLowerCase().includes(s) || 
-        ship.profiles?.full_name?.toLowerCase().includes(s)
-    );
-  }, [shipments, searchTerm]);
-
   const handleManualEntry = async (data: any) => {
     setIsSubmitting(true);
     try {
         const { profileId, trackingNumber, contents, weight, cost } = data;
+        const selectedUser = users.find(u => u.id === profileId);
 
+        // 1. Local Persistence
         const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
             profile_id: profileId,
             tracking_number: trackingNumber.toUpperCase(),
@@ -207,8 +172,24 @@ export default function ShippingPage() {
             profile_id: profileId,
             amount: -parseFloat(cost),
             transaction_type: 'shipping_fee',
-            description: `Manual Shipment Entry: ${trackingNumber} (${weight} lbs)`
+            description: `Manual Shipment Entry: ${trackingNumber}`
         });
+
+        // 2. Hub Synchronization (Background Push)
+        try {
+            fetch('/api/admin/logicware-push-shipment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    shipment: {
+                        trackingNumber: trackingNumber.toUpperCase(),
+                        weight: parseFloat(weight),
+                        contents,
+                        mailbox: selectedUser?.mailbox_number
+                    }
+                })
+            });
+        } catch (e) {}
 
         toast({ title: "Shipment Recorded" });
         setIsAddOpen(false);
@@ -222,11 +203,7 @@ export default function ShippingPage() {
 
   const handleStatusUpdate = async (shipmentId: string, trackingNumber: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from('shipments')
-        .update({ status: newStatus })
-        .eq('id', shipmentId);
-
+      const { error } = await supabase.from('shipments').update({ status: newStatus }).eq('id', shipmentId);
       if (error) throw error;
       toast({ title: "Status Updated" });
       fetchData();
@@ -248,6 +225,15 @@ export default function ShippingPage() {
       setIsDeleting(null);
     }
   };
+
+  const filtered = useMemo(() => {
+    if (!searchTerm) return shipments;
+    const s = searchTerm.toLowerCase();
+    return shipments.filter(ship => 
+        ship.tracking_number.toLowerCase().includes(s) || 
+        ship.profiles?.full_name?.toLowerCase().includes(s)
+    );
+  }, [shipments, searchTerm]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -379,7 +365,6 @@ export default function ShippingPage() {
                         </TableCell>
                     </TableRow>
                 ))}
-                {filtered.length === 0 && !isLoading && <TableRow><TableCell colSpan={7} className="text-center py-20 opacity-40 italic">No shipments detected.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
@@ -444,21 +429,17 @@ function StatusUpdateDialog({ shipment, onUpdate }: { shipment: any, onUpdate: (
 
 function ManualShipmentForm({ users, onSubmit, isSubmitting }: { users: any[], onSubmit: (data: any) => void, isSubmitting: boolean }) {
     const [formData, setFormData] = useState({ profileId: '', trackingNumber: '', contents: '', weight: '', cost: '' });
-    const [isCalculating, setIsCalculating] = useState(false);
 
     useEffect(() => {
         const w = parseFloat(formData.weight);
         if (!isNaN(w) && w > 0) {
-            setIsCalculating(true);
-            const calculated = calculateShippingCost(w);
-            setFormData(prev => ({ ...prev, cost: calculated.toString() }));
-            setIsCalculating(false);
+            setFormData(prev => ({ ...prev, cost: calculateShippingCost(w).toString() }));
         }
     }, [formData.weight]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.profileId || !formData.trackingNumber || !formData.weight || !formData.cost) return;
+        if (!formData.profileId || !formData.trackingNumber || !formData.weight) return;
         onSubmit(formData);
     };
 
@@ -490,26 +471,13 @@ function ManualShipmentForm({ users, onSubmit, isSubmitting }: { users: any[], o
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase opacity-60">Weight (LBS)</Label>
-                    <div className="relative">
-                        <Input type="number" value={formData.weight} onChange={e => setFormData({ ...formData, weight: e.target.value })} className="h-14 text-2xl font-black border-2 pl-4" placeholder="0" required />
-                        <Weight className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 opacity-20" />
-                    </div>
+                    <Input type="number" value={formData.weight} onChange={e => setFormData({ ...formData, weight: e.target.value })} className="h-14 text-2xl font-black border-2" placeholder="0" required />
                 </div>
                 <div className="space-y-2">
-                    <Label className="text-[10px) font-bold uppercase opacity-60">Cost (JMD $)</Label>
-                    <div className="relative">
-                        <Input type="number" value={formData.cost} onChange={e => setFormData({ ...formData, cost: e.target.value })} className="h-14 text-2xl font-black border-2 pl-4" placeholder="0.00" required />
-                        <DollarSign className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 opacity-20" />
-                    </div>
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Cost (JMD $)</Label>
+                    <Input type="number" value={formData.cost} onChange={e => setFormData({ ...formData, cost: e.target.value })} className="h-14 text-2xl font-black border-2" placeholder="0.00" required />
                 </div>
             </div>
-
-            <Alert className="bg-amber-50 border-amber-200">
-                <DollarSign className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
-                    Creation will instantly issue an invoice and debit the client registry.
-                </AlertDescription>
-            </Alert>
 
             <DialogFooter className="gap-2">
                 <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>

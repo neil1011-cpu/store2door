@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
 import { getSiteOrigin } from '@/lib/utils';
+import { getLogicwareClient } from '@/lib/logicware';
 
 /**
  * @fileOverview Hardened User Creation API.
- * Sets a default password and forces a reset on first sign-in.
+ * Sets a default password, forces a reset, and synchronizes with Logicware Hub.
  */
 
 export async function POST(request: Request) {
@@ -46,16 +47,16 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { firstName, lastName, email, phone, trn, isAdmin, mailboxNumber, sendWelcomeEmail } = body;
 
-    // Use a standard default password as requested
     const defaultPassword = 'FSTD-Welcome2025!';
     
+    // 1. Create Supabase Auth Identity
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password: defaultPassword,
         email_confirm: true,
         user_metadata: { 
             full_name: `${firstName} ${lastName}`,
-            needs_password_reset: true // Flag to force reset on first sign-in
+            needs_password_reset: true 
         }
     });
 
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
     const userId = newUser.user.id;
     const finalMailboxNumber = mailboxNumber?.trim() || `FSTD${Math.floor(1000 + Math.random() * 9000)}`;
 
+    // 2. Establish Local Profiles
     await Promise.all([
       adminClient.from('profiles').upsert({
         id: userId,
@@ -79,6 +81,32 @@ export async function POST(request: Request) {
       })
     ]);
 
+    // 3. Logicware Hub Mirroring
+    try {
+        const { data: configDoc } = await adminClient
+            .from('system_configs')
+            .select('config_value')
+            .eq('config_key', 'logicware')
+            .maybeSingle();
+        
+        const apiKey = configDoc?.config_value?.apiKey;
+        if (apiKey && apiKey !== '********') {
+            const lwClient = getLogicwareClient(apiKey);
+            if (lwClient) {
+                await lwClient.shippers.create({
+                    email,
+                    firstName,
+                    lastName,
+                    phoneNumber: phone || '',
+                    referenceCode: finalMailboxNumber
+                });
+            }
+        }
+    } catch (lwErr) {
+        console.warn('[ADMIN:CREATE_USER] Logicware mirror failed but Supabase succeeded:', lwErr);
+    }
+
+    // 4. Welcome Protocol
     if (sendWelcomeEmail) {
         const origin = getSiteOrigin(request);
         await adminClient.auth.resetPasswordForEmail(email, {
@@ -97,7 +125,7 @@ export async function POST(request: Request) {
         success: true, 
         uid: userId, 
         mailboxNumber: finalMailboxNumber,
-        defaultPassword: defaultPassword // Return to admin so they can inform the user
+        defaultPassword: defaultPassword 
     });
 
   } catch (error: any) {

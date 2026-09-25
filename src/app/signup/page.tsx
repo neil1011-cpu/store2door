@@ -65,20 +65,35 @@ export default function SignUpPage() {
 
       if (authError) throw authError;
 
-      // 2. Immediate Profile Confirmation (Robust Upsert)
-      // Standard Supabase setups use triggers, but we do a direct upsert here for 100% reliability
+      // 2. Immediate Profile Confirmation
       if (authData.user) {
-          const { error: profileError } = await supabase.from('profiles').upsert({
+          const { data: profile, error: profileError } = await supabase.from('profiles').upsert({
               id: authData.user.id,
               full_name: values.fullName,
               email: values.email,
               phone: values.phone,
               trn: values.trn
-          });
+          }).select('mailbox_number').single();
 
           if (profileError) {
               console.warn('[SIGNUP] Manual profile sync warning:', profileError.message);
           }
+
+          // 3. Hub Synchronization (Background)
+          try {
+              fetch('/api/admin/logicware-sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      shipper: {
+                          email: values.email,
+                          full_name: values.fullName,
+                          phone: values.phone,
+                          mailbox: profile?.mailbox_number
+                      }
+                  })
+              });
+          } catch (e) {}
       }
 
       toast({
