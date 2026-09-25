@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -72,6 +73,7 @@ export default function ShippingPage() {
 
   const handleSyncLogicware = async () => {
     setIsSyncing(true);
+    console.log('[LOGICWARE SYNC] Starting Hub Reconciliation...');
     try {
         const response = await fetch('/api/admin/logicware-shipments', {
             method: 'POST',
@@ -93,10 +95,21 @@ export default function ShippingPage() {
         let skippedCount = 0;
 
         for (const s of external) {
-            const tracking = (s.trackingNumber || s.code || s.reference || '').toString().toUpperCase().trim();
-            const rawMailbox = (s.shipper?.referenceCode || s.referenceCode || '').toString().toUpperCase().trim();
+            // EXHAUSTIVE FIELD SEARCH: Logicware can store tracking and mailbox in various fields
+            const tracking = (s.trackingNumber || s.code || s.reference || s.barcode || '').toString().toUpperCase().trim();
+            
+            // Look for Mailbox (Reference Code) in multiple possible locations
+            const rawMailbox = (
+                s.shipper?.referenceCode || 
+                s.shipper?.code || 
+                s.referenceCode || 
+                s.externalId || 
+                s.reference || 
+                ''
+            ).toString().toUpperCase().trim();
 
-            if (!tracking || !rawMailbox) {
+            if (!tracking) {
+                console.warn('[SYNC] Skipping item: Missing Tracking ID', s);
                 skippedCount++;
                 continue;
             }
@@ -107,22 +120,33 @@ export default function ShippingPage() {
                 continue;
             }
 
-            const profile = users.find(u => {
-                const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
-                const uNumeric = uMailbox.replace(/[^0-9]/g, '');
-                const rawNumeric = rawMailbox.replace(/[^0-9]/g, '');
-                return uMailbox === rawMailbox || (uNumeric !== '' && uNumeric === rawNumeric);
-            });
-
-            if (!profile) {
+            if (!rawMailbox) {
+                console.warn(`[SYNC] Tracking ${tracking} skipped: No Mailbox ID detected in any Hub field.`);
                 skippedCount++;
                 continue;
             }
 
+            // SMART IDENTITY RESOLVER: Match by exact string OR numeric similarity
+            const profile = users.find(u => {
+                const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
+                const uNumeric = uMailbox.replace(/[^0-9]/g, '');
+                const rawNumeric = rawMailbox.replace(/[^0-9]/g, '');
+                
+                return uMailbox === rawMailbox || (uNumeric !== '' && uNumeric === rawNumeric);
+            });
+
+            if (!profile) {
+                console.warn(`[SYNC] Tracking ${tracking} skipped: Hub Mailbox [${rawMailbox}] does not exist in local Registry.`);
+                skippedCount++;
+                continue;
+            }
+
+            console.log(`[SYNC] Importing: ${tracking} -> Linked to ${profile.full_name} (${profile.mailbox_number})`);
+
             const { error: insertError } = await supabase.from('shipments').insert({
                 profile_id: profile.id,
                 tracking_number: tracking,
-                contents: s.contents || s.description || 'Hub Sync',
+                contents: s.contents || s.description || s.memo || 'Hub Sync',
                 weight_lbs: parseFloat(s.weight) || 0,
                 status: s.status?.name || s.status || 'Processed',
                 total_cost_jmd: 0,
@@ -130,10 +154,16 @@ export default function ShippingPage() {
             });
 
             if (!insertError) importedCount++;
-            else skippedCount++;
+            else {
+                console.error(`[SYNC] Insert error for ${tracking}:`, insertError.message);
+                skippedCount++;
+            }
         }
 
-        toast({ title: "Hub Sync Complete", description: `Imported ${importedCount} records.` });
+        toast({ 
+            title: "Hub Sync Complete", 
+            description: `Imported ${importedCount} records. Skipped ${skippedCount} existing or unlinked entries.` 
+        });
         fetchData();
     } catch (err: any) {
         toast({ title: "Sync Error", description: err.message, variant: "destructive" });
@@ -288,7 +318,7 @@ export default function ShippingPage() {
                     <TableHead className="pl-6 text-[10px] font-black uppercase">Tracking ID</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
+                    <TableHead className="text-[10px) font-black uppercase">Weight</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                     <TableHead className="text-[10px] font-black uppercase text-right">Invoice</TableHead>
                     <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Cost (JMD)</TableHead>

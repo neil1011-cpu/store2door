@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -34,8 +35,23 @@ export async function POST(request: Request) {
         }
 
         // Logicware identifiers can vary by Hub version
-        const trackingId = (data.trackingNumber || data.code || data.referenceCode || '').toString().toUpperCase();
-        const mailboxCode = (data.shipper?.referenceCode || data.referenceCode || '').toString().toUpperCase();
+        // EXHAUSTIVE DATA MAPPING: Search across all possible Logicware payload keys
+        const trackingId = (
+            data.trackingNumber || 
+            data.code || 
+            data.reference || 
+            data.barcode || 
+            ''
+        ).toString().toUpperCase().trim();
+
+        const mailboxCode = (
+            data.shipper?.referenceCode || 
+            data.shipper?.code || 
+            data.referenceCode || 
+            data.externalId || 
+            data.reference || 
+            ''
+        ).toString().toUpperCase().trim();
         
         console.log(`[LOGICWARE WEBHOOK] Event: ${event} | Tracking: ${trackingId} | Mailbox: ${mailboxCode}`);
 
@@ -43,7 +59,7 @@ export async function POST(request: Request) {
         await adminClient.from('system_logs').insert({
             log_type: 'logicware_webhook',
             description: `Hub Event [${event}] received for ${trackingId || 'N/A'}`,
-            metadata: { event, payload: data }
+            metadata: { event, payload: data, mailboxResolved: mailboxCode }
         });
 
         // 3. Process Live Events
@@ -66,32 +82,39 @@ export async function POST(request: Request) {
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', existing.id);
-            } else if (mailboxCode && mailboxCode.length > 3) {
+            } else if (mailboxCode && mailboxCode.length > 0) {
                 // Step B: AUTO-INTAKE
-                // Try to find local user by mailbox number (clean match)
+                // SMART IDENTITY RESOLVER: Try exact match OR numeric similarity
                 const numericMailbox = mailboxCode.replace(/[^0-9]/g, '');
                 
-                // Fetch all profiles to find numeric match if exact fails
+                // Fetch all profiles for deep comparison (Safe for MVP registries)
                 const { data: profiles } = await adminClient.from('profiles').select('id, mailbox_number');
                 const targetProfile = profiles?.find(p => {
-                    const localMailbox = (p.mailbox_number || '').toUpperCase();
+                    const localMailbox = (p.mailbox_number || '').toUpperCase().trim();
                     const localNumeric = localMailbox.replace(/[^0-9]/g, '');
+                    
                     return localMailbox === mailboxCode || (numericMailbox !== '' && localNumeric === numericMailbox);
                 });
 
                 if (targetProfile) {
                     const weight = parseFloat(data.weight) || 0;
-                    await adminClient.from('shipments').insert({
+                    const { error: intakeError } = await adminClient.from('shipments').insert({
                         profile_id: targetProfile.id,
                         tracking_number: trackingId,
-                        contents: data.contents || data.description || 'Hub Auto-Intake',
+                        contents: data.contents || data.description || data.memo || 'Hub Auto-Intake',
                         weight_lbs: weight,
                         status: newStatus,
                         total_cost_jmd: 0, 
                         payment_status: 'Unpaid'
                     });
                     
-                    console.log(`[WEBHOOK] Auto-created shipment for ${targetProfile.id} (${mailboxCode})`);
+                    if (!intakeError) {
+                        console.log(`[WEBHOOK] Auto-created shipment for ${targetProfile.id} (${mailboxCode})`);
+                    } else {
+                        console.error('[WEBHOOK] Auto-intake database failure:', intakeError.message);
+                    }
+                } else {
+                    console.warn(`[WEBHOOK] Auto-intake skipped: Mailbox [${mailboxCode}] not found in Registry.`);
                 }
             }
         }
