@@ -83,8 +83,10 @@ export default function ShippingPage() {
         if (!response.ok) throw new Error(data.message || 'Sync failed');
 
         const external = data.shipments || [];
+        console.log(`[SYNC] Received ${external.length} shipments from Hub.`);
+
         if (external.length === 0) {
-            toast({ title: "Sync Complete", description: "No new records found in Hub." });
+            toast({ title: "Sync Complete", description: "No records found in Hub." });
             setIsSyncing(false);
             return;
         }
@@ -93,36 +95,51 @@ export default function ShippingPage() {
         let skippedCount = 0;
 
         for (const s of external) {
-            // Flexible identifier lookup
-            const tracking = (s.trackingNumber || s.code || s.reference || '').toString().toUpperCase();
-            // Look for mailbox number in various possible fields
-            const mailbox = (s.shipper?.referenceCode || s.referenceCode || s.externalId || '').toString().toUpperCase();
+            // 1. Extract Tracking ID
+            const tracking = (s.trackingNumber || s.code || s.reference || '').toString().toUpperCase().trim();
+            
+            // 2. Extract Customer Mailbox (Check multiple Logicware fields)
+            const rawMailbox = (
+                s.shipper?.referenceCode || 
+                s.shipper?.externalId || 
+                s.shipper?.code ||
+                s.referenceCode || 
+                s.externalId || 
+                s.reference ||
+                ''
+            ).toString().toUpperCase().trim();
 
-            if (!tracking || !mailbox) {
+            if (!tracking || !rawMailbox) {
+                console.warn(`[SYNC] Skipping incomplete record: Tracking=${tracking}, Mailbox=${rawMailbox}`);
                 skippedCount++;
                 continue;
             }
 
-            // Check if we have this tracking locally
+            // 3. Check if already in local DB
             const exists = shipments.some(ls => ls.tracking_number === tracking);
             if (exists) {
                 skippedCount++;
                 continue;
             }
 
-            // Look up local profile by mailbox
+            // 4. Find Local Profile (Fuzzy Match)
             const profile = users.find(u => {
-                const uMailbox = (u.mailbox_number || '').toUpperCase();
-                return uMailbox === mailbox || uMailbox.replace(/[^A-Z0-9]/g, '') === mailbox.replace(/[^A-Z0-9]/g, '');
+                const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
+                const uNumeric = uMailbox.replace(/[^0-9]/g, '');
+                const rawNumeric = rawMailbox.replace(/[^0-9]/g, '');
+
+                // Match exact (e.g. FSTD101 == FSTD101) 
+                // OR numeric (e.g. 101 == 101) to handle missing prefixes
+                return uMailbox === rawMailbox || (uNumeric !== '' && uNumeric === rawNumeric);
             });
 
             if (!profile) {
-                console.warn(`[SYNC] No local profile found for mailbox: ${mailbox} (Tracking: ${tracking})`);
+                console.warn(`[SYNC] Unlinked: No user found for mailbox "${rawMailbox}" (Tracking: ${tracking})`);
                 skippedCount++;
                 continue;
             }
 
-            // Import to Supabase
+            // 5. Authorize Intake
             const { error: insertError } = await supabase.from('shipments').insert({
                 profile_id: profile.id,
                 tracking_number: tracking,
@@ -133,8 +150,12 @@ export default function ShippingPage() {
                 payment_status: 'Unpaid'
             });
 
-            if (!insertError) importedCount++;
-            else console.error(`[SYNC] Insert failed for ${tracking}:`, insertError.message);
+            if (!insertError) {
+                importedCount++;
+            } else {
+                console.error(`[SYNC] DB Error for ${tracking}:`, insertError.message);
+                skippedCount++;
+            }
         }
 
         toast({ 
@@ -475,7 +496,7 @@ function ManualShipmentForm({ users, onSubmit, isSubmitting }: { users: any[], o
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase opacity-60">Cost (JMD $)</Label>
+                    <Label className="text-[10px) font-bold uppercase opacity-60">Cost (JMD $)</Label>
                     <div className="relative">
                         <Input type="number" value={formData.cost} onChange={e => setFormData({ ...formData, cost: e.target.value })} className="h-14 text-2xl font-black border-2 pl-4" placeholder="0.00" required />
                         <DollarSign className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 opacity-20" />
