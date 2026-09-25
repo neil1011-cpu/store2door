@@ -4,15 +4,15 @@ import { createAdminClient } from '@/lib/supabase/server';
 /**
  * @fileOverview Universal Inbound Webhook for Logicware Hub updates.
  * Synchronizes external warehouse status changes with the local Supabase registry.
- * Now handles automatic shipment creation if a matching user is identified.
+ * Handles auto-intake for new packages if a mailbox number is detected.
  */
 
 export async function POST(request: Request) {
+    const adminClient = await createAdminClient();
+    
     try {
         const body = await request.json();
         const { event, data } = body;
-
-        const adminClient = await createAdminClient();
 
         // 1. Webhook Secret Verification
         const { data: configDoc } = await adminClient
@@ -33,30 +33,32 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Invalid payload' }, { status: 400 });
         }
 
-        const trackingId = (data.trackingNumber || data.referenceCode || '').toUpperCase();
-        const mailboxCode = data.shipper?.referenceCode || data.referenceCode || '';
+        // Logicware identifiers can vary by Hub version
+        const trackingId = (data.trackingNumber || data.code || data.referenceCode || '').toString().toUpperCase();
+        const mailboxCode = (data.shipper?.referenceCode || data.referenceCode || '').toString().toUpperCase();
         
         console.log(`[LOGICWARE WEBHOOK] Event: ${event} | Tracking: ${trackingId} | Mailbox: ${mailboxCode}`);
 
-        // 2. Audit Trail
+        // 2. Global Audit Trail
         await adminClient.from('system_logs').insert({
             log_type: 'logicware_webhook',
             description: `Hub Event [${event}] received for ${trackingId || 'N/A'}`,
             metadata: { event, payload: data }
         });
 
-        // 3. Process Event
-        if (event.startsWith('shipment.') && trackingId) {
+        // 3. Process Live Events
+        if (event.includes('shipment') && trackingId) {
             const newStatus = data.status?.name || data.status || 'Updated';
             
-            // Try to update existing
-            const { data: existing, error: findError } = await adminClient
+            // Step A: Check for existing local record
+            const { data: existing } = await adminClient
                 .from('shipments')
                 .select('id')
                 .eq('tracking_number', trackingId)
                 .maybeSingle();
 
             if (existing) {
+                // Update Status
                 await adminClient
                     .from('shipments')
                     .update({ 
@@ -64,28 +66,32 @@ export async function POST(request: Request) {
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', existing.id);
-            } else if (mailboxCode && mailboxCode.startsWith('FSTD')) {
-                // AUTO-INTAKE: If package is new but we have a mailbox number, link to user
-                const { data: profile } = await adminClient
-                    .from('profiles')
-                    .select('id')
-                    .eq('mailbox_number', mailboxCode)
-                    .maybeSingle();
+            } else if (mailboxCode && mailboxCode.length > 3) {
+                // Step B: AUTO-INTAKE
+                // Try to find local user by mailbox number (clean match)
+                const numericMailbox = mailboxCode.replace(/[^0-9]/g, '');
+                
+                // Fetch all profiles to find numeric match if exact fails
+                const { data: profiles } = await adminClient.from('profiles').select('id, mailbox_number');
+                const targetProfile = profiles?.find(p => {
+                    const localMailbox = (p.mailbox_number || '').toUpperCase();
+                    const localNumeric = localMailbox.replace(/[^0-9]/g, '');
+                    return localMailbox === mailboxCode || (numericMailbox !== '' && localNumeric === numericMailbox);
+                });
 
-                if (profile) {
+                if (targetProfile) {
                     const weight = parseFloat(data.weight) || 0;
-                    // Note: In production, we'd calculate cost based on weight here if needed
                     await adminClient.from('shipments').insert({
-                        profile_id: profile.id,
+                        profile_id: targetProfile.id,
                         tracking_number: trackingId,
-                        contents: data.contents || 'Hub Intake',
+                        contents: data.contents || data.description || 'Hub Auto-Intake',
                         weight_lbs: weight,
                         status: newStatus,
-                        total_cost_jmd: 0, // Set by admin later or based on weight
+                        total_cost_jmd: 0, 
                         payment_status: 'Unpaid'
                     });
                     
-                    console.log(`[WEBHOOK] Auto-created shipment for ${mailboxCode}`);
+                    console.log(`[WEBHOOK] Auto-created shipment for ${targetProfile.id} (${mailboxCode})`);
                 }
             }
         }
@@ -94,6 +100,13 @@ export async function POST(request: Request) {
 
     } catch (error: any) {
         console.error('[WEBHOOK FATAL]', error);
+        
+        await adminClient.from('system_logs').insert({
+            log_type: 'webhook_processor_error',
+            description: `Webhook execution failure: ${error.message}`,
+            metadata: { fatal: true }
+        });
+
         return NextResponse.json({ message: 'Internal Processor Error' }, { status: 500 });
     }
 }
