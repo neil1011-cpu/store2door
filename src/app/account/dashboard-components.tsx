@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Zap, Calculator, Truck, DollarSign, Weight, Info, FileText, Download } from 'lucide-react';
+import { Loader2, Zap, Calculator, Truck, DollarSign, Weight, Info, FileText, Download, MapPin, Copy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,6 +25,69 @@ const getStatusVariant = (status: string | undefined) => {
   if (safeStatus.includes('pending') || safeStatus.includes('pre-alert')) return 'destructive';
   return 'secondary';
 };
+
+/**
+ * Reusable card for displaying the US Warehouse address.
+ */
+export function WarehouseAddressCard({ details }: { details: UserProfile }) {
+  const { toast } = useToast();
+  
+  const copyAddress = () => {
+    const address = `${details.full_name}\n3507 NW 19th ST\n${details.mailbox_number}\nLauderdale Lake, FL 33311-4224`;
+    navigator.clipboard.writeText(address);
+    toast({ title: "Address Copied", description: "Ready to paste at checkout." });
+  };
+
+  return (
+    <Card className="border-none shadow-xl bg-zinc-950 text-white overflow-hidden rounded-2xl group">
+      <CardHeader className="bg-primary/20 pb-4 border-b border-white/5 flex flex-row items-center justify-between">
+        <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-primary" /> Your US Shipping Address
+        </CardTitle>
+        <Button variant="ghost" size="sm" onClick={copyAddress} className="h-7 text-[8px] font-black uppercase text-zinc-400 hover:text-white hover:bg-white/10">
+          <Copy className="h-3 w-3 mr-1" /> Copy All
+        </Button>
+      </CardHeader>
+      <CardContent className="pt-6 space-y-4 font-mono">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <p className="text-[9px] uppercase font-bold text-zinc-500">Full Name</p>
+              <p className="text-sm font-bold uppercase">{details.full_name}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[9px] uppercase font-bold text-zinc-500">Address Line 1</p>
+              <p className="text-sm font-bold uppercase">3507 NW 19th ST</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[9px] uppercase font-bold text-zinc-500">Address Line 2 (Mailbox)</p>
+              <p className="text-sm font-black uppercase text-primary bg-primary/10 px-2 py-0.5 rounded inline-block">{details.mailbox_number}</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <p className="text-[9px] uppercase font-bold text-zinc-500">City</p>
+              <p className="text-sm font-bold uppercase">Lauderdale Lake</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[9px] uppercase font-bold text-zinc-500">State</p>
+              <p className="text-sm font-bold uppercase">FL</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[9px] uppercase font-bold text-zinc-500">Zip Code</p>
+              <p className="text-sm font-bold uppercase">33311-4224</p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="bg-white/5 p-3">
+        <p className="text-[8px] font-bold uppercase text-zinc-500 italic text-center w-full">
+          IMPORTANT: Always include your mailbox number in Address Line 2.
+        </p>
+      </CardFooter>
+    </Card>
+  );
+}
 
 export function DashboardTab({ details }: { details: UserProfile }) {
   const { supabase } = useSupabase();
@@ -48,39 +111,67 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   }, [details.id, supabase]);
 
   return (
-    <Card className="border-none shadow-none sm:border sm:shadow-sm">
-      <CardHeader>
-        <CardTitle>Activity Overview</CardTitle>
-        <CardDescription>Most recent transit updates.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
-        ) : recentShipment ? (
-          <div className="space-y-4">
-            <div className="bg-muted/20 p-4 rounded-lg flex justify-between items-center">
-              <div className="flex-1">
-                <p className="text-[10px] font-bold uppercase opacity-60">Tracking Number</p>
-                <div className="flex items-center gap-3">
-                    <p className="font-mono font-bold text-lg text-primary">{recentShipment.tracking_number || (recentShipment as any).trackingNumber}</p>
-                    {recentShipment.invoice_url && (
-                        <Button variant="ghost" size="sm" asChild className="h-7 text-primary font-bold uppercase text-[9px] border-2 border-primary/10">
-                            <Link href={`/api/storage/view?key=${encodeURIComponent(recentShipment.invoice_url)}`} target="_blank">
-                                <FileText className="h-3 w-3 mr-1" /> Doc
-                            </Link>
-                        </Button>
-                    )}
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="lg:col-span-7 space-y-6">
+        <WarehouseAddressCard details={details} />
+        
+        <Card className="border-none shadow-none sm:border sm:shadow-sm">
+          <CardHeader>
+            <CardTitle>Activity Overview</CardTitle>
+            <CardDescription>Most recent transit updates.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
+            ) : recentShipment ? (
+              <div className="space-y-4">
+                <div className="bg-muted/20 p-4 rounded-lg flex justify-between items-center">
+                  <div className="flex-1">
+                    <p className="text-[10px] font-bold uppercase opacity-60">Tracking Number</p>
+                    <div className="flex items-center gap-3">
+                        <p className="font-mono font-bold text-lg text-primary">{recentShipment.tracking_number || (recentShipment as any).trackingNumber}</p>
+                        {recentShipment.invoice_url && (
+                            <Button variant="ghost" size="sm" asChild className="h-7 text-primary font-bold uppercase text-[9px] border-2 border-primary/10">
+                                <Link href={`/api/storage/view?key=${encodeURIComponent(recentShipment.invoice_url)}`} target="_blank">
+                                    <FileText className="h-3 w-3 mr-1" /> Doc
+                                </Link>
+                            </Button>
+                        )}
+                    </div>
+                  </div>
+                  <Badge variant={getStatusVariant(recentShipment.status)}>{recentShipment.status}</Badge>
                 </div>
+                <Button variant="outline" className="w-full font-bold uppercase italic" asChild><Link href="/account/packages">View All Packages</Link></Button>
               </div>
-              <Badge variant={getStatusVariant(recentShipment.status)}>{recentShipment.status}</Badge>
-            </div>
-            <Button variant="outline" className="w-full font-bold uppercase italic" asChild><Link href="/account/packages">View All Packages</Link></Button>
-          </div>
-        ) : (
-          <div className="text-center py-10 opacity-40 italic text-sm">No active shipments in your registry.</div>
-        )}
-      </CardContent>
-    </Card>
+            ) : (
+              <div className="text-center py-10 opacity-40 italic text-sm">No active shipments in your registry.</div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      
+      <div className="lg:col-span-5">
+        <Card className="h-full border-none shadow-xl bg-primary text-primary-foreground overflow-hidden">
+            <CardHeader>
+                <CardTitle className="text-lg font-black uppercase italic tracking-tighter">Fast Intake</CardTitle>
+                <CardDescription className="text-primary-foreground/60 text-[10px] font-bold uppercase">Pre-alert our Florida staff.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Link href="/account/pre-alert">
+                    <Button variant="secondary" className="w-full h-20 text-xl font-black uppercase italic shadow-2xl">
+                        <Zap className="mr-2 h-6 w-6" /> Submit Pre-Alert
+                    </Button>
+                </Link>
+            </CardContent>
+            <CardFooter className="bg-black/10 p-6 flex items-start gap-3">
+                <Info className="h-5 w-5 text-primary-foreground/40 shrink-0" />
+                <p className="text-[9px] font-medium leading-relaxed uppercase opacity-80">
+                    Always upload your invoice before your package arrives at our warehouse to ensure immediate processing and clearance.
+                </p>
+            </CardFooter>
+        </Card>
+      </div>
+    </div>
   );
 }
 
@@ -251,21 +342,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <Card className="shadow-lg border-none overflow-hidden rounded-2xl">
-                <CardHeader className="bg-primary text-primary-foreground">
-                    <CardTitle className="text-xl font-black italic uppercase">Shipping Identity</CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 font-mono space-y-4">
-                    <div>
-                        <p className="text-[10px] font-bold uppercase opacity-60">Full Name</p>
-                        <p className="text-lg font-bold">{details.full_name}</p>
-                    </div>
-                    <div>
-                        <p className="text-[10px] font-bold uppercase opacity-60">Mailbox Number</p>
-                        <Badge className="text-lg px-4 font-black italic border-2">{details.mailbox_number}</Badge>
-                    </div>
-                </CardContent>
-            </Card>
+            <WarehouseAddressCard details={details} />
 
             <Card className="border-none shadow-md rounded-2xl">
                 <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest italic">Personal Details</CardTitle></CardHeader>
