@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 /**
  * @fileOverview Universal Inbound Webhook for Logicware Hub updates.
  * Synchronizes external warehouse status changes with the local Supabase registry.
+ * Now handles automatic shipment creation if a matching user is identified.
  */
 
 export async function POST(request: Request) {
@@ -14,7 +15,6 @@ export async function POST(request: Request) {
         const adminClient = await createAdminClient();
 
         // 1. Webhook Secret Verification
-        // Fetches the saved secret from the system_configs registry
         const { data: configDoc } = await adminClient
             .from('system_configs')
             .select('config_value')
@@ -33,33 +33,60 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Invalid payload' }, { status: 400 });
         }
 
-        console.log(`[LOGICWARE WEBHOOK] Received event: ${event}`, data);
-
-        // 2. Log the event for the Admin Activity Feed
         const trackingId = (data.trackingNumber || data.referenceCode || '').toUpperCase();
+        const mailboxCode = data.shipper?.referenceCode || data.referenceCode || '';
         
+        console.log(`[LOGICWARE WEBHOOK] Event: ${event} | Tracking: ${trackingId} | Mailbox: ${mailboxCode}`);
+
+        // 2. Audit Trail
         await adminClient.from('system_logs').insert({
             log_type: 'logicware_webhook',
             description: `Hub Event [${event}] received for ${trackingId || 'N/A'}`,
             metadata: { event, payload: data }
         });
 
-        // 3. Handle Shipment Updates
+        // 3. Process Event
         if (event.startsWith('shipment.') && trackingId) {
             const newStatus = data.status?.name || data.status || 'Updated';
             
-            const { error: updateError } = await adminClient
+            // Try to update existing
+            const { data: existing, error: findError } = await adminClient
                 .from('shipments')
-                .update({ 
-                    status: newStatus,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('tracking_number', trackingId);
+                .select('id')
+                .eq('tracking_number', trackingId)
+                .maybeSingle();
 
-            if (updateError) {
-                console.error('[WEBHOOK ERROR] Database update failed:', updateError.message);
-            } else {
-                console.log(`[WEBHOOK SUCCESS] Synced ${trackingId} to state: ${newStatus}`);
+            if (existing) {
+                await adminClient
+                    .from('shipments')
+                    .update({ 
+                        status: newStatus,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existing.id);
+            } else if (mailboxCode && mailboxCode.startsWith('FSTD')) {
+                // AUTO-INTAKE: If package is new but we have a mailbox number, link to user
+                const { data: profile } = await adminClient
+                    .from('profiles')
+                    .select('id')
+                    .eq('mailbox_number', mailboxCode)
+                    .maybeSingle();
+
+                if (profile) {
+                    const weight = parseFloat(data.weight) || 0;
+                    // Note: In production, we'd calculate cost based on weight here if needed
+                    await adminClient.from('shipments').insert({
+                        profile_id: profile.id,
+                        tracking_number: trackingId,
+                        contents: data.contents || 'Hub Intake',
+                        weight_lbs: weight,
+                        status: newStatus,
+                        total_cost_jmd: 0, // Set by admin later or based on weight
+                        payment_status: 'Unpaid'
+                    });
+                    
+                    console.log(`[WEBHOOK] Auto-created shipment for ${mailboxCode}`);
+                }
             }
         }
 

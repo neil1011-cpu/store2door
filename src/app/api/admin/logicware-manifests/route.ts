@@ -22,7 +22,7 @@ export async function POST(request: Request) {
         const payload = await getSafeBody(request);
         let apiKey = payload.apiKey;
 
-        // 1. If no key in payload, try Supabase system_configs
+        // 1. Fetch from Registry
         if (!apiKey) {
             try {
                 const adminClient = await createAdminClient();
@@ -40,10 +40,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 2. Fallback to ENV
-        if (!apiKey) {
-            apiKey = process.env.LOGICWARE_API_KEY;
-        }
+        if (!apiKey) apiKey = process.env.LOGICWARE_API_KEY;
 
         if (!apiKey) {
             return NextResponse.json({ 
@@ -63,14 +60,12 @@ export async function POST(request: Request) {
             });
         }
 
-        if (!Array.isArray(results)) {
-            const raw: any = results;
-            results = raw.data || raw.manifests || [];
-        }
+        // Standardize response format
+        let finalArray = Array.isArray(results) ? results : (results as any).data || (results as any).manifests || [];
 
         return NextResponse.json({ 
             success: true, 
-            manifests: results
+            manifests: finalArray
         });
 
     } catch (error: any) {

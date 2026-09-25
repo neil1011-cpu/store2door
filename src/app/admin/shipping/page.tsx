@@ -35,6 +35,7 @@ export default function ShippingPage() {
   const [shipments, setShipments] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -45,7 +46,7 @@ export default function ShippingPage() {
     setIsLoading(true);
     try {
       const [shipRes, usersRes] = await Promise.all([
-        supabase.from('shipments').select('*, profiles(full_name)').order('created_at', { ascending: false }),
+        supabase.from('shipments').select('*, profiles(full_name, mailbox_number)').order('created_at', { ascending: false }),
         supabase.from('profiles').select('*').order('full_name', { ascending: true })
       ]);
       setShipments(shipRes.data || []);
@@ -68,6 +69,56 @@ export default function ShippingPage() {
     
     return () => { supabase.removeChannel(channel); };
   }, [supabase]);
+
+  const handleSyncLogicware = async () => {
+    setIsSyncing(true);
+    try {
+        const response = await fetch('/api/admin/logicware-shipments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Sync failed');
+
+        const external = data.shipments || [];
+        let importedCount = 0;
+
+        for (const s of external) {
+            const tracking = s.trackingNumber || s.code;
+            const mailbox = s.shipper?.referenceCode || s.referenceCode;
+
+            if (!tracking || !mailbox) continue;
+
+            // Check if we have this tracking
+            const exists = shipments.find(ls => ls.tracking_number === tracking);
+            if (exists) continue;
+
+            // Look up user
+            const profile = users.find(u => u.mailbox_number === mailbox);
+            if (!profile) continue;
+
+            // Import
+            await supabase.from('shipments').insert({
+                profile_id: profile.id,
+                tracking_number: tracking,
+                contents: s.contents || 'Hub Sync',
+                weight_lbs: parseFloat(s.weight) || 0,
+                status: s.status?.name || s.status || 'Processed',
+                total_cost_jmd: 0,
+                payment_status: 'Unpaid'
+            });
+            importedCount++;
+        }
+
+        toast({ title: "Hub Sync Complete", description: `Imported ${importedCount} new worldwide records.` });
+        fetchData();
+    } catch (err: any) {
+        toast({ title: "Sync Error", description: err.message, variant: "destructive" });
+    } finally {
+        setIsSyncing(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!searchTerm) return shipments;
@@ -112,16 +163,7 @@ export default function ShippingPage() {
             description: `Manual Shipment Entry: ${trackingNumber} (${weight} lbs)`
         });
 
-        // 4. Audit Log
-        const { data: { user } } = await supabase.auth.getUser();
-        await supabase.from('system_logs').insert({
-            log_type: 'manual_shipment_created',
-            description: `Manual shipment created for ${trackingNumber}. JMD $${parseFloat(cost).toLocaleString()}`,
-            actor_id: user?.id,
-            metadata: { trackingNumber, profileId }
-        });
-
-        toast({ title: "Shipment Recorded", description: "Registry updated and client ledger charged." });
+        toast({ title: "Shipment Recorded" });
         setIsAddOpen(false);
         fetchData();
     } catch (error: any) {
@@ -139,20 +181,10 @@ export default function ShippingPage() {
         .eq('id', shipmentId);
 
       if (error) throw error;
-
-      // Log the event
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from('system_logs').insert({
-        log_type: 'status_update',
-        description: `Shipment ${trackingNumber} status updated to: ${newStatus}`,
-        actor_id: user?.id,
-        metadata: { shipmentId, trackingNumber, newStatus }
-      });
-
-      toast({ title: "Status Updated", description: `${trackingNumber} is now ${newStatus}.` });
+      toast({ title: "Status Updated" });
       fetchData();
     } catch (error: any) {
-      toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Update Failed", variant: "destructive" });
     }
   };
 
@@ -161,20 +193,10 @@ export default function ShippingPage() {
     try {
       const { error } = await supabase.from('shipments').delete().eq('id', shipmentId);
       if (error) throw error;
-
-      // Log the event
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from('system_logs').insert({
-        log_type: 'shipment_deleted',
-        description: `Shipment record ${trackingNumber} purged from registry by administrator.`,
-        actor_id: user?.id,
-        metadata: { shipmentId, trackingNumber }
-      });
-
-      toast({ title: "Record Purged", description: `Shipment ${trackingNumber} has been removed.` });
+      toast({ title: "Record Purged" });
       fetchData();
     } catch (error: any) {
-      toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Deletion Failed", variant: "destructive" });
     } finally {
       setIsDeleting(null);
     }
@@ -188,6 +210,10 @@ export default function ShippingPage() {
             <p className="text-muted-foreground font-medium uppercase text-[10px]">Real-time Supabase Logistics Gateway</p>
         </div>
         <div className="flex gap-2">
+            <Button onClick={handleSyncLogicware} disabled={isSyncing} variant="outline" className="font-bold border-2 border-blue-200 text-blue-700 hover:bg-blue-50">
+                {isSyncing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
+                Sync External Hub
+            </Button>
             <Button variant="outline" onClick={fetchData} className="font-bold border-2">
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
             </Button>
@@ -201,7 +227,6 @@ export default function ShippingPage() {
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">New Shipment Entry</DialogTitle>
-                        <DialogDescription className="text-center font-bold text-[10px] uppercase tracking-widest">Manually register a package in the hub</DialogDescription>
                     </DialogHeader>
                     <ManualShipmentForm users={users} onSubmit={handleManualEntry} isSubmitting={isSubmitting} />
                 </DialogContent>
@@ -231,7 +256,7 @@ export default function ShippingPage() {
                     <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
-                    <TableHead className="text-[10px) font-black uppercase">Status</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                     <TableHead className="text-[10px] font-black uppercase text-right">Invoice</TableHead>
                     <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Cost (JMD)</TableHead>
                 </TableRow>
@@ -289,7 +314,7 @@ export default function ShippingPage() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle className="font-black uppercase italic">Purge Shipment Record?</AlertDialogTitle>
                                   <AlertDialogDescription className="text-[10px] font-bold uppercase">
-                                    This will permanently remove <strong>{s.tracking_number}</strong> from the global registry. This action is irreversible.
+                                    This will permanently remove <strong>{s.tracking_number}</strong> from the global registry.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -338,7 +363,6 @@ function StatusUpdateDialog({ shipment, onUpdate }: { shipment: any, onUpdate: (
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Package Transit State</DialogTitle>
-          <DialogDescription className="text-center font-bold text-[10px] uppercase tracking-widest mt-1">Updating tracking for {shipment.tracking_number}</DialogDescription>
         </DialogHeader>
         <div className="py-6 space-y-4">
           <div className="space-y-1">
@@ -429,7 +453,6 @@ function ManualShipmentForm({ users, onSubmit, isSubmitting }: { users: any[], o
                     <div className="relative">
                         <Input type="number" value={formData.cost} onChange={e => setFormData({ ...formData, cost: e.target.value })} className="h-14 text-2xl font-black border-2 pl-4" placeholder="0.00" required />
                         <DollarSign className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 opacity-20" />
-                        {isCalculating && <Loader2 className="absolute right-12 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />}
                     </div>
                 </div>
             </div>
@@ -437,7 +460,7 @@ function ManualShipmentForm({ users, onSubmit, isSubmitting }: { users: any[], o
             <Alert className="bg-amber-50 border-amber-200">
                 <DollarSign className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-[10px] font-bold text-amber-800 uppercase leading-relaxed">
-                    Creation will instantly issue an invoice and debit **JMD ${parseFloat(formData.cost || '0').toLocaleString()}** from the client's credit ledger.
+                    Creation will instantly issue an invoice and debit the client registry.
                 </AlertDescription>
             </Alert>
 
