@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2, DollarSign } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2, DollarSign, MapPin, Copy, Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -27,7 +26,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
 import { cn } from '@/lib/utils';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 
 export default function UserDetailsPage() {
     const params = useParams();
@@ -38,6 +37,7 @@ export default function UserDetailsPage() {
     
     const [profile, setProfile] = useState<any>(null);
     const [shipments, setShipments] = useState<any[]>([]);
+    const [addresses, setAddresses] = useState<any[]>([]);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -49,15 +49,18 @@ export default function UserDetailsPage() {
             const [
                 { data: profileData },
                 { data: shipmentsData },
-                { data: roleData }
+                { data: roleData },
+                { data: addressData }
             ] = await Promise.all([
                 supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
                 supabase.from('shipments').select('*').eq('profile_id', userId).order('created_at', { ascending: false }),
-                supabase.from('app_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle()
+                supabase.from('app_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle(),
+                supabase.from('addresses').select('*').eq('profile_id', userId).order('is_default', { ascending: false })
             ]);
 
             setProfile(profileData);
             setShipments(shipmentsData || []);
+            setAddresses(addressData || []);
             setIsAdmin(!!roleData);
         } catch (error: any) {
             toast({ title: "Fetch Error", description: error.message, variant: "destructive" });
@@ -69,6 +72,11 @@ export default function UserDetailsPage() {
     useEffect(() => {
         if (userId) fetchData();
     }, [fetchData, userId]);
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        toast({ title: "Copied" });
+    };
 
     const toggleAdminStatus = async () => {
         if (profile?.email === 'admin@neilussolutions.com') {
@@ -156,7 +164,13 @@ export default function UserDetailsPage() {
                         <CardContent className="text-sm space-y-4 pt-6">
                              <div className="flex items-center gap-3">
                                 <div className="bg-muted p-2 rounded-lg"><Mail className="h-4 w-4 text-muted-foreground" /></div>
-                                <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Email</p><p className="font-medium">{profile.email}</p></div>
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Email</p>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p className="font-medium truncate">{profile.email}</p>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(profile.email)}><Copy className="h-3 w-3" /></Button>
+                                    </div>
+                                </div>
                             </div>
                              <div className="flex items-center gap-3">
                                 <div className="bg-muted p-2 rounded-lg"><Phone className="h-4 w-4 text-muted-foreground" /></div>
@@ -236,6 +250,90 @@ export default function UserDetailsPage() {
                 </div>
 
                 <div className="lg:col-span-2 space-y-6">
+                    {/* Address Registry Card */}
+                    <Card className="shadow-xl border-none rounded-2xl overflow-hidden">
+                        <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between">
+                            <CardTitle className="text-sm font-black uppercase tracking-widest italic flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-primary" /> Logistics Registry
+                            </CardTitle>
+                            <Badge variant="outline" className="font-bold text-[9px] uppercase">Official Coordinates</Badge>
+                        </CardHeader>
+                        <CardContent className="p-6 space-y-8">
+                            {/* Assigned US Warehouse Address */}
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                                    <Building2 className="h-3.5 w-3.5" /> Assigned US Shipping Address
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl border-2 border-dashed bg-primary/5">
+                                    <div className="space-y-3">
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-bold uppercase opacity-40">Recipient Name</p>
+                                            <p className="text-sm font-bold uppercase">{profile.full_name}</p>
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-bold uppercase opacity-40">Address Line 1</p>
+                                            <p className="text-sm font-bold uppercase">3507 NW 19th ST</p>
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-bold uppercase opacity-40">Address Line 2 (Mailbox)</p>
+                                            <p className="text-sm font-black text-primary uppercase">{profile.mailbox_number}</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-bold uppercase opacity-40">City / State</p>
+                                            <p className="text-sm font-bold uppercase">Lauderdale Lake, FL</p>
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-bold uppercase opacity-40">Zip Code</p>
+                                            <p className="text-sm font-bold uppercase">33311-4224</p>
+                                        </div>
+                                        <Button variant="outline" size="sm" className="h-8 font-black uppercase text-[9px] border-2" onClick={() => copyToClipboard(`${profile.full_name}\n3507 NW 19th ST\n${profile.mailbox_number}\nLauderdale Lake, FL 33311-4224`)}>
+                                            <Copy className="h-3 w-3 mr-1" /> Copy Full Address
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <Separator />
+
+                            {/* Registered Local Addresses (Jamaica) */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                                        <Home className="h-3.5 w-3.5" /> Registered Local Addresses
+                                    </h3>
+                                    <Badge className="bg-primary/10 text-primary text-[8px] font-black uppercase border-primary/20">Jamaica Registry</Badge>
+                                </div>
+                                
+                                {addresses.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {addresses.map((addr) => (
+                                            <div key={addr.id} className="p-4 rounded-xl border bg-muted/20 relative group overflow-hidden">
+                                                {addr.is_default && (
+                                                    <div className="absolute top-0 right-0 bg-primary text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-bl-lg">Primary</div>
+                                                )}
+                                                <p className="text-xs font-bold uppercase">{addr.address_line_1}</p>
+                                                {addr.address_line_2 && <p className="text-[10px] font-medium opacity-60 uppercase">{addr.address_line_2}</p>}
+                                                <p className="text-[10px] font-bold uppercase opacity-80 mt-1">{addr.city}, {addr.state_parish}</p>
+                                                <div className="mt-3 flex items-center justify-between">
+                                                    <Badge variant="outline" className="text-[7px] font-black uppercase">{addr.address_type}</Badge>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => copyToClipboard(`${addr.address_line_1}\n${addr.address_line_2 || ''}\n${addr.city}, ${addr.state_parish}`)}>
+                                                        <Copy className="h-3 w-3" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="h-24 flex flex-col items-center justify-center border-2 border-dashed rounded-xl opacity-30 italic">
+                                        <p className="text-xs uppercase font-bold">No local addresses registered.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     <Card className="shadow-2xl border-none rounded-2xl overflow-hidden">
                         <CardHeader className="bg-muted/10 border-b">
                             <CardTitle className="text-sm font-black uppercase tracking-widest italic">Worldwide Transit History</CardTitle>

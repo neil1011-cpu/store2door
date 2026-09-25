@@ -4,7 +4,7 @@
  * Includes evolution logic to handle missing columns in existing deployments.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.4)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.5)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -41,6 +41,19 @@ CREATE TABLE IF NOT EXISTS public.app_roles (
     role public.user_role DEFAULT 'customer' NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL,
     UNIQUE(user_id, role)
+);
+
+CREATE TABLE IF NOT EXISTS public.addresses (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    address_line_1 text NOT NULL,
+    address_line_2 text,
+    city text NOT NULL,
+    state_parish text NOT NULL,
+    zip_code text,
+    address_type text DEFAULT 'delivery' NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL
 );
 
 -- Authoritative Document Storage
@@ -145,7 +158,7 @@ BEGIN
         ALTER TABLE public.system_configs ADD COLUMN updated_by uuid REFERENCES public.profiles(id);
     END IF;
 
-    -- Pre-Alerts Evolution (invoice_url check)
+    -- Pre-Alerts Evolution
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='pre_alerts' AND column_name='invoice_url') THEN
         ALTER TABLE public.pre_alerts ADD COLUMN invoice_url text;
     END IF;
@@ -158,6 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_pre_alerts_profile ON public.pre_alerts(profile_i
 CREATE INDEX IF NOT EXISTS idx_shipments_profile ON public.shipments(profile_id);
 CREATE INDEX IF NOT EXISTS idx_roles_user ON public.app_roles(user_id);
 CREATE INDEX IF NOT EXISTS idx_doc_assets_profile ON public.document_assets(profile_id);
+CREATE INDEX IF NOT EXISTS idx_addresses_profile ON public.addresses(profile_id);
 
 -- 7. FUNCTIONS
 CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
@@ -214,6 +228,7 @@ CREATE TRIGGER on_profile_created
 -- 9. RLS ENABLING
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.addresses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.financial_ledger ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pre_alerts ENABLE ROW LEVEL SECURITY;
@@ -224,6 +239,11 @@ ALTER TABLE public.sent_emails ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 
 -- 10. POLICIES
+
+-- Addresses
+DROP POLICY IF EXISTS "addresses_select" ON public.addresses;
+CREATE POLICY "addresses_select" ON public.addresses FOR SELECT USING (auth.uid() = profile_id OR is_admin());
+DROP POLICY IF EXISTS "addresses_all_own" ON public.addresses FOR ALL USING (auth.uid() = profile_id);
 
 -- Document Assets
 DROP POLICY IF EXISTS "doc_assets_select" ON public.document_assets;
