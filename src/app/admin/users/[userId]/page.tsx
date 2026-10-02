@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2, DollarSign, MapPin, Copy, Building2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2, DollarSign, MapPin, Copy, Building2, Edit2 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -42,6 +42,10 @@ export default function UserDetailsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+    
+    const [isEditMailboxOpen, setIsEditMailboxOpen] = useState(false);
+    const [newMailbox, setNewMailbox] = useState('');
+    const [isUpdatingMailbox, setIsUpdatingMailbox] = useState(false);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -59,6 +63,7 @@ export default function UserDetailsPage() {
             ]);
 
             setProfile(profileData);
+            setNewMailbox(profileData?.mailbox_number || '');
             setShipments(shipmentsData || []);
             setAddresses(addressData || []);
             setIsAdmin(!!roleData);
@@ -76,6 +81,25 @@ export default function UserDetailsPage() {
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
         toast({ title: "Copied" });
+    };
+
+    const handleUpdateMailbox = async () => {
+        setIsUpdatingMailbox(true);
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ mailbox_number: newMailbox.toUpperCase() })
+                .eq('id', userId);
+            
+            if (error) throw error;
+            toast({ title: "Mailbox Updated", description: "This will affect future Hub linking." });
+            setIsEditMailboxOpen(false);
+            fetchData();
+        } catch (e: any) {
+            toast({ title: "Update Failed", description: e.message, variant: "destructive" });
+        } finally {
+            setIsUpdatingMailbox(false);
+        }
     };
 
     const toggleAdminStatus = async () => {
@@ -154,12 +178,45 @@ export default function UserDetailsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-6">
                     <Card className="overflow-hidden border-none shadow-lg rounded-2xl">
-                        <CardHeader className="items-center bg-primary/5 pb-8">
+                        <CardHeader className="items-center bg-primary/5 pb-8 relative">
                             <Avatar className="h-24 w-24 border-4 border-background shadow-xl">
                                 <AvatarFallback className="text-2xl font-black">{profile.full_name.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <CardTitle className="text-2xl pt-4 font-black italic uppercase tracking-tighter text-center">{profile.full_name}</CardTitle>
-                            <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-center">Mailbox: {profile.mailbox_number}</CardDescription>
+                            <div className="flex items-center gap-2 mt-2">
+                                <Badge className="font-mono font-black italic tracking-tighter uppercase px-3 py-1 text-sm">{profile.mailbox_number}</Badge>
+                                <Dialog open={isEditMailboxOpen} onOpenChange={setIsEditMailboxOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-primary/10">
+                                            <Edit2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-md">
+                                        <DialogHeader>
+                                            <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Update Global Code</DialogTitle>
+                                            <DialogDescription className="text-center font-bold text-[10px] uppercase tracking-widest">Crucial for Logicware Hub linking.</DialogDescription>
+                                        </DialogHeader>
+                                        <div className="py-6 space-y-4">
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] font-bold uppercase opacity-60">Mailbox Reference (e.g. FSTD101)</Label>
+                                                <Input value={newMailbox} onChange={e => setNewMailbox(e.target.value.toUpperCase())} className="h-14 text-2xl font-black border-2 text-center font-mono" />
+                                            </div>
+                                            <Alert className="bg-orange-50 border-orange-200">
+                                                <AlertCircle className="h-4 w-4 text-orange-600" />
+                                                <AlertDescription className="text-[10px] font-bold uppercase text-orange-800 leading-relaxed italic">
+                                                    CAUTION: Changing this will break existing links in the Hub if not updated there simultaneously.
+                                                </AlertDescription>
+                                            </Alert>
+                                        </div>
+                                        <DialogFooter className="gap-2">
+                                            <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+                                            <Button onClick={handleUpdateMailbox} disabled={isUpdatingMailbox} className="flex-1 h-12 font-black uppercase italic shadow-xl">
+                                                {isUpdatingMailbox ? <Loader2 className="animate-spin" /> : "Save Changes"}
+                                            </Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
                         </CardHeader>
                         <CardContent className="text-sm space-y-4 pt-6">
                              <div className="flex items-center gap-3">

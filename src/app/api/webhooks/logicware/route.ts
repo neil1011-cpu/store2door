@@ -1,11 +1,10 @@
-
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Universal Inbound Webhook for Logicware Hub updates.
  * Synchronizes external warehouse status changes with the local Supabase registry.
- * Handles auto-intake for new packages if a mailbox number is detected.
+ * Hardened to handle "FSTD" vs "FTSD" typos by matching numeric components only.
  */
 
 export async function POST(request: Request) {
@@ -41,25 +40,28 @@ export async function POST(request: Request) {
             data.code || 
             data.reference || 
             data.barcode || 
+            data.identifier ||
             ''
         ).toString().toUpperCase().trim();
 
         const mailboxCode = (
             data.shipper?.referenceCode || 
             data.shipper?.code || 
+            data.shipper?.externalId ||
             data.referenceCode || 
             data.externalId || 
             data.reference || 
+            data.memo ||
             ''
         ).toString().toUpperCase().trim();
         
-        console.log(`[LOGICWARE WEBHOOK] Event: ${event} | Tracking: ${trackingId} | Mailbox: ${mailboxCode}`);
+        console.log(`[LOGICWARE WEBHOOK] Event: ${event} | Tracking: ${trackingId} | Mailbox Raw: ${mailboxCode}`);
 
-        // 2. Global Audit Trail
+        // 2. Global Audit Trail (Store RAW data for diagnostics)
         await adminClient.from('system_logs').insert({
             log_type: 'logicware_webhook',
-            description: `Hub Event [${event}] received for ${trackingId || 'N/A'}`,
-            metadata: { event, payload: data, mailboxResolved: mailboxCode }
+            description: `Hub Event [${event}] received for Tracking: ${trackingId || 'N/A'}`,
+            metadata: { event, payload: data, mailboxReceived: mailboxCode }
         });
 
         // 3. Process Live Events
@@ -83,11 +85,11 @@ export async function POST(request: Request) {
                     })
                     .eq('id', existing.id);
             } else if (mailboxCode && mailboxCode.length > 0) {
-                // Step B: AUTO-INTAKE
-                // SMART IDENTITY RESOLVER: Try exact match OR numeric similarity
+                // Step B: AUTO-INTAKE with ROBUST identity matching
+                // Extract numbers ONLY (e.g., FTSD101 -> 101, FSTD101 -> 101)
                 const numericMailbox = mailboxCode.replace(/[^0-9]/g, '');
                 
-                // Fetch all profiles for deep comparison (Safe for MVP registries)
+                // Fetch all profiles for deep numeric comparison
                 const { data: profiles } = await adminClient.from('profiles').select('id, mailbox_number');
                 const targetProfile = profiles?.find(p => {
                     const localMailbox = (p.mailbox_number || '').toUpperCase().trim();
@@ -114,7 +116,7 @@ export async function POST(request: Request) {
                         console.error('[WEBHOOK] Auto-intake database failure:', intakeError.message);
                     }
                 } else {
-                    console.warn(`[WEBHOOK] Auto-intake skipped: Mailbox [${mailboxCode}] not found in Registry.`);
+                    console.warn(`[WEBHOOK] Auto-intake skipped: Mailbox [${mailboxCode}] (Numeric: ${numericMailbox}) not found in local Registry.`);
                 }
             }
         }
@@ -127,7 +129,7 @@ export async function POST(request: Request) {
         await adminClient.from('system_logs').insert({
             log_type: 'webhook_processor_error',
             description: `Webhook execution failure: ${error.message}`,
-            metadata: { fatal: true }
+            metadata: { fatal: true, errorStack: error.stack }
         });
 
         return NextResponse.json({ message: 'Internal Processor Error' }, { status: 500 });

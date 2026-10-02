@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -96,15 +95,24 @@ export default function ShippingPage() {
 
         for (const s of external) {
             // EXHAUSTIVE FIELD SEARCH: Logicware can store tracking and mailbox in various fields
-            const tracking = (s.trackingNumber || s.code || s.reference || s.barcode || '').toString().toUpperCase().trim();
+            const tracking = (
+                s.trackingNumber || 
+                s.code || 
+                s.reference || 
+                s.barcode || 
+                s.identifier ||
+                ''
+            ).toString().toUpperCase().trim();
             
             // Look for Mailbox (Reference Code) in multiple possible locations
             const rawMailbox = (
                 s.shipper?.referenceCode || 
                 s.shipper?.code || 
+                s.shipper?.externalId ||
                 s.referenceCode || 
                 s.externalId || 
                 s.reference || 
+                s.memo ||
                 ''
             ).toString().toUpperCase().trim();
 
@@ -126,17 +134,19 @@ export default function ShippingPage() {
                 continue;
             }
 
-            // SMART IDENTITY RESOLVER: Match by exact string OR numeric similarity
+            // ROBUST IDENTITY RESOLVER: Match numbers ONLY to fix FSTD/FTSD/FTS confusion
+            const rawNumeric = rawMailbox.replace(/[^0-9]/g, '');
+
             const profile = users.find(u => {
                 const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
                 const uNumeric = uMailbox.replace(/[^0-9]/g, '');
-                const rawNumeric = rawMailbox.replace(/[^0-9]/g, '');
                 
-                return uMailbox === rawMailbox || (uNumeric !== '' && uNumeric === rawNumeric);
+                // Exact string match OR numeric overlap (e.g., FTSD101 matches FSTD101 because both are '101')
+                return uMailbox === rawMailbox || (rawNumeric !== '' && uNumeric === rawNumeric);
             });
 
             if (!profile) {
-                console.warn(`[SYNC] Tracking ${tracking} skipped: Hub Mailbox [${rawMailbox}] does not exist in local Registry.`);
+                console.warn(`[SYNC] Tracking ${tracking} skipped: Hub Code [${rawMailbox}] (Numeric: ${rawNumeric}) does not match any local Registry user.`);
                 skippedCount++;
                 continue;
             }
@@ -146,7 +156,7 @@ export default function ShippingPage() {
             const { error: insertError } = await supabase.from('shipments').insert({
                 profile_id: profile.id,
                 tracking_number: tracking,
-                contents: s.contents || s.description || s.memo || 'Hub Sync',
+                contents: s.contents || s.description || s.memo || s.note || 'Hub Sync',
                 weight_lbs: parseFloat(s.weight) || 0,
                 status: s.status?.name || s.status || 'Processed',
                 total_cost_jmd: 0,
@@ -318,7 +328,7 @@ export default function ShippingPage() {
                     <TableHead className="pl-6 text-[10px] font-black uppercase">Tracking ID</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
-                    <TableHead className="text-[10px) font-black uppercase">Weight</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                     <TableHead className="text-[10px] font-black uppercase text-right">Invoice</TableHead>
                     <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Cost (JMD)</TableHead>
