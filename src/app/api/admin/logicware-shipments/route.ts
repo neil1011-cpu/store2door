@@ -3,8 +3,8 @@ import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Secure server-side bridge for Logicware Shipment Sync using Supabase config.
- * Hardened to handle various SDK response formats and provide diagnostic feedback.
+ * @fileOverview Hardened Logicware Shipment Fetcher.
+ * Robust unwrapping of Logicware SDK responses and detailed diagnostic meta-data.
  */
 
 async function getSafeBody(request: Request) {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
         const payload = await getSafeBody(request);
         let apiKey = payload.apiKey;
 
-        // 1. Fetch from Registry if not in payload
+        // 1. Authoritative API Key Resolution from Registry
         if (!apiKey) {
             const adminClient = await createAdminClient();
             const { data: configDoc } = await adminClient
@@ -32,57 +32,60 @@ export async function POST(request: Request) {
                 .eq('config_key', 'logicware')
                 .maybeSingle();
             
-            if (configDoc?.config_value?.apiKey) {
+            if (configDoc?.config_value?.apiKey && configDoc.config_value.apiKey !== '********') {
                 apiKey = configDoc.config_value.apiKey;
             }
         }
 
-        // 2. Final Fallback to Environment
         if (!apiKey) apiKey = process.env.LOGICWARE_API_KEY;
 
         if (!apiKey) {
             return NextResponse.json({ 
                 success: false, 
-                message: 'Logicware API Key not found in registry or environment.' 
+                message: 'Logicware Hub not configured in registry.' 
             }, { status: 400 });
         }
 
         const client = getLogicwareClient(apiKey);
-        if (!client) throw new Error('SDK Initialization Failed');
+        if (!client) throw new Error('Logicware SDK Initialization Failed.');
         
-        let results: any = [];
+        let rawResults: any = [];
         try {
-            // Attempt to list shipments
-            results = await client.shipments.list({ limit: 100 });
-        } catch (err) {
-            // Fallback for older keys/modules
+            // Attempt to list latest shipments
+            rawResults = await client.shipments.list({ limit: 100 });
+        } catch (err: any) {
+            console.error('[LOGICWARE_API] Primary shipments.list failed:', err.message);
+            // Fallback for older Hub versions
             if (client.shippers) {
-                results = await client.shippers.list();
+                rawResults = await client.shippers.list();
             } else {
                 throw err;
             }
         }
 
-        // Normalize SDK response (it might be { data: [...] } or { shipments: [...] })
+        // 2. ROBUST UNWRAPPING: Logicware SDK varies by Hub version
         let shipmentsArray = [];
-        if (Array.isArray(results)) {
-            shipmentsArray = results;
-        } else if (results && typeof results === 'object') {
-            shipmentsArray = results.data || results.shipments || results.results || [];
+        if (Array.isArray(rawResults)) {
+            shipmentsArray = rawResults;
+        } else if (rawResults && typeof rawResults === 'object') {
+            shipmentsArray = rawResults.data || rawResults.shipments || rawResults.results || rawResults.data?.shipments || [];
         }
 
         return NextResponse.json({ 
             success: true, 
             shipments: shipmentsArray,
-            count: shipmentsArray.length,
-            note: shipmentsArray.length === 0 ? 'Connection successful but no records found in Hub.' : null
+            diagnostic: {
+                rawCount: shipmentsArray.length,
+                structure: rawResults ? typeof rawResults : 'null',
+                firstItemFields: shipmentsArray.length > 0 ? Object.keys(shipmentsArray[0]) : []
+            }
         });
 
     } catch (error: any) {
         console.error('[API:LOGICWARE:SHIPMENTS] FATAL:', error);
         return NextResponse.json({ 
             success: false, 
-            message: error.message || 'Logistics Hub communication failure.' 
+            message: error.message || 'Logistics Hub unreachable.' 
         }, { status: 500 });
     }
 }

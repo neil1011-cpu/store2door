@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays, Trash2, FileText } from 'lucide-react';
+import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays, Trash2, FileText, Bug } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -42,8 +42,8 @@ export default function ShippingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const [shipRes, usersRes] = await Promise.all([
         supabase.from('shipments').select('*, profiles(full_name, mailbox_number)').order('created_at', { ascending: false }),
@@ -51,10 +51,12 @@ export default function ShippingPage() {
       ]);
       setShipments(shipRes.data || []);
       setUsers(usersRes.data || []);
+      return { shipments: shipRes.data || [], users: usersRes.data || [] };
     } catch (error: any) {
       toast({ title: "Fetch Failure", description: error.message, variant: "destructive" });
+      return { shipments: [], users: [] };
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -63,7 +65,7 @@ export default function ShippingPage() {
 
     const channel = supabase.channel('shipment-updates')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'shipments' }, () => {
-            fetchData();
+            fetchData(true);
         })
         .subscribe();
     
@@ -72,20 +74,26 @@ export default function ShippingPage() {
 
   const handleSyncLogicware = async () => {
     setIsSyncing(true);
-    console.log('[LOGICWARE SYNC] Starting Hub Reconciliation...');
+    console.log('[LOGICWARE SYNC] Starting Deep Reconciliation...');
+    
     try {
+        // 1. Refresh local state FIRST to avoid duplicate imports
+        const { shipments: latestShipments, users: latestUsers } = await fetchData(true);
+
         const response = await fetch('/api/admin/logicware-shipments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
         });
-        const data = await response.json();
         
-        if (!response.ok) throw new Error(data.message || 'Sync failed');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Hub communication failed');
 
         const external = data.shipments || [];
+        console.log(`[LOGICWARE SYNC] Hub returned ${external.length} raw records.`);
+
         if (external.length === 0) {
-            toast({ title: "Sync Complete", description: "No records found in Hub." });
+            toast({ title: "Sync Complete", description: "No records found in the Logicware Hub." });
             setIsSyncing(false);
             return;
         }
@@ -104,7 +112,7 @@ export default function ShippingPage() {
                 ''
             ).toString().toUpperCase().trim();
             
-            // Look for Mailbox (Reference Code) in multiple possible locations
+            // Search across 8 possible locations for Mailbox (Reference Code)
             const rawMailbox = (
                 s.shipper?.referenceCode || 
                 s.shipper?.code || 
@@ -113,45 +121,46 @@ export default function ShippingPage() {
                 s.externalId || 
                 s.reference || 
                 s.memo ||
+                s.note ||
                 ''
             ).toString().toUpperCase().trim();
 
             if (!tracking) {
-                console.warn('[SYNC] Skipping item: Missing Tracking ID', s);
                 skippedCount++;
                 continue;
             }
 
-            const exists = shipments.some(ls => ls.tracking_number === tracking);
+            // Check if already exists in LATEST shipments list
+            const exists = latestShipments.some(ls => ls.tracking_number === tracking);
             if (exists) {
                 skippedCount++;
                 continue;
             }
 
             if (!rawMailbox) {
-                console.warn(`[SYNC] Tracking ${tracking} skipped: No Mailbox ID detected in any Hub field.`);
+                console.warn(`[SYNC] Tracking ${tracking} skipped: No Mailbox code detected in payload.`);
                 skippedCount++;
                 continue;
             }
 
-            // ROBUST IDENTITY RESOLVER: Match numbers ONLY to fix FSTD/FTSD/FTS confusion
-            const rawNumeric = rawMailbox.replace(/[^0-9]/g, '');
+            // ROBUST IDENTITY RESOLVER: Match numbers ONLY (handles FSTD vs FTSD typos)
+            const hubNumeric = rawMailbox.replace(/[^0-9]/g, '');
 
-            const profile = users.find(u => {
+            const profile = latestUsers.find(u => {
                 const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
                 const uNumeric = uMailbox.replace(/[^0-9]/g, '');
                 
-                // Exact string match OR numeric overlap (e.g., FTSD101 matches FSTD101 because both are '101')
-                return uMailbox === rawMailbox || (rawNumeric !== '' && uNumeric === rawNumeric);
+                // Exact match OR numeric overlap
+                return uMailbox === rawMailbox || (hubNumeric !== '' && uNumeric === hubNumeric);
             });
 
             if (!profile) {
-                console.warn(`[SYNC] Tracking ${tracking} skipped: Hub Code [${rawMailbox}] (Numeric: ${rawNumeric}) does not match any local Registry user.`);
+                console.warn(`[SYNC] Tracking ${tracking} skipped: Hub code [${rawMailbox}] does not match any local user.`);
                 skippedCount++;
                 continue;
             }
 
-            console.log(`[SYNC] Importing: ${tracking} -> Linked to ${profile.full_name} (${profile.mailbox_number})`);
+            console.log(`[SYNC] Importing: ${tracking} -> Linked to ${profile.full_name}`);
 
             const { error: insertError } = await supabase.from('shipments').insert({
                 profile_id: profile.id,
@@ -163,8 +172,9 @@ export default function ShippingPage() {
                 payment_status: 'Unpaid'
             });
 
-            if (!insertError) importedCount++;
-            else {
+            if (!insertError) {
+                importedCount++;
+            } else {
                 console.error(`[SYNC] Insert error for ${tracking}:`, insertError.message);
                 skippedCount++;
             }
@@ -172,8 +182,9 @@ export default function ShippingPage() {
 
         toast({ 
             title: "Hub Sync Complete", 
-            description: `Imported ${importedCount} records. Skipped ${skippedCount} existing or unlinked entries.` 
+            description: `Imported ${importedCount} new worldwide records. Skipped ${skippedCount} existing or unlinked entries.` 
         });
+        
         fetchData();
     } catch (err: any) {
         toast({ title: "Sync Error", description: err.message, variant: "destructive" });
@@ -246,7 +257,7 @@ export default function ShippingPage() {
       const { error } = await supabase.from('shipments').update({ status: newStatus }).eq('id', shipmentId);
       if (error) throw error;
       toast({ title: "Status Updated" });
-      fetchData();
+      fetchData(true);
     } catch (error: any) {
       toast({ title: "Update Failed", variant: "destructive" });
     }
@@ -258,7 +269,7 @@ export default function ShippingPage() {
       const { error } = await supabase.from('shipments').delete().eq('id', shipmentId);
       if (error) throw error;
       toast({ title: "Record Purged" });
-      fetchData();
+      fetchData(true);
     } catch (error: any) {
       toast({ title: "Deletion Failed", variant: "destructive" });
     } finally {
@@ -287,7 +298,7 @@ export default function ShippingPage() {
                 {isSyncing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
                 Sync External Hub
             </Button>
-            <Button variant="outline" onClick={fetchData} className="font-bold border-2">
+            <Button variant="outline" onClick={() => fetchData()} className="font-bold border-2">
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
             </Button>
             
@@ -316,7 +327,7 @@ export default function ShippingPage() {
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <CardTitle className="text-sm font-black uppercase flex items-center gap-2"><Package className="h-4 w-4 text-primary" /> Global Registry</CardTitle>
             <div className="relative w-full sm:max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Bug className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/30 pointer-events-none" />
                 <Input placeholder="Search tracking or name..." className="pl-9 h-10 border-2" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
             </div>
           </div>
