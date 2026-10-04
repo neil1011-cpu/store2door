@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, BrainCircuit, Copy, ExternalLink, ImageIcon } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, BrainCircuit, Copy, ExternalLink, ImageIcon, ListRestart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,8 @@ import { useSupabase } from '@/components/supabase-provider';
 import { cn, calculateShippingCost } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { generateCustomsForm, type GenerateCustomsFormOutput } from '@/ai/flows/generate-customs-form';
+
+const PRE_ALERT_STATUSES = ['Pending', 'Processed', 'Cancelled'];
 
 export default function PreAlertsPage() {
     const { supabase } = useSupabase();
@@ -73,7 +75,6 @@ export default function PreAlertsPage() {
 
             for (const s of external) {
                 const status = (s.status?.name || s.status || '').toString().toLowerCase();
-                // ONLY IMPORT PRE-ALERTS
                 if (!status.includes('pre-alert') && !status.includes('pending')) continue;
 
                 const tracking = (s.trackingNumber || s.code || s.reference || '').toString().toUpperCase().trim();
@@ -109,6 +110,17 @@ export default function PreAlertsPage() {
             toast({ title: "Sync Error", description: err.message, variant: "destructive" });
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    const handleStatusUpdate = async (id: string, newStatus: string) => {
+        try {
+            const { error } = await supabase.from('pre_alerts').update({ status: newStatus }).eq('id', id);
+            if (error) throw error;
+            toast({ title: "Status Updated" });
+            fetchData(true);
+        } catch (error: any) {
+            toast({ title: "Update Failed", variant: "destructive" });
         }
     };
 
@@ -239,11 +251,15 @@ export default function PreAlertsPage() {
                                             ) : <ImageIcon className="h-6 w-6" />}
                                         </div>
                                     </TableCell>
-                                    <TableCell><Badge variant={alert.status === 'Processed' ? 'secondary' : 'default'} className="uppercase text-[8px] font-black italic border-2">{alert.status}</Badge></TableCell>
+                                    <TableCell><Badge variant={alert.status === 'Processed' ? 'secondary' : alert.status === 'Cancelled' ? 'outline' : 'default'} className="uppercase text-[8px] font-black italic border-2">{alert.status}</Badge></TableCell>
                                     <TableCell><p className="font-black text-sm uppercase">{alert.profiles?.full_name}</p><p className="text-[9px] font-bold opacity-60 uppercase">{alert.contents}</p></TableCell>
                                     <TableCell className="font-mono font-black text-primary uppercase text-sm">{alert.tracking_number}</TableCell>
                                     <TableCell className="text-right pr-6">
                                         <div className="flex justify-end gap-2">
+                                            <PreAlertStatusUpdateDialog 
+                                              alert={alert} 
+                                              onUpdate={(newStatus) => handleStatusUpdate(alert.id, newStatus)} 
+                                            />
                                             <InvoicePreviewDialog url={alert.invoice_url ? `/api/storage/view?key=${alert.invoice_url}` : null} storageKey={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
                                             <AlertDialog>
                                               <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
@@ -262,6 +278,60 @@ export default function PreAlertsPage() {
             </Card>
         </div>
     );
+}
+
+function PreAlertStatusUpdateDialog({ alert, onUpdate }: { alert: any, onUpdate: (status: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState(alert.status);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleConfirm = async () => {
+    setIsUpdating(true);
+    await onUpdate(status);
+    setIsUpdating(false);
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="hover:bg-primary/5">
+          <ListRestart className="h-4 w-4 text-primary" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Update Pre-Alert State</DialogTitle>
+        </DialogHeader>
+        <div className="py-6 space-y-4">
+          <div className="space-y-1">
+            <Label className="text-[10px] font-bold uppercase opacity-60">Status Selection</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-14 text-lg font-black border-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRE_ALERT_STATUSES.map(st => (
+                  <SelectItem key={st} value={st} className="font-bold uppercase text-xs">{st}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+          <Button 
+            onClick={handleConfirm} 
+            disabled={isUpdating || status === alert.status} 
+            className="flex-1 h-12 font-black uppercase italic shadow-xl"
+          >
+            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
+            Save Status
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProcess }: { url: string | null, storageKey: string, trackingNumber: string, alert: any, onProcess: (a: any, w: number, c: number) => Promise<void> }) {
