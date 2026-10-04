@@ -37,7 +37,8 @@ import {
   TrendingUp,
   DollarSign,
   UserCheck,
-  Receipt
+  Receipt,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
@@ -76,29 +77,36 @@ export default function POSPage() {
     
     const [receiptData, setReceiptData] = useState<any | null>(null);
 
-    // Fetch users based on search
+    // Fetch users based on search - Hardened logic
     useEffect(() => {
-        if (!searchTerm || searchTerm.length < 2) {
+        if (!searchTerm || searchTerm.trim().length < 2) {
             setSearchResults([]);
             return;
         }
 
         const findUsers = async () => {
             setIsSearching(true);
-            const { data } = await supabase
-                .from('profiles')
-                .select('*')
-                .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mailbox_number.ilike.%${searchTerm}%`)
-                .limit(5);
-            setSearchResults(data || []);
-            setIsSearching(false);
+            try {
+                // Search across multiple fields using or logic
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mailbox_number.ilike.%${searchTerm}%`)
+                    .limit(10);
+                
+                if (error) throw error;
+                setSearchResults(data || []);
+            } catch (err) {
+                console.error("SEARCH ERROR:", err);
+            } finally {
+                setIsSearching(false);
+            }
         };
 
-        const timer = setTimeout(findUsers, 300);
+        const timer = setTimeout(findUsers, 400);
         return () => clearTimeout(timer);
     }, [searchTerm, supabase]);
 
-    // Fetch invoices and refresh profile when user is selected
     const refreshUserData = async (userId: string) => {
         setIsLoadingInvoices(true);
         try {
@@ -177,9 +185,8 @@ export default function POSPage() {
             });
 
             setCheckoutComplete(true);
-            toast({ title: "Payment Secured", description: "Registry items marked as paid and account credited." });
+            toast({ title: "Payment Secured", description: "Registry items marked as paid." });
             
-            // Refresh state for next step or persistence
             refreshUserData(selectedUser.id);
         } catch (error: any) {
             toast({ title: "Checkout Error", description: error.message, variant: "destructive" });
@@ -258,7 +265,7 @@ export default function POSPage() {
                 <div>
                     <h1 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Station POS</h1>
                     <p className="text-muted-foreground font-bold uppercase tracking-widest text-[10px] mt-1 flex items-center gap-2">
-                        <Building2 className="h-3 w-3" /> Branch Terminal • PostgreSQL Financial Gateway
+                        <Building2 className="h-3 w-3" /> Branch Terminal • PostgreSQL Registry
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -273,64 +280,75 @@ export default function POSPage() {
                     {/* Step 1: Customer Selection */}
                     <Card className="border-none shadow-2xl overflow-hidden rounded-3xl">
                         <CardHeader className="bg-muted/30 pb-4 border-b">
-                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2 text-muted-foreground">
-                                <UserCheck className="h-4 w-4" /> 01. Identify Account
+                            <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2 text-muted-foreground">
+                                <UserCheck className="h-4 w-4" /> 01. IDENTIFY ACCOUNT
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-8">
                             {!selectedUser ? (
                                 <div className="relative">
-                                    <Search className={cn("absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground transition-all", isSearching && "animate-pulse text-primary scale-110")} />
+                                    <Search className={cn("absolute left-6 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground transition-all", isSearching && "animate-pulse text-primary scale-110")} />
                                     <Input 
                                         placeholder="SEARCH NAME, EMAIL, OR MAILBOX #..." 
-                                        className="h-20 pl-16 text-2xl font-black uppercase border-4 border-muted focus:border-primary transition-all rounded-2xl shadow-inner placeholder:text-muted-foreground/30"
+                                        className="h-24 pl-20 text-3xl font-black uppercase border-4 border-muted focus:border-primary transition-all rounded-[1.5rem] shadow-inner placeholder:text-muted-foreground/20"
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
                                     />
+                                    {isSearching && (
+                                        <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-2 text-[10px] font-black uppercase text-primary animate-pulse">
+                                            <Loader2 className="h-4 w-4 animate-spin" /> Scanning...
+                                        </div>
+                                    )}
                                     {searchResults.length > 0 && (
-                                        <div className="absolute w-full mt-4 bg-background border-2 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y-2">
+                                        <div className="absolute w-full mt-4 bg-background border-4 rounded-3xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] z-50 overflow-hidden divide-y-2">
                                             {searchResults.map(u => (
-                                                <div key={u.id} onClick={() => handleSelectUser(u)} className="p-6 hover:bg-primary/5 cursor-pointer flex items-center justify-between transition-colors">
+                                                <div key={u.id} onClick={() => handleSelectUser(u)} className="p-8 hover:bg-primary/5 cursor-pointer flex items-center justify-between transition-colors group">
                                                     <div>
-                                                        <p className="font-black text-xl text-primary uppercase italic tracking-tighter leading-none">{u.full_name}</p>
-                                                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-2">{u.email}</p>
+                                                        <p className="font-black text-2xl text-primary uppercase italic tracking-tighter leading-none group-hover:translate-x-2 transition-transform">{u.full_name}</p>
+                                                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-2">{u.email}</p>
                                                     </div>
-                                                    <Badge className="h-10 px-6 text-sm font-black italic tracking-tighter uppercase rounded-xl">
+                                                    <Badge className="h-12 px-8 text-lg font-black italic tracking-tighter uppercase rounded-2xl bg-muted text-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                                                         {u.mailbox_number}
                                                     </Badge>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
+                                    {!isSearching && searchTerm.length >= 2 && searchResults.length === 0 && (
+                                        <div className="mt-4 p-8 text-center bg-muted/20 rounded-3xl border-4 border-dashed border-muted">
+                                            <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                                            <p className="text-xl font-black uppercase italic text-muted-foreground/40">No matching identity found</p>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className={cn(
-                                    "p-8 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-8 transition-all relative overflow-hidden group",
+                                    "p-10 rounded-[2rem] shadow-2xl flex flex-col md:flex-row items-center justify-between gap-10 transition-all relative overflow-hidden group",
                                     Number(selectedUser.wallet_balance) < 0 ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
                                 )}>
                                     <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:scale-110 transition-transform">
-                                        <User size={180} />
+                                        <User size={240} />
                                     </div>
                                     <div className="relative z-10 text-center md:text-left">
-                                        <div className="flex flex-col md:flex-row md:items-center gap-4">
-                                            <p className="text-5xl font-black italic uppercase tracking-tighter leading-none">{selectedUser.full_name}</p>
-                                            <Badge className="bg-white/20 text-white uppercase text-xs font-black italic border-white/10 px-4 h-8 self-center md:self-auto">
+                                        <div className="flex flex-col md:flex-row md:items-center gap-6">
+                                            <p className="text-6xl font-black italic uppercase tracking-tighter leading-none drop-shadow-xl">{selectedUser.full_name}</p>
+                                            <Badge className="bg-white/20 text-white uppercase text-sm font-black italic border-white/20 px-6 h-10 self-center md:self-auto backdrop-blur-md">
                                                 {selectedUser.mailbox_number}
                                             </Badge>
                                         </div>
-                                        <p className="font-bold opacity-70 uppercase tracking-[0.2em] text-[10px] mt-4">{selectedUser.email}</p>
+                                        <p className="font-bold opacity-70 uppercase tracking-[0.3em] text-xs mt-6">{selectedUser.email}</p>
                                     </div>
-                                    <div className="relative z-10 text-center md:text-right bg-black/10 p-6 rounded-2xl border border-white/5 backdrop-blur-sm min-w-[240px]">
-                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Ledger Standing</p>
-                                        <div className="flex items-center justify-center md:justify-end gap-3">
-                                            {Number(selectedUser.wallet_balance) < 0 ? <TrendingDown className="h-6 w-6 text-red-200" /> : <TrendingUp className="h-6 w-6 text-green-200" />}
-                                            <span className="text-4xl font-black italic tracking-tighter">
+                                    <div className="relative z-10 text-center md:text-right bg-black/20 p-8 rounded-3xl border-2 border-white/10 backdrop-blur-xl min-w-[300px]">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-60 mb-3 italic">Authorized Standing</p>
+                                        <div className="flex items-center justify-center md:justify-end gap-4">
+                                            {Number(selectedUser.wallet_balance) < 0 ? <TrendingDown className="h-8 w-8 text-red-200" /> : <TrendingUp className="h-8 w-8 text-green-200" />}
+                                            <span className="text-5xl font-black italic tracking-tighter">
                                                 JMD ${Math.abs(Number(selectedUser.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </div>
-                                    <Button variant="ghost" onClick={() => setSelectedUser(null)} className="absolute top-4 right-4 text-white hover:bg-white/20 h-10 w-10 rounded-full">
-                                        <X className="h-5 w-5" />
+                                    <Button variant="ghost" onClick={() => setSelectedUser(null)} className="absolute top-6 right-6 text-white hover:bg-white/20 h-12 w-12 rounded-full border-2 border-white/10">
+                                        <X className="h-6 w-6" />
                                     </Button>
                                 </div>
                             )}
@@ -338,41 +356,41 @@ export default function POSPage() {
                     </Card>
 
                     {/* Step 2: Invoices */}
-                    <Card className="border-none shadow-2xl overflow-hidden rounded-3xl min-h-[500px]">
+                    <Card className="border-none shadow-2xl overflow-hidden rounded-[2rem] min-h-[500px]">
                         <CardHeader className="bg-muted/30 pb-4 border-b">
-                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2 text-muted-foreground">
-                                <Package className="h-4 w-4" /> 02. Select Settlement Items
+                            <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2 text-muted-foreground">
+                                <Package className="h-4 w-4" /> 02. SELECT SETTLEMENT ITEMS
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             {isLoadingInvoices ? (
-                                <div className="h-96 flex flex-col items-center justify-center gap-4">
-                                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                                    <p className="text-xs font-black uppercase tracking-[0.3em] opacity-40">Scanning Global Registry...</p>
+                                <div className="h-96 flex flex-col items-center justify-center gap-6">
+                                    <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                                    <p className="text-sm font-black uppercase tracking-[0.5em] opacity-40 animate-pulse">Syncing Worldwide Registry...</p>
                                 </div>
                             ) : !selectedUser ? (
-                                <div className="h-96 flex flex-col items-center justify-center text-muted-foreground opacity-20 italic">
-                                    <Search size={80} className="mb-6" />
-                                    <p className="text-sm font-black uppercase tracking-widest">Awaiting Customer ID</p>
+                                <div className="h-96 flex flex-col items-center justify-center text-muted-foreground/10 italic">
+                                    <Search size={150} className="mb-6 opacity-5" />
+                                    <p className="text-2xl font-black uppercase tracking-[0.4em]">Awaiting Identity</p>
                                 </div>
                             ) : userInvoices.length === 0 ? (
-                                <div className="h-96 flex flex-col items-center justify-center gap-6 text-center p-12">
-                                    <div className="bg-green-100 p-8 rounded-full border-4 border-white shadow-xl animate-in zoom-in">
-                                        <CheckCircle2 className="h-16 w-16 text-green-600" />
+                                <div className="h-96 flex flex-col items-center justify-center gap-8 text-center p-12">
+                                    <div className="bg-green-100 p-12 rounded-[2.5rem] border-8 border-white shadow-2xl animate-in zoom-in spin-in-1">
+                                        <CheckCircle2 className="h-24 w-24 text-green-600" />
                                     </div>
                                     <div>
-                                        <p className="text-3xl font-black italic uppercase tracking-tighter">Account Fully Settled</p>
-                                        <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mt-2">All registry items are cleared in Supabase.</p>
+                                        <p className="text-5xl font-black italic uppercase tracking-tighter text-primary">Registry Settled</p>
+                                        <p className="text-muted-foreground text-sm font-bold uppercase tracking-[0.3em] mt-4 opacity-40">Zero Unpaid entries detected for this mailbox.</p>
                                     </div>
                                 </div>
                             ) : (
                                 <Table>
-                                    <TableHeader className="bg-muted/50 h-14">
+                                    <TableHeader className="bg-muted/50 h-20">
                                         <TableRow>
-                                            <TableHead className="w-[80px] pl-8"></TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest">Document ID</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest">Issue Date</TableHead>
-                                            <TableHead className="text-right pr-12 text-[10px] font-black uppercase tracking-widest">Line Total</TableHead>
+                                            <TableHead className="w-[100px] pl-10"></TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Document ID</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Authorized Date</TableHead>
+                                            <TableHead className="text-right pr-14 text-[10px] font-black uppercase tracking-[0.3em]">Line Total (JMD)</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -380,21 +398,24 @@ export default function POSPage() {
                                             <TableRow 
                                                 key={inv.id} 
                                                 className={cn(
-                                                    "hover:bg-primary/5 cursor-pointer transition-all border-b-2 h-24", 
+                                                    "hover:bg-primary/5 cursor-pointer transition-all border-b-4 h-32", 
                                                     selectedInvoices.has(inv.id) && "bg-primary/10"
                                                 )} 
                                                 onClick={() => toggleInvoice(inv.id)}
                                             >
-                                                <TableCell className="pl-8">
+                                                <TableCell className="pl-10">
                                                     <Checkbox 
                                                         checked={selectedInvoices.has(inv.id)} 
                                                         onCheckedChange={() => toggleInvoice(inv.id)} 
-                                                        className="h-8 w-8 border-4 rounded-lg data-[state=checked]:bg-primary" 
+                                                        className="h-10 w-10 border-4 rounded-xl data-[state=checked]:bg-primary shadow-lg" 
                                                     />
                                                 </TableCell>
-                                                <TableCell className="font-mono font-black text-primary uppercase text-lg italic">{inv.invoice_number}</TableCell>
-                                                <TableCell className="text-[11px] font-bold opacity-60 uppercase tracking-tight">{new Date(inv.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}</TableCell>
-                                                <TableCell className="text-right pr-12 font-black text-2xl italic tracking-tighter">JMD ${Number(inv.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                                                <TableCell className="font-mono font-black text-primary uppercase text-2xl italic tracking-tighter">{inv.invoice_number}</TableCell>
+                                                <TableCell className="text-xs font-black opacity-40 uppercase tracking-widest">{new Date(inv.created_at).toLocaleDateString(undefined, { dateStyle: 'full' })}</TableCell>
+                                                <TableCell className="text-right pr-14 font-black text-4xl italic tracking-tighter text-primary">
+                                                    <span className="text-lg opacity-20 mr-2 font-black italic">JMD</span>
+                                                    ${Number(inv.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -405,62 +426,65 @@ export default function POSPage() {
                 </div>
 
                 <div className="lg:col-span-4">
-                    {/* Step 3: Checkout Terminal */}
-                    <Card className="border-none shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)] bg-zinc-950 text-zinc-100 sticky top-24 rounded-[2.5rem] overflow-hidden">
-                        <CardHeader className="bg-white/5 pb-10 pt-10 px-10">
-                            <CardTitle className="text-xs font-black uppercase tracking-[0.4em] text-zinc-500 flex items-center gap-3">
-                                <Receipt className="h-4 w-4" /> Checkout Terminal
+                    {/* Step 3: Checkout Terminal - High Impact */}
+                    <Card className="border-none shadow-[0_50px_100px_-30px_rgba(0,0,0,0.5)] bg-zinc-950 text-zinc-100 sticky top-24 rounded-[3rem] overflow-hidden border-t-8 border-primary">
+                        <CardHeader className="bg-white/5 pb-10 pt-10 px-10 border-b border-white/5">
+                            <CardTitle className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-500 flex items-center gap-4 italic">
+                                <Receipt className="h-5 w-5 text-primary" /> SECURE CHECKOUT TERMINAL
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-12 px-10">
-                            <div className="text-center space-y-4 py-6">
-                                <p className="text-[11px] font-black uppercase tracking-[0.4em] text-primary/80 italic">Authorized Settlement Total</p>
-                                <div className="flex items-center justify-center gap-3">
-                                    <span className="text-4xl font-black opacity-20 text-primary">JMD</span>
-                                    <span className="text-7xl font-black italic tracking-tighter text-white drop-shadow-2xl">
+                        <CardContent className="space-y-12 px-10 py-10">
+                            <div className="text-center space-y-6">
+                                <p className="text-[10px] font-black uppercase tracking-[0.5em] text-primary/60 italic animate-pulse">Settlement Authority Grand Total</p>
+                                <div className="flex flex-col items-center justify-center gap-2">
+                                    <span className="text-2xl font-black opacity-20 text-primary italic tracking-widest">JMD</span>
+                                    <span className="text-8xl font-black italic tracking-tighter text-white drop-shadow-[0_10px_20px_rgba(0,0,0,1)]">
                                         ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
-                                <div className="flex justify-center gap-2">
-                                    <Badge className="bg-primary/20 text-primary uppercase text-[8px] font-black italic tracking-widest border-primary/20">
-                                        {selectedInvoices.size} Registry Items Selected
+                                <div className="flex justify-center gap-3">
+                                    <Badge className="bg-primary/20 text-primary uppercase text-[9px] font-black italic tracking-[0.2em] border-primary/20 px-6 h-8">
+                                        {selectedInvoices.size} Documents Selected
                                     </Badge>
                                 </div>
                             </div>
 
-                            <Separator className="bg-white/10" />
+                            <Separator className="bg-white/10 h-1" />
 
-                            <div className="space-y-6">
-                                <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 ml-1">Form of Tender</Label>
-                                <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-3 gap-3">
+                            <div className="space-y-8">
+                                <Label className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500 ml-2 italic">Form of Tender</Label>
+                                <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-3 gap-4">
                                     {[
-                                        { id: 'Cash', icon: <Banknote /> },
-                                        { id: 'Card', icon: <CreditCard /> },
-                                        { id: 'Transfer', icon: <Building2 /> }
+                                        { id: 'Cash', icon: <Banknote className="h-8 w-8" /> },
+                                        { id: 'Card', icon: <CreditCard className="h-8 w-8" /> },
+                                        { id: 'Transfer', icon: <Building2 className="h-8 w-8" /> }
                                     ].map(m => (
                                         <Label 
                                             key={m.id} 
                                             className={cn(
-                                                "flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-white/5 cursor-pointer hover:bg-white/5 transition-all active:scale-95",
-                                                paymentMethod === m.id ? "border-primary bg-primary/20 text-white shadow-[0_0_20px_rgba(255,255,255,0.05)]" : "text-zinc-500"
+                                                "flex flex-col items-center justify-center p-8 rounded-[2rem] border-4 border-white/5 cursor-pointer hover:bg-white/5 transition-all active:scale-95 group",
+                                                paymentMethod === m.id ? "border-primary bg-primary/20 text-white shadow-[0_0_40px_rgba(255,255,255,0.1)]" : "text-zinc-600"
                                             )}
                                         >
-                                            <div className={cn("mb-3 transition-transform", paymentMethod === m.id && "scale-125")}>{m.icon}</div>
-                                            <span className="text-[10px] font-black uppercase italic tracking-tighter">{m.id}</span>
+                                            <div className={cn("mb-4 transition-all duration-300", paymentMethod === m.id && "scale-125 rotate-6 text-primary")}>{m.icon}</div>
+                                            <span className="text-xs font-black uppercase italic tracking-tighter">{m.id}</span>
                                             <RadioGroupItem value={m.id} className="sr-only" />
                                         </Label>
                                     ))}
                                 </RadioGroup>
                             </div>
                         </CardContent>
-                        <CardFooter className="pb-12 pt-8 px-10">
+                        <CardFooter className="pb-14 pt-10 px-10">
                             <Button 
                                 onClick={() => setIsCheckoutOpen(true)} 
                                 disabled={selectedInvoices.size === 0} 
-                                className="w-full h-24 text-2xl font-black italic uppercase tracking-tighter shadow-2xl rounded-2xl group transition-all"
+                                className="w-full h-32 text-4xl font-black italic uppercase tracking-tighter shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] rounded-[2rem] group transition-all duration-500 relative overflow-hidden"
                             >
-                                <ShoppingCart className="mr-3 h-6 w-6 group-hover:rotate-12 transition-transform" />
-                                Finalize Settlement
+                                <div className="absolute inset-0 bg-gradient-to-tr from-primary via-primary to-primary/80 group-hover:scale-110 transition-transform" />
+                                <span className="relative flex items-center gap-4">
+                                    <ShoppingCart className="h-10 w-10 group-hover:scale-125 group-hover:rotate-12 transition-all" />
+                                    Process Now
+                                </span>
                             </Button>
                         </CardFooter>
                     </Card>
@@ -468,52 +492,54 @@ export default function POSPage() {
             </div>
 
             <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-                <DialogContent className="sm:max-w-xl p-0 overflow-hidden rounded-[2rem] border-4">
+                <DialogContent className="sm:max-w-2xl p-0 overflow-hidden rounded-[3rem] border-8 border-primary/20">
                     {!checkoutComplete ? (
                         <div className="flex flex-col">
-                            <div className="p-10 bg-muted/30 border-b-2">
+                            <div className="p-12 bg-muted/30 border-b-4 border-muted">
                                 <DialogHeader>
-                                    <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter text-center">Confirm Settlement</DialogTitle>
+                                    <DialogTitle className="text-5xl font-black italic uppercase tracking-tighter text-center">Confirm Funds</DialogTitle>
                                 </DialogHeader>
                             </div>
-                            <div className="p-10 space-y-10">
-                                <div className="p-8 rounded-3xl bg-primary/5 border-4 border-dashed border-primary/20 flex flex-col items-center gap-6 text-center">
-                                    <div className="bg-primary h-20 w-20 rounded-2xl flex items-center justify-center shadow-2xl transform rotate-3">
-                                        <DollarSign className="h-10 w-10 text-white" />
+                            <div className="p-12 space-y-12">
+                                <div className="p-12 rounded-[2.5rem] bg-primary/5 border-4 border-dashed border-primary/20 flex flex-col items-center gap-8 text-center">
+                                    <div className="bg-primary h-24 w-24 rounded-3xl flex items-center justify-center shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] transform rotate-6 border-4 border-white dark:border-zinc-900">
+                                        <DollarSign className="h-12 w-12 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-[11px] font-black uppercase tracking-[0.3em] opacity-40 mb-3 italic">Verify Physical Funds</p>
-                                        <p className="text-6xl font-black italic tracking-tighter text-primary">
-                                            JMD ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        <p className="text-xs font-black uppercase tracking-[0.4em] opacity-40 mb-4 italic">VERIFY PHYSICAL CURRENCY RECEIVED</p>
+                                        <p className="text-8xl font-black italic tracking-tighter text-primary">
+                                            ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </p>
-                                        <p className="mt-4 text-[10px] font-bold uppercase tracking-widest opacity-60">Method: {paymentMethod}</p>
+                                        <Badge variant="outline" className="mt-8 text-xs font-black uppercase px-8 h-10 border-2 tracking-widest bg-white">
+                                            {paymentMethod} TENDER
+                                        </Badge>
                                     </div>
                                 </div>
-                                <div className="flex gap-4">
-                                    <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} className="flex-1 h-16 font-black uppercase italic border-2 rounded-2xl">Abort</Button>
-                                    <Button onClick={handleProcessPayment} disabled={isProcessing} className="flex-[2] h-16 text-xl font-black uppercase italic tracking-tight rounded-2xl shadow-xl">
-                                        {isProcessing ? <Loader2 className="animate-spin mr-2 h-6 w-6" /> : <CheckCircle2 className="mr-2 h-6 w-6" />} 
+                                <div className="flex gap-6">
+                                    <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} className="flex-1 h-20 text-xl font-black uppercase italic border-4 rounded-3xl">Abort</Button>
+                                    <Button onClick={handleProcessPayment} disabled={isProcessing} className="flex-[2] h-20 text-3xl font-black uppercase italic tracking-tighter rounded-3xl shadow-2xl relative overflow-hidden group">
+                                        {isProcessing ? <Loader2 className="animate-spin mr-3 h-8 w-8" /> : <CheckCircle2 className="mr-3 h-8 w-8 group-hover:scale-125 transition-transform" />} 
                                         Authorize & Clear
                                     </Button>
                                 </div>
                             </div>
                         </div>
                     ) : (
-                        <div className="p-12 text-center space-y-10 animate-in zoom-in duration-300">
-                            <div className="bg-green-500 h-32 w-32 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-2xl shadow-green-500/20 transform rotate-6 border-8 border-white dark:border-zinc-900">
-                                <CheckCircle2 className="h-16 w-16 text-white" />
+                        <div className="p-16 text-center space-y-12 animate-in zoom-in duration-500">
+                            <div className="bg-green-500 h-40 w-40 rounded-[3rem] flex items-center justify-center mx-auto shadow-2xl shadow-green-500/40 transform rotate-12 border-[12px] border-white dark:border-zinc-900">
+                                <CheckCircle2 className="h-20 w-24 text-white" />
                             </div>
                             <div>
-                                <p className="text-5xl font-black italic uppercase tracking-tighter">Registry Cleared</p>
-                                <p className="text-muted-foreground font-bold uppercase tracking-[0.3em] text-[11px] mt-4">Funds Received • Account Integrity Confirmed</p>
+                                <p className="text-7xl font-black italic uppercase tracking-tighter text-primary">Payment Secured</p>
+                                <p className="text-muted-foreground font-black uppercase tracking-[0.5em] text-xs mt-6 opacity-60">REGISTRY UPDATED • INVENTORY RELEASE AUTHORIZED</p>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-                                <Button className="h-20 text-lg font-black uppercase italic rounded-2xl shadow-xl" onClick={handlePrintReceipt} disabled={isGeneratingPdf}>
-                                    {isGeneratingPdf ? <Loader2 className="animate-spin mr-2" /> : <FileDown className="mr-3 h-6 w-6" />} 
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6">
+                                <Button className="h-24 text-2xl font-black uppercase italic rounded-3xl shadow-2xl group" onClick={handlePrintReceipt} disabled={isGeneratingPdf}>
+                                    {isGeneratingPdf ? <Loader2 className="animate-spin mr-3 h-8 w-8" /> : <FileDown className="mr-4 h-8 w-8 group-hover:translate-y-1 transition-transform" />} 
                                     Print Receipt
                                 </Button>
-                                <Button variant="outline" className="h-20 text-lg font-black border-4 uppercase italic rounded-2xl" onClick={resetPOS}>
-                                    Next Client <UserCheck className="ml-3 h-6 w-6" />
+                                <Button variant="outline" className="h-24 text-2xl font-black border-4 uppercase italic rounded-3xl group" onClick={resetPOS}>
+                                    Next Client <UserCheck className="ml-4 h-8 w-8 group-hover:scale-125 transition-transform" />
                                 </Button>
                             </div>
                         </div>
