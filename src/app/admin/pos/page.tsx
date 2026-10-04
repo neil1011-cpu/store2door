@@ -38,7 +38,8 @@ import {
   DollarSign,
   UserCheck,
   Receipt,
-  AlertCircle
+  AlertCircle,
+  Coins
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
@@ -75,6 +76,8 @@ export default function POSPage() {
     const [checkoutComplete, setCheckoutComplete] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     
+    // Cash Handling State
+    const [cashReceived, setCashReceived] = useState<string>('');
     const [receiptData, setReceiptData] = useState<any | null>(null);
 
     // Fetch users based on search
@@ -143,6 +146,12 @@ export default function POSPage() {
             .reduce((sum, inv) => sum + Number(inv.amount), 0);
     }, [userInvoices, selectedInvoices]);
 
+    const changeDue = useMemo(() => {
+        if (paymentMethod !== 'Cash' || !cashReceived) return 0;
+        const received = parseFloat(cashReceived) || 0;
+        return Math.max(0, received - calculatedSelectedTotal);
+    }, [cashReceived, calculatedSelectedTotal, paymentMethod]);
+
     const handleProcessPayment = async () => {
         if (!selectedUser) return;
         setIsProcessing(true);
@@ -172,7 +181,13 @@ export default function POSPage() {
                 log_type: 'pos_transaction',
                 description: `POS Checkout Complete: ${selectedUser.full_name}. JMD $${totalToSettle.toLocaleString()}`,
                 actor_id: (await supabase.auth.getUser()).data.user?.id,
-                metadata: { customerId: selectedUser.id, method: paymentMethod, amount: totalToSettle }
+                metadata: { 
+                    customerId: selectedUser.id, 
+                    method: paymentMethod, 
+                    amount: totalToSettle,
+                    cashReceived: paymentMethod === 'Cash' ? parseFloat(cashReceived) : null,
+                    changeGiven: paymentMethod === 'Cash' ? changeDue : null
+                }
             });
 
             setReceiptData({
@@ -180,6 +195,8 @@ export default function POSPage() {
                 items: itemsToSnap,
                 total: totalToSettle,
                 method: paymentMethod,
+                cashReceived: paymentMethod === 'Cash' ? parseFloat(cashReceived) : null,
+                changeDue: paymentMethod === 'Cash' ? changeDue : null,
                 date: new Date()
             });
 
@@ -218,6 +235,7 @@ export default function POSPage() {
         setIsCheckoutOpen(false);
         setReceiptData(null);
         setSearchTerm('');
+        setCashReceived('');
     };
 
     return (
@@ -234,6 +252,7 @@ export default function POSPage() {
                             <div className="flex justify-between"><span>DATE:</span> <span>{receiptData.date.toLocaleString()}</span></div>
                             <div className="flex justify-between"><span>MAILBOX:</span> <span className="text-sm font-black">{receiptData.customer.mailbox_number}</span></div>
                             <div className="flex justify-between"><span>CLIENT:</span> <span className="uppercase">{receiptData.customer.full_name}</span></div>
+                            <div className="flex justify-between"><span>METHOD:</span> <span className="uppercase">{receiptData.method}</span></div>
                         </div>
                         <div className="space-y-2 text-xs">
                             <div className="flex justify-between font-black border-b border-black pb-2 text-[10px] uppercase">
@@ -248,9 +267,23 @@ export default function POSPage() {
                             ))}
                         </div>
                         <Separator className="border-black border-dashed my-6" />
-                        <div className="flex justify-between text-2xl font-black italic tracking-tighter">
-                            <span>TOTAL PAID:</span>
-                            <span>$ {receiptData.total.toLocaleString()}</span>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-2xl font-black italic tracking-tighter">
+                                <span>TOTAL:</span>
+                                <span>$ {receiptData.total.toLocaleString()}</span>
+                            </div>
+                            {receiptData.method === 'Cash' && (
+                                <>
+                                    <div className="flex justify-between text-sm font-bold opacity-60">
+                                        <span>CASH TENDERED:</span>
+                                        <span>$ {Number(receiptData.cashReceived).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm font-bold">
+                                        <span>CHANGE:</span>
+                                        <span>$ {Number(receiptData.changeDue).toLocaleString()}</span>
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <div className="text-center mt-10 space-y-1">
                             <p className="text-[9px] font-black uppercase">Thank you for choosing FromStore2Door</p>
@@ -390,7 +423,7 @@ export default function POSPage() {
                                         <TableRow>
                                             <TableHead className="w-[100px] pl-10"></TableHead>
                                             <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Document ID</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Authorized Date</TableHead>
+                                            <TableHead className="text-[10px) font-black uppercase tracking-[0.3em]">Authorized Date</TableHead>
                                             <TableHead className="text-right pr-14 text-[10px] font-black uppercase tracking-[0.3em]">Line Total (JMD)</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -427,14 +460,14 @@ export default function POSPage() {
                 </div>
 
                 <div className="lg:col-span-4">
-                    {/* Step 3: Checkout Terminal - HARDENED CONTRAST FOR LIGHT MODE */}
-                    <Card className="border-none shadow-[0_50px_100px_-30px_rgba(0,0,0,0.6)] bg-zinc-950 text-zinc-100 sticky top-24 rounded-[3rem] overflow-hidden border-t-8 border-indigo-500">
+                    {/* Step 3: Checkout Terminal */}
+                    <Card className="border-none shadow-[0_50px_100px_-30px_rgba(0,0,0,0.6)] bg-zinc-950 text-zinc-100 sticky top-24 rounded-[3rem] overflow-hidden border-t-8 border-indigo-500 transition-all duration-500">
                         <CardHeader className="bg-white/5 pb-10 pt-10 px-10 border-b border-white/5">
                             <CardTitle className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-500 flex items-center gap-4 italic">
                                 <Receipt className="h-5 w-5 text-indigo-400" /> SECURE CHECKOUT TERMINAL
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-12 px-10 py-10">
+                        <CardContent className="space-y-10 px-10 py-10">
                             <div className="text-center space-y-6">
                                 <p className="text-[10px] font-black uppercase tracking-[0.5em] text-white/60 italic animate-pulse">Settlement Authority Grand Total</p>
                                 <div className="flex flex-col items-center justify-center gap-2">
@@ -474,11 +507,42 @@ export default function POSPage() {
                                     ))}
                                 </RadioGroup>
                             </div>
+
+                            {/* Cash Handling Logic */}
+                            {paymentMethod === 'Cash' && selectedInvoices.size > 0 && (
+                                <div className="space-y-6 animate-in slide-in-from-top duration-500 bg-white/5 p-8 rounded-[2rem] border-2 border-white/5">
+                                    <div className="space-y-3">
+                                        <Label className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-400 ml-1 italic">Tender Amount Received (JMD $)</Label>
+                                        <div className="relative">
+                                            <DollarSign className="absolute left-6 top-1/2 -translate-y-1/2 h-8 w-8 text-indigo-400" />
+                                            <Input 
+                                                type="number" 
+                                                className="h-20 pl-16 text-4xl font-black bg-black border-4 border-white/10 rounded-2xl focus:border-indigo-500 transition-all text-white placeholder:text-white/5" 
+                                                placeholder="0.00"
+                                                value={cashReceived}
+                                                onChange={e => setCashReceived(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-black/40 p-6 rounded-2xl border border-white/5">
+                                        <div className="flex items-center gap-3">
+                                            <Coins className="h-6 w-6 text-green-400" />
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 italic">Change to Return</span>
+                                        </div>
+                                        <span className={cn(
+                                            "text-3xl font-black italic tracking-tighter",
+                                            changeDue > 0 ? "text-green-400" : "text-white/20"
+                                        )}>
+                                            ${changeDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
-                        <CardFooter className="pb-14 pt-10 px-10">
+                        <CardFooter className="pb-14 pt-6 px-10">
                             <Button 
                                 onClick={() => setIsCheckoutOpen(true)} 
-                                disabled={selectedInvoices.size === 0} 
+                                disabled={selectedInvoices.size === 0 || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < calculatedSelectedTotal))} 
                                 className="w-full h-32 text-4xl font-black italic uppercase tracking-tighter shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] rounded-[2rem] group transition-all duration-500 relative overflow-hidden bg-indigo-600 hover:bg-indigo-500"
                             >
                                 <div className="absolute inset-0 bg-gradient-to-tr from-indigo-700 via-indigo-600 to-indigo-500 group-hover:scale-110 transition-transform" />
@@ -501,7 +565,7 @@ export default function POSPage() {
                                     <DialogTitle className="text-5xl font-black italic uppercase tracking-tighter text-center">Confirm Funds</DialogTitle>
                                 </DialogHeader>
                             </div>
-                            <div className="p-12 space-y-12">
+                            <div className="p-12 space-y-8">
                                 <div className="p-12 rounded-[2.5rem] bg-primary/5 border-4 border-dashed border-primary/20 flex flex-col items-center gap-8 text-center">
                                     <div className="bg-primary h-24 w-24 rounded-3xl flex items-center justify-center shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] transform rotate-6 border-4 border-white dark:border-zinc-900">
                                         <DollarSign className="h-12 w-12 text-white" />
@@ -509,11 +573,18 @@ export default function POSPage() {
                                     <div>
                                         <p className="text-xs font-black uppercase tracking-[0.4em] opacity-40 mb-4 italic">VERIFY PHYSICAL CURRENCY RECEIVED</p>
                                         <p className="text-8xl font-black italic tracking-tighter text-primary">
-                                            ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            ${(paymentMethod === 'Cash' ? parseFloat(cashReceived) : calculatedSelectedTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </p>
-                                        <Badge variant="outline" className="mt-8 text-xs font-black uppercase px-8 h-10 border-2 tracking-widest bg-white">
-                                            {paymentMethod} TENDER
-                                        </Badge>
+                                        <div className="flex items-center justify-center gap-4 mt-8">
+                                            <Badge variant="outline" className="text-xs font-black uppercase px-8 h-10 border-2 tracking-widest bg-white">
+                                                {paymentMethod} TENDER
+                                            </Badge>
+                                            {paymentMethod === 'Cash' && (
+                                                <Badge className="bg-green-600 text-white text-xs font-black uppercase px-8 h-10 tracking-widest">
+                                                    RETURN ${changeDue.toLocaleString()}
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex gap-6">
