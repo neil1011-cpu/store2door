@@ -128,6 +128,8 @@ export default function PreAlertsPage() {
         if (!newAlert.profileId || !newAlert.trackingNumber) return;
         setIsSubmitting(true);
         try {
+            const selectedUser = users.find(u => u.id === newAlert.profileId);
+            
             await supabase.from('pre_alerts').insert({
                 profile_id: newAlert.profileId,
                 tracking_number: newAlert.trackingNumber.toUpperCase(),
@@ -135,6 +137,23 @@ export default function PreAlertsPage() {
                 weight_lbs: parseFloat(newAlert.weight) || 0,
                 status: 'Pending'
             });
+
+            // Mirror to Hub
+            try {
+                await fetch('/api/admin/logicware-push-shipment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shipment: {
+                            trackingNumber: newAlert.trackingNumber.toUpperCase(),
+                            contents: newAlert.contents,
+                            weight: newAlert.weight || 0,
+                            mailbox: selectedUser?.mailbox_number
+                        }
+                    })
+                });
+            } catch (e) {}
+
             toast({ title: "Pre-Alert Established" });
             setIsAddOpen(false);
             setNewAlert({ profileId: '', trackingNumber: '', contents: '', weight: '' });
@@ -180,6 +199,23 @@ export default function PreAlertsPage() {
                 description: `Shipping Fee: ${alert.tracking_number}`
             });
             await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
+
+            // Notify Hub of confirming transition from Viewing -> active shipment
+            try {
+                await fetch('/api/admin/logicware-push-shipment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shipment: {
+                            trackingNumber: alert.tracking_number,
+                            contents: alert.contents,
+                            weight: verifiedWeight,
+                            mailbox: alert.profiles?.mailbox_number
+                        }
+                    })
+                });
+            } catch (lwErr) {}
+
             toast({ title: "Shipment Created" });
             fetchData();
         } catch (error: any) {

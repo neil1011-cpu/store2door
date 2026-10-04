@@ -251,7 +251,7 @@ export function PackagesTab({ profileId }: { profileId: string }) {
   );
 }
 
-export function PreAlertTab({ profileId, onSuccess }: { profileId: string, onSuccess?: () => void }) {
+export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: string, mailbox?: string, onSuccess?: () => void }) {
     const { supabase, user } = useSupabase();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -283,11 +283,30 @@ export function PreAlertTab({ profileId, onSuccess }: { profileId: string, onSuc
                 tracking_number: formData.trackingNumber.toUpperCase(),
                 contents: formData.contents,
                 weight_lbs: parseFloat(formData.weight) || 0,
-                invoice_url: finalKey, // We store the KEY in this column for proxy resolution
+                invoice_url: finalKey,
                 status: 'Pending'
             });
 
             if (error) throw error;
+
+            // Hub Synchronization: Notify Logicware about the Pre-Alert
+            try {
+                await fetch('/api/admin/logicware-push-shipment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shipment: {
+                            trackingNumber: formData.trackingNumber.toUpperCase(),
+                            contents: formData.contents,
+                            weight: formData.weight || 0,
+                            mailbox: mailbox
+                        }
+                    })
+                });
+            } catch (lwErr) {
+                console.warn('[LOGICWARE_PUSH_FAIL] Non-blocking Hub failure:', lwErr);
+            }
+
             toast({ title: "Pre-Alert Submitted" });
             setFormData({ trackingNumber: '', contents: '', weight: '', file: null });
             onSuccess?.();

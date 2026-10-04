@@ -182,6 +182,24 @@ export default function ShippingPage() {
             description: `Manual Shipment Entry: ${trackingNumber}`
         });
 
+        // Push to Logicware Hub
+        try {
+            await fetch('/api/admin/logicware-push-shipment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    shipment: {
+                        trackingNumber: trackingNumber.toUpperCase(),
+                        contents: contents,
+                        weight: weight,
+                        mailbox: selectedUser?.mailbox_number
+                    }
+                })
+            });
+        } catch (lwErr) {
+            console.warn('[LOGICWARE_PUSH_FAIL] Hub push failed:', lwErr);
+        }
+
         toast({ title: "Shipment Recorded" });
         setIsAddOpen(false);
         fetchData();
@@ -310,7 +328,7 @@ export default function ShippingPage() {
                         <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
                         <TableCell className="text-right">
                             {s.invoice_url ? (
-                                <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[10px]">
+                                <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[9px]">
                                     <Link href={`/api/storage/view?key=${encodeURIComponent(s.invoice_url)}`} target="_blank">
                                         <FileText className="h-3.5 w-3.5 mr-1" /> Doc
                                     </Link>

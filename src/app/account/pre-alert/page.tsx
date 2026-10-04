@@ -72,7 +72,7 @@ export default function PreAlertPage() {
                             <CardDescription>Upload your commercial invoice for processing.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <PreAlertTab profileId={profile.id} />
+                            <PreAlertTab profileId={profile.id} mailbox={profile.mailbox_number} />
                         </CardContent>
                     </Card>
                 </div>
