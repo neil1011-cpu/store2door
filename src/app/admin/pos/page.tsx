@@ -276,7 +276,7 @@ export default function POSPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-8 space-y-8">
-                    {/* Step 1: Customer Selection - No overflow-hidden to allow dropdown to float */}
+                    {/* Step 1: Customer Selection */}
                     <Card className="border-none shadow-2xl rounded-3xl relative z-40">
                         <CardHeader className="bg-muted/30 pb-4 border-b rounded-t-3xl">
                             <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2 text-muted-foreground">
@@ -300,7 +300,6 @@ export default function POSPage() {
                                         </div>
                                     )}
                                     
-                                    {/* DROPDOWN: Positioned absolute, floating above other elements */}
                                     {searchResults.length > 0 && (
                                         <div className="absolute w-full mt-4 bg-white dark:bg-zinc-900 border-4 border-primary/20 rounded-3xl shadow-[0_40px_120px_-10px_rgba(0,0,0,0.6)] z-[100] overflow-hidden divide-y-2">
                                             {searchResults.map(u => (
@@ -428,24 +427,24 @@ export default function POSPage() {
                 </div>
 
                 <div className="lg:col-span-4">
-                    {/* Step 3: Checkout Terminal */}
-                    <Card className="border-none shadow-[0_50px_100px_-30px_rgba(0,0,0,0.5)] bg-zinc-950 text-zinc-100 sticky top-24 rounded-[3rem] overflow-hidden border-t-8 border-primary">
+                    {/* Step 3: Checkout Terminal - HARDENED CONTRAST FOR LIGHT MODE */}
+                    <Card className="border-none shadow-[0_50px_100px_-30px_rgba(0,0,0,0.6)] bg-zinc-950 text-zinc-100 sticky top-24 rounded-[3rem] overflow-hidden border-t-8 border-indigo-500">
                         <CardHeader className="bg-white/5 pb-10 pt-10 px-10 border-b border-white/5">
                             <CardTitle className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-500 flex items-center gap-4 italic">
-                                <Receipt className="h-5 w-5 text-primary" /> SECURE CHECKOUT TERMINAL
+                                <Receipt className="h-5 w-5 text-indigo-400" /> SECURE CHECKOUT TERMINAL
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-12 px-10 py-10">
                             <div className="text-center space-y-6">
-                                <p className="text-[10px] font-black uppercase tracking-[0.5em] text-primary/60 italic animate-pulse">Settlement Authority Grand Total</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.5em] text-white/60 italic animate-pulse">Settlement Authority Grand Total</p>
                                 <div className="flex flex-col items-center justify-center gap-2">
-                                    <span className="text-2xl font-black opacity-20 text-primary italic tracking-widest">JMD</span>
+                                    <span className="text-2xl font-black opacity-20 text-white italic tracking-widest">JMD</span>
                                     <span className="text-8xl font-black italic tracking-tighter text-white drop-shadow-[0_10px_20px_rgba(0,0,0,1)]">
                                         ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                                 <div className="flex justify-center gap-3">
-                                    <Badge className="bg-primary/20 text-primary uppercase text-[9px] font-black italic tracking-[0.2em] border-primary/20 px-6 h-8">
+                                    <Badge className="bg-white/10 text-white uppercase text-[9px] font-black italic tracking-[0.2em] border-white/10 px-6 h-8">
                                         {selectedInvoices.size} Documents Selected
                                     </Badge>
                                 </div>
@@ -465,10 +464,10 @@ export default function POSPage() {
                                             key={m.id} 
                                             className={cn(
                                                 "flex flex-col items-center justify-center p-8 rounded-[2rem] border-4 border-white/5 cursor-pointer hover:bg-white/5 transition-all active:scale-95 group",
-                                                paymentMethod === m.id ? "border-primary bg-primary/20 text-white shadow-[0_0_40px_rgba(255,255,255,0.1)]" : "text-zinc-600"
+                                                paymentMethod === m.id ? "border-indigo-500 bg-indigo-500/20 text-white shadow-[0_0_40px_rgba(99,102,241,0.2)]" : "text-zinc-600"
                                             )}
                                         >
-                                            <div className={cn("mb-4 transition-all duration-300", paymentMethod === m.id && "scale-125 rotate-6 text-primary")}>{m.icon}</div>
+                                            <div className={cn("mb-4 transition-all duration-300", paymentMethod === m.id && "scale-125 rotate-6 text-indigo-400")}>{m.icon}</div>
                                             <span className="text-xs font-black uppercase italic tracking-tighter">{m.id}</span>
                                             <RadioGroupItem value={m.id} className="sr-only" />
                                         </Label>
@@ -480,10 +479,10 @@ export default function POSPage() {
                             <Button 
                                 onClick={() => setIsCheckoutOpen(true)} 
                                 disabled={selectedInvoices.size === 0} 
-                                className="w-full h-32 text-4xl font-black italic uppercase tracking-tighter shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] rounded-[2rem] group transition-all duration-500 relative overflow-hidden"
+                                className="w-full h-32 text-4xl font-black italic uppercase tracking-tighter shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] rounded-[2rem] group transition-all duration-500 relative overflow-hidden bg-indigo-600 hover:bg-indigo-500"
                             >
-                                <div className="absolute inset-0 bg-gradient-to-tr from-primary via-primary to-primary/80 group-hover:scale-110 transition-transform" />
-                                <span className="relative flex items-center gap-4">
+                                <div className="absolute inset-0 bg-gradient-to-tr from-indigo-700 via-indigo-600 to-indigo-500 group-hover:scale-110 transition-transform" />
+                                <span className="relative flex items-center gap-4 text-white">
                                     <ShoppingCart className="h-10 w-10 group-hover:scale-125 group-hover:rotate-12 transition-all" />
                                     Process Now
                                 </span>
