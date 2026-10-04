@@ -3,8 +3,9 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Inbound Webhook for Logicware Hub.
- * Uses Deep Identity Resolution (Numeric-Only Matching) to bypass FSTD vs FTSD typos.
- * Auto-creates shipments and debit entries if package is unknown but owner is identified.
+ * Implements status-based routing: 
+ * - Pre-Alert/Pending statuses go to 'pre_alerts' table (Viewing only).
+ * - Transit statuses go to 'shipments' table.
  */
 
 export async function POST(request: Request) {
@@ -33,7 +34,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Payload segment missing.' }, { status: 400 });
         }
 
-        // 2. EXHAUSTIVE FIELD MAPPING: Search across 8 possible keys for tracking and mailbox
         const trackingId = (
             data.trackingNumber || 
             data.code || 
@@ -55,56 +55,57 @@ export async function POST(request: Request) {
             ''
         ).toString().toUpperCase().trim();
         
-        // 3. Global Audit Trace
+        // Audit Trace
         await adminClient.from('system_logs').insert({
             log_type: 'logicware_webhook',
             description: `Hub Event [${event}] for Tracking: ${trackingId || 'N/A'}`,
             metadata: { event, payload: data, identifiedMailbox: mailboxRaw }
         });
 
-        // 4. PROCESS SHIPMENT EVENTS
         if (event.includes('shipment') && trackingId) {
-            const newStatus = data.status?.name || data.status || 'Updated';
+            const rawStatus = (data.status?.name || data.status || 'Updated').toString();
+            const isPreAlert = rawStatus.toLowerCase().includes('pre-alert') || rawStatus.toLowerCase().includes('pending');
             
-            // Check for existing local record
-            const { data: existing } = await adminClient
-                .from('shipments')
-                .select('id')
-                .eq('tracking_number', trackingId)
-                .maybeSingle();
+            // AUTO-INTAKE PROTOCOL with Numeric-Only Matching
+            const hubNumeric = mailboxRaw.replace(/[^0-9]/g, '');
+            const { data: profiles } = await adminClient.from('profiles').select('id, mailbox_number');
+            const targetProfile = profiles?.find(p => {
+                const localMailbox = (p.mailbox_number || '').toUpperCase().trim();
+                const localNumeric = localMailbox.replace(/[^0-9]/g, '');
+                return localMailbox === mailboxRaw || (hubNumeric !== '' && localNumeric === hubNumeric);
+            });
 
-            if (existing) {
-                await adminClient
-                    .from('shipments')
-                    .update({ 
-                        status: newStatus,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', existing.id);
-            } else if (mailboxRaw && mailboxRaw.length > 0) {
-                // AUTO-INTAKE PROTOCOL with Numeric-Only Matching
-                const hubNumeric = mailboxRaw.replace(/[^0-9]/g, '');
+            if (isPreAlert) {
+                // Route to PRE-ALERTS (Viewing Only)
+                const { data: existing } = await adminClient.from('pre_alerts').select('id').eq('tracking_number', trackingId).maybeSingle();
                 
-                const { data: profiles } = await adminClient.from('profiles').select('id, mailbox_number');
-                const target = profiles?.find(p => {
-                    const localMailbox = (p.mailbox_number || '').toUpperCase().trim();
-                    const localNumeric = localMailbox.replace(/[^0-9]/g, '');
-                    return localMailbox === mailboxRaw || (hubNumeric !== '' && localNumeric === hubNumeric);
-                });
-
-                if (target) {
-                    const weight = parseFloat(data.weight) || 0;
-                    await adminClient.from('shipments').insert({
-                        profile_id: target.id,
+                if (existing) {
+                    await adminClient.from('pre_alerts').update({ status: 'Pending', submission_date: new Date().toISOString() }).eq('id', existing.id);
+                } else if (targetProfile) {
+                    await adminClient.from('pre_alerts').insert({
+                        profile_id: targetProfile.id,
                         tracking_number: trackingId,
-                        contents: data.contents || data.description || 'Hub Auto-Intake',
-                        weight_lbs: weight,
-                        status: newStatus,
+                        contents: data.contents || data.description || 'Hub Pre-Alert',
+                        weight_lbs: parseFloat(data.weight) || 0,
+                        status: 'Pending'
+                    });
+                }
+            } else {
+                // Route to SHIPMENTS (Active Transit)
+                const { data: existing } = await adminClient.from('shipments').select('id').eq('tracking_number', trackingId).maybeSingle();
+
+                if (existing) {
+                    await adminClient.from('shipments').update({ status: rawStatus, updated_at: new Date().toISOString() }).eq('id', existing.id);
+                } else if (targetProfile) {
+                    await adminClient.from('shipments').insert({
+                        profile_id: targetProfile.id,
+                        tracking_number: trackingId,
+                        contents: data.contents || data.description || 'Hub Shipment',
+                        weight_lbs: parseFloat(data.weight) || 0,
+                        status: rawStatus,
                         total_cost_jmd: 0, 
                         payment_status: 'Unpaid'
                     });
-                    
-                    console.log(`[WEBHOOK] Auto-established shipment for ${target.id} via Hub Event.`);
                 }
             }
         }

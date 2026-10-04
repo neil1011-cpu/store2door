@@ -74,10 +74,7 @@ export default function ShippingPage() {
 
   const handleSyncLogicware = async () => {
     setIsSyncing(true);
-    console.log('[LOGICWARE SYNC] Starting Deep Reconciliation...');
-    
     try {
-        // 1. Refresh local state FIRST to avoid duplicate imports
         const { shipments: latestShipments, users: latestUsers } = await fetchData(true);
 
         const response = await fetch('/api/admin/logicware-shipments', {
@@ -90,99 +87,59 @@ export default function ShippingPage() {
         if (!response.ok) throw new Error(data.message || 'Hub communication failed');
 
         const external = data.shipments || [];
-        console.log(`[LOGICWARE SYNC] Hub returned ${external.length} raw records.`);
-
-        if (external.length === 0) {
-            toast({ title: "Sync Complete", description: "No records found in the Logicware Hub." });
-            setIsSyncing(false);
-            return;
-        }
-
         let importedCount = 0;
+        let updatedCount = 0;
         let skippedCount = 0;
 
         for (const s of external) {
-            // EXHAUSTIVE FIELD SEARCH: Logicware can store tracking and mailbox in various fields
-            const tracking = (
-                s.trackingNumber || 
-                s.code || 
-                s.reference || 
-                s.barcode || 
-                s.identifier ||
-                ''
-            ).toString().toUpperCase().trim();
+            const status = (s.status?.name || s.status || '').toString();
+            // SKIP PRE-ALERTS: These stay in the Pre-Alert Hub only.
+            if (status.toLowerCase().includes('pre-alert') || status.toLowerCase().includes('pending')) {
+                skippedCount++;
+                continue;
+            }
+
+            const tracking = (s.trackingNumber || s.code || s.reference || s.barcode || '').toString().toUpperCase().trim();
+            const rawMailbox = (s.shipper?.referenceCode || s.shipper?.code || s.referenceCode || s.externalId || '').toString().toUpperCase().trim();
+
+            if (!tracking) continue;
+
+            const existing = latestShipments.find(ls => ls.tracking_number === tracking);
             
-            // Search across 8 possible locations for Mailbox (Reference Code)
-            const rawMailbox = (
-                s.shipper?.referenceCode || 
-                s.shipper?.code || 
-                s.shipper?.externalId ||
-                s.referenceCode || 
-                s.externalId || 
-                s.reference || 
-                s.memo ||
-                s.note ||
-                ''
-            ).toString().toUpperCase().trim();
-
-            if (!tracking) {
-                skippedCount++;
+            if (existing) {
+                if (existing.status !== status) {
+                    await supabase.from('shipments').update({ status, updated_at: new Date().toISOString() }).eq('id', existing.id);
+                    updatedCount++;
+                }
                 continue;
             }
 
-            // Check if already exists in LATEST shipments list
-            const exists = latestShipments.some(ls => ls.tracking_number === tracking);
-            if (exists) {
-                skippedCount++;
-                continue;
-            }
-
-            if (!rawMailbox) {
-                console.warn(`[SYNC] Tracking ${tracking} skipped: No Mailbox code detected in payload.`);
-                skippedCount++;
-                continue;
-            }
-
-            // ROBUST IDENTITY RESOLVER: Match numbers ONLY (handles FSTD vs FTSD typos)
             const hubNumeric = rawMailbox.replace(/[^0-9]/g, '');
-
             const profile = latestUsers.find(u => {
                 const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
                 const uNumeric = uMailbox.replace(/[^0-9]/g, '');
-                
-                // Exact match OR numeric overlap
                 return uMailbox === rawMailbox || (hubNumeric !== '' && uNumeric === hubNumeric);
             });
 
-            if (!profile) {
-                console.warn(`[SYNC] Tracking ${tracking} skipped: Hub code [${rawMailbox}] does not match any local user.`);
-                skippedCount++;
-                continue;
-            }
-
-            console.log(`[SYNC] Importing: ${tracking} -> Linked to ${profile.full_name}`);
-
-            const { error: insertError } = await supabase.from('shipments').insert({
-                profile_id: profile.id,
-                tracking_number: tracking,
-                contents: s.contents || s.description || s.memo || s.note || 'Hub Sync',
-                weight_lbs: parseFloat(s.weight) || 0,
-                status: s.status?.name || s.status || 'Processed',
-                total_cost_jmd: 0,
-                payment_status: 'Unpaid'
-            });
-
-            if (!insertError) {
+            if (profile) {
+                await supabase.from('shipments').insert({
+                    profile_id: profile.id,
+                    tracking_number: tracking,
+                    contents: s.contents || s.description || 'Hub Sync',
+                    weight_lbs: parseFloat(s.weight) || 0,
+                    status: status,
+                    total_cost_jmd: 0,
+                    payment_status: 'Unpaid'
+                });
                 importedCount++;
             } else {
-                console.error(`[SYNC] Insert error for ${tracking}:`, insertError.message);
                 skippedCount++;
             }
         }
 
         toast({ 
             title: "Hub Sync Complete", 
-            description: `Imported ${importedCount} new worldwide records. Skipped ${skippedCount} existing or unlinked entries.` 
+            description: `Imported ${importedCount}, Updated ${updatedCount}. Pre-alerts skipped: ${skippedCount}.` 
         });
         
         fetchData();
@@ -199,7 +156,6 @@ export default function ShippingPage() {
         const { profileId, trackingNumber, contents, weight, cost } = data;
         const selectedUser = users.find(u => u.id === profileId);
 
-        // 1. Local Persistence
         const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
             profile_id: profileId,
             tracking_number: trackingNumber.toUpperCase(),
@@ -225,22 +181,6 @@ export default function ShippingPage() {
             transaction_type: 'shipping_fee',
             description: `Manual Shipment Entry: ${trackingNumber}`
         });
-
-        // 2. Hub Synchronization (Background Push)
-        try {
-            fetch('/api/admin/logicware-push-shipment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    shipment: {
-                        trackingNumber: trackingNumber.toUpperCase(),
-                        weight: parseFloat(weight),
-                        contents,
-                        mailbox: selectedUser?.mailbox_number
-                    }
-                })
-            });
-        } catch (e) {}
 
         toast({ title: "Shipment Recorded" });
         setIsAddOpen(false);
@@ -291,12 +231,12 @@ export default function ShippingPage() {
       <div className="flex items-center justify-between">
         <div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Shipping Ledger</h1>
-            <p className="text-muted-foreground font-medium uppercase text-[10px]">Real-time Supabase Logistics Gateway</p>
+            <p className="text-muted-foreground font-medium uppercase text-[10px]">Active Transits Only (Hub Synced)</p>
         </div>
         <div className="flex gap-2">
             <Button onClick={handleSyncLogicware} disabled={isSyncing} variant="outline" className="font-bold border-2 border-blue-200 text-blue-700 hover:bg-blue-50">
                 {isSyncing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
-                Sync External Hub
+                Sync Active Shipments
             </Button>
             <Button variant="outline" onClick={() => fetchData()} className="font-bold border-2">
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
@@ -325,7 +265,7 @@ export default function ShippingPage() {
       <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
         <CardHeader className="bg-muted/10 border-b">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <CardTitle className="text-sm font-black uppercase flex items-center gap-2"><Package className="h-4 w-4 text-primary" /> Global Registry</CardTitle>
+            <CardTitle className="text-sm font-black uppercase flex items-center gap-2"><Package className="h-4 w-4 text-primary" /> Active Logistics</CardTitle>
             <div className="relative w-full sm:max-w-xs">
                 <Bug className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/30 pointer-events-none" />
                 <Input placeholder="Search tracking or name..." className="pl-9 h-10 border-2" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -398,7 +338,7 @@ export default function ShippingPage() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle className="font-black uppercase italic">Purge Shipment Record?</AlertDialogTitle>
                                   <AlertDialogDescription className="text-[10px] font-bold uppercase">
-                                    This will permanently remove <strong>{s.tracking_number}</strong> from the global registry.
+                                    This will permanently remove <strong>{s.tracking_number}</strong> from the active ledger.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -469,7 +409,7 @@ function StatusUpdateDialog({ shipment, onUpdate }: { shipment: any, onUpdate: (
             disabled={isUpdating || status === shipment.status} 
             className="flex-1 h-12 font-black uppercase italic shadow-xl"
           >
-            {isUpdating ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
+            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
             Update State
           </Button>
         </DialogFooter>
