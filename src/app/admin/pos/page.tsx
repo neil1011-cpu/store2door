@@ -77,7 +77,7 @@ export default function POSPage() {
     
     const [receiptData, setReceiptData] = useState<any | null>(null);
 
-    // Fetch users based on search - Hardened logic
+    // Fetch users based on search
     useEffect(() => {
         if (!searchTerm || searchTerm.trim().length < 2) {
             setSearchResults([]);
@@ -87,12 +87,11 @@ export default function POSPage() {
         const findUsers = async () => {
             setIsSearching(true);
             try {
-                // Search across multiple fields using or logic
                 const { data, error } = await supabase
                     .from('profiles')
                     .select('*')
                     .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mailbox_number.ilike.%${searchTerm}%`)
-                    .limit(10);
+                    .limit(8);
                 
                 if (error) throw error;
                 setSearchResults(data || []);
@@ -277,9 +276,9 @@ export default function POSPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-8 space-y-8">
-                    {/* Step 1: Customer Selection */}
-                    <Card className="border-none shadow-2xl overflow-hidden rounded-3xl">
-                        <CardHeader className="bg-muted/30 pb-4 border-b">
+                    {/* Step 1: Customer Selection - No overflow-hidden to allow dropdown to float */}
+                    <Card className="border-none shadow-2xl rounded-3xl relative z-40">
+                        <CardHeader className="bg-muted/30 pb-4 border-b rounded-t-3xl">
                             <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2 text-muted-foreground">
                                 <UserCheck className="h-4 w-4" /> 01. IDENTIFY ACCOUNT
                             </CardTitle>
@@ -293,21 +292,24 @@ export default function POSPage() {
                                         className="h-24 pl-20 text-3xl font-black uppercase border-4 border-muted focus:border-primary transition-all rounded-[1.5rem] shadow-inner placeholder:text-muted-foreground/20"
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
+                                        autoComplete="off"
                                     />
                                     {isSearching && (
                                         <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-2 text-[10px] font-black uppercase text-primary animate-pulse">
-                                            <Loader2 className="h-4 w-4 animate-spin" /> Scanning...
+                                            <Loader2 className="h-4 w-4 animate-spin" /> Scanning Registry...
                                         </div>
                                     )}
+                                    
+                                    {/* DROPDOWN: Positioned absolute, floating above other elements */}
                                     {searchResults.length > 0 && (
-                                        <div className="absolute w-full mt-4 bg-background border-4 rounded-3xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] z-50 overflow-hidden divide-y-2">
+                                        <div className="absolute w-full mt-4 bg-white dark:bg-zinc-900 border-4 border-primary/20 rounded-3xl shadow-[0_40px_120px_-10px_rgba(0,0,0,0.6)] z-[100] overflow-hidden divide-y-2">
                                             {searchResults.map(u => (
                                                 <div key={u.id} onClick={() => handleSelectUser(u)} className="p-8 hover:bg-primary/5 cursor-pointer flex items-center justify-between transition-colors group">
                                                     <div>
                                                         <p className="font-black text-2xl text-primary uppercase italic tracking-tighter leading-none group-hover:translate-x-2 transition-transform">{u.full_name}</p>
                                                         <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-2">{u.email}</p>
                                                     </div>
-                                                    <Badge className="h-12 px-8 text-lg font-black italic tracking-tighter uppercase rounded-2xl bg-muted text-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                                                    <Badge className="h-12 px-8 text-lg font-black italic tracking-tighter uppercase rounded-2xl bg-muted text-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors border-2">
                                                         {u.mailbox_number}
                                                     </Badge>
                                                 </div>
@@ -356,7 +358,7 @@ export default function POSPage() {
                     </Card>
 
                     {/* Step 2: Invoices */}
-                    <Card className="border-none shadow-2xl overflow-hidden rounded-[2rem] min-h-[500px]">
+                    <Card className="border-none shadow-2xl overflow-hidden rounded-[2rem] min-h-[500px] relative z-10">
                         <CardHeader className="bg-muted/30 pb-4 border-b">
                             <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2 text-muted-foreground">
                                 <Package className="h-4 w-4" /> 02. SELECT SETTLEMENT ITEMS
@@ -426,7 +428,7 @@ export default function POSPage() {
                 </div>
 
                 <div className="lg:col-span-4">
-                    {/* Step 3: Checkout Terminal - High Impact */}
+                    {/* Step 3: Checkout Terminal */}
                     <Card className="border-none shadow-[0_50px_100px_-30px_rgba(0,0,0,0.5)] bg-zinc-950 text-zinc-100 sticky top-24 rounded-[3rem] overflow-hidden border-t-8 border-primary">
                         <CardHeader className="bg-white/5 pb-10 pt-10 px-10 border-b border-white/5">
                             <CardTitle className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-500 flex items-center gap-4 italic">
@@ -452,7 +454,7 @@ export default function POSPage() {
                             <Separator className="bg-white/10 h-1" />
 
                             <div className="space-y-8">
-                                <Label className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500 ml-2 italic">Form of Tender</Label>
+                                <Label className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400 ml-2 italic">Form of Tender</Label>
                                 <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-3 gap-4">
                                     {[
                                         { id: 'Cash', icon: <Banknote className="h-8 w-8" /> },
