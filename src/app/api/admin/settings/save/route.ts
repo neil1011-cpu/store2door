@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
         const currentVal = current?.config_value || {};
         const newVal = { ...value };
-        const secretFields = ['pass', 'secretKey', 'apiKey'];
+        const secretFields = ['pass', 'secretKey', 'apiKey', 'webhookSecret'];
 
         // 2. DELTA-SAVE Logic: If a field is '********', keep the original value
         secretFields.forEach(field => {

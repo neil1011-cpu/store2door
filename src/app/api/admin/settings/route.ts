@@ -30,7 +30,7 @@ export async function GET() {
         // MASK SENSITIVE DATA
         const maskedData = (data || []).map(item => {
             const val = { ...item.config_value };
-            const secretFields = ['pass', 'secretKey', 'apiKey'];
+            const secretFields = ['pass', 'secretKey', 'apiKey', 'webhookSecret'];
             secretFields.forEach(field => {
                 if (val[field]) val[field] = '********';
             });
