@@ -67,13 +67,13 @@ export default function SignUpPage() {
 
       // 2. Immediate Profile Confirmation
       if (authData.user) {
-          const { data: profile, error: profileError } = await supabase.from('profiles').upsert({
+          const { error: profileError } = await supabase.from('profiles').upsert({
               id: authData.user.id,
               full_name: values.fullName,
               email: values.email,
               phone: values.phone,
               trn: values.trn
-          }).select('mailbox_number').single();
+          });
 
           if (profileError) {
               console.warn('[SIGNUP] Manual profile sync warning:', profileError.message);
@@ -84,14 +84,7 @@ export default function SignUpPage() {
               fetch('/api/admin/logicware-sync', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                      shipper: {
-                          email: values.email,
-                          full_name: values.fullName,
-                          phone: values.phone,
-                          mailbox: profile?.mailbox_number
-                      }
-                  })
+                  body: JSON.stringify({ profileId: authData.user.id })
               });
           } catch (e) {}
       }

@@ -278,14 +278,14 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
                 finalKey = uploadData.key;
             }
 
-            const { error } = await supabase.from('pre_alerts').insert({
+            const { data: alert, error } = await supabase.from('pre_alerts').insert({
                 profile_id: profileId,
                 tracking_number: formData.trackingNumber.toUpperCase(),
                 contents: formData.contents,
                 weight_lbs: parseFloat(formData.weight) || 0,
                 invoice_url: finalKey,
                 status: 'Pending'
-            });
+            }).select().single();
 
             if (error) throw error;
 
@@ -294,14 +294,7 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
                 await fetch('/api/admin/logicware-push-shipment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        shipment: {
-                            trackingNumber: formData.trackingNumber.toUpperCase(),
-                            contents: formData.contents,
-                            weight: formData.weight || 0,
-                            mailbox: mailbox
-                        }
-                    })
+                    body: JSON.stringify({ shipmentId: alert.id, type: 'pre-alert' })
                 });
             } catch (lwErr) {
                 console.warn('[LOGICWARE_PUSH_FAIL] Non-blocking Hub failure:', lwErr);
@@ -353,10 +346,27 @@ export function AccountTab({ details }: { details: UserProfile }) {
 
     const handleUpdate = async () => {
         setIsSaving(true);
-        const { error } = await supabase.from('profiles').update({ phone, trn }).eq('id', details.id);
-        if (error) toast({ title: "Update Failed", description: error.message, variant: "destructive" });
-        else toast({ title: "Profile Secured" });
-        setIsSaving(false);
+        try {
+            const { error } = await supabase.from('profiles').update({ phone, trn }).eq('id', details.id);
+            if (error) throw error;
+            
+            // BIDIRECTIONAL SYNC: Update Logicware Shipper Profile
+            try {
+                await fetch('/api/admin/logicware-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profileId: details.id })
+                });
+            } catch (syncErr) {
+                console.warn('[LOGICWARE_SYNC_WARN] Customer-triggered sync failed:', syncErr);
+            }
+
+            toast({ title: "Profile Secured" });
+        } catch (err: any) {
+            toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
