@@ -4,7 +4,7 @@
  * Includes evolution logic to handle missing columns in existing deployments.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.5)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.6)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     trn text CHECK (trn ~ '^[0-9]{9}$'),
     mailbox_number text UNIQUE,
     wallet_balance numeric(12,2) DEFAULT 0 NOT NULL,
+    logicware_id text UNIQUE,
     created_at timestamptz DEFAULT now() NOT NULL,
     updated_at timestamptz DEFAULT now() NOT NULL
 );
@@ -95,6 +96,7 @@ CREATE TABLE IF NOT EXISTS public.pre_alerts (
     weight_lbs numeric(10,2) DEFAULT 0 CHECK (weight_lbs >= 0),
     status text DEFAULT 'Pending' NOT NULL CHECK (status IN ('Pending', 'Processed', 'Cancelled')),
     invoice_url text, -- Stores the ID of the document_asset
+    logicware_id text UNIQUE,
     submission_date timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
 );
@@ -110,6 +112,7 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     payment_status text DEFAULT 'Unpaid' NOT NULL CHECK (payment_status IN ('Paid', 'Unpaid', 'Partial')),
     shipping_date timestamptz,
     invoice_url text, -- Stores the ID of the document_asset
+    logicware_id text UNIQUE,
     created_at timestamptz DEFAULT now() NOT NULL,
     updated_at timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
@@ -153,14 +156,27 @@ BEGIN
         ALTER TABLE public.shipments ADD COLUMN updated_at timestamptz DEFAULT now() NOT NULL;
     END IF;
 
-    -- System Configs Evolution
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='system_configs' AND column_name='updated_by') THEN
-        ALTER TABLE public.system_configs ADD COLUMN updated_by uuid REFERENCES public.profiles(id);
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='logicware_id') THEN
+        ALTER TABLE public.shipments ADD COLUMN logicware_id text UNIQUE;
+    END IF;
+
+    -- Profiles Evolution
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='logicware_id') THEN
+        ALTER TABLE public.profiles ADD COLUMN logicware_id text UNIQUE;
     END IF;
 
     -- Pre-Alerts Evolution
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='pre_alerts' AND column_name='invoice_url') THEN
         ALTER TABLE public.pre_alerts ADD COLUMN invoice_url text;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='pre_alerts' AND column_name='logicware_id') THEN
+        ALTER TABLE public.pre_alerts ADD COLUMN logicware_id text UNIQUE;
+    END IF;
+
+    -- System Configs Evolution
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='system_configs' AND column_name='updated_by') THEN
+        ALTER TABLE public.system_configs ADD COLUMN updated_by uuid REFERENCES public.profiles(id);
     END IF;
 END $$;
 
@@ -306,4 +322,3 @@ BEGIN
 END $$;
 
 NOTIFY pgrst, 'reload schema';
-`;

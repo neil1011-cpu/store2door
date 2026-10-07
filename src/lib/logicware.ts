@@ -1,32 +1,55 @@
 import { LogicwareConnect } from '@logicware.app/connect-sdk';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Logicware Connect SDK utility.
- * Refactored to be more resilient and support dynamic configuration.
+ * Authoritative client factory that pulls configuration from the Supabase registry.
  */
 
 /**
- * Factory function to create a Logicware client instance.
- * @param apiKey Optional API key. If not provided, it falls back to the server-side environment variable.
+ * Factory function to create a Logicware client instance asynchronously.
+ * Fetches API Key and Base URL from system_configs to ensure environment consistency.
  */
-export function getLogicwareClient(apiKey?: string) {
+export async function getLogicwareClient(apiKeyOverride?: string) {
+  let apiKey = apiKeyOverride;
+  let baseUrl = process.env.LOGICWARE_BASE_URL || 'https://from-store-to-door-api.logicware.app';
+
+  // Attempt to load authoritative config from Registry
+  try {
+    const adminClient = await createAdminClient();
+    const { data: configDoc } = await adminClient
+        .from('system_configs')
+        .select('config_value')
+        .eq('config_key', 'logicware')
+        .maybeSingle();
+    
+    if (configDoc?.config_value) {
+        if (!apiKey && configDoc.config_value.apiKey && configDoc.config_value.apiKey !== '********') {
+            apiKey = configDoc.config_value.apiKey;
+        }
+        if (configDoc.config_value.baseUrl) {
+            baseUrl = configDoc.config_value.baseUrl;
+        }
+    }
+  } catch (err) {
+    console.warn('[LOGICWARE_CLIENT] Could not load registry config, using environment fallbacks.');
+  }
+
   const finalKey = apiKey || process.env.LOGICWARE_API_KEY;
   
   if (!finalKey) {
-    // Return null instead of throwing to prevent build/import crashes.
-    // The calling route should handle the null case.
     return null;
   }
 
   return new LogicwareConnect({
     apiKey: finalKey,
-    baseUrl: process.env.LOGICWARE_BASE_URL || 'https://from-store-to-door-api.logicware.app',
+    baseUrl: baseUrl,
   });
 }
 
 export async function fetchLogicwareShippers(apiKey?: string) {
   try {
-    const client = getLogicwareClient(apiKey);
+    const client = await getLogicwareClient(apiKey);
     if (!client?.shippers) return [];
     const shippers = await client.shippers.list({ limit: 100 });
     return Array.isArray(shippers) ? shippers : (shippers as any).data || (shippers as any).shippers || [];
@@ -38,7 +61,7 @@ export async function fetchLogicwareShippers(apiKey?: string) {
 
 export async function fetchLogicwareShipments(apiKey?: string) {
   try {
-    const client = getLogicwareClient(apiKey);
+    const client = await getLogicwareClient(apiKey);
     if (!client?.shipments) return [];
     const shipments = await client.shipments.list({ limit: 100 });
     return Array.isArray(shipments) ? shipments : (shipments as any).data || (shipments as any).shipments || [];
@@ -50,7 +73,7 @@ export async function fetchLogicwareShipments(apiKey?: string) {
 
 export async function fetchLogicwareManifests(apiKey?: string) {
     try {
-        const client = getLogicwareClient(apiKey);
+        const client = await getLogicwareClient(apiKey);
         if (!client?.manifests) return [];
         const manifests = await client.manifests.list({ limit: 100, sort: 'desc' });
         return Array.isArray(manifests) ? manifests : (manifests as any).data || (manifests as any).manifests || [];
@@ -61,7 +84,6 @@ export async function fetchLogicwareManifests(apiKey?: string) {
 }
 
 export const logicwareMeta = {
-    baseUrl: process.env.LOGICWARE_BASE_URL || 'https://from-store-to-door-api.logicware.app',
     portalUrl: 'https://from-store-to-door-portal.logicware.app',
     shipperUrl: 'https://from-store-to-door.logicware.app',
     slug: 'from-store-door'

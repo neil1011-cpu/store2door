@@ -79,11 +79,18 @@ export default function PreAlertsPage() {
 
                 const tracking = (s.trackingNumber || s.code || s.reference || '').toString().toUpperCase().trim();
                 const rawMailbox = (s.shipper?.referenceCode || s.shipper?.code || s.referenceCode || '').toString().toUpperCase().trim();
+                const logicwareId = s.id;
 
                 if (!tracking) continue;
 
-                const exists = latestLocal.some(pa => pa.tracking_number === tracking);
-                if (exists) continue;
+                const exists = latestLocal.find(pa => pa.tracking_number === tracking || pa.logicware_id === logicwareId);
+                
+                if (exists) {
+                    if (!exists.logicware_id) {
+                        await supabase.from('pre_alerts').update({ logicware_id: logicwareId }).eq('id', exists.id);
+                    }
+                    continue;
+                }
 
                 const hubNumeric = rawMailbox.replace(/[^0-9]/g, '');
                 const profile = latestUsers.find(u => {
@@ -98,7 +105,8 @@ export default function PreAlertsPage() {
                         tracking_number: tracking,
                         contents: s.contents || s.description || 'Hub Viewing Record',
                         weight_lbs: parseFloat(s.weight) || 0,
-                        status: 'Pending'
+                        status: 'Pending',
+                        logicware_id: logicwareId
                     });
                     importedCount++;
                 }
@@ -117,6 +125,14 @@ export default function PreAlertsPage() {
         try {
             const { error } = await supabase.from('pre_alerts').update({ status: newStatus }).eq('id', id);
             if (error) throw error;
+            
+            // OUTBOUND SYNC: Hub Update
+            fetch('/api/admin/logicware-push-shipment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shipmentId: id, type: 'pre-alert' })
+            }).catch(e => console.warn('[SYNC_WARN]', e));
+
             toast({ title: "Status Updated" });
             fetchData(true);
         } catch (error: any) {
@@ -128,36 +144,29 @@ export default function PreAlertsPage() {
         if (!newAlert.profileId || !newAlert.trackingNumber) return;
         setIsSubmitting(true);
         try {
-            const selectedUser = users.find(u => u.id === newAlert.profileId);
-            
-            await supabase.from('pre_alerts').insert({
+            const { data: alert, error } = await supabase.from('pre_alerts').insert({
                 profile_id: newAlert.profileId,
                 tracking_number: newAlert.trackingNumber.toUpperCase(),
                 contents: newAlert.contents,
                 weight_lbs: parseFloat(newAlert.weight) || 0,
                 status: 'Pending'
-            });
+            }).select().single();
 
-            // Mirror to Hub
-            try {
-                await fetch('/api/admin/logicware-push-shipment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        shipment: {
-                            trackingNumber: newAlert.trackingNumber.toUpperCase(),
-                            contents: newAlert.contents,
-                            weight: newAlert.weight || 0,
-                            mailbox: selectedUser?.mailbox_number
-                        }
-                    })
-                });
-            } catch (e) {}
+            if (error) throw error;
+
+            // Mirror to Hub (OUTBOUND)
+            fetch('/api/admin/logicware-push-shipment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shipmentId: alert.id, type: 'pre-alert' })
+            }).catch(e => console.warn('[SYNC_WARN]', e));
 
             toast({ title: "Pre-Alert Established" });
             setIsAddOpen(false);
             setNewAlert({ profileId: '', trackingNumber: '', contents: '', weight: '' });
             fetchData();
+        } catch (e: any) {
+             toast({ title: "Creation Failed", description: e.message, variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }
@@ -176,7 +185,7 @@ export default function PreAlertsPage() {
 
     const handleProcessIntake = async (alert: any, verifiedWeight: number, calculatedCost: number) => {
         try {
-            await supabase.from('shipments').insert({
+            const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
                 profile_id: alert.profile_id,
                 tracking_number: alert.tracking_number,
                 contents: alert.contents,
@@ -184,8 +193,12 @@ export default function PreAlertsPage() {
                 total_cost_jmd: calculatedCost,
                 status: 'Processed',
                 payment_status: 'Unpaid',
-                invoice_url: alert.invoice_url
-            });
+                invoice_url: alert.invoice_url,
+                logicware_id: alert.logicware_id
+            }).select().single();
+
+            if (shipError) throw shipError;
+
             await supabase.from('invoices').insert({
                 profile_id: alert.profile_id,
                 amount: calculatedCost,
@@ -200,21 +213,12 @@ export default function PreAlertsPage() {
             });
             await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
 
-            // Notify Hub of confirming transition from Viewing -> active shipment
-            try {
-                await fetch('/api/admin/logicware-push-shipment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        shipment: {
-                            trackingNumber: alert.tracking_number,
-                            contents: alert.contents,
-                            weight: verifiedWeight,
-                            mailbox: alert.profiles?.mailbox_number
-                        }
-                    })
-                });
-            } catch (lwErr) {}
+            // OUTBOUND SYNC: Hub Update
+            fetch('/api/admin/logicware-push-shipment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shipmentId: shipment.id })
+            }).catch(e => console.warn('[SYNC_WARN]', e));
 
             toast({ title: "Shipment Created" });
             fetchData();

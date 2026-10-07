@@ -99,6 +99,14 @@ export default function UserDetailsPage() {
                 .eq('id', userId);
             
             if (error) throw error;
+            
+            // OUTBOUND SYNC: Hub Update
+            fetch('/api/admin/logicware-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profileId: userId })
+            }).catch(e => console.warn('[SYNC_WARN]', e));
+
             toast({ title: "Mailbox Updated", description: "Global registry updated." });
             setIsEditMailboxOpen(false);
             fetchData();
@@ -224,7 +232,7 @@ export default function UserDetailsPage() {
                                             <Alert className="bg-orange-50 border-orange-200 rounded-xl">
                                                 <AlertCircle className="h-4 w-4 text-orange-600" />
                                                 <AlertDescription className="text-[10px] font-bold uppercase text-orange-800 leading-relaxed italic">
-                                                    CAUTION: Changing this will disconnect previous tracking links in the Logistics Hub.
+                                                    CAUTION: Changing this will trigger a Hub update synchronization.
                                                 </AlertDescription>
                                             </Alert>
                                         </div>

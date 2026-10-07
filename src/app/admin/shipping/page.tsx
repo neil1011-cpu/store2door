@@ -101,14 +101,19 @@ export default function ShippingPage() {
 
             const tracking = (s.trackingNumber || s.code || s.reference || s.barcode || '').toString().toUpperCase().trim();
             const rawMailbox = (s.shipper?.referenceCode || s.shipper?.code || s.referenceCode || s.externalId || '').toString().toUpperCase().trim();
+            const logicwareId = s.id;
 
             if (!tracking) continue;
 
-            const existing = latestShipments.find(ls => ls.tracking_number === tracking);
+            const existing = latestShipments.find(ls => ls.tracking_number === tracking || ls.logicware_id === logicwareId);
             
             if (existing) {
-                if (existing.status !== status) {
-                    await supabase.from('shipments').update({ status, updated_at: new Date().toISOString() }).eq('id', existing.id);
+                if (existing.status !== status || !existing.logicware_id) {
+                    await supabase.from('shipments').update({ 
+                        status, 
+                        logicware_id: logicwareId,
+                        updated_at: new Date().toISOString() 
+                    }).eq('id', existing.id);
                     updatedCount++;
                 }
                 continue;
@@ -128,6 +133,7 @@ export default function ShippingPage() {
                     contents: s.contents || s.description || 'Hub Sync',
                     weight_lbs: parseFloat(s.weight) || 0,
                     status: status,
+                    logicware_id: logicwareId,
                     total_cost_jmd: 0,
                     payment_status: 'Unpaid'
                 });
@@ -187,14 +193,7 @@ export default function ShippingPage() {
             await fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    shipment: {
-                        trackingNumber: trackingNumber.toUpperCase(),
-                        contents: contents,
-                        weight: weight,
-                        mailbox: selectedUser?.mailbox_number
-                    }
-                })
+                body: JSON.stringify({ shipmentId: shipment.id })
             });
         } catch (lwErr) {
             console.warn('[LOGICWARE_PUSH_FAIL] Hub push failed:', lwErr);
@@ -214,6 +213,14 @@ export default function ShippingPage() {
     try {
       const { error } = await supabase.from('shipments').update({ status: newStatus }).eq('id', shipmentId);
       if (error) throw error;
+      
+      // OUTBOUND SYNC: Notify Hub of change
+      fetch('/api/admin/logicware-push-shipment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shipmentId })
+      }).catch(err => console.warn('[LOGICWARE_SYNC_WARN]', err));
+
       toast({ title: "Status Updated" });
       fetchData(true);
     } catch (error: any) {

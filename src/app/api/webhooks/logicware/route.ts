@@ -98,8 +98,6 @@ export async function POST(request: Request) {
                 });
             }
             console.log(`[LOGICWARE_WEBHOOK_AUTH:${requestId}] Handshake Approved.`);
-        } else {
-            console.log(`[LOGICWARE_WEBHOOK_AUTH:${requestId}] No secret in registry. Skipping verification.`);
         }
 
         // 4. PAYLOAD PROCESSING
@@ -121,8 +119,9 @@ export async function POST(request: Request) {
         const weight = parseFloat(data.weightLbs ?? data.weight ?? 0);
         const status = data.status || 'Updated';
         const description = data.description || data.contents || 'Hub Synchronized';
+        const logicwareId = data.packageId || data.id;
 
-        console.log(`[LOGICWARE_WEBHOOK_DATA:${requestId}] Processing ${event} for ${trackingId}. Mailbox: ${mailboxRaw}`);
+        console.log(`[LOGICWARE_WEBHOOK_DATA:${requestId}] Processing ${event} for ${trackingId}. Hub ID: ${logicwareId}`);
 
         if (trackingId) {
             // Find Customer by Numeric-Only Match
@@ -155,6 +154,7 @@ export async function POST(request: Request) {
                     contents: description,
                     weight_lbs: weight,
                     status: 'Pending',
+                    logicware_id: logicwareId,
                     submission_date: new Date().toISOString()
                 };
 
@@ -171,6 +171,7 @@ export async function POST(request: Request) {
                     contents: description,
                     weight_lbs: weight,
                     status: status,
+                    logicware_id: logicwareId,
                     updated_at: new Date().toISOString()
                 };
 
@@ -189,7 +190,7 @@ export async function POST(request: Request) {
                 log_type: 'logicware_webhook_processed',
                 description: `Successfully processed ${event} for ${trackingId}`,
                 actor_id: targetProfile.id,
-                metadata: { event, trackingId, status, weight }
+                metadata: { event, trackingId, status, weight, logicwareId }
             });
         }
 

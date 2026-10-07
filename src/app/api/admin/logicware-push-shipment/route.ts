@@ -3,8 +3,9 @@ import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Secure logic to push local shipments to the Logicware Hub.
- * Retrieves Hub API keys from the registry and logs detailed audit trails.
+ * @fileOverview Universal Shipment Sync API.
+ * Synchronizes local shipments/pre-alerts with the Logicware Hub.
+ * Handles both .create() and .update() using persistent logicware_id mapping.
  */
 
 export async function POST(request: Request) {
@@ -17,59 +18,84 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Invalid shipment payload' }, { status: 400 });
     }
 
-    const { shipment } = body;
+    const { shipmentId, type = 'shipment' } = body;
 
-    if (!shipment || !shipment.trackingNumber) {
-        return NextResponse.json({ message: 'Tracking number required.' }, { status: 400 });
+    if (!shipmentId) {
+        return NextResponse.json({ message: 'Local identifier required.' }, { status: 400 });
     }
 
     try {
-        // 1. Fetch API Key from Registry
-        const { data: configDoc } = await adminClient
-            .from('system_configs')
-            .select('config_value')
-            .eq('config_key', 'logicware')
+        // 1. Fetch Local Data
+        const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
+        const { data: localRecord, error: fetchErr } = await adminClient
+            .from(table)
+            .select('*, profiles(mailbox_number)')
+            .eq('id', shipmentId)
             .maybeSingle();
-        
-        const apiKey = configDoc?.config_value?.apiKey || process.env.LOGICWARE_API_KEY;
 
-        if (!apiKey || apiKey === '********') {
-            await adminClient.from('system_logs').insert({
-                log_type: 'logicware_push_skipped',
-                description: `Hub push skipped for ${shipment.trackingNumber}: Hub API key missing.`,
-                metadata: { trackingNumber: shipment.trackingNumber }
-            });
-            return NextResponse.json({ message: 'Logicware Hub not configured.' }, { status: 400 });
+        if (fetchErr || !localRecord) throw new Error('Local record not found.');
+
+        // 2. Initialize Logicware Client
+        const client = await getLogicwareClient();
+        if (!client) throw new Error('Logicware Hub not configured.');
+
+        const trackingNumber = localRecord.tracking_number;
+        const logicwareId = localRecord.logicware_id;
+        
+        const payload = {
+            trackingNumber: trackingNumber,
+            weight: parseFloat(localRecord.weight_lbs) || 0,
+            contents: localRecord.contents || 'FSTD Package',
+            description: localRecord.contents || '',
+            referenceCode: localRecord.profiles?.mailbox_number,
+            status: localRecord.status
+        };
+
+        let result;
+        let operation;
+
+        // 3. EXECUTE SYNC: Update if ID exists, otherwise Create
+        if (logicwareId) {
+            operation = 'update';
+            result = await client.shipments.update(logicwareId, payload);
+        } else {
+            operation = 'create';
+            result = await client.shipments.create(payload);
+            
+            // Save the Logicware ID back to our registry for future updates
+            if (result?.id) {
+                await adminClient
+                    .from(table)
+                    .update({ logicware_id: result.id })
+                    .eq('id', shipmentId);
+            }
         }
 
-        const client = getLogicwareClient(apiKey);
-        if (!client) throw new Error('SDK Initialization Failed');
-
-        // 2. Transmit to Hub
-        await client.shipments.create({
-            trackingNumber: shipment.trackingNumber,
-            weight: parseFloat(shipment.weight) || 0,
-            contents: shipment.contents || 'FSTD Package',
-            description: shipment.contents || '',
-            referenceCode: shipment.mailbox, // Crucial for auto-linking in the Hub
-        });
-
-        // 3. Audit Log
+        // 4. Audit Log
         await adminClient.from('system_logs').insert({
-            log_type: 'logicware_push_success',
-            description: `Shipment ${shipment.trackingNumber} pushed to Logicware Hub.`,
-            metadata: { trackingNumber: shipment.trackingNumber, mailbox: shipment.mailbox }
+            log_type: `logicware_${operation}_success`,
+            description: `Shipment ${trackingNumber} synchronized (${operation}) with Logicware Hub.`,
+            metadata: { 
+                trackingNumber, 
+                logicwareId: logicwareId || result?.id,
+                localId: shipmentId,
+                type 
+            }
         });
 
-        return NextResponse.json({ success: true, message: 'Shipment synchronized with Hub.' });
+        return NextResponse.json({ 
+            success: true, 
+            operation,
+            logicwareId: logicwareId || result?.id 
+        });
 
     } catch (error: any) {
-        console.error('[API:LOGICWARE:PUSH_SHIPMENT] ERROR:', error);
+        console.error('[API:LOGICWARE:PUSH_SHIPMENT] FATAL:', error);
         
         await adminClient.from('system_logs').insert({
-            log_type: 'logicware_push_failed',
-            description: `Hub sync failed for ${shipment.trackingNumber}: ${error.message}`,
-            metadata: { error: error.message, trackingNumber: shipment.trackingNumber }
+            log_type: 'logicware_sync_failed',
+            description: `Hub sync failed for local item ${shipmentId}: ${error.message}`,
+            metadata: { error: error.message, shipmentId }
         });
 
         return NextResponse.json({ 
