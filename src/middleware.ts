@@ -3,8 +3,16 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * @fileOverview Standardized Supabase Middleware for Next.js 15.
+ * Hardened to exclude webhooks from session checks.
  */
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // 1. PUBLIC ROUTE EXCLUSION: Webhooks are server-to-server and do not have sessions.
+  if (pathname.startsWith('/api/webhooks/')) {
+    return NextResponse.next();
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
