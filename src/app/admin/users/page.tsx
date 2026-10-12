@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, DatabaseZap, ArrowRight, RefreshCcw, Zap, Search } from 'lucide-react';
+import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, DatabaseZap, ArrowRight, RefreshCcw, Zap, Search, Mail, Users as UsersIcon, CheckCircle2 } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -15,6 +15,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 
 export default function UsersPage() {
   const { supabase } = useSupabase();
@@ -26,6 +28,10 @@ export default function UsersPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [lastError, setLastError] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Selection State
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   const [newUser, setNewUser] = useState({
     firstName: '',
@@ -76,22 +82,50 @@ export default function UsersPage() {
     );
   }, [users, searchTerm]);
 
-  const handleSyncToLogicware = async () => {
-      setIsSyncingHub(true);
-      try {
-          const res = await fetch('/api/admin/logicware-sync-all', { method: 'POST' });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.message || 'Sync failed');
-          
-          toast({ 
-              title: "Global Hub Sync Complete", 
-              description: data.message,
+  const toggleSelectAll = () => {
+    if (selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0) {
+      setSelectedUserIds(new Set());
+    } else {
+      setSelectedUserIds(new Set(filteredUsers.map(u => u.id)));
+    }
+  };
+
+  const toggleSelectUser = (id: string) => {
+    const next = new Set(selectedUserIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedUserIds(next);
+  };
+
+  const handleBulkSync = async () => {
+    setIsBulkProcessing(true);
+    let success = 0;
+    let failed = 0;
+
+    try {
+      for (const id of Array.from(selectedUserIds)) {
+        try {
+          const res = await fetch('/api/admin/logicware-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profileId: id })
           });
-      } catch (err: any) {
-          toast({ title: "Sync Error", description: err.message, variant: "destructive" });
-      } finally {
-          setIsSyncingHub(false);
+          if (res.ok) success++;
+          else failed++;
+        } catch (e) {
+          failed++;
+        }
       }
+
+      toast({ 
+        title: "Bulk Sync Complete", 
+        description: `Successfully synchronized ${success} profiles. Errors: ${failed}.` 
+      });
+      setSelectedUserIds(new Set());
+      fetchUsers();
+    } finally {
+      setIsBulkProcessing(false);
+    }
   };
 
   const handleCreateUser = async () => {
@@ -141,17 +175,27 @@ export default function UsersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Identity Registry</h1>
           <p className="text-muted-foreground font-medium uppercase text-[10px] mt-1">Universal Account & RBAC Central</p>
         </div>
         
-        <div className="flex gap-2">
-            <Button onClick={handleSyncToLogicware} disabled={isSyncingHub || isLoading} variant="outline" className="font-bold border-2 border-blue-200 text-blue-700 hover:bg-blue-50">
-                {isSyncingHub ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />} 
-                Sync Registry to Hub
-            </Button>
+        <div className="flex flex-wrap gap-2">
+            {selectedUserIds.size > 0 && (
+                <div className="flex items-center gap-2 mr-2 bg-primary/5 p-1 rounded-lg border-2 border-primary/20 animate-in fade-in slide-in-from-right-4">
+                    <Badge className="font-black italic ml-2">{selectedUserIds.size} SELECTED</Badge>
+                    <Button onClick={handleBulkSync} disabled={isBulkProcessing} size="sm" variant="secondary" className="font-black uppercase italic text-[10px]">
+                        {isBulkProcessing ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-2 h-3.5 w-3.5 text-blue-500" />}
+                        Bulk Hub Sync
+                    </Button>
+                    <Button size="sm" variant="outline" asChild className="font-black uppercase italic text-[10px] border-2">
+                        <Link href="/admin/communications">
+                            <Mail className="mr-2 h-3.5 w-3.5" /> Bulk Message
+                        </Link>
+                    </Button>
+                </div>
+            )}
             <Button variant="outline" onClick={fetchUsers} disabled={isLoading} className="font-bold border-2">
                 <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Sync
             </Button>
@@ -270,7 +314,13 @@ export default function UsersPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow className="h-12">
-                <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Identity</TableHead>
+                <TableHead className="w-[50px] pl-6 text-center">
+                  <Checkbox 
+                    checked={selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0} 
+                    onCheckedChange={toggleSelectAll} 
+                  />
+                </TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Identity</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Mailbox</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Role</TableHead>
                 <TableHead className="text-right pr-6 text-[10px] font-black uppercase tracking-widest">Action</TableHead>
@@ -278,10 +328,16 @@ export default function UsersPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={4} className="h-64 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /><p className="text-[10px] font-bold uppercase mt-2 opacity-40">Syncing Registry...</p></TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="h-64 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /><p className="text-[10px] font-bold uppercase mt-2 opacity-40">Syncing Registry...</p></TableCell></TableRow>
               ) : filteredUsers.map(u => (
-                <TableRow key={u.id} className="hover:bg-primary/5 transition-colors h-20">
-                  <TableCell className="pl-6">
+                <TableRow key={u.id} className={cn("hover:bg-primary/5 transition-colors h-20", selectedUserIds.has(u.id) && "bg-primary/5")}>
+                  <TableCell className="pl-6 text-center">
+                    <Checkbox 
+                      checked={selectedUserIds.has(u.id)} 
+                      onCheckedChange={() => toggleSelectUser(u.id)} 
+                    />
+                  </TableCell>
+                  <TableCell>
                     <p className="font-black text-primary uppercase text-sm">{u.full_name}</p>
                     <p className="text-[10px] font-mono opacity-60 uppercase tracking-tighter">{u.email}</p>
                   </TableCell>
@@ -306,7 +362,7 @@ export default function UsersPage() {
                 </TableRow>
               ))}
               {filteredUsers.length === 0 && !isLoading && (
-                  <TableRow><TableCell colSpan={4} className="h-48 text-center text-muted-foreground italic opacity-30">No identities match your search parameters.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic opacity-30">No identities match your search parameters.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
