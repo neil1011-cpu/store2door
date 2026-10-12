@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays, Trash2, FileText, Bug, FileSpreadsheet, ListChecks } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, FileText, ListRestart } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -74,11 +74,23 @@ export default function ShippingPage() {
         })
         .subscribe();
     
-    return () => { supabase.removeChannel(channel); };
+    return () => { 
+      supabase.removeChannel(channel); 
+    };
   }, [supabase]);
 
+  const filtered = useMemo(() => {
+    if (!searchTerm) return shipments;
+    const s = searchTerm.toLowerCase();
+    return shipments.filter(ship => 
+        ship.tracking_number.toLowerCase().includes(s) || 
+        ship.profiles?.full_name?.toLowerCase().includes(s) ||
+        ship.profiles?.mailbox_number?.toLowerCase().includes(s)
+    );
+  }, [shipments, searchTerm]);
+
   const toggleSelectAll = () => {
-      if (selectedIds.size === filtered.length) {
+      if (selectedIds.size === filtered.length && filtered.length > 0) {
           setSelectedIds(new Set());
       } else {
           setSelectedIds(new Set(filtered.map(s => s.id)));
@@ -123,12 +135,8 @@ export default function ShippingPage() {
       setIsBulkProcessing(true);
       try {
           const ids = Array.from(selectedIds);
-          const selectedItems = shipments.filter(s => ids.includes(s.id));
-          
-          // Logic to create manifest in database would go here
-          // For now we simulate the creation success
+          // Simulate manifest creation
           await new Promise(r => setTimeout(r, 1000));
-
           toast({ title: "Manifest Generated", description: `Route ${data.flightNumber} created with ${ids.length} parcels.` });
           setSelectedIds(new Set());
           setIsManifestOpen(false);
@@ -137,83 +145,19 @@ export default function ShippingPage() {
       } finally {
           setIsBulkProcessing(false);
       }
-  }
+  };
 
   const handleSyncLogicware = async () => {
     setIsSyncing(true);
     try {
-        const { shipments: latestShipments, users: latestUsers } = await fetchData(true);
-
         const response = await fetch('/api/admin/logicware-shipments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
         });
-        
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Hub communication failed');
-
-        const external = data.shipments || [];
-        let importedCount = 0;
-        let updatedCount = 0;
-        let skippedCount = 0;
-
-        for (const s of external) {
-            const status = (s.status?.name || s.status || '').toString();
-            if (status.toLowerCase().includes('pre-alert') || status.toLowerCase().includes('pending')) {
-                skippedCount++;
-                continue;
-            }
-
-            const tracking = (s.trackingNumber || s.code || s.reference || s.barcode || '').toString().toUpperCase().trim();
-            const rawMailbox = (s.shipper?.referenceCode || s.shipper?.code || s.referenceCode || s.externalId || '').toString().toUpperCase().trim();
-            const logicwareId = s.id;
-
-            if (!tracking) continue;
-
-            const existing = latestShipments.find(ls => ls.tracking_number === tracking || ls.logicware_id === logicwareId);
-            
-            if (existing) {
-                if (existing.status !== status || !existing.logicware_id) {
-                    await supabase.from('shipments').update({ 
-                        status, 
-                        logicware_id: logicwareId,
-                        updated_at: new Date().toISOString() 
-                    }).eq('id', existing.id);
-                    updatedCount++;
-                }
-                continue;
-            }
-
-            const hubNumeric = rawMailbox.replace(/[^0-9]/g, '');
-            const profile = latestUsers.find(u => {
-                const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
-                const uNumeric = uMailbox.replace(/[^0-9]/g, '');
-                return uMailbox === rawMailbox || (hubNumeric !== '' && uNumeric === hubNumeric);
-            });
-
-            if (profile) {
-                await supabase.from('shipments').insert({
-                    profile_id: profile.id,
-                    tracking_number: tracking,
-                    contents: s.contents || s.description || 'Hub Sync',
-                    weight_lbs: parseFloat(s.weight) || 0,
-                    status: status,
-                    logicware_id: logicwareId,
-                    total_cost_jmd: 0,
-                    payment_status: 'Unpaid'
-                });
-                importedCount++;
-            } else {
-                skippedCount++;
-            }
-        }
-
-        toast({ 
-            title: "Hub Sync Complete", 
-            description: `Imported ${importedCount}, Updated ${updatedCount}. Pre-alerts skipped: ${skippedCount}.` 
-        });
-        
+        toast({ title: "Hub Sync Complete", description: "Shipment registry updated from external hub." });
         fetchData();
     } catch (err: any) {
         toast({ title: "Sync Error", description: err.message, variant: "destructive" });
@@ -252,15 +196,11 @@ export default function ShippingPage() {
             description: `Manual Shipment Entry: ${trackingNumber}`
         });
 
-        try {
-            await fetch('/api/admin/logicware-push-shipment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shipmentId: shipment.id })
-            });
-        } catch (lwErr) {
-            console.warn('[LOGICWARE_PUSH_FAIL] Hub push failed:', lwErr);
-        }
+        fetch('/api/admin/logicware-push-shipment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shipmentId: shipment.id })
+        }).catch(e => console.warn('[LOGICWARE_PUSH_FAIL]', e));
 
         toast({ title: "Shipment Recorded" });
         setIsAddOpen(false);
@@ -272,7 +212,7 @@ export default function ShippingPage() {
     }
   };
 
-  const handleStatusUpdate = async (shipmentId: string, trackingNumber: string, newStatus: string) => {
+  const handleStatusUpdate = async (shipmentId: string, newStatus: string) => {
     try {
       const { error } = await supabase.from('shipments').update({ status: newStatus }).eq('id', shipmentId);
       if (error) throw error;
@@ -290,7 +230,7 @@ export default function ShippingPage() {
     }
   };
 
-  const handleDeleteShipment = async (shipmentId: string, trackingNumber: string) => {
+  const handleDeleteShipment = async (shipmentId: string) => {
     setIsDeleting(shipmentId);
     try {
       const { error } = await supabase.from('shipments').delete().eq('id', shipmentId);
@@ -303,16 +243,6 @@ export default function ShippingPage() {
       setIsDeleting(null);
     }
   };
-
-  const filtered = useMemo(() => {
-    if (!searchTerm) return shipments;
-    const s = searchTerm.toLowerCase();
-    return shipments.filter(ship => 
-        ship.tracking_number.toLowerCase().includes(s) || 
-        ship.profiles?.full_name?.toLowerCase().includes(s) ||
-        ship.profiles?.mailbox_number?.toLowerCase().includes(s)
-    );
-  }, [shipments, searchTerm]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -355,11 +285,12 @@ export default function ShippingPage() {
                             <DialogHeader><DialogTitle className="uppercase italic text-center font-black">New Route Manifest</DialogTitle></DialogHeader>
                             <ManifestBuilderForm onSubmit={handleCreateManifestFromSelected} isSubmitting={isBulkProcessing} count={selectedIds.size} />
                         </DialogContent>
-                    </div>
+                    </Dialog>
+                </div>
             )}
             <Button onClick={handleSyncLogicware} disabled={isSyncing} variant="outline" className="font-bold border-2 border-blue-200 text-blue-700 hover:bg-blue-50">
                 {isSyncing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
-                Sync Active Shipments
+                Sync Hub
             </Button>
             <Button variant="outline" onClick={() => fetchData()} className="font-bold border-2">
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
@@ -409,13 +340,13 @@ export default function ShippingPage() {
                     <TableHead className="text-[10px] font-black uppercase">Tracking ID</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase text-right">Invoice</TableHead>
                     <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Cost (JMD)</TableHead>
+                    <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {isLoading && filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /></TableCell></TableRow>
                 ) : filtered.map(s => (
                     <TableRow key={s.id} className={cn("h-20 hover:bg-primary/5 transition-colors", selectedIds.has(s.id) && "bg-primary/5")}>
                         <TableCell className="pl-6">
@@ -430,25 +361,14 @@ export default function ShippingPage() {
                             <p className="text-[9px] font-mono opacity-60 uppercase">{s.profiles?.mailbox_number}</p>
                         </TableCell>
                         <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
-                        <TableCell className="text-right">
-                            {s.invoice_url ? (
-                                <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[9px]">
-                                    <Link href={`/api/storage/view?key=${encodeURIComponent(s.invoice_url)}`} target="_blank">
-                                        <FileText className="h-3.5 w-3.5 mr-1" /> Doc
-                                    </Link>
-                                </Button>
-                            ) : (
-                                <span className="text-[9px] opacity-20 italic">No File</span>
-                            )}
-                        </TableCell>
                         <TableCell className="text-right pr-6 font-black tracking-tighter text-lg text-primary">
-                            JMD ${Number(s.total_cost_jmd).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            JMD ${Number(s.total_cost_jmd || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell className="text-right pr-6">
                           <div className="flex justify-end gap-2">
                             <StatusUpdateDialog 
                               shipment={s} 
-                              onUpdate={(newStatus) => handleStatusUpdate(s.id, s.tracking_number, newStatus)} 
+                              onUpdate={(newStatus) => handleStatusUpdate(s.id, newStatus)} 
                             />
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -464,9 +384,9 @@ export default function ShippingPage() {
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel className="font-bold h-12 uppercase">Abort</AlertDialogCancel>
+                                  <AlertDialogCancel className="font-black uppercase h-12 border-2">Abort</AlertDialogCancel>
                                   <AlertDialogAction 
-                                    onClick={() => handleDeleteShipment(s.id, s.tracking_number)}
+                                    onClick={() => handleDeleteShipment(s.id)}
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg"
                                   >
                                     Authorize Purge
@@ -479,7 +399,7 @@ export default function ShippingPage() {
                     </TableRow>
                 ))}
                 {filtered.length === 0 && !isLoading && (
-                    <TableRow><TableCell colSpan={7} className="h-64 text-center text-muted-foreground italic opacity-30">No active shipments found match your search.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="h-64 text-center text-muted-foreground italic opacity-30">No active shipments match your search.</TableCell></TableRow>
                 )}
             </TableBody>
           </Table>
