@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -20,15 +19,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 
 const SHIPMENT_STATUSES = [
-  'Received at Warehouse (FL)',
-  'Processed',
-  'Being Shipped',
-  'In Transit',
-  'Arrived in Jamaica',
-  'Customs',
-  'On Route',
-  'Available for pickup',
-  'Delivered'
+  'Received',
+  'Processing',
+  'In transit',
+  'Out for delivery',
+  'Delivered',
+  'Returned',
+  'On Hold'
 ];
 
 export default function ShippingPage() {
@@ -235,7 +232,7 @@ export default function ShippingPage() {
             contents,
             weight_lbs: parseFloat(weight),
             total_cost_jmd: parseFloat(cost),
-            status: 'Processed',
+            status: 'Processing',
             payment_status: 'Unpaid'
         }).select().single();
 
@@ -358,8 +355,7 @@ export default function ShippingPage() {
                             <DialogHeader><DialogTitle className="uppercase italic text-center font-black">New Route Manifest</DialogTitle></DialogHeader>
                             <ManifestBuilderForm onSubmit={handleCreateManifestFromSelected} isSubmitting={isBulkProcessing} count={selectedIds.size} />
                         </DialogContent>
-                    </Dialog>
-                </div>
+                    </div>
             )}
             <Button onClick={handleSyncLogicware} disabled={isSyncing} variant="outline" className="font-bold border-2 border-blue-200 text-blue-700 hover:bg-blue-50">
                 {isSyncing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}

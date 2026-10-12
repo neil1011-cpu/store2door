@@ -20,9 +20,10 @@ import { Separator } from '@/components/ui/separator';
 
 const getStatusVariant = (status: string | undefined) => {
   const safeStatus = (status || 'Pending').toLowerCase();
-  if (safeStatus.includes('transit') || safeStatus.includes('shipped')) return 'default';
+  if (safeStatus.includes('transit') || safeStatus.includes('shipped') || safeStatus.includes('delivery')) return 'default';
   if (safeStatus.includes('delivered')) return 'outline';
-  if (safeStatus.includes('pending') || safeStatus.includes('pre-alert')) return 'destructive';
+  if (safeStatus.includes('pending') || safeStatus.includes('pre-alert') || safeStatus.includes('hold')) return 'destructive';
+  if (safeStatus.includes('returned')) return 'secondary';
   return 'secondary';
 };
 

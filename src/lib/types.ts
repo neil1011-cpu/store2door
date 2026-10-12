@@ -35,16 +35,13 @@ export type UserProfile = {
 export type ShipmentStatus = 
   | 'Pending' 
   | 'Pre-Alert' 
-  | 'Received at Warehouse (FL)'
-  | 'Processed' 
-  | 'In Review' 
-  | 'Being Shipped' 
-  | 'In Transit' 
-  | 'Arrived in Jamaica'
-  | 'Customs' 
-  | 'On Route' 
-  | 'Available for pickup'
-  | 'Delivered';
+  | 'Received'
+  | 'Processing' 
+  | 'In transit' 
+  | 'Out for delivery' 
+  | 'Delivered'
+  | 'Returned'
+  | 'On Hold';
 
 export type ShipmentTimelineEvent = {
     type: string;
