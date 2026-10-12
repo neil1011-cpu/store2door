@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, DatabaseZap, ArrowRight, RefreshCcw, Zap } from 'lucide-react';
+import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, DatabaseZap, ArrowRight, RefreshCcw, Zap, Search } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -25,6 +25,7 @@ export default function UsersPage() {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [lastError, setLastError] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [newUser, setNewUser] = useState({
     firstName: '',
@@ -64,6 +65,16 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm) return users;
+    const s = searchTerm.toLowerCase();
+    return users.filter(u => 
+        u.full_name?.toLowerCase().includes(s) || 
+        u.email?.toLowerCase().includes(s) || 
+        u.mailbox_number?.toLowerCase().includes(s)
+    );
+  }, [users, searchTerm]);
 
   const handleSyncToLogicware = async () => {
       setIsSyncingHub(true);
@@ -231,6 +242,16 @@ export default function UsersPage() {
         </div>
       </div>
 
+      <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search name, email, or mailbox number..." 
+            className="pl-10 h-12 border-2 shadow-sm rounded-xl max-w-xl"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+      </div>
+
       {users.length === 0 && !isLoading && (
         <Alert className="bg-primary/5 border-primary/20 shadow-lg border-2">
             <DatabaseZap className="h-5 w-5 text-primary" />
@@ -258,11 +279,11 @@ export default function UsersPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={4} className="h-64 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /><p className="text-[10px] font-bold uppercase mt-2 opacity-40">Syncing Registry...</p></TableCell></TableRow>
-              ) : users.map(u => (
+              ) : filteredUsers.map(u => (
                 <TableRow key={u.id} className="hover:bg-primary/5 transition-colors h-20">
                   <TableCell className="pl-6">
                     <p className="font-black text-primary uppercase text-sm">{u.full_name}</p>
-                    <p className="text-[10px] font-mono opacity-60 uppercase tracking-tighter">{u.id}</p>
+                    <p className="text-[10px] font-mono opacity-60 uppercase tracking-tighter">{u.email}</p>
                   </TableCell>
                   <TableCell className="font-mono font-bold">
                     <Badge variant="outline" className="h-8 px-4 font-black italic border-2">{u.mailbox_number}</Badge>
@@ -284,8 +305,8 @@ export default function UsersPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {users.length === 0 && !isLoading && (
-                  <TableRow><TableCell colSpan={4} className="h-48 text-center text-muted-foreground italic opacity-30">No identities detected or visible in the global registry.</TableCell></TableRow>
+              {filteredUsers.length === 0 && !isLoading && (
+                  <TableRow><TableCell colSpan={4} className="h-48 text-center text-muted-foreground italic opacity-30">No identities match your search parameters.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

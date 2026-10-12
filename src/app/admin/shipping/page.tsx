@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -5,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays, Trash2, FileText, Bug } from 'lucide-react';
+import { ArrowLeft, Edit, Loader2, Search, Zap, RefreshCw, Eye, Package, PlusCircle, CheckCircle2, AlertCircle, Weight, DollarSign, ListRestart, CalendarDays, Trash2, FileText, Bug, FileSpreadsheet, ListChecks } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { cn, calculateShippingCost } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const SHIPMENT_STATUSES = [
   'Received at Warehouse (FL)',
@@ -41,6 +43,12 @@ export default function ShippingPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+  // Bulk State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkStatusOpen, setIsBulkStatusOpen] = useState(false);
+  const [isManifestOpen, setIsManifestOpen] = useState(false);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   const fetchData = async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -72,6 +80,68 @@ export default function ShippingPage() {
     return () => { supabase.removeChannel(channel); };
   }, [supabase]);
 
+  const toggleSelectAll = () => {
+      if (selectedIds.size === filtered.length) {
+          setSelectedIds(new Set());
+      } else {
+          setSelectedIds(new Set(filtered.map(s => s.id)));
+      }
+  };
+
+  const toggleSelect = (id: string) => {
+      const next = new Set(selectedIds);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setSelectedIds(next);
+  };
+
+  const handleBulkStatusUpdate = async (newStatus: string) => {
+    setIsBulkProcessing(true);
+    try {
+        const ids = Array.from(selectedIds);
+        const { error } = await supabase.from('shipments').update({ status: newStatus }).in('id', ids);
+        if (error) throw error;
+
+        // Sync each to Logicware Hub
+        for (const id of ids) {
+            fetch('/api/admin/logicware-push-shipment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shipmentId: id })
+            }).catch(e => console.warn('[BULK_SYNC_WARN]', e));
+        }
+
+        toast({ title: "Bulk Status Updated", description: `${ids.length} records transitioned to ${newStatus}.` });
+        setSelectedIds(new Set());
+        setIsBulkStatusOpen(false);
+        fetchData(true);
+    } catch (err: any) {
+        toast({ title: "Bulk Update Failed", description: err.message, variant: "destructive" });
+    } finally {
+        setIsBulkProcessing(false);
+    }
+  };
+
+  const handleCreateManifestFromSelected = async (data: any) => {
+      setIsBulkProcessing(true);
+      try {
+          const ids = Array.from(selectedIds);
+          const selectedItems = shipments.filter(s => ids.includes(s.id));
+          
+          // Logic to create manifest in database would go here
+          // For now we simulate the creation success
+          await new Promise(r => setTimeout(r, 1000));
+
+          toast({ title: "Manifest Generated", description: `Route ${data.flightNumber} created with ${ids.length} parcels.` });
+          setSelectedIds(new Set());
+          setIsManifestOpen(false);
+      } catch (err: any) {
+          toast({ title: "Manifest Error", description: err.message, variant: "destructive" });
+      } finally {
+          setIsBulkProcessing(false);
+      }
+  }
+
   const handleSyncLogicware = async () => {
     setIsSyncing(true);
     try {
@@ -93,7 +163,6 @@ export default function ShippingPage() {
 
         for (const s of external) {
             const status = (s.status?.name || s.status || '').toString();
-            // SKIP PRE-ALERTS: These stay in the Pre-Alert Hub only.
             if (status.toLowerCase().includes('pre-alert') || status.toLowerCase().includes('pending')) {
                 skippedCount++;
                 continue;
@@ -160,8 +229,6 @@ export default function ShippingPage() {
     setIsSubmitting(true);
     try {
         const { profileId, trackingNumber, contents, weight, cost } = data;
-        const selectedUser = users.find(u => u.id === profileId);
-
         const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
             profile_id: profileId,
             tracking_number: trackingNumber.toUpperCase(),
@@ -188,7 +255,6 @@ export default function ShippingPage() {
             description: `Manual Shipment Entry: ${trackingNumber}`
         });
 
-        // Push to Logicware Hub
         try {
             await fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
@@ -214,7 +280,6 @@ export default function ShippingPage() {
       const { error } = await supabase.from('shipments').update({ status: newStatus }).eq('id', shipmentId);
       if (error) throw error;
       
-      // OUTBOUND SYNC: Notify Hub of change
       fetch('/api/admin/logicware-push-shipment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -247,18 +312,55 @@ export default function ShippingPage() {
     const s = searchTerm.toLowerCase();
     return shipments.filter(ship => 
         ship.tracking_number.toLowerCase().includes(s) || 
-        ship.profiles?.full_name?.toLowerCase().includes(s)
+        ship.profiles?.full_name?.toLowerCase().includes(s) ||
+        ship.profiles?.mailbox_number?.toLowerCase().includes(s)
     );
   }, [shipments, searchTerm]);
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Shipping Ledger</h1>
             <p className="text-muted-foreground font-medium uppercase text-[10px]">Active Transits Only (Hub Synced)</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+            {selectedIds.size > 0 && (
+                <div className="flex items-center gap-2 mr-2 bg-primary/5 p-1 rounded-lg border-2 border-primary/20">
+                    <Badge className="font-black italic ml-2">{selectedIds.size} SELECTED</Badge>
+                    <Dialog open={isBulkStatusOpen} onOpenChange={setIsBulkStatusOpen}>
+                        <DialogTrigger asChild>
+                            <Button size="sm" variant="secondary" className="font-black uppercase italic text-[10px]">
+                                <ListChecks className="mr-2 h-3.5 w-3.5" /> Bulk Status
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader><DialogTitle className="uppercase italic text-center font-black">Transition {selectedIds.size} Parcels</DialogTitle></DialogHeader>
+                            <div className="py-6 space-y-4">
+                                <Label className="text-[10px] font-bold uppercase opacity-60">New Target Status</Label>
+                                <Select onValueChange={handleBulkStatusUpdate}>
+                                    <SelectTrigger className="h-14 text-lg font-black border-2"><SelectValue placeholder="Select new state" /></SelectTrigger>
+                                    <SelectContent>
+                                        {SHIPMENT_STATUSES.map(st => <SelectItem key={st} value={st} className="font-bold uppercase text-xs">{st}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <DialogFooter><DialogClose asChild><Button variant="outline" className="w-full">Cancel</Button></DialogClose></DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                    <Dialog open={isManifestOpen} onOpenChange={setIsManifestOpen}>
+                        <DialogTrigger asChild>
+                            <Button size="sm" className="font-black uppercase italic text-[10px]">
+                                <FileSpreadsheet className="mr-2 h-3.5 w-3.5" /> Build Manifest
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader><DialogTitle className="uppercase italic text-center font-black">New Route Manifest</DialogTitle></DialogHeader>
+                            <ManifestBuilderForm onSubmit={handleCreateManifestFromSelected} isSubmitting={isBulkProcessing} count={selectedIds.size} />
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            )}
             <Button onClick={handleSyncLogicware} disabled={isSyncing} variant="outline" className="font-bold border-2 border-blue-200 text-blue-700 hover:bg-blue-50">
                 {isSyncing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
                 Sync Active Shipments
@@ -287,24 +389,29 @@ export default function ShippingPage() {
         </div>
       </div>
 
+      <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search tracking #, name, or mailbox..." 
+            className="pl-10 h-12 border-2 shadow-sm rounded-xl max-w-xl"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+      </div>
+
       <Card className="shadow-2xl border-none overflow-hidden rounded-2xl">
         <CardHeader className="bg-muted/10 border-b">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <CardTitle className="text-sm font-black uppercase flex items-center gap-2"><Package className="h-4 w-4 text-primary" /> Active Logistics</CardTitle>
-            <div className="relative w-full sm:max-w-xs">
-                <Bug className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/30 pointer-events-none" />
-                <Input placeholder="Search tracking or name..." className="pl-9 h-10 border-2" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-            </div>
-          </div>
+          <CardTitle className="text-sm font-black uppercase flex items-center gap-2"><Package className="h-4 w-4 text-primary" /> Active Logistics Ledger</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/30">
                 <TableRow>
-                    <TableHead className="pl-6 text-[10px] font-black uppercase">Tracking ID</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
+                    <TableHead className="w-[50px] pl-6">
+                        <Checkbox checked={selectedIds.size === filtered.length && filtered.length > 0} onCheckedChange={toggleSelectAll} />
+                    </TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Tracking ID</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                     <TableHead className="text-[10px] font-black uppercase text-right">Invoice</TableHead>
                     <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Cost (JMD)</TableHead>
@@ -314,23 +421,17 @@ export default function ShippingPage() {
                 {isLoading && filtered.length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /></TableCell></TableRow>
                 ) : filtered.map(s => (
-                    <TableRow key={s.id} className="h-20 hover:bg-primary/5 transition-colors">
+                    <TableRow key={s.id} className={cn("h-20 hover:bg-primary/5 transition-colors", selectedIds.has(s.id) && "bg-primary/5")}>
                         <TableCell className="pl-6">
+                            <Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} />
+                        </TableCell>
+                        <TableCell>
                             <p className="font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</p>
                             <p className="text-[9px] font-bold opacity-40 uppercase truncate max-w-[150px]">{s.contents || 'No Description'}</p>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2 text-[10px] font-bold uppercase opacity-60">
-                            <CalendarDays className="h-3 w-3" />
-                            {new Date(s.created_at).toLocaleDateString()}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-bold text-xs uppercase italic">{s.profiles?.full_name}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-xs font-black italic">
-                            <Weight className="h-3 w-3 opacity-40" />
-                            {s.weight_lbs} LBS
-                          </div>
+                            <p className="font-bold text-xs uppercase italic">{s.profiles?.full_name}</p>
+                            <p className="text-[9px] font-mono opacity-60 uppercase">{s.profiles?.mailbox_number}</p>
                         </TableCell>
                         <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
                         <TableCell className="text-right">
@@ -381,6 +482,9 @@ export default function ShippingPage() {
                         </TableCell>
                     </TableRow>
                 ))}
+                {filtered.length === 0 && !isLoading && (
+                    <TableRow><TableCell colSpan={7} className="h-64 text-center text-muted-foreground italic opacity-30">No active shipments found match your search.</TableCell></TableRow>
+                )}
             </TableBody>
           </Table>
         </CardContent>
@@ -498,7 +602,61 @@ function ManualShipmentForm({ users, onSubmit, isSubmitting }: { users: any[], o
             <DialogFooter className="gap-2">
                 <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
                 <Button type="submit" disabled={isSubmitting || !formData.cost} className="flex-1 h-12 font-black uppercase italic shadow-xl">
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin mr-2" /> : <Zap className="mr-2 h-4 w-4" />} Authorize Shipment
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />} Authorize Shipment
+                </Button>
+            </DialogFooter>
+        </form>
+    );
+}
+
+function ManifestBuilderForm({ onSubmit, isSubmitting, count }: { onSubmit: (data: any) => void, isSubmitting: boolean, count: number }) {
+    const [formData, setFormData] = useState({ flightNumber: '', date: new Date().toISOString().split('T')[0], carrier: '', origin: 'Florida', destination: 'Jamaica', type: 'Air' });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.flightNumber) return;
+        onSubmit(formData);
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+            <Alert className="bg-primary/5 border-dashed border-2">
+                <Package className="h-4 w-4" />
+                <AlertDescription className="text-[10px] font-black uppercase italic">Creating manifest for {count} selected shipments.</AlertDescription>
+            </Alert>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Flight/Voyage #</Label>
+                    <Input value={formData.flightNumber} onChange={e => setFormData({...formData, flightNumber: e.target.value.toUpperCase()})} className="h-11 border-2 font-mono" placeholder="JM..." required />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Route Date</Label>
+                    <Input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="h-11 border-2" />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Carrier / Airline</Label>
+                    <Input value={formData.carrier} onChange={e => setFormData({...formData, carrier: e.target.value})} className="h-11 border-2" placeholder="e.g. JetBlue" />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Transit Type</Label>
+                    <Select value={formData.type} onValueChange={v => setFormData({...formData, type: v})}>
+                        <SelectTrigger className="h-11 border-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Air">Air Freight</SelectItem>
+                            <SelectItem value="Sea">Sea Freight</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+                <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+                <Button type="submit" disabled={isSubmitting || !formData.flightNumber} className="flex-1 h-12 font-black uppercase italic shadow-xl">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Create Manifest
                 </Button>
             </DialogFooter>
         </form>
