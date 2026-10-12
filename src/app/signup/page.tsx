@@ -19,6 +19,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
+import { Checkbox } from '@/components/ui/checkbox';
+import Link from 'next/link';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -26,6 +28,7 @@ const formSchema = z.object({
   password: z.string().min(8, { message: 'Min 8 characters.' }),
   phone: z.string().min(10, { message: 'Phone must be at least 10 digits.' }),
   trn: z.string().length(9, { message: 'TRN must be 9 digits.' }),
+  consent: z.boolean().refine(val => val === true, { message: 'You must agree to the terms.' })
 });
 
 export default function SignUpPage() {
@@ -43,6 +46,7 @@ export default function SignUpPage() {
       password: '',
       phone: '',
       trn: '',
+      consent: false,
     },
   });
 
@@ -50,7 +54,6 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      // 1. Create Supabase Auth User
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
@@ -65,7 +68,6 @@ export default function SignUpPage() {
 
       if (authError) throw authError;
 
-      // 2. Immediate Profile Confirmation
       if (authData.user) {
           const { error: profileError } = await supabase.from('profiles').upsert({
               id: authData.user.id,
@@ -76,12 +78,11 @@ export default function SignUpPage() {
           });
 
           if (profileError) {
-              console.warn('[SIGNUP] Manual profile sync warning:', profileError.message);
+              console.warn('[SIGNUP] Profile sync warning:', profileError.message);
           }
 
-          // 3. Hub Synchronization (Background)
           try {
-              fetch('/api/admin/logicware-sync', {
+              await fetch('/api/admin/logicware-sync', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ profileId: authData.user.id })
@@ -97,7 +98,6 @@ export default function SignUpPage() {
       router.push('/account');
 
     } catch (error: any) {
-      console.error(error);
       toast({
         title: 'Signup Failed',
         description: error.message,
@@ -112,33 +112,30 @@ export default function SignUpPage() {
     <div className="container mx-auto py-12 px-4 md:px-6 max-w-2xl">
       <Card>
         <CardHeader>
-          <CardTitle className="text-3xl">Create Your Account</CardTitle>
-          <CardDescription>
-            Get your global mailbox & shipping address instantly via Supabase Auth.
+          <CardTitle className="text-3xl font-black italic uppercase tracking-tighter">Create Your Account</CardTitle>
+          <CardDescription className="font-medium text-xs uppercase tracking-widest">
+            Get your global mailbox & shipping address instantly.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField control={form.control} name="fullName" render={({ field }) => (
-                <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )}/>
-              <FormField control={form.control} name="email" render={({ field }) => (
-                <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
-              )}/>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="fullName" render={({ field }) => (
+                    <FormItem><FormLabel className="text-[10px] font-bold uppercase opacity-60">Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} className="h-11 border-2" /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <FormField control={form.control} name="email" render={({ field }) => (
+                    <FormItem><FormLabel className="text-[10px] font-bold uppercase opacity-60">Email Address</FormLabel><FormControl><Input type="email" placeholder="john@example.com" {...field} className="h-11 border-2" /></FormControl><FormMessage /></FormItem>
+                )}/>
+              </div>
+              
               <FormField control={form.control} name="password" render={({ field }) => (
                 <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel className="text-[10px] font-bold uppercase opacity-60">Security Password</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type={showPassword ? "text" : "password"} {...field} />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
+                        <Input type={showPassword ? "text" : "password"} placeholder="Minimum 8 characters" {...field} className="h-11 border-2 pr-12" />
+                        <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"}>
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       </div>
@@ -146,15 +143,40 @@ export default function SignUpPage() {
                     <FormMessage />
                 </FormItem>
               )}/>
-              <FormField control={form.control} name="phone" render={({ field }) => (
-                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>
-              )}/>
-              <FormField control={form.control} name="trn" render={({ field }) => (
-                <FormItem><FormLabel>TRN</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )}/>
 
-              <Button type="submit" className="w-full h-12 font-bold uppercase italic" size="lg" disabled={loading}>
-                {loading ? <><Loader2 className="animate-spin h-4 w-4 mr-2" /> Initializing...</> : "Create Account"}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="phone" render={({ field }) => (
+                    <FormItem><FormLabel className="text-[10px] font-bold uppercase opacity-60">Phone (Jamaica)</FormLabel><FormControl><Input type="tel" placeholder="876-..." {...field} className="h-11 border-2" /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <FormField control={form.control} name="trn" render={({ field }) => (
+                    <FormItem><FormLabel className="text-[10px] font-bold uppercase opacity-60">Tax Registration Number (TRN)</FormLabel><FormControl><Input maxLength={9} placeholder="9 digits" {...field} className="h-11 border-2 font-mono" /></FormControl><FormMessage /></FormItem>
+                )}/>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="consent"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-xl border-2 border-dashed p-4 bg-muted/20">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="mt-1"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="text-[10px] font-bold uppercase tracking-wide">
+                        I agree to the <Link href="/terms" className="text-primary underline">Terms of Service</Link> and <Link href="/privacy" className="text-primary underline">Privacy Policy</Link>.
+                      </FormLabel>
+                      <p className="text-[8px] text-muted-foreground uppercase font-medium">Necessary for customs clearance and courier services.</p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <Button type="submit" className="w-full h-14 text-lg font-black uppercase italic shadow-xl" size="lg" disabled={loading}>
+                {loading ? <><Loader2 className="animate-spin h-5 w-5 mr-2" /> Creating Registry...</> : "Register Secure Account"}
               </Button>
             </form>
           </Form>

@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Loader2, Mail, Phone, MapPin, Send, Clock } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 
 const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -36,6 +37,7 @@ const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
   subject: z.string().min(3, { message: 'Subject must be at least 3 characters.' }),
   message: z.string().min(10, { message: 'Message must be at least 10 characters.' }),
+  consent: z.boolean().refine(val => val === true, { message: 'Required.' })
 });
 
 export default function ContactPage() {
@@ -49,12 +51,12 @@ export default function ContactPage() {
       email: '',
       subject: '',
       message: '',
+      consent: false,
     },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500));
     
     setLoading(false);
@@ -69,57 +71,53 @@ export default function ContactPage() {
     <div className="bg-background">
         <div className="container mx-auto py-16 px-4 md:px-6">
         <div className="max-w-3xl mx-auto text-center mb-16">
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Get in Touch</h1>
-            <p className="mt-4 text-lg text-muted-foreground">
-            We're here to help. Whether you have a question about our services, rates, or anything else, our team is ready to answer all your questions.
+            <h1 className="text-4xl font-black italic uppercase tracking-tighter sm:text-6xl">Get in Touch</h1>
+            <p className="mt-4 text-lg text-muted-foreground font-medium uppercase text-[10px] tracking-[0.2em]">
+            Dedicated logistics lifeline for your worldwide shipping needs.
             </p>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
             <div className="lg:col-span-3">
-                <Card className="shadow-lg bg-card border-none">
-                    <CardHeader>
-                        <CardTitle className="text-2xl">Send us a Message</CardTitle>
-                        <CardDescription>Fill out the form and we'll respond as soon as possible.</CardDescription>
+                <Card className="shadow-2xl border-none rounded-2xl overflow-hidden">
+                    <CardHeader className="bg-primary text-primary-foreground">
+                        <CardTitle className="text-xl font-black uppercase italic tracking-tight">Send Correspondence</CardTitle>
+                        <CardDescription className="text-primary-foreground/60 text-[10px] font-bold uppercase">Our team typically responds within 2 business hours.</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-8">
                         <Form {...form}>
                             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            <FormField
-                                control={form.control}
-                                name="fullName"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Full Name</FormLabel>
-                                    <FormControl>
-                                    <Input placeholder="e.g., John Doe" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Email Address</FormLabel>
-                                    <FormControl>
-                                    <Input type="email" placeholder="you@example.com" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="fullName"
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[10px] font-bold uppercase opacity-60">Full Name</FormLabel>
+                                        <FormControl><Input placeholder="John Doe" {...field} className="h-11 border-2" /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="email"
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[10px] font-bold uppercase opacity-60">Email Address</FormLabel>
+                                        <FormControl><Input type="email" placeholder="john@example.com" {...field} className="h-11 border-2" /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                            </div>
                             <FormField
                                 control={form.control}
                                 name="subject"
                                 render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Subject</FormLabel>
-                                    <FormControl>
-                                    <Input placeholder="e.g., Question about my shipment" {...field} />
-                                    </FormControl>
+                                    <FormLabel className="text-[10px] font-bold uppercase opacity-60">Subject Header</FormLabel>
+                                    <FormControl><Input placeholder="e.g., Question about JM-12345" {...field} className="h-11 border-2" /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                                 )}
@@ -129,16 +127,38 @@ export default function ContactPage() {
                                 name="message"
                                 render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Message</FormLabel>
+                                    <FormLabel className="text-[10px] font-bold uppercase opacity-60">Message Content</FormLabel>
                                     <FormControl>
-                                        <Textarea placeholder="Please type your message here..." className="min-h-[150px]" {...field} />
+                                        <Textarea placeholder="How can our logistics team assist you today?" className="min-h-[150px] border-2" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                                 )}
                             />
-                            <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</> : <><Send className="mr-2 h-4 w-4" /> Send Message</>}
+                            
+                            <FormField
+                                control={form.control}
+                                name="consent"
+                                render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-lg border-2 border-dashed p-4 bg-muted/20">
+                                    <FormControl>
+                                    <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        className="mt-1"
+                                    />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wide">
+                                        I consent to FromStore2Door contacting me regarding this inquiry.
+                                    </FormLabel>
+                                    </div>
+                                </FormItem>
+                                )}
+                            />
+
+                            <Button type="submit" size="lg" className="w-full h-14 font-black uppercase italic shadow-lg" disabled={loading}>
+                                {loading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Dispatching...</> : <><Send className="mr-2 h-5 w-5" /> Authorize Dispatch</>}
                             </Button>
                             </form>
                         </Form>
@@ -147,44 +167,44 @@ export default function ContactPage() {
             </div>
 
             <div className="lg:col-span-2 space-y-8">
-                 <div className="p-8 rounded-lg bg-card shadow-lg border">
-                    <h3 className="font-bold text-2xl mb-6">Contact Information</h3>
+                 <div className="p-8 rounded-2xl bg-card shadow-xl border-2">
+                    <h3 className="font-black text-2xl uppercase italic tracking-tighter mb-6 border-b pb-4">Headquarters</h3>
                     <div className="space-y-6 text-muted-foreground">
                          <div className="flex items-start gap-4">
-                            <MapPin className="h-6 w-6 text-primary mt-1 shrink-0" />
+                            <div className="bg-primary/10 p-2.5 rounded-xl"><MapPin className="h-5 w-5 text-primary shrink-0" /></div>
                             <div>
-                                <h4 className="font-semibold text-foreground">Our Location</h4>
-                                <p>Portmore, St. Catherine</p>
+                                <h4 className="font-black text-[10px] uppercase tracking-widest text-foreground">Operational Location</h4>
+                                <p className="text-sm font-bold uppercase italic mt-0.5">Portmore, St. Catherine, Jamaica</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4">
-                            <Phone className="h-6 w-6 text-primary mt-1 shrink-0" />
+                            <div className="bg-primary/10 p-2.5 rounded-xl"><Phone className="h-5 w-5 text-primary shrink-0" /></div>
                             <div>
-                                <h4 className="font-semibold text-foreground">Phone Numbers</h4>
-                                <p>Digicel / WhatsApp: (876) 506-9727</p>
-                                <p>Flow: (876) 771-3071</p>
+                                <h4 className="font-black text-[10px] uppercase tracking-widest text-foreground">Direct Lifeline</h4>
+                                <p className="text-sm font-bold mt-0.5">(876) 506-9727 (Digicel)</p>
+                                <p className="text-sm font-bold">(876) 771-3071 (Flow)</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4">
-                            <Mail className="h-6 w-6 text-primary mt-1 shrink-0" />
+                            <div className="bg-primary/10 p-2.5 rounded-xl"><Mail className="h-5 w-5 text-primary shrink-0" /></div>
                              <div>
-                                <h4 className="font-semibold text-foreground">Email Us</h4>
-                                <p>info@fromstore2door.com</p>
+                                <h4 className="font-black text-[10px] uppercase tracking-widest text-foreground">Email Correspondence</h4>
+                                <p className="text-sm font-bold mt-0.5">info@fromstore2door.com</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4">
-                            <Clock className="h-6 w-6 text-primary mt-1 shrink-0" />
+                            <div className="bg-primary/10 p-2.5 rounded-xl"><Clock className="h-5 w-5 text-primary shrink-0" /></div>
                              <div>
-                                <h4 className="font-semibold text-foreground">Opening Hours</h4>
-                                <p>Monday - Friday: 9AM - 5PM</p>
-                                <p>Saturday: 9AM - 4PM</p>
+                                <h4 className="font-black text-[10px] uppercase tracking-widest text-foreground">Availability Window</h4>
+                                <p className="text-sm font-bold mt-0.5">Mon - Fri: 9AM - 5PM</p>
+                                <p className="text-sm font-bold">Saturday: 9AM - 4PM</p>
                             </div>
                         </div>
                          <div className="pt-4">
-                             <Button asChild className="w-full h-14 text-lg font-bold" size="lg" style={{ backgroundColor: '#25D366', color: 'white' }}>
+                             <Button asChild className="w-full h-16 text-lg font-black uppercase italic shadow-2xl" size="lg" style={{ backgroundColor: '#25D366', color: 'white' }}>
                                 <Link href="https://wa.me/18765069727" target="_blank">
-                                    <WhatsAppIcon className="w-6 h-6 mr-3" />
-                                    Chat with us on WhatsApp
+                                    <WhatsAppIcon className="w-7 h-7 mr-3" />
+                                    WhatsApp Command
                                 </Link>
                             </Button>
                         </div>

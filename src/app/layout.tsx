@@ -1,4 +1,3 @@
-
 import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -6,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { AppContent } from '@/components/app-content';
 import { Inter } from 'next/font/google';
 import SupabaseProvider from '@/components/supabase-provider';
+import { CookieConsent } from '@/components/cookie-consent';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -32,6 +32,7 @@ export default function RootLayout({
             <AppContent>
               {children}
             </AppContent>
+            <CookieConsent />
           </SupabaseProvider>
           <Toaster />
         </ThemeProvider>
