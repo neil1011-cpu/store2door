@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, DatabaseZap, ArrowRight, RefreshCcw, Zap, Search, Mail, Users as UsersIcon, CheckCircle2 } from 'lucide-react';
+import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, DatabaseZap, ArrowRight, RefreshCcw, Zap, Search, Mail, CheckCircle2 } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -14,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
@@ -23,7 +22,6 @@ export default function UsersPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncingHub, setIsSyncingHub] = useState(false);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [lastError, setLastError] = useState<any>(null);
@@ -197,7 +195,7 @@ export default function UsersPage() {
                 </div>
             )}
             <Button variant="outline" onClick={fetchUsers} disabled={isLoading} className="font-bold border-2">
-                <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Sync
+                <RefreshCcw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Sync
             </Button>
             <Button variant="outline" asChild className="font-bold border-2">
                 <Link href="/admin/migration">
@@ -328,7 +326,12 @@ export default function UsersPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="h-64 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /><p className="text-[10px] font-bold uppercase mt-2 opacity-40">Syncing Registry...</p></TableCell></TableRow>
+                <TableRow>
+                    <TableCell colSpan={5} className="h-64 text-center">
+                        <Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" />
+                        <p className="text-[10px] font-bold uppercase mt-2 opacity-40">Syncing Registry...</p>
+                    </TableCell>
+                </TableRow>
               ) : filteredUsers.map(u => (
                 <TableRow key={u.id} className={cn("hover:bg-primary/5 transition-colors h-20", selectedUserIds.has(u.id) && "bg-primary/5")}>
                   <TableCell className="pl-6 text-center">
@@ -362,7 +365,11 @@ export default function UsersPage() {
                 </TableRow>
               ))}
               {filteredUsers.length === 0 && !isLoading && (
-                  <TableRow><TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic opacity-30">No identities match your search parameters.</TableCell></TableRow>
+                  <TableRow>
+                      <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic opacity-30">
+                          No identities match your search parameters.
+                      </TableCell>
+                  </TableRow>
               )}
             </TableBody>
           </Table>

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { PlusCircle, ArrowLeft, Loader2, FileText, Zap, RefreshCw, CheckCircle2, Clock, Trash2, Eye, Download, AlertCircle, ArrowRight, BrainCircuit, Copy, ExternalLink, ImageIcon, ListRestart } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Zap, RefreshCw, CheckCircle2, Trash2, Eye, ImageIcon, ListRestart, BrainCircuit, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -126,7 +126,6 @@ export default function PreAlertsPage() {
             const { error } = await supabase.from('pre_alerts').update({ status: newStatus }).eq('id', id);
             if (error) throw error;
             
-            // OUTBOUND SYNC: Hub Update
             fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -154,7 +153,6 @@ export default function PreAlertsPage() {
 
             if (error) throw error;
 
-            // Mirror to Hub (OUTBOUND)
             fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -213,7 +211,6 @@ export default function PreAlertsPage() {
             });
             await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
 
-            // OUTBOUND SYNC: Hub Update
             fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -287,7 +284,7 @@ export default function PreAlertsPage() {
                                     <TableCell className="pl-6">
                                         <div className="h-16 w-16 rounded-lg bg-muted/10 border-2 border-dashed flex items-center justify-center text-muted-foreground/30">
                                             {alert.invoice_url ? (
-                                                <img src={`/api/storage/view?key=${encodeURIComponent(alert.invoice_url)}`} alt="Doc" className="object-cover w-full h-full rounded-lg" onError={(e) => (e.target as any).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xNCAyaDZhMiAyIDAgMCAxIDIgMnYxNmEyIDIgMCAwIDEtMiAyaC0xMmEyIDIgMCAwIDEtMi0ydi00Ii8+PHBhdGggZD0iTTggMjhWOGgzbDQgNHY3Ii8+PC9zdmc+'} />
+                                                <img src={`/api/storage/view?key=${encodeURIComponent(alert.invoice_url)}`} alt="Doc" className="object-cover w-full h-full rounded-lg" />
                                             ) : <ImageIcon className="h-6 w-6" />}
                                         </div>
                                     </TableCell>

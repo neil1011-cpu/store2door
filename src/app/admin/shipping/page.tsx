@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, FileText, ListRestart } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, ListRestart } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -56,10 +56,8 @@ export default function ShippingPage() {
       ]);
       setShipments(shipRes.data || []);
       setUsers(usersRes.data || []);
-      return { shipments: shipRes.data || [], users: usersRes.data || [] };
     } catch (error: any) {
       toast({ title: "Fetch Failure", description: error.message, variant: "destructive" });
-      return { shipments: [], users: [] };
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -262,7 +260,9 @@ export default function ShippingPage() {
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-md">
-                            <DialogHeader><DialogTitle className="uppercase italic text-center font-black">Transition {selectedIds.size} Parcels</DialogTitle></DialogHeader>
+                            <DialogHeader>
+                                <DialogTitle className="uppercase italic text-center font-black">Transition {selectedIds.size} Parcels</DialogTitle>
+                            </DialogHeader>
                             <div className="py-6 space-y-4">
                                 <Label className="text-[10px] font-bold uppercase opacity-60">New Target Status</Label>
                                 <Select onValueChange={handleBulkStatusUpdate}>
@@ -282,7 +282,9 @@ export default function ShippingPage() {
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-md">
-                            <DialogHeader><DialogTitle className="uppercase italic text-center font-black">New Route Manifest</DialogTitle></DialogHeader>
+                            <DialogHeader>
+                                <DialogTitle className="uppercase italic text-center font-black">New Route Manifest</DialogTitle>
+                            </DialogHeader>
                             <ManifestBuilderForm onSubmit={handleCreateManifestFromSelected} isSubmitting={isBulkProcessing} count={selectedIds.size} />
                         </DialogContent>
                     </Dialog>
@@ -346,9 +348,13 @@ export default function ShippingPage() {
             </TableHeader>
             <TableBody>
                 {isLoading && filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" /></TableCell></TableRow>
+                    <TableRow>
+                        <TableCell colSpan={6} className="text-center py-20">
+                            <Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" />
+                        </TableCell>
+                    </TableRow>
                 ) : filtered.map(s => (
-                    <TableRow key={s.id} className={cn("h-20 hover:bg-primary/5 transition-colors", selectedIds.has(s.id) && "bg-primary/5")}>
+                    <TableRow key={s.id} className={cn("h-20 hover:bg-primary/5 transition-colors", selectedIds.has(s.id) && "bg-primary/10")}>
                         <TableCell className="pl-6">
                             <Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} />
                         </TableCell>
@@ -399,7 +405,11 @@ export default function ShippingPage() {
                     </TableRow>
                 ))}
                 {filtered.length === 0 && !isLoading && (
-                    <TableRow><TableCell colSpan={6} className="h-64 text-center text-muted-foreground italic opacity-30">No active shipments match your search.</TableCell></TableRow>
+                    <TableRow>
+                        <TableCell colSpan={6} className="h-64 text-center text-muted-foreground italic opacity-30">
+                            No active shipments match your search.
+                        </TableCell>
+                    </TableRow>
                 )}
             </TableBody>
           </Table>
