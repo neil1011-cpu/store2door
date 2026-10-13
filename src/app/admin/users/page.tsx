@@ -332,38 +332,40 @@ export default function UsersPage() {
                         <p className="text-[10px] font-bold uppercase mt-2 opacity-40">Syncing Registry...</p>
                     </TableCell>
                 </TableRow>
-              ) : filteredUsers.map(u => (
-                <TableRow key={u.id} className={cn("hover:bg-primary/5 transition-colors h-20", selectedUserIds.has(u.id) && "bg-primary/5")}>
-                  <TableCell className="pl-6 text-center">
-                    <Checkbox 
-                      checked={selectedUserIds.has(u.id)} 
-                      onCheckedChange={() => toggleSelectUser(u.id)} 
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <p className="font-black text-primary uppercase text-sm">{u.full_name}</p>
-                    <p className="text-[10px] font-mono opacity-60 uppercase tracking-tighter">{u.email}</p>
-                  </TableCell>
-                  <TableCell className="font-mono font-bold">
-                    <Badge variant="outline" className="h-8 px-4 font-black italic border-2">{u.mailbox_number}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                        {u.app_roles?.map((r: any) => (
-                            <Badge key={r.role} variant={r.role === 'admin' ? 'default' : 'secondary'} className="capitalize text-[8px] font-black italic tracking-widest border-2">
-                                {r.role === 'admin' && <ShieldCheck className="h-2 w-2 mr-1" />}
-                                {r.role}
-                            </Badge>
-                        ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right pr-6">
-                    <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase italic text-[10px] border-2 shadow-sm px-6">
-                        <Link href={`/admin/users/${u.id}`}>Audit Record</Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              ) : (
+                filteredUsers.map(u => (
+                    <TableRow key={u.id} className={cn("hover:bg-primary/5 transition-colors h-20", selectedUserIds.has(u.id) && "bg-primary/5")}>
+                    <TableCell className="pl-6 text-center">
+                        <Checkbox 
+                        checked={selectedUserIds.has(u.id)} 
+                        onCheckedChange={() => toggleSelectUser(u.id)} 
+                        />
+                    </TableCell>
+                    <TableCell>
+                        <p className="font-black text-primary uppercase text-sm">{u.full_name}</p>
+                        <p className="text-[10px] font-mono opacity-60 uppercase tracking-tighter">{u.email}</p>
+                    </TableCell>
+                    <TableCell className="font-mono font-bold">
+                        <Badge variant="outline" className="h-8 px-4 font-black italic border-2">{u.mailbox_number}</Badge>
+                    </TableCell>
+                    <TableCell>
+                        <div className="flex gap-1">
+                            {u.app_roles?.map((r: any) => (
+                                <Badge key={r.role} variant={r.role === 'admin' ? 'default' : 'secondary'} className="capitalize text-[8px] font-black italic tracking-widest border-2">
+                                    {r.role === 'admin' && <ShieldCheck className="h-2 w-2 mr-1" />}
+                                    {r.role}
+                                </Badge>
+                            ))}
+                        </div>
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                        <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase italic text-[10px] border-2 shadow-sm px-6">
+                            <Link href={`/admin/users/${u.id}`}>Audit Record</Link>
+                        </Button>
+                    </TableCell>
+                    </TableRow>
+                ))
+              )}
               {filteredUsers.length === 0 && !isLoading && (
                   <TableRow>
                       <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic opacity-30">

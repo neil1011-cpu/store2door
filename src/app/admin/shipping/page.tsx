@@ -353,57 +353,59 @@ export default function ShippingPage() {
                             <Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" />
                         </TableCell>
                     </TableRow>
-                ) : filtered.map(s => (
-                    <TableRow key={s.id} className={cn("h-20 hover:bg-primary/5 transition-colors", selectedIds.has(s.id) && "bg-primary/10")}>
-                        <TableCell className="pl-6">
-                            <Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} />
-                        </TableCell>
-                        <TableCell>
-                            <p className="font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</p>
-                            <p className="text-[9px] font-bold opacity-40 uppercase truncate max-w-[150px]">{s.contents || 'No Description'}</p>
-                        </TableCell>
-                        <TableCell>
-                            <p className="font-bold text-xs uppercase italic">{s.profiles?.full_name}</p>
-                            <p className="text-[9px] font-mono opacity-60 uppercase">{s.profiles?.mailbox_number}</p>
-                        </TableCell>
-                        <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
-                        <TableCell className="text-right pr-6 font-black tracking-tighter text-lg text-primary">
-                            JMD ${Number(s.total_cost_jmd || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right pr-6">
-                          <div className="flex justify-end gap-2">
-                            <StatusUpdateDialog 
-                              shipment={s} 
-                              onUpdate={(newStatus) => handleStatusUpdate(s.id, newStatus)} 
-                            />
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle className="font-black uppercase italic">Purge Shipment Record?</AlertDialogTitle>
-                                  <AlertDialogDescription className="text-[10px] font-bold uppercase">
-                                    This will permanently remove <strong>{s.tracking_number}</strong> from the active ledger.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel className="font-black uppercase h-12 border-2">Abort</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => handleDeleteShipment(s.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg"
-                                  >
-                                    Authorize Purge
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </TableCell>
-                    </TableRow>
-                ))}
+                ) : (
+                    filtered.map(s => (
+                        <TableRow key={s.id} className={cn("h-20 hover:bg-primary/5 transition-colors", selectedIds.has(s.id) && "bg-primary/10")}>
+                            <TableCell className="pl-6">
+                                <Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} />
+                            </TableCell>
+                            <TableCell>
+                                <p className="font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</p>
+                                <p className="text-[9px] font-bold opacity-40 uppercase truncate max-w-[150px]">{s.contents || 'No Description'}</p>
+                            </TableCell>
+                            <TableCell>
+                                <p className="font-bold text-xs uppercase italic">{s.profiles?.full_name}</p>
+                                <p className="text-[9px] font-mono opacity-60 uppercase">{s.profiles?.mailbox_number}</p>
+                            </TableCell>
+                            <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
+                            <TableCell className="text-right pr-6 font-black tracking-tighter text-lg text-primary">
+                                JMD ${Number(s.total_cost_jmd || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-right pr-6">
+                            <div className="flex justify-end gap-2">
+                                <StatusUpdateDialog 
+                                shipment={s} 
+                                onUpdate={(newStatus) => handleStatusUpdate(s.id, newStatus)} 
+                                />
+                                <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive">
+                                    <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle className="font-black uppercase italic">Purge Shipment Record?</AlertDialogTitle>
+                                    <AlertDialogDescription className="text-[10px] font-bold uppercase">
+                                        This will permanently remove <strong>{s.tracking_number}</strong> from the active ledger.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel className="font-black uppercase h-12 border-2">Abort</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                        onClick={() => handleDeleteShipment(s.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg"
+                                    >
+                                        Authorize Purge
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
+                            </TableCell>
+                        </TableRow>
+                    ))
+                )}
                 {filtered.length === 0 && !isLoading && (
                     <TableRow>
                         <TableCell colSpan={6} className="h-64 text-center text-muted-foreground italic opacity-30">

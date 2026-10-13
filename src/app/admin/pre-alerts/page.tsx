@@ -279,36 +279,44 @@ export default function PreAlertsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {preAlerts.map(alert => (
-                                <TableRow key={alert.id} className={cn("hover:bg-primary/5 transition-colors h-24", alert.status === 'Processed' && "opacity-60")}>
-                                    <TableCell className="pl-6">
-                                        <div className="h-16 w-16 rounded-lg bg-muted/10 border-2 border-dashed flex items-center justify-center text-muted-foreground/30">
-                                            {alert.invoice_url ? (
-                                                <img src={`/api/storage/view?key=${encodeURIComponent(alert.invoice_url)}`} alt="Doc" className="object-cover w-full h-full rounded-lg" />
-                                            ) : <ImageIcon className="h-6 w-6" />}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell><Badge variant={alert.status === 'Processed' ? 'secondary' : alert.status === 'Cancelled' ? 'outline' : 'default'} className="uppercase text-[8px] font-black italic border-2">{alert.status}</Badge></TableCell>
-                                    <TableCell><p className="font-black text-sm uppercase">{alert.profiles?.full_name}</p><p className="text-[9px] font-bold opacity-60 uppercase">{alert.contents}</p></TableCell>
-                                    <TableCell className="font-mono font-black text-primary uppercase text-sm">{alert.tracking_number}</TableCell>
-                                    <TableCell className="text-right pr-6">
-                                        <div className="flex justify-end gap-2">
-                                            <PreAlertStatusUpdateDialog 
-                                              alert={alert} 
-                                              onUpdate={(newStatus) => handleStatusUpdate(alert.id, newStatus)} 
-                                            />
-                                            <InvoicePreviewDialog url={alert.invoice_url ? `/api/storage/view?key=${alert.invoice_url}` : null} storageKey={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
-                                            <AlertDialog>
-                                              <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                                              <AlertDialogContent>
-                                                <AlertDialogHeader><AlertDialogTitle className="font-black uppercase italic">Purge viewing record?</AlertDialogTitle></AlertDialogHeader>
-                                                <AlertDialogFooter><AlertDialogCancel className="font-bold h-12 uppercase">Abort</AlertDialogCancel><AlertDialogAction onClick={() => handleDeletePreAlert(alert.id)} className="bg-destructive font-black uppercase h-12">Authorize Purge</AlertDialogAction></AlertDialogFooter>
-                                              </AlertDialogContent>
-                                            </AlertDialog>
-                                        </div>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center py-20">
+                                        <Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" />
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : (
+                                preAlerts.map(alert => (
+                                    <TableRow key={alert.id} className={cn("hover:bg-primary/5 transition-colors h-24", alert.status === 'Processed' && "opacity-60")}>
+                                        <TableCell className="pl-6">
+                                            <div className="h-16 w-16 rounded-lg bg-muted/10 border-2 border-dashed flex items-center justify-center text-muted-foreground/30">
+                                                {alert.invoice_url ? (
+                                                    <img src={`/api/storage/view?key=${encodeURIComponent(alert.invoice_url)}`} alt="Doc" className="object-cover w-full h-full rounded-lg" />
+                                                ) : <ImageIcon className="h-6 w-6" />}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell><Badge variant={alert.status === 'Processed' ? 'secondary' : alert.status === 'Cancelled' ? 'outline' : 'default'} className="uppercase text-[8px] font-black italic border-2">{alert.status}</Badge></TableCell>
+                                        <TableCell><p className="font-black text-sm uppercase">{alert.profiles?.full_name}</p><p className="text-[9px] font-bold opacity-60 uppercase">{alert.contents}</p></TableCell>
+                                        <TableCell className="font-mono font-black text-primary uppercase text-sm">{alert.tracking_number}</TableCell>
+                                        <TableCell className="text-right pr-6">
+                                            <div className="flex justify-end gap-2">
+                                                <PreAlertStatusUpdateDialog 
+                                                alert={alert} 
+                                                onUpdate={(newStatus) => handleStatusUpdate(alert.id, newStatus)} 
+                                                />
+                                                <InvoicePreviewDialog url={alert.invoice_url ? `/api/storage/view?key=${alert.invoice_url}` : null} storageKey={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
+                                                <AlertDialog>
+                                                <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader><AlertDialogTitle className="font-black uppercase italic">Purge viewing record?</AlertDialogTitle></AlertDialogHeader>
+                                                    <AlertDialogFooter><AlertDialogCancel className="font-bold h-12 uppercase">Abort</AlertDialogCancel><AlertDialogAction onClick={() => handleDeletePreAlert(alert.id)} className="bg-destructive font-black uppercase h-12">Authorize Purge</AlertDialogAction></AlertDialogFooter>
+                                                </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
