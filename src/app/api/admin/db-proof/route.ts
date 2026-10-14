@@ -13,7 +13,19 @@ export async function GET() {
     const supabase = await createAdminClient();
     
     // Direct check of known tables via literal existence test
-    const tablesToCheck = ['profiles', 'app_roles', 'shipments', 'invoices', 'financial_ledger'];
+    const tablesToCheck = [
+        'profiles', 
+        'app_roles', 
+        'shipments', 
+        'invoices', 
+        'financial_ledger', 
+        'manifests', 
+        'pre_alerts', 
+        'document_assets', 
+        'system_configs', 
+        'sent_emails', 
+        'system_logs'
+    ];
     const existing: string[] = [];
 
     for (const table of tablesToCheck) {
@@ -32,7 +44,7 @@ export async function GET() {
       status: existing.length > 0 ? 'SUCCESS' : 'EMPTY',
       tables: existing,
       project: url.replace(/(https:\/\/)(.*)(.supabase.co)/, '$1***$3'), // Mask sensitive part
-      fullProjectUrl: url // For debugging in this specific turn
+      fullProjectUrl: url
     });
 
   } catch (err: any) {

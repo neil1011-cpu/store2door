@@ -4,7 +4,7 @@
  * Includes evolution logic to handle missing columns in existing deployments.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.7)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.8)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -157,54 +157,30 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
     created_at timestamptz DEFAULT now() NOT NULL
 );
 
--- 5. EVOLUTION LOGIC (Add missing columns to existing deployments)
+-- 5. EVOLUTION LOGIC
 DO $$ 
 BEGIN
     -- Shipments Evolution
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='manifest_id') THEN
+        ALTER TABLE public.shipments ADD COLUMN manifest_id uuid REFERENCES public.manifests(id);
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='invoice_url') THEN
         ALTER TABLE public.shipments ADD COLUMN invoice_url text;
-    END IF;
-    
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='updated_at') THEN
-        ALTER TABLE public.shipments ADD COLUMN updated_at timestamptz DEFAULT now() NOT NULL;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='logicware_id') THEN
         ALTER TABLE public.shipments ADD COLUMN logicware_id text UNIQUE;
     END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='manifest_id') THEN
-        ALTER TABLE public.shipments ADD COLUMN manifest_id uuid REFERENCES public.manifests(id);
-    END IF;
-
-    -- Profiles Evolution
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='logicware_id') THEN
-        ALTER TABLE public.profiles ADD COLUMN logicware_id text UNIQUE;
-    END IF;
-
-    -- Pre-Alerts Evolution
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='pre_alerts' AND column_name='invoice_url') THEN
-        ALTER TABLE public.pre_alerts ADD COLUMN invoice_url text;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='pre_alerts' AND column_name='logicware_id') THEN
-        ALTER TABLE public.pre_alerts ADD COLUMN logicware_id text UNIQUE;
-    END IF;
-
-    -- System Configs Evolution
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='system_configs' AND column_name='updated_by') THEN
-        ALTER TABLE public.system_configs ADD COLUMN updated_by uuid REFERENCES public.profiles(id);
-    END IF;
 END $$;
 
--- 6. INDEXES (Performance & RLS)
+-- 6. INDEXES
 CREATE INDEX IF NOT EXISTS idx_ledger_profile ON public.financial_ledger(profile_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_profile ON public.invoices(profile_id);
 CREATE INDEX IF NOT EXISTS idx_pre_alerts_profile ON public.pre_alerts(profile_id);
 CREATE INDEX IF NOT EXISTS idx_shipments_profile ON public.shipments(profile_id);
 CREATE INDEX IF NOT EXISTS idx_roles_user ON public.app_roles(user_id);
 CREATE INDEX IF NOT EXISTS idx_doc_assets_profile ON public.document_assets(profile_id);
-CREATE INDEX IF NOT EXISTS idx_addresses_profile ON public.addresses(profile_id);
 CREATE INDEX IF NOT EXISTS idx_manifest_date ON public.manifests(manifest_date);
 
 -- 7. FUNCTIONS
@@ -217,7 +193,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- SECURE SYNC TRIGGER
 CREATE OR REPLACE FUNCTION public.sync_profile_balance()
 RETURNS trigger AS $$
 BEGIN
@@ -237,7 +212,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- AUTOMATED MAILBOX TRIGGER
 CREATE OR REPLACE FUNCTION public.assign_mailbox_number()
 RETURNS trigger AS $$
 BEGIN
@@ -274,57 +248,31 @@ ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.manifests ENABLE ROW LEVEL SECURITY;
 
 -- 10. POLICIES
-
--- Manifests
 DROP POLICY IF EXISTS "manifests_select" ON public.manifests;
 CREATE POLICY "manifests_select" ON public.manifests FOR SELECT USING (is_admin());
 DROP POLICY IF EXISTS "manifests_all_admin" ON public.manifests;
 CREATE POLICY "manifests_all_admin" ON public.manifests FOR ALL USING (is_admin());
 
--- Addresses
-DROP POLICY IF EXISTS "addresses_select" ON public.addresses;
-CREATE POLICY "addresses_select" ON public.addresses FOR SELECT USING (auth.uid() = profile_id OR is_admin());
-DROP POLICY IF EXISTS "addresses_all_own" ON public.addresses FOR ALL USING (auth.uid() = profile_id);
-
--- Document Assets
-DROP POLICY IF EXISTS "doc_assets_select" ON public.document_assets;
-CREATE POLICY "doc_assets_select" ON public.document_assets FOR SELECT USING (auth.uid() = profile_id OR is_admin());
-DROP POLICY IF EXISTS "doc_assets_insert" ON public.document_assets;
-CREATE POLICY "doc_assets_insert" ON public.document_assets FOR INSERT WITH CHECK (auth.uid() = profile_id);
-
--- Profiles
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (auth.uid() = id OR is_admin());
 DROP POLICY IF EXISTS "profiles_update" ON public.profiles;
 CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
--- Ledger
 DROP POLICY IF EXISTS "ledger_select" ON public.financial_ledger;
 CREATE POLICY "ledger_select" ON public.financial_ledger FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "ledger_insert_admin" ON public.financial_ledger;
 CREATE POLICY "ledger_insert_admin" ON public.financial_ledger FOR INSERT WITH CHECK (is_admin());
 
--- Invoices
 DROP POLICY IF EXISTS "invoices_select" ON public.invoices;
 CREATE POLICY "invoices_select" ON public.invoices FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "invoices_admin" ON public.invoices;
 CREATE POLICY "invoices_admin" ON public.invoices FOR ALL USING (is_admin());
 
--- Pre-alerts
-DROP POLICY IF EXISTS "pre_alerts_select" ON public.pre_alerts;
-CREATE POLICY "pre_alerts_select" ON public.pre_alerts FOR SELECT USING (auth.uid() = profile_id OR is_admin());
-DROP POLICY IF EXISTS "pre_alerts_insert" ON public.pre_alerts;
-CREATE POLICY "pre_alerts_insert" ON public.pre_alerts FOR INSERT WITH CHECK (auth.uid() = profile_id);
-DROP POLICY IF EXISTS "pre_alerts_admin" ON public.pre_alerts;
-CREATE POLICY "pre_alerts_admin" ON public.pre_alerts FOR ALL USING (is_admin());
-
--- Shipments
 DROP POLICY IF EXISTS "shipments_select" ON public.shipments;
 CREATE POLICY "shipments_select" ON public.shipments FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "shipments_admin" ON public.shipments;
 CREATE POLICY "shipments_admin" ON public.shipments FOR ALL USING (is_admin());
 
--- Internal Audit
 DROP POLICY IF EXISTS "logs_select_admin" ON public.system_logs;
 CREATE POLICY "logs_select_admin" ON public.system_logs FOR SELECT USING (is_admin());
 DROP POLICY IF EXISTS "emails_select_admin" ON public.sent_emails;
@@ -346,5 +294,4 @@ BEGIN
     ON CONFLICT DO NOTHING;
 END $$;
 
-NOTIFY pgrst, 'reload schema';
-`;
+NOTIFY pgrst, 'reload schema';`;

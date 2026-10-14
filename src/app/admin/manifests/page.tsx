@@ -63,7 +63,6 @@ export default function ManifestsPage() {
 
   const fetchLogicwareManifests = useCallback(async () => {
     if (!isMounted) return;
-    setIsFetching(true);
     try {
       const response = await fetch('/api/admin/logicware-manifests', {
           method: 'POST',
@@ -90,8 +89,6 @@ export default function ManifestsPage() {
       setLogicwareManifests(mapped);
     } catch (error: any) {
       console.warn('[HUB_SYNC_WARN]', error.message);
-    } finally {
-      setIsFetching(false);
     }
   }, [isMounted]);
 
@@ -102,7 +99,14 @@ export default function ManifestsPage() {
             .select('*')
             .order('manifest_date', { ascending: false });
         
-        if (error) throw error;
+        if (error) {
+            // Handle missing table gracefully without showing a toast to the user
+            if (error.code === '42P01') {
+                console.warn('[LOCAL_REGISTRY] Manifests table missing. Run SQL setup.');
+                return;
+            }
+            throw error;
+        }
 
         const mapped: Manifest[] = (data || []).map(m => ({
             id: m.id,
@@ -118,13 +122,13 @@ export default function ManifestsPage() {
 
         setLocalManifests(mapped);
     } catch (err: any) {
-        toast({ title: "Registry Error", description: err.message, variant: "destructive" });
+        console.error('[LOCAL_FETCH_ERROR]', err);
     }
-  }, [supabase, toast]);
+  }, [supabase]);
 
   const fetchAllData = useCallback(async () => {
     setIsFetching(true);
-    await Promise.all([fetchLocalManifests(), fetchLogicwareManifests()]);
+    await Promise.allSettled([fetchLocalManifests(), fetchLogicwareManifests()]);
     setIsFetching(false);
   }, [fetchLocalManifests, fetchLogicwareManifests]);
 
@@ -254,7 +258,7 @@ export default function ManifestsPage() {
               <TableRow className="h-12">
                 <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Type</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Route #</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest">Carrier</TableHead>
+                <TableHead className="text-[10px) font-black uppercase tracking-widest">Carrier</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Date</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Dest</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Status</TableHead>
