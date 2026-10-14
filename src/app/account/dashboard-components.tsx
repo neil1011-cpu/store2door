@@ -20,7 +20,7 @@ import { Separator } from '@/components/ui/separator';
 
 const getStatusVariant = (status: string | undefined) => {
   const safeStatus = (status || 'Pending').toLowerCase();
-  if (safeStatus.includes('transit') || safeStatus.includes('shipped') || safeStatus.includes('delivery')) return 'default';
+  if (safeStatus.includes('transit') || safeStatus.includes('shipped') || safeStatus.includes('delivery') || safeStatus.includes('pick up')) return 'default';
   if (safeStatus.includes('delivered')) return 'outline';
   if (safeStatus.includes('pending') || safeStatus.includes('pre-alert') || safeStatus.includes('hold')) return 'destructive';
   if (safeStatus.includes('returned')) return 'secondary';
@@ -113,6 +113,17 @@ export function DashboardTab({ details }: { details: UserProfile }) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-[10px] font-bold uppercase opacity-60">Full Name</Label>
+          <Input value={details.full_name} readOnly className="bg-muted/50" />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-[10px] font-bold uppercase opacity-60">Mailbox</Label>
+          <Input value={details.mailbox_number} readOnly className="bg-muted/50 font-mono font-bold" />
+        </div>
+      </div>
+      
       <div className="lg:col-span-7 space-y-6">
         <WarehouseAddressCard details={details} />
         

@@ -23,6 +23,7 @@ const SHIPMENT_STATUSES = [
   'Processing',
   'In transit',
   'Out for delivery',
+  'Ready for pick up',
   'Delivered',
   'Returned',
   'On Hold'
@@ -54,6 +55,9 @@ export default function ShippingPage() {
         supabase.from('shipments').select('*, profiles(full_name, mailbox_number)').order('created_at', { ascending: false }),
         supabase.from('profiles').select('*').order('full_name', { ascending: true })
       ]);
+      if (shipRes.error) throw shipRes.error;
+      if (usersRes.error) throw usersRes.error;
+
       setShipments(shipRes.data || []);
       setUsers(usersRes.data || []);
     } catch (error: any) {

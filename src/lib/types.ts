@@ -39,6 +39,7 @@ export type ShipmentStatus =
   | 'Processing' 
   | 'In transit' 
   | 'Out for delivery' 
+  | 'Ready for pick up'
   | 'Delivered'
   | 'Returned'
   | 'On Hold';
