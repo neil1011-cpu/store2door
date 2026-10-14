@@ -4,7 +4,7 @@
  * Includes evolution logic to handle missing columns in existing deployments.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.8)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.9)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -160,17 +160,39 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
 -- 5. EVOLUTION LOGIC
 DO $$ 
 BEGIN
-    -- Shipments Evolution
+    -- Ensure Manifests Table exists before adding foreign keys
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'manifests') THEN
+        CREATE TABLE public.manifests (
+            id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+            flight_number text NOT NULL,
+            manifest_date date NOT NULL,
+            carrier text,
+            origin text DEFAULT 'Florida',
+            destination text DEFAULT 'Jamaica',
+            status text DEFAULT 'Scheduled',
+            manifest_type text DEFAULT 'Air',
+            created_at timestamptz DEFAULT now() NOT NULL
+        );
+    END IF;
+
+    -- Add manifest_id to shipments if missing
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='manifest_id') THEN
         ALTER TABLE public.shipments ADD COLUMN manifest_id uuid REFERENCES public.manifests(id);
     END IF;
 
+    -- Add invoice_url to shipments if missing
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='invoice_url') THEN
         ALTER TABLE public.shipments ADD COLUMN invoice_url text;
     END IF;
 
+    -- Add logicware_id to shipments if missing
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='logicware_id') THEN
         ALTER TABLE public.shipments ADD COLUMN logicware_id text UNIQUE;
+    END IF;
+
+    -- Ensure pre_alerts has logicware_id
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='pre_alerts' AND column_name='logicware_id') THEN
+        ALTER TABLE public.pre_alerts ADD COLUMN logicware_id text UNIQUE;
     END IF;
 END $$;
 

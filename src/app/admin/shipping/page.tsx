@@ -149,7 +149,12 @@ export default function ShippingPage() {
               manifest_type: data.type
           }).select().single();
 
-          if (mError) throw mError;
+          if (mError) {
+              if (mError.code === '42P01') {
+                  throw new Error("The 'manifests' table has not been established in your database. Please run the SQL setup in Admin > Settings.");
+              }
+              throw mError;
+          }
 
           // 2. Assign shipments to this manifest
           const { error: sError } = await supabase.from('shipments').update({
