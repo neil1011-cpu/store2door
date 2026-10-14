@@ -62,7 +62,6 @@ export default function ManifestsPage() {
   });
 
   const fetchLogicwareManifests = useCallback(async () => {
-    if (!isMounted) return;
     try {
       const response = await fetch('/api/admin/logicware-manifests', {
           method: 'POST',
@@ -75,7 +74,7 @@ export default function ManifestsPage() {
 
       const raw = data.manifests || [];
       const mapped: Manifest[] = raw.map((m: any) => ({
-          id: `lw-${m.id}`,
+          id: `lw-${m.id || Math.random()}`,
           flightNumber: m.code || m.manifestNumber || m.voyageNumber || m.flightNumber || 'HUBSYNC',
           date: m.departureDate || m.date || new Date().toISOString(),
           origin: m.originPort || m.origin || 'N/A',
@@ -90,7 +89,7 @@ export default function ManifestsPage() {
     } catch (error: any) {
       console.warn('[HUB_SYNC_WARN]', error.message);
     }
-  }, [isMounted]);
+  }, []);
 
   const fetchLocalManifests = useCallback(async () => {
     try {
@@ -100,7 +99,7 @@ export default function ManifestsPage() {
             .order('manifest_date', { ascending: false });
         
         if (error) {
-            // Handle missing table gracefully without showing a toast to the user
+            // Handle missing table gracefully
             if (error.code === '42P01') {
                 console.warn('[LOCAL_REGISTRY] Manifests table missing. Run SQL setup.');
                 return;
@@ -122,7 +121,7 @@ export default function ManifestsPage() {
 
         setLocalManifests(mapped);
     } catch (err: any) {
-        console.error('[LOCAL_FETCH_ERROR]', err);
+        console.error('[LOCAL_FETCH_ERROR]', err.message || err);
     }
   }, [supabase]);
 
@@ -258,7 +257,7 @@ export default function ManifestsPage() {
               <TableRow className="h-12">
                 <TableHead className="pl-6 text-[10px] font-black uppercase tracking-widest">Type</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Route #</TableHead>
-                <TableHead className="text-[10px) font-black uppercase tracking-widest">Carrier</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Carrier</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Date</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Dest</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest">Status</TableHead>
