@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, Fragment } from 'react';
 import {
   Card,
   CardContent,
@@ -107,11 +107,8 @@ export default function ManifestsPage() {
             .order('manifest_date', { ascending: false });
         
         if (error) {
-            if (error.code === '42P01') {
-                console.warn('[LOCAL_REGISTRY] Manifests table missing.');
-                return;
-            }
-            throw error;
+            console.error('[LOCAL_FETCH_ERROR]', error.message);
+            return;
         }
 
         const mapped: Manifest[] = (data || []).map(m => ({
@@ -128,7 +125,7 @@ export default function ManifestsPage() {
 
         setLocalManifests(mapped);
     } catch (err: any) {
-        console.error('[LOCAL_FETCH_ERROR]', err.message || err);
+        console.error('[LOCAL_FETCH_FATAL]', err.message || err);
     }
   }, [supabase]);
 
@@ -229,9 +226,11 @@ export default function ManifestsPage() {
   }
 
   const combinedManifests = useMemo(() => {
-    return [...localManifests, ...logicwareManifests].sort((a, b) => 
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    return [...localManifests, ...logicwareManifests].sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return dateB - dateA;
+    });
   }, [localManifests, logicwareManifests]);
 
   return (
@@ -321,7 +320,7 @@ export default function ManifestsPage() {
               {isFetching && combinedManifests.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center py-10"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : combinedManifests.map((manifest) => (
-                <React.Fragment key={manifest.id}>
+                <Fragment key={manifest.id}>
                     <TableRow 
                         className={cn(
                             "hover:bg-primary/5 transition-colors h-16 cursor-pointer group", 
@@ -427,7 +426,7 @@ export default function ManifestsPage() {
                             </TableCell>
                         </TableRow>
                     )}
-                </React.Fragment>
+                </Fragment>
               ))}
               {combinedManifests.length === 0 && !isFetching && (
                 <TableRow><TableCell colSpan={6} className="text-center h-48 opacity-30 italic">No worldwide routes logged.</TableCell></TableRow>
