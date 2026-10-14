@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, ArrowLeft, RefreshCw, Zap, Plane, Ship, Loader2 } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Zap, Plane, Ship, Loader2, RefreshCw } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -41,10 +41,12 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Manifest } from '@/lib/types';
+import { useSupabase } from '@/components/supabase-provider';
 
 export default function ManifestsPage() {
   const { toast } = useToast();
-  const [manifests, setManifests] = useState<Manifest[]>([]);
+  const { supabase } = useSupabase();
+  const [localManifests, setLocalManifests] = useState<Manifest[]>([]);
   const [logicwareManifests, setLogicwareManifests] = useState<Manifest[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -52,14 +54,14 @@ export default function ManifestsPage() {
   const [newManifest, setNewManifest] = useState<Omit<Manifest, 'id' | 'isLogicware'>>({
     flightNumber: '',
     date: '',
-    origin: '',
-    destination: '',
+    origin: 'Florida',
+    destination: 'Jamaica',
     status: 'Scheduled',
     type: 'Air',
     carrier: ''
   });
 
-  const fetchLogicwareManifests = async () => {
+  const fetchLogicwareManifests = useCallback(async () => {
     if (!isMounted) return;
     setIsFetching(true);
     try {
@@ -70,12 +72,11 @@ export default function ManifestsPage() {
       });
       const data = await response.json();
 
-      if (!response.ok) throw new Error(data?.message || 'Sync failed');
+      if (!response.ok) throw new Error(data?.message || 'Hub sync failure');
 
       const raw = data.manifests || [];
       const mapped: Manifest[] = raw.map((m: any) => ({
           id: `lw-${m.id}`,
-          // Hub can return code, manifestNumber, or flightNumber
           flightNumber: m.code || m.manifestNumber || m.voyageNumber || m.flightNumber || 'HUBSYNC',
           date: m.departureDate || m.date || new Date().toISOString(),
           origin: m.originPort || m.origin || 'N/A',
@@ -87,16 +88,45 @@ export default function ManifestsPage() {
       }));
 
       setLogicwareManifests(mapped);
-      toast({ 
-          title: 'Success', 
-          description: `Loaded ${mapped.length} worldwide records.` 
-      });
     } catch (error: any) {
-      toast({ title: 'Sync Error', description: error.message, variant: "destructive" });
+      console.warn('[HUB_SYNC_WARN]', error.message);
     } finally {
       setIsFetching(false);
     }
-  };
+  }, [isMounted]);
+
+  const fetchLocalManifests = useCallback(async () => {
+    try {
+        const { data, error } = await supabase
+            .from('manifests')
+            .select('*')
+            .order('manifest_date', { ascending: false });
+        
+        if (error) throw error;
+
+        const mapped: Manifest[] = (data || []).map(m => ({
+            id: m.id,
+            flightNumber: m.flight_number,
+            date: m.manifest_date,
+            origin: m.origin,
+            destination: m.destination,
+            status: m.status,
+            type: m.manifest_type === 'Sea' ? 'Sea' : 'Air',
+            carrier: m.carrier,
+            isLogicware: false
+        }));
+
+        setLocalManifests(mapped);
+    } catch (err: any) {
+        toast({ title: "Registry Error", description: err.message, variant: "destructive" });
+    }
+  }, [supabase, toast]);
+
+  const fetchAllData = useCallback(async () => {
+    setIsFetching(true);
+    await Promise.all([fetchLocalManifests(), fetchLogicwareManifests()]);
+    setIsFetching(false);
+  }, [fetchLocalManifests, fetchLogicwareManifests]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -104,35 +134,47 @@ export default function ManifestsPage() {
 
   useEffect(() => {
     if (isMounted) {
-        fetchLogicwareManifests();
+        fetchAllData();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted]);
+  }, [isMounted, fetchAllData]);
 
   const combinedManifests = useMemo(() => {
-    return [...manifests, ...logicwareManifests].sort((a, b) => 
+    return [...localManifests, ...logicwareManifests].sort((a, b) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-  }, [manifests, logicwareManifests]);
+  }, [localManifests, logicwareManifests]);
 
-  const handleCreateManifest = () => {
+  const handleCreateManifest = async () => {
     if (!newManifest.flightNumber) return;
-    const manifestToAdd: Manifest = {
-        id: `local-${Date.now()}`,
-        ...newManifest,
-        isLogicware: false
-    };
-    setManifests([...manifests, manifestToAdd]);
-    setOpen(false);
-    setNewManifest({
-        flightNumber: '',
-        date: '',
-        origin: '',
-        destination: '',
-        status: 'Scheduled',
-        type: 'Air',
-        carrier: ''
-    });
+    
+    try {
+        const { error } = await supabase.from('manifests').insert({
+            flight_number: newManifest.flightNumber,
+            manifest_date: newManifest.date,
+            carrier: newManifest.carrier,
+            origin: newManifest.origin,
+            destination: newManifest.destination,
+            status: newManifest.status,
+            manifest_type: newManifest.type
+        });
+
+        if (error) throw error;
+
+        toast({ title: "Manifest Established" });
+        setOpen(false);
+        setNewManifest({
+            flightNumber: '',
+            date: '',
+            origin: 'Florida',
+            destination: 'Jamaica',
+            status: 'Scheduled',
+            type: 'Air',
+            carrier: ''
+        });
+        fetchLocalManifests();
+    } catch (err: any) {
+        toast({ title: "Creation Failed", description: err.message, variant: "destructive" });
+    }
   };
 
   const getStatusVariant = (status: string) => {
@@ -152,9 +194,9 @@ export default function ManifestsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-            <Button onClick={fetchLogicwareManifests} variant="outline" disabled={isFetching} className="font-bold border-2">
-                {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-blue-500" />}
-                Sync External Hub
+            <Button onClick={fetchAllData} variant="outline" disabled={isFetching} className="font-bold border-2">
+                {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Refresh Registry
             </Button>
             <Button variant="outline" asChild className="font-bold border-2">
                 <Link href="/admin">

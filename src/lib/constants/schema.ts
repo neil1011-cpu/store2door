@@ -4,7 +4,7 @@
  * Includes evolution logic to handle missing columns in existing deployments.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.6)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.7)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -88,6 +88,18 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     created_at timestamptz DEFAULT now() NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.manifests (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    flight_number text NOT NULL,
+    manifest_date date NOT NULL,
+    carrier text,
+    origin text DEFAULT 'Florida',
+    destination text DEFAULT 'Jamaica',
+    status text DEFAULT 'Scheduled',
+    manifest_type text DEFAULT 'Air',
+    created_at timestamptz DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.pre_alerts (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
@@ -113,6 +125,7 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     shipping_date timestamptz,
     invoice_url text, -- Stores the ID of the document_asset
     logicware_id text UNIQUE,
+    manifest_id uuid REFERENCES public.manifests(id),
     created_at timestamptz DEFAULT now() NOT NULL,
     updated_at timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
@@ -160,6 +173,10 @@ BEGIN
         ALTER TABLE public.shipments ADD COLUMN logicware_id text UNIQUE;
     END IF;
 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='manifest_id') THEN
+        ALTER TABLE public.shipments ADD COLUMN manifest_id uuid REFERENCES public.manifests(id);
+    END IF;
+
     -- Profiles Evolution
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='logicware_id') THEN
         ALTER TABLE public.profiles ADD COLUMN logicware_id text UNIQUE;
@@ -188,6 +205,7 @@ CREATE INDEX IF NOT EXISTS idx_shipments_profile ON public.shipments(profile_id)
 CREATE INDEX IF NOT EXISTS idx_roles_user ON public.app_roles(user_id);
 CREATE INDEX IF NOT EXISTS idx_doc_assets_profile ON public.document_assets(profile_id);
 CREATE INDEX IF NOT EXISTS idx_addresses_profile ON public.addresses(profile_id);
+CREATE INDEX IF NOT EXISTS idx_manifest_date ON public.manifests(manifest_date);
 
 -- 7. FUNCTIONS
 CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
@@ -253,8 +271,15 @@ ALTER TABLE public.document_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sent_emails ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.manifests ENABLE ROW LEVEL SECURITY;
 
 -- 10. POLICIES
+
+-- Manifests
+DROP POLICY IF EXISTS "manifests_select" ON public.manifests;
+CREATE POLICY "manifests_select" ON public.manifests FOR SELECT USING (is_admin());
+DROP POLICY IF EXISTS "manifests_all_admin" ON public.manifests;
+CREATE POLICY "manifests_all_admin" ON public.manifests FOR ALL USING (is_admin());
 
 -- Addresses
 DROP POLICY IF EXISTS "addresses_select" ON public.addresses;

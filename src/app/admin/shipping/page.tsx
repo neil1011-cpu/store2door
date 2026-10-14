@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +47,7 @@ export default function ShippingPage() {
   const [isManifestOpen, setIsManifestOpen] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
-  const fetchData = async (silent = false) => {
+  const fetchData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
       const [shipRes, usersRes] = await Promise.all([
@@ -61,7 +61,7 @@ export default function ShippingPage() {
     } finally {
       if (!silent) setIsLoading(false);
     }
-  };
+  }, [supabase, toast]);
 
   useEffect(() => {
     fetchData();
@@ -75,7 +75,7 @@ export default function ShippingPage() {
     return () => { 
       supabase.removeChannel(channel); 
     };
-  }, [supabase]);
+  }, [supabase, fetchData]);
 
   const filtered = useMemo(() => {
     if (!searchTerm) return shipments;
@@ -133,11 +133,35 @@ export default function ShippingPage() {
       setIsBulkProcessing(true);
       try {
           const ids = Array.from(selectedIds);
-          // Simulate manifest creation
-          await new Promise(r => setTimeout(r, 1000));
-          toast({ title: "Manifest Generated", description: `Route ${data.flightNumber} created with ${ids.length} parcels.` });
+          
+          // 1. Create Manifest record in registry
+          const { data: manifest, error: mError } = await supabase.from('manifests').insert({
+              flight_number: data.flightNumber,
+              manifest_date: data.date,
+              carrier: data.carrier,
+              origin: data.origin,
+              destination: data.destination,
+              status: 'Scheduled',
+              manifest_type: data.type
+          }).select().single();
+
+          if (mError) throw mError;
+
+          // 2. Assign shipments to this manifest
+          const { error: sError } = await supabase.from('shipments').update({
+              manifest_id: manifest.id
+          }).in('id', ids);
+
+          if (sError) throw sError;
+
+          toast({ 
+              title: "Manifest Generated", 
+              description: `Route ${data.flightNumber} established with ${ids.length} parcels.` 
+          });
+          
           setSelectedIds(new Set());
           setIsManifestOpen(false);
+          fetchData(true);
       } catch (err: any) {
           toast({ title: "Manifest Error", description: err.message, variant: "destructive" });
       } finally {
