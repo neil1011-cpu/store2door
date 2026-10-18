@@ -126,66 +126,42 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   }, [details.id, supabase, fetchRecent]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <div className="lg:col-span-7 space-y-6">
-        <WarehouseAddressCard details={details} />
-        
-        <Card className="border-none shadow-none sm:border sm:shadow-sm">
-          <CardHeader>
-            <CardTitle>Activity Overview</CardTitle>
-            <CardDescription>Most recent transit updates.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
-            ) : recentShipment ? (
-              <div className="space-y-4">
-                <div className="bg-muted/20 p-4 rounded-lg flex justify-between items-center">
-                  <div className="flex-1">
-                    <p className="text-[10px] font-bold uppercase opacity-60">Tracking Number</p>
-                    <div className="flex items-center gap-3">
-                        <p className="font-mono font-bold text-lg text-primary">{recentShipment.tracking_number || (recentShipment as any).trackingNumber}</p>
-                        {recentShipment.invoice_url && (
-                            <Button variant="ghost" size="sm" asChild className="h-7 text-primary font-bold uppercase text-[9px] border-2 border-primary/10">
-                                <Link href={`/api/storage/view?key=${encodeURIComponent(recentShipment.invoice_url)}`} target="_blank">
-                                    <FileText className="h-3.5 w-3.5 mr-1" /> Doc
-                                </Link>
-                            </Button>
-                        )}
-                    </div>
-                  </div>
-                  <Badge variant={getStatusVariant(recentShipment.status)}>{recentShipment.status}</Badge>
-                </div>
-                <Button variant="outline" className="w-full font-bold uppercase italic" asChild><Link href="/account/packages">View All Packages</Link></Button>
-              </div>
-            ) : (
-              <div className="text-center py-10 opacity-40 italic text-sm">No active shipments in your registry.</div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <WarehouseAddressCard details={details} />
       
-      <div className="lg:col-span-5">
-        <Card className="h-full border-none shadow-xl bg-primary text-primary-foreground overflow-hidden">
-            <CardHeader>
-                <CardTitle className="text-lg font-black uppercase italic tracking-tighter">Fast Intake</CardTitle>
-                <CardDescription className="text-primary-foreground/60 text-[10px] font-bold uppercase">Pre-alert our Florida staff.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Link href="/account/pre-alert">
-                    <Button variant="secondary" className="w-full h-20 text-xl font-black uppercase italic shadow-2xl">
-                        <Zap className="mr-2 h-6 w-6" /> Submit Pre-Alert
-                    </Button>
-                </Link>
-            </CardContent>
-            <CardFooter className="bg-black/10 p-6 flex items-start gap-3">
-                <Info className="h-5 w-5 text-primary-foreground/40 shrink-0" />
-                <p className="text-[9px] font-medium leading-relaxed uppercase opacity-80">
-                    Always upload your invoice before your package arrives at our warehouse to ensure immediate processing and clearance.
-                </p>
-            </CardFooter>
-        </Card>
-      </div>
+      <Card className="border-none shadow-none sm:border sm:shadow-sm">
+        <CardHeader>
+          <CardTitle>Activity Overview</CardTitle>
+          <CardDescription>Most recent transit updates.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
+          ) : recentShipment ? (
+            <div className="space-y-4">
+              <div className="bg-muted/20 p-4 rounded-lg flex justify-between items-center">
+                <div className="flex-1">
+                  <p className="text-[10px] font-bold uppercase opacity-60">Tracking Number</p>
+                  <div className="flex items-center gap-3">
+                      <p className="font-mono font-bold text-lg text-primary">{recentShipment.tracking_number || (recentShipment as any).trackingNumber}</p>
+                      {recentShipment.invoice_url && (
+                          <Button variant="ghost" size="sm" asChild className="h-7 text-primary font-bold uppercase text-[9px] border-2 border-primary/10">
+                              <Link href={`/api/storage/view?key=${encodeURIComponent(recentShipment.invoice_url)}`} target="_blank">
+                                  <FileText className="h-3.5 w-3.5 mr-1" /> Doc
+                              </Link>
+                          </Button>
+                      )}
+                  </div>
+                </div>
+                <Badge variant={getStatusVariant(recentShipment.status)}>{recentShipment.status}</Badge>
+              </div>
+              <Button variant="outline" className="w-full font-bold uppercase italic" asChild><Link href="/account/packages">View All Packages</Link></Button>
+            </div>
+          ) : (
+            <div className="text-center py-10 opacity-40 italic text-sm">No active shipments in your registry.</div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
