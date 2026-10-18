@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { createContext, useContext } from 'react';
 import { AppLogo } from '@/components/app-logo';
 import { Separator } from '@/components/ui/separator';
-import { Wallet, Menu, TrendingDown, Loader2, LogOut, AlertTriangle, RefreshCcw } from 'lucide-react';
+import { Wallet, Menu, TrendingDown, Loader2, LogOut, AlertTriangle } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
@@ -43,8 +43,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     const fetchData = useCallback(async () => {
         if (!user) return;
 
-        setIsDataLoading(true);
-        setError(null);
         try {
             const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
@@ -57,43 +55,59 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             if (profileData) {
                 setProfile(profileData);
 
-                // 1. Fetch Ledger entries
-                const { data: ledgerData } = await supabase
-                    .from('financial_ledger')
-                    .select('*')
-                    .eq('profile_id', user.id);
-                
-                const totalBalance = ledgerData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+                // 1. Fetch Ledger & Shipments concurrently
+                const [ledgerRes, shipmentsRes] = await Promise.all([
+                    supabase.from('financial_ledger').select('*').eq('profile_id', user.id),
+                    supabase.from('shipments').select('tracking_number, status').eq('profile_id', user.id)
+                ]);
+
+                const ledgerData = ledgerRes.data || [];
+                const shipmentsData = shipmentsRes.data || [];
+
+                // Total Balance (Internal Accounting)
+                const totalBalance = ledgerData.reduce((acc, curr) => acc + Number(curr.amount), 0);
                 setBalance(totalBalance);
 
-                // 2. Determine Actionable Balance (Debt for items ready for pickup/delivered)
-                const { data: shipments } = await supabase
-                    .from('shipments')
-                    .select('tracking_number, status')
-                    .eq('profile_id', user.id);
-                
-                const readyTrackingNumbers = (shipments || [])
+                // Actionable Balance (The total the user sees)
+                // Filter ready items for price display
+                const readyTrackingNumbers = shipmentsData
                     .filter(s => shouldShowPrice(s.status))
                     .map(s => s.tracking_number);
 
-                const actionableSum = ledgerData?.reduce((acc, curr) => {
-                    const isGeneral = !curr.description?.includes('Shipping Fee:');
-                    const isLinkedToReady = readyTrackingNumbers.some(tn => curr.description?.includes(tn));
+                const actionableSum = ledgerData.reduce((acc, curr) => {
+                    const amount = Number(curr.amount);
                     
-                    if (isGeneral || isLinkedToReady) {
-                        return acc + Number(curr.amount);
+                    // Rule 1: Always include credits (payments, adjustments up)
+                    if (amount > 0) return acc + amount;
+
+                    // Rule 2: Only include charges (debts) if they are linked to a ready package
+                    const description = curr.description || '';
+                    const isLinkedToReady = readyTrackingNumbers.some(tn => description.includes(tn));
+                    
+                    // Detect if this ledger entry looks like a logistics charge
+                    const isLogisticsCharge = curr.transaction_type === 'shipping_fee' || 
+                                           description.toLowerCase().includes('fee') || 
+                                           description.toLowerCase().includes('shipment') ||
+                                           description.toLowerCase().includes('intake');
+
+                    if (isLogisticsCharge) {
+                        return isLinkedToReady ? acc + amount : acc;
                     }
-                    return acc;
-                }, 0) || 0;
+
+                    // For non-logistics adjustments, include them in actionable balance 
+                    // unless specified otherwise.
+                    return acc + amount;
+                }, 0);
 
                 setActionableBalance(actionableSum);
+                setError(null);
                 
                 if (retryTimerRef.current) {
                     clearTimeout(retryTimerRef.current);
                     retryTimerRef.current = null;
                 }
             } else {
-                if (retryCount < 12) {
+                if (retryCount < 15) {
                     retryTimerRef.current = setTimeout(() => {
                         setRetryCount(prev => prev + 1);
                     }, 2000);
@@ -102,7 +116,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 }
             }
         } catch (error: any) {
-            console.error('Account Fetch Error:', error);
+            console.error('Account Sync Error:', error);
             setError(error.message);
         } finally {
             setIsDataLoading(false);
@@ -115,24 +129,43 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     }, [user, isAuthLoading, router]);
 
+    // Initial Fetch
     useEffect(() => {
         if (user) {
             fetchData();
-
-            // Real-time listener for financial and shipment updates
-            const channel = supabase
-                .channel(`user-account-sync-${user.id}`)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_ledger', filter: `profile_id=eq.${user.id}` }, () => fetchData())
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'shipments', filter: `profile_id=eq.${user.id}` }, () => fetchData())
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` }, () => fetchData())
-                .subscribe();
-
-            return () => {
-                supabase.removeChannel(channel);
-                if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-            };
         }
-    }, [fetchData, user, supabase]);
+    }, [user, fetchData]);
+
+    // Stable Real-time Subscription
+    useEffect(() => {
+        if (!user) return;
+
+        const channel = supabase
+            .channel(`user-account-realtime-${user.id}`)
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'financial_ledger', 
+                filter: `profile_id=eq.${user.id}` 
+            }, () => fetchData())
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'shipments', 
+                filter: `profile_id=eq.${user.id}` 
+            }, () => fetchData())
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'profiles', 
+                filter: `id=eq.${user.id}` 
+            }, () => fetchData())
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, supabase, fetchData]);
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
