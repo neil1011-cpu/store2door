@@ -181,7 +181,7 @@ export default function UserDetailsPage() {
                     <ShieldAlert className="h-16 w-16 text-muted-foreground opacity-20" />
                 </div>
                 <div className="text-center space-y-2">
-                    <h1 className="text-3xl font-black italic uppercase tracking-tighter">Identity Missing</h1>
+                    h1 className="text-3xl font-black italic uppercase tracking-tighter">Identity Missing</h1>
                     <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold">This UID does not exist in the active registry.</p>
                 </div>
                 <Button variant="outline" asChild className="font-black uppercase italic border-2 h-12 px-10">
@@ -338,7 +338,6 @@ export default function UserDetailsPage() {
                 </div>
 
                 <div className="lg:col-span-2 space-y-6">
-                    {/* Address Registry Card */}
                     <Card className="shadow-2xl border-none rounded-[2.5rem] overflow-hidden">
                         <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between p-8">
                             <CardTitle className="text-sm font-black uppercase tracking-[0.2em] italic flex items-center gap-3">
@@ -347,7 +346,6 @@ export default function UserDetailsPage() {
                             <Badge variant="outline" className="font-black text-[9px] uppercase tracking-widest bg-white border-2">Master Logistics ID</Badge>
                         </CardHeader>
                         <CardContent className="p-10 space-y-10">
-                            {/* Assigned US Warehouse Address */}
                             <div className="space-y-6">
                                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary flex items-center gap-3 italic">
                                     <Building2 className="h-4 w-4" /> Assigned US Intake Hub
@@ -388,7 +386,6 @@ export default function UserDetailsPage() {
 
                             <Separator className="h-1 bg-muted/50" />
 
-                            {/* Registered Local Addresses (Jamaica) */}
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary flex items-center gap-3 italic">
@@ -555,7 +552,6 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
     const { toast } = useToast();
     const { supabase } = useSupabase();
 
-    // Reset amount when currentBalance prop changes or dialog opens
     useEffect(() => {
         if (open) setAmount(currentBalance.toString());
     }, [currentBalance, open]);
@@ -563,10 +559,10 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
     const handleAdjustBalance = async () => {
         setIsUpdating(true);
         try {
-            const newBalance = parseFloat(amount);
-            if (isNaN(newBalance)) throw new Error("Invalid numeric value provided.");
+            const newBalanceVal = parseFloat(amount);
+            if (isNaN(newBalanceVal)) throw new Error("Invalid numeric value provided.");
             
-            const diff = newBalance - currentBalance;
+            const diff = newBalanceVal - currentBalance;
             if (diff === 0) {
                 setOpen(false);
                 return;
@@ -587,7 +583,7 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
 
             toast({ 
                 title: "Registry Adjusted", 
-                description: `${diff > 0 ? 'Added' : 'Subtracted'} JMD $${Math.abs(diff).toLocaleString()} in audit ledger.` 
+                description: `${diff > 0 ? 'Added credit of' : 'Added debt of'} JMD $${Math.abs(diff).toLocaleString()} in audit ledger.` 
             });
             
             setOpen(false);
@@ -612,15 +608,17 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
                     <div className="p-8 rounded-[2rem] bg-indigo-500/5 border-4 border-dashed border-indigo-500/20 text-center">
                         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500 mb-2 italic">CURRENT STANDING</p>
                         <p className="text-3xl font-black italic tracking-tighter text-indigo-600">JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[9px] font-bold uppercase opacity-40 mt-1">{currentBalance < 0 ? 'USER OWES' : 'USER HAS CREDIT'}</p>
                     </div>
                     <div className="space-y-3">
                         <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 ml-1 italic">Define New Registry Total (JMD $)</Label>
-                        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-20 text-5xl font-black border-4 rounded-2xl text-center shadow-inner" />
+                        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-20 text-5xl font-black border-4 rounded-2xl text-center shadow-inner" placeholder="0.00" />
+                        <p className="text-[9px] text-center font-bold text-muted-foreground uppercase">Use negative numbers for DEBT (e.g. -1950.00)</p>
                     </div>
                     <div className="p-5 bg-amber-500/10 border-2 border-dashed border-amber-500/30 rounded-2xl flex gap-4">
                         <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0" />
                         <p className="text-[9px] font-black text-amber-700 uppercase leading-relaxed tracking-tight italic">
-                            THIS OPERATION CREATES AN IMMUTABLE AUDIT RECORD IN THE FINANCIAL LEDGER. THE DELTA WILL BE LOGGED AS A MANUAL ADJUSTMENT.
+                            THIS OPERATION CREATES AN IMMUTABLE AUDIT RECORD. THE DELTA WILL BE LOGGED AS A MANUAL ADJUSTMENT IN THE PERMANENT REGISTRY.
                         </p>
                     </div>
                 </div>

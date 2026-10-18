@@ -55,7 +55,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             if (profileData) {
                 setProfile(profileData);
 
-                // 1. Fetch Ledger & Shipments concurrently
+                // Fetch All Financial & Logistics Context
                 const [ledgerRes, shipmentsRes] = await Promise.all([
                     supabase.from('financial_ledger').select('*').eq('profile_id', user.id),
                     supabase.from('shipments').select('tracking_number, status').eq('profile_id', user.id)
@@ -64,38 +64,44 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 const ledgerData = ledgerRes.data || [];
                 const shipmentsData = shipmentsRes.data || [];
 
-                // Total Balance (Internal Accounting)
-                const totalBalance = ledgerData.reduce((acc, curr) => acc + Number(curr.amount), 0);
-                setBalance(totalBalance);
+                // 1. Calculate Absolute Net Balance (Accounting Truth)
+                const netBalance = ledgerData.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+                setBalance(netBalance);
 
-                // Actionable Balance (The total the user sees)
-                // Filter ready items for price display
-                const readyTrackingNumbers = shipmentsData
-                    .filter(s => shouldShowPrice(s.status))
-                    .map(s => s.tracking_number);
+                // 2. Identify "Actionable" Packages (Ready for collection)
+                const readyTrackingIds = new Set(
+                    shipmentsData
+                        .filter(s => shouldShowPrice(s.status))
+                        .map(s => s.tracking_number?.trim().toUpperCase())
+                );
 
+                // 3. Calculate Actionable Balance
+                // Logic: Credits (positive) + (Debits for READY items only)
                 const actionableSum = ledgerData.reduce((acc, curr) => {
-                    const amount = Number(curr.amount);
+                    const amount = Number(curr.amount || 0);
                     
-                    // Rule 1: Always include credits (payments, adjustments up)
+                    // Case A: Entry is a Credit (Payment, Refund, Adjustment Up)
+                    // These are ALWAYS actionable and should offset any debt.
                     if (amount > 0) return acc + amount;
 
-                    // Rule 2: Only include charges (debts) if they are linked to a ready package
-                    const description = curr.description || '';
-                    const isLinkedToReady = readyTrackingNumbers.some(tn => description.includes(tn));
+                    // Case B: Entry is a Debit (Charge, Adjustment Down)
+                    const desc = (curr.description || '').toUpperCase();
                     
-                    // Detect if this ledger entry looks like a logistics charge
+                    // Detect if this specific debit is linked to a package currently READY for pickup
+                    const isLinkedToReady = Array.from(readyTrackingIds).some(tid => desc.includes(tid));
+                    
+                    // We only include logistics charges if the item is actionable (Ready/Delivered)
                     const isLogisticsCharge = curr.transaction_type === 'shipping_fee' || 
-                                           description.toLowerCase().includes('fee') || 
-                                           description.toLowerCase().includes('shipment') ||
-                                           description.toLowerCase().includes('intake');
+                                           desc.includes('FEE') || 
+                                           desc.includes('SHIPMENT') ||
+                                           desc.includes('INTAKE') ||
+                                           desc.includes('ENTRY');
 
                     if (isLogisticsCharge) {
                         return isLinkedToReady ? acc + amount : acc;
                     }
 
-                    // For non-logistics adjustments, include them in actionable balance 
-                    // unless specified otherwise.
+                    // Fallback: Non-logistics manual adjustments are always actionable
                     return acc + amount;
                 }, 0);
 
