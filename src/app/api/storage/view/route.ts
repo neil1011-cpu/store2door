@@ -4,12 +4,12 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 /**
  * @fileOverview Secure Database Documentation Proxy.
  * Retrieves binary data from PostgreSQL and serves it to the browser.
- * Hardened to handle PostgreSQL hex-encoded bytea data without corruption.
+ * Hardened to handle various PostgreSQL bytea output formats.
  */
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
-    let idOrKey = searchParams.get('key');
+    const idOrKey = searchParams.get('key');
 
     if (!idOrKey) return NextResponse.json({ message: 'Missing document identifier' }, { status: 400 });
 
@@ -18,8 +18,7 @@ export async function GET(request: Request) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-        // 1. Legacy URL Detection (Redirect if still pointing at external sources)
-        // Check for common URL patterns since the input might be encoded
+        // 1. Legacy URL Detection
         const decodedKey = decodeURIComponent(idOrKey);
         if (decodedKey.startsWith('http')) {
             return Response.redirect(decodedKey, 307);
@@ -28,7 +27,6 @@ export async function GET(request: Request) {
         const adminClient = await createAdminClient();
 
         // 2. Fetch from Database
-        // Note: The SELECT will filter based on profile_id unless the caller is admin
         const { data: asset, error: fetchError } = await adminClient
             .from('document_assets')
             .select('*')
@@ -40,7 +38,6 @@ export async function GET(request: Request) {
         }
 
         // 3. Authorization Check
-        // Explicitly check for admin email or existing admin role to bypass ownership
         const { data: roleData } = await adminClient
             .from('app_roles')
             .select('role')
@@ -55,18 +52,15 @@ export async function GET(request: Request) {
             return NextResponse.json({ message: 'Access Denied: You do not own this asset.' }, { status: 403 });
         }
 
-        // 4. Binary Integrity Handshake
-        // PostgreSQL returns bytea as a hex string prefixed with \x via PostgREST
+        // 4. Binary Conversion
         let buffer: Buffer;
         if (typeof asset.file_data === 'string' && asset.file_data.startsWith('\\x')) {
-            // Strip the \x prefix and decode hex
             buffer = Buffer.from(asset.file_data.substring(2), 'hex');
         } else if (typeof asset.file_data === 'string') {
-            // Fallback for non-prefixed strings
             buffer = Buffer.from(asset.file_data, 'base64');
         } else {
-            // Handle if already a Buffer or Uint8Array
-            buffer = Buffer.from(asset.file_data);
+            // Postgres node driver might return it as a Buffer directly
+            buffer = Buffer.from(asset.file_data as any);
         }
 
         return new Response(buffer, {

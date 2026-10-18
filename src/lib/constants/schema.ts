@@ -157,55 +157,15 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
     created_at timestamptz DEFAULT now() NOT NULL
 );
 
--- 5. EVOLUTION LOGIC
-DO $$ 
-BEGIN
-    -- Ensure Manifests Table exists before adding foreign keys
-    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'manifests') THEN
-        CREATE TABLE public.manifests (
-            id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-            flight_number text NOT NULL,
-            manifest_date date NOT NULL,
-            carrier text,
-            origin text DEFAULT 'Florida',
-            destination text DEFAULT 'Jamaica',
-            status text DEFAULT 'Scheduled',
-            manifest_type text DEFAULT 'Air',
-            created_at timestamptz DEFAULT now() NOT NULL
-        );
-    END IF;
-
-    -- Add manifest_id to shipments if missing
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='manifest_id') THEN
-        ALTER TABLE public.shipments ADD COLUMN manifest_id uuid REFERENCES public.manifests(id);
-    END IF;
-
-    -- Add invoice_url to shipments if missing
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='invoice_url') THEN
-        ALTER TABLE public.shipments ADD COLUMN invoice_url text;
-    END IF;
-
-    -- Add logicware_id to shipments if missing
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shipments' AND column_name='logicware_id') THEN
-        ALTER TABLE public.shipments ADD COLUMN logicware_id text UNIQUE;
-    END IF;
-
-    -- Ensure pre_alerts has logicware_id
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='pre_alerts' AND column_name='logicware_id') THEN
-        ALTER TABLE public.pre_alerts ADD COLUMN logicware_id text UNIQUE;
-    END IF;
-END $$;
-
--- 6. INDEXES
+-- 5. INDEXES
 CREATE INDEX IF NOT EXISTS idx_ledger_profile ON public.financial_ledger(profile_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_profile ON public.invoices(profile_id);
 CREATE INDEX IF NOT EXISTS idx_pre_alerts_profile ON public.pre_alerts(profile_id);
 CREATE INDEX IF NOT EXISTS idx_shipments_profile ON public.shipments(profile_id);
 CREATE INDEX IF NOT EXISTS idx_roles_user ON public.app_roles(user_id);
 CREATE INDEX IF NOT EXISTS idx_doc_assets_profile ON public.document_assets(profile_id);
-CREATE INDEX IF NOT EXISTS idx_manifest_date ON public.manifests(manifest_date);
 
--- 7. FUNCTIONS
+-- 6. FUNCTIONS & TRIGGERS
 CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
 BEGIN 
   RETURN EXISTS (
@@ -244,7 +204,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 8. TRIGGERS
 DROP TRIGGER IF EXISTS on_ledger_change ON public.financial_ledger;
 CREATE TRIGGER on_ledger_change
   AFTER INSERT OR UPDATE OR DELETE ON public.financial_ledger
@@ -255,7 +214,7 @@ CREATE TRIGGER on_profile_created
   BEFORE INSERT ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.assign_mailbox_number();
 
--- 9. RLS ENABLING
+-- 7. RLS ENABLING
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.addresses ENABLE ROW LEVEL SECURITY;
@@ -269,32 +228,56 @@ ALTER TABLE public.sent_emails ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.manifests ENABLE ROW LEVEL SECURITY;
 
--- 10. POLICIES
-DROP POLICY IF EXISTS "manifests_select" ON public.manifests;
-CREATE POLICY "manifests_select" ON public.manifests FOR SELECT USING (is_admin());
-DROP POLICY IF EXISTS "manifests_all_admin" ON public.manifests;
-CREATE POLICY "manifests_all_admin" ON public.manifests FOR ALL USING (is_admin());
-
+-- 8. POLICIES (HARDENED)
+-- PROFILES
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (auth.uid() = id OR is_admin());
 DROP POLICY IF EXISTS "profiles_update" ON public.profiles;
 CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
-DROP POLICY IF EXISTS "ledger_select" ON public.financial_ledger;
-CREATE POLICY "ledger_select" ON public.financial_ledger FOR SELECT USING (auth.uid() = profile_id OR is_admin());
-DROP POLICY IF EXISTS "ledger_insert_admin" ON public.financial_ledger;
-CREATE POLICY "ledger_insert_admin" ON public.financial_ledger FOR INSERT WITH CHECK (is_admin());
+-- PRE_ALERTS
+DROP POLICY IF EXISTS "pre_alerts_select" ON public.pre_alerts;
+CREATE POLICY "pre_alerts_select" ON public.pre_alerts FOR SELECT USING (auth.uid() = profile_id OR is_admin());
+DROP POLICY IF EXISTS "pre_alerts_insert" ON public.pre_alerts;
+CREATE POLICY "pre_alerts_insert" ON public.pre_alerts FOR INSERT WITH CHECK (auth.uid() = profile_id OR is_admin());
+DROP POLICY IF EXISTS "pre_alerts_update" ON public.pre_alerts;
+CREATE POLICY "pre_alerts_update" ON public.pre_alerts FOR UPDATE USING (auth.uid() = profile_id OR is_admin());
 
-DROP POLICY IF EXISTS "invoices_select" ON public.invoices;
-CREATE POLICY "invoices_select" ON public.invoices FOR SELECT USING (auth.uid() = profile_id OR is_admin());
-DROP POLICY IF EXISTS "invoices_admin" ON public.invoices;
-CREATE POLICY "invoices_admin" ON public.invoices FOR ALL USING (is_admin());
-
+-- SHIPMENTS
 DROP POLICY IF EXISTS "shipments_select" ON public.shipments;
 CREATE POLICY "shipments_select" ON public.shipments FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "shipments_admin" ON public.shipments;
 CREATE POLICY "shipments_admin" ON public.shipments FOR ALL USING (is_admin());
 
+-- INVOICES
+DROP POLICY IF EXISTS "invoices_select" ON public.invoices;
+CREATE POLICY "invoices_select" ON public.invoices FOR SELECT USING (auth.uid() = profile_id OR is_admin());
+DROP POLICY IF EXISTS "invoices_admin" ON public.invoices;
+CREATE POLICY "invoices_admin" ON public.invoices FOR ALL USING (is_admin());
+
+-- LEDGER
+DROP POLICY IF EXISTS "ledger_select" ON public.financial_ledger;
+CREATE POLICY "ledger_select" ON public.financial_ledger FOR SELECT USING (auth.uid() = profile_id OR is_admin());
+DROP POLICY IF EXISTS "ledger_insert_admin" ON public.financial_ledger;
+CREATE POLICY "ledger_insert_admin" ON public.financial_ledger FOR INSERT WITH CHECK (is_admin());
+
+-- ADDRESSES
+DROP POLICY IF EXISTS "addresses_select" ON public.addresses;
+CREATE POLICY "addresses_select" ON public.addresses FOR SELECT USING (auth.uid() = profile_id OR is_admin());
+DROP POLICY IF EXISTS "addresses_owner" ON public.addresses;
+CREATE POLICY "addresses_owner" ON public.addresses FOR ALL USING (auth.uid() = profile_id OR is_admin());
+
+-- DOCUMENT ASSETS
+DROP POLICY IF EXISTS "doc_assets_select" ON public.document_assets;
+CREATE POLICY "doc_assets_select" ON public.document_assets FOR SELECT USING (auth.uid() = profile_id OR is_admin());
+
+-- MANIFESTS
+DROP POLICY IF EXISTS "manifests_select" ON public.manifests;
+CREATE POLICY "manifests_select" ON public.manifests FOR SELECT USING (is_admin());
+DROP POLICY IF EXISTS "manifests_all_admin" ON public.manifests;
+CREATE POLICY "manifests_all_admin" ON public.manifests FOR ALL USING (is_admin());
+
+-- ADMIN ONLY TABLES
 DROP POLICY IF EXISTS "logs_select_admin" ON public.system_logs;
 CREATE POLICY "logs_select_admin" ON public.system_logs FOR SELECT USING (is_admin());
 DROP POLICY IF EXISTS "emails_select_admin" ON public.sent_emails;
@@ -302,18 +285,5 @@ CREATE POLICY "emails_select_admin" ON public.sent_emails FOR SELECT USING (is_a
 DROP POLICY IF EXISTS "configs_all_admin" ON public.system_configs;
 CREATE POLICY "configs_all_admin" ON public.system_configs FOR ALL USING (is_admin());
 
--- 11. BACKFILL
-DO $$ 
-BEGIN
-    INSERT INTO public.profiles (id, full_name, email)
-    SELECT u.id, COALESCE(u.raw_user_meta_data->>'full_name', 'New User'), u.email
-    FROM auth.users u LEFT JOIN public.profiles p ON u.id = p.id WHERE p.id IS NULL
-    ON CONFLICT DO NOTHING;
-
-    INSERT INTO public.app_roles (user_id, role)
-    SELECT u.id, 'customer'::public.user_role
-    FROM auth.users u LEFT JOIN public.app_roles r ON u.id = r.user_id WHERE r.user_id IS NULL
-    ON CONFLICT DO NOTHING;
-END $$;
-
+-- 9. NOTIFY
 NOTIFY pgrst, 'reload schema';`;

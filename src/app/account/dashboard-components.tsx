@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -260,62 +260,76 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
     const { supabase, user } = useSupabase();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formKey, setFormKey] = useState(0); // To reset the file input
     const [formData, setFormData] = useState({ trackingNumber: '', contents: '', weight: '', file: null as File | null });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.trackingNumber || !formData.contents) return;
+        const tracking = formData.trackingNumber.trim().toUpperCase();
+        const contents = formData.contents.trim();
+        
+        if (!tracking || !contents) {
+            toast({ title: "Validation Error", description: "Tracking ID and Contents are mandatory.", variant: "destructive" });
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
-            let finalKey = '';
+            let finalKey = null;
             if (formData.file && user) {
-                const session = (await supabase.auth.getSession()).data.session;
+                const sessionRes = await supabase.auth.getSession();
+                const session = sessionRes.data.session;
+                
                 const body = new FormData();
                 body.append('file', formData.file);
+                
                 const res = await fetch('/api/storage/upload', {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${session?.access_token}` },
                     body
                 });
+                
                 const uploadData = await res.json();
-                if (!res.ok) throw new Error(uploadData.message);
+                if (!res.ok) throw new Error(uploadData.message || "Failed to transmit documentation asset.");
                 finalKey = uploadData.key;
             }
 
+            const weightVal = parseFloat(formData.weight);
             const { data: alert, error } = await supabase.from('pre_alerts').insert({
                 profile_id: profileId,
-                tracking_number: formData.trackingNumber.toUpperCase(),
-                contents: formData.contents,
-                weight_lbs: parseFloat(formData.weight) || 0,
+                tracking_number: tracking,
+                contents: contents,
+                weight_lbs: isNaN(weightVal) ? 0 : weightVal,
                 invoice_url: finalKey,
                 status: 'Pending'
             }).select().single();
 
             if (error) throw error;
 
-            try {
-                await fetch('/api/admin/logicware-push-shipment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ shipmentId: alert.id, type: 'pre-alert' })
-                });
-            } catch (lwErr) {
-                console.warn('[LOGICWARE_PUSH_FAIL] Non-blocking Hub failure:', lwErr);
-            }
+            // HUB SYNC (Non-blocking)
+            fetch('/api/admin/logicware-push-shipment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shipmentId: alert.id, type: 'pre-alert' })
+            }).catch(lwErr => console.warn('[LOGICWARE_PUSH_FAIL]', lwErr));
 
-            toast({ title: "Pre-Alert Submitted" });
+            toast({ title: "Intake Authorized", description: "Florida warehouse notified successfully." });
+            
+            // Reset state
             setFormData({ trackingNumber: '', contents: '', weight: '', file: null });
+            setFormKey(prev => prev + 1);
             onSuccess?.();
         } catch (err: any) {
-            toast({ title: "Submission Failed", description: err.message, variant: "destructive" });
+            console.error('[PRE_ALERT_SUBMIT_FATAL]', err);
+            toast({ title: "Authorization Denied", description: err.message, variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+        <form key={formKey} onSubmit={handleSubmit} className="space-y-6 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase opacity-60">Tracking Number</Label>
@@ -328,11 +342,11 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
             </div>
             <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase opacity-60">Weight (LBS)</Label>
-                <Input type="number" value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} placeholder="0.00" />
+                <Input type="number" step="0.01" value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} placeholder="0.00" />
             </div>
             <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase opacity-60">Invoice File</Label>
-                <Input type="file" onChange={e => setFormData({...formData, file: e.target.files?.[0] || null})} />
+                <Label className="text-[10px] font-bold uppercase opacity-60">Invoice File (Max 5MB)</Label>
+                <Input type="file" onChange={e => setFormData({...formData, file: e.target.files?.[0] || null})} accept="image/*,application/pdf" />
             </div>
             <Button type="submit" className="w-full h-14 font-black uppercase italic shadow-lg" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Zap className="mr-2" />} Authorize Intake
