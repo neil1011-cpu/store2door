@@ -51,17 +51,19 @@ export type ShipmentTimelineEvent = {
 
 export type Shipment = {
   id: string;
-  trackingNumber: string;
-  internalBarcode?: string;
+  profile_id: string;
+  tracking_number: string;
   contents: string; 
   status: ShipmentStatus | string;
-  shippingDate: any; 
-  weight: number;
+  shipping_date: any; 
+  weight_lbs: number;
   total_cost_jmd?: number;
-  paymentStatus?: 'Paid' | 'Unpaid';
-  customerId: string;
-  createdAt: any;
-  updatedAt: any;
+  payment_status?: 'Paid' | 'Unpaid' | 'Partial';
+  invoice_url?: string;
+  logicware_id?: string;
+  manifest_id?: string;
+  created_at: any;
+  updated_at: any;
 };
 
 export type ManifestStatus = 'Open' | 'Closed' | 'Scheduled' | 'Departed' | 'Arrived';
@@ -80,15 +82,15 @@ export type Manifest = {
 
 export type PreAlert = {
   id: string;
-  customerName: string;
-  customerId: string;
-  trackingNumber: string;
+  profile_id: string;
+  tracking_number: string;
   contents: string;
-  weight?: number;
-  status: 'Pending' | 'Processed';
-  submissionDate: any;
-  uploadedInvoiceUrl: string;
-  isLogicware?: boolean;
+  weight_lbs?: number;
+  status: 'Pending' | 'Processed' | 'Cancelled';
+  submission_date: any;
+  invoice_url: string;
+  logicware_id?: string;
+  legacy_firebase_id?: string;
 };
 
 export type LineItem = {
@@ -99,14 +101,12 @@ export type LineItem = {
 
 export type Invoice = {
   id: string;
-  invoiceId: string;
-  customerId: string;
-  customerName: string;
-  date: any;
+  invoice_number: string;
+  profile_id: string;
   amount: number;
-  status: 'Paid' | 'Unpaid';
-  invoiceUrl: string;
-  lineItems?: LineItem[];
+  status: 'Paid' | 'Unpaid' | 'Void';
+  created_at: any;
+  invoice_url?: string;
 }
 
 export type Transaction = {
