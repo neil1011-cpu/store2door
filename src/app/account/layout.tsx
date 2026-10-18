@@ -226,16 +226,21 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                             {!isSecurityPage && (
                                 <div className={cn(
                                     "border-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[200px] sm:max-w-none transition-all",
-                                    hasDues ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/10 opacity-40 hover:opacity-100"
+                                    hasDues 
+                                        ? "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-900" 
+                                        : "bg-primary/5 border-primary/10 dark:border-zinc-800 opacity-40 hover:opacity-100"
                                 )}>
-                                    {hasDues ? <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600 shrink-0" /> : <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />}
+                                    {hasDues 
+                                        ? <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600 dark:text-red-400 shrink-0" /> 
+                                        : <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+                                    }
                                     <div className="flex flex-col min-w-0">
-                                        <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest leading-none">
+                                        <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest leading-none text-muted-foreground">
                                             {hasDues ? 'Total to be paid' : 'Account Registry'}
                                         </span>
                                         <span className={cn(
                                             "text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate",
-                                            hasDues ? "text-red-600" : "text-foreground"
+                                            hasDues ? "text-red-600 dark:text-red-400" : "text-foreground"
                                         )}>
                                             JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </span>
