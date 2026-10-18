@@ -21,37 +21,46 @@ export const pricingTiers: Record<number, number> = {
 export function calculateShippingCost(weight: number): number {
     if (!weight || weight <= 0) return 0;
     const roundedWeight = Math.ceil(weight);
+    
+    // 1. Check exact tiers
     if (roundedWeight in pricingTiers) return pricingTiers[roundedWeight];
-    if (roundedWeight > 10 && roundedWeight < 23) return 4850 + (roundedWeight - 10) * 450;
-    if (roundedWeight > 30) return 12250 + (roundedWeight - 30) * 400;
+    
+    // 2. 11-22 lbs bracket
+    if (roundedWeight > 10 && roundedWeight < 23) {
+        return 4850 + (roundedWeight - 10) * 450;
+    }
+    
+    // 3. 31+ lbs bracket
+    if (roundedWeight > 30) {
+        return 12250 + (roundedWeight - 30) * 400;
+    }
+    
+    // Fallback to highest known tier or baseline
     return 12250;
 }
 
 /**
+ * Determines if a price should be shown based on shipment status.
+ */
+export function shouldShowPrice(status: string | undefined): boolean {
+    const s = (status || '').toLowerCase();
+    return s.includes('ready for pick up') || s.includes('delivered');
+}
+
+/**
  * Robustly determines the site origin for redirects.
- * Prioritizes the current window origin in the browser to avoid build-time leakage.
  */
 export function getSiteOrigin(request?: Request): string {
-    // 1. Client-side: Always trust the current browser URL
     if (typeof window !== 'undefined') {
         return window.location.origin;
     }
-
-    // 2. Server-side: Trust environment variable first (Production)
     if (process.env.NEXT_PUBLIC_SITE_URL) {
         return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
     }
-
-    // 3. Server-side: Detect from request headers (Firebase Proxy)
     if (request) {
         const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
         const proto = request.headers.get('x-forwarded-proto') || 'https';
-        
-        if (host) {
-            return `${proto}://${host}`;
-        }
+        if (host) return `${proto}://${host}`;
     }
-
-    // 4. Fallback
     return 'http://localhost:3000';
 }

@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import type { UserProfile, Shipment } from '@/lib/types';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
-import { calculateShippingCost } from '@/lib/utils';
+import { calculateShippingCost, shouldShowPrice } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -113,17 +113,6 @@ export function DashboardTab({ details }: { details: UserProfile }) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-[10px] font-bold uppercase opacity-60">Full Name</Label>
-          <Input value={details.full_name} readOnly className="bg-muted/50" />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-[10px] font-bold uppercase opacity-60">Mailbox</Label>
-          <Input value={details.mailbox_number} readOnly className="bg-muted/50 font-mono font-bold" />
-        </div>
-      </div>
-      
       <div className="lg:col-span-7 space-y-6">
         <WarehouseAddressCard details={details} />
         
@@ -145,7 +134,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                         {recentShipment.invoice_url && (
                             <Button variant="ghost" size="sm" asChild className="h-7 text-primary font-bold uppercase text-[9px] border-2 border-primary/10">
                                 <Link href={`/api/storage/view?key=${encodeURIComponent(recentShipment.invoice_url)}`} target="_blank">
-                                    <FileText className="h-3 w-3 mr-1" /> Doc
+                                    <FileText className="h-3.5 w-3.5 mr-1" /> Doc
                                 </Link>
                             </Button>
                         )}
@@ -249,7 +238,11 @@ export function PackagesTab({ profileId }: { profileId: string }) {
                     )}
                 </TableCell>
                 <TableCell className="text-right font-black italic tracking-tighter">
-                  {pkg.total_cost_jmd ? `JMD $${pkg.total_cost_jmd.toLocaleString()}` : 'TBD'}
+                  {shouldShowPrice(pkg.status) ? (
+                    pkg.total_cost_jmd ? `JMD $${pkg.total_cost_jmd.toLocaleString()}` : 'TBD'
+                  ) : (
+                    <span className="text-[8px] opacity-30 uppercase tracking-widest font-black">Updating...</span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -301,7 +294,6 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
 
             if (error) throw error;
 
-            // Hub Synchronization: Notify Logicware about the Pre-Alert
             try {
                 await fetch('/api/admin/logicware-push-shipment', {
                     method: 'POST',
@@ -362,7 +354,6 @@ export function AccountTab({ details }: { details: UserProfile }) {
             const { error } = await supabase.from('profiles').update({ phone, trn }).eq('id', details.id);
             if (error) throw error;
             
-            // BIDIRECTIONAL SYNC: Update Logicware Shipper Profile
             try {
                 await fetch('/api/admin/logicware-sync', {
                     method: 'POST',

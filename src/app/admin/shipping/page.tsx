@@ -113,7 +113,6 @@ export default function ShippingPage() {
         const { error } = await supabase.from('shipments').update({ status: newStatus }).in('id', ids);
         if (error) throw error;
 
-        // Sync each to Logicware Hub
         for (const id of ids) {
             fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
@@ -137,8 +136,6 @@ export default function ShippingPage() {
       setIsBulkProcessing(true);
       try {
           const ids = Array.from(selectedIds);
-          
-          // 1. Create Manifest record in registry
           const { data: manifest, error: mError } = await supabase.from('manifests').insert({
               flight_number: data.flightNumber,
               manifest_date: data.date,
@@ -149,14 +146,8 @@ export default function ShippingPage() {
               manifest_type: data.type
           }).select().single();
 
-          if (mError) {
-              if (mError.code === '42P01') {
-                  throw new Error("The 'manifests' table has not been established in your database. Please run the SQL setup in Admin > Settings.");
-              }
-              throw mError;
-          }
+          if (mError) throw mError;
 
-          // 2. Assign shipments to this manifest
           const { error: sError } = await supabase.from('shipments').update({
               manifest_id: manifest.id
           }).in('id', ids);
@@ -188,7 +179,7 @@ export default function ShippingPage() {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Hub communication failed');
-        toast({ title: "Hub Sync Complete", description: "Shipment registry updated from external hub." });
+        toast({ title: "Hub Sync Complete" });
         fetchData();
     } catch (err: any) {
         toast({ title: "Sync Error", description: err.message, variant: "destructive" });
@@ -373,16 +364,17 @@ export default function ShippingPage() {
                         <Checkbox checked={selectedIds.size === filtered.length && filtered.length > 0} onCheckedChange={toggleSelectAll} />
                     </TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Tracking ID</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase">Customer</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Shipper/User</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
-                    <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Cost (JMD)</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
                     <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {isLoading && filtered.length === 0 ? (
                     <TableRow>
-                        <TableCell colSpan={6} className="text-center py-20">
+                        <TableCell colSpan={7} className="text-center py-20">
                             <Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" />
                         </TableCell>
                     </TableRow>
@@ -401,9 +393,8 @@ export default function ShippingPage() {
                                 <p className="text-[9px] font-mono opacity-60 uppercase">{s.profiles?.mailbox_number}</p>
                             </TableCell>
                             <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
-                            <TableCell className="text-right pr-6 font-black tracking-tighter text-lg text-primary">
-                                JMD ${Number(s.total_cost_jmd || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </TableCell>
+                            <TableCell className="text-xs font-bold uppercase">{s.weight_lbs} LBS</TableCell>
+                            <TableCell className="text-[10px] font-medium opacity-60">{new Date(s.created_at).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right pr-6">
                             <div className="flex justify-end gap-2">
                                 <StatusUpdateDialog 
@@ -441,7 +432,7 @@ export default function ShippingPage() {
                 )}
                 {filtered.length === 0 && !isLoading && (
                     <TableRow>
-                        <TableCell colSpan={6} className="h-64 text-center text-muted-foreground italic opacity-30">
+                        <TableCell colSpan={7} className="h-64 text-center text-muted-foreground italic opacity-30">
                             No active shipments match your search.
                         </TableCell>
                     </TableRow>

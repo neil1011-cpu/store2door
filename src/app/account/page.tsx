@@ -125,35 +125,36 @@ export default function AccountPage() {
                             Activity Terminal
                         </h2>
 
-                        {/* Thinner Ledger Card relocated right below the heading */}
                         <Card className={cn(
                             "border-none shadow-lg rounded-2xl overflow-hidden transition-all",
-                            isIndebted ? "bg-red-50 border-l-4 border-l-red-600" : "bg-primary text-primary-foreground"
+                            isIndebted 
+                                ? "bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-600" 
+                                : "bg-zinc-100 dark:bg-zinc-900 text-foreground dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800"
                         )}>
                             <CardContent className="p-4 sm:p-5">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="flex items-center gap-4">
                                         <div className={cn(
                                             "h-12 w-12 rounded-xl flex items-center justify-center shadow-sm",
-                                            isIndebted ? "bg-red-600 text-white" : "bg-white/10 text-white"
+                                            isIndebted ? "bg-red-600 text-white" : "bg-primary text-primary-foreground shadow-inner"
                                         )}>
                                             <Wallet className="h-6 w-6" />
                                         </div>
                                         <div>
                                             <p className={cn(
                                                 "text-[10px] font-black uppercase tracking-widest",
-                                                isIndebted ? "text-red-600/70" : "text-white/60"
+                                                isIndebted ? "text-red-600/70" : "text-muted-foreground"
                                             )}>Ledger Standing</p>
                                             <div className="flex items-baseline gap-2">
                                                 <span className={cn(
                                                     "text-2xl font-black italic tracking-tighter",
-                                                    isIndebted ? "text-red-600" : "text-white"
+                                                    isIndebted ? "text-red-600" : "text-foreground"
                                                 )}>
                                                     JMD ${Math.abs(walletBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </span>
                                                 <Badge className={cn(
                                                     "uppercase text-[8px] font-black italic tracking-widest",
-                                                    isIndebted ? "bg-red-600 text-white" : "bg-white/20 text-white border-white/10"
+                                                    isIndebted ? "bg-red-600 text-white" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                                                 )}>
                                                     {isIndebted ? 'Outstanding' : 'Credit'}
                                                 </Badge>
@@ -163,12 +164,12 @@ export default function AccountPage() {
                                     
                                     <div className={cn(
                                         "flex-1 sm:max-w-md p-3 rounded-xl flex items-center gap-3",
-                                        isIndebted ? "bg-red-100/50" : "bg-white/5 border border-white/10"
+                                        isIndebted ? "bg-red-100/50 dark:bg-red-900/10" : "bg-white/50 dark:bg-black/20 border border-zinc-200 dark:border-zinc-800"
                                     )}>
-                                        {isIndebted ? <AlertCircle className="h-4 w-4 text-red-600 shrink-0" /> : <CheckCircle2 className="h-4 w-4 text-white/60 shrink-0" />}
+                                        {isIndebted ? <AlertCircle className="h-4 w-4 text-red-600 shrink-0" /> : <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
                                         <p className={cn(
                                             "text-[9px] font-bold leading-tight uppercase tracking-tight",
-                                            isIndebted ? "text-red-800" : "text-white/90"
+                                            isIndebted ? "text-red-800 dark:text-red-400" : "text-muted-foreground dark:text-zinc-400"
                                         )}>
                                             {isIndebted 
                                                 ? "Settlement required upon package arrival in Jamaica." 
@@ -178,7 +179,7 @@ export default function AccountPage() {
 
                                     <Button variant="outline" size="sm" className={cn(
                                         "font-black uppercase italic tracking-tighter h-10 px-6 shrink-0 border-2",
-                                        isIndebted ? "border-red-200 text-red-600 hover:bg-red-100" : "bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                                        isIndebted ? "border-red-200 text-red-600 hover:bg-red-100" : "border-zinc-200 dark:border-zinc-700"
                                     )} asChild>
                                         <Link href="/account/packages">Billing Details</Link>
                                     </Button>
