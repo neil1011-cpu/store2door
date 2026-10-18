@@ -43,9 +43,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Payload missing file segment.' }, { status: 400 });
         }
 
-        // Size Restriction: 5MB
-        if (file.size > 5 * 1024 * 1024) {
-            return NextResponse.json({ message: 'File size exceeds 5MB limit. Please compress or resize.' }, { status: 400 });
+        // Size Restriction: 500MB
+        if (file.size > 500 * 1024 * 1024) {
+            return NextResponse.json({ message: 'File size exceeds 500MB limit. Please compress or resize.' }, { status: 400 });
         }
 
         const arrayBuffer = await file.arrayBuffer();

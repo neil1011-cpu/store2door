@@ -345,7 +345,7 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
                 <Input type="number" step="0.01" value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} placeholder="0.00" className="h-12 border-2" />
             </div>
             <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase opacity-60">Invoice File (Max 5MB)</Label>
+                <Label className="text-[10px] font-bold uppercase opacity-60">Invoice File (Max 500MB)</Label>
                 <Input type="file" onChange={e => setFormData({...formData, file: e.target.files?.[0] || null})} accept="image/*,application/pdf" className="h-12 border-2 py-2" />
             </div>
             <Button type="submit" className="w-full h-16 font-black uppercase italic shadow-lg text-lg" disabled={isSubmitting}>
