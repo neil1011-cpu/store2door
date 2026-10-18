@@ -58,7 +58,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 // Fetch All Financial & Logistics Context
                 const [ledgerRes, shipmentsRes] = await Promise.all([
                     supabase.from('financial_ledger').select('*').eq('profile_id', user.id),
-                    supabase.from('shipments').select('tracking_number, trackingNumber, status, total_cost_jmd, payment_status').eq('profile_id', user.id)
+                    supabase.from('shipments').select('tracking_number, status, total_cost_jmd, payment_status').eq('profile_id', user.id)
                 ]);
 
                 const ledgerData = ledgerRes.data || [];

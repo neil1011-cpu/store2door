@@ -115,7 +115,7 @@ export default function PreAlertPage() {
                                                         {alert.status}
                                                     </Badge>
                                                 </TableCell>
-                                                <TableCell className="font-mono font-bold uppercase">{alert.trackingNumber || alert.tracking_number}</TableCell>
+                                                <TableCell className="font-mono font-bold uppercase">{alert.tracking_number}</TableCell>
                                                 <TableCell>
                                                     {alert.invoice_url ? (
                                                         <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[10px]">
