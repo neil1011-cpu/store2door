@@ -12,10 +12,10 @@ import { Wallet, Menu, TrendingDown, Loader2, LogOut, AlertTriangle } from 'luci
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
-import { cn, shouldShowPrice } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 
-const UserProfileContext = createContext<{ profile: UserProfile | null; balance: number; actionableBalance: number }>({ profile: null, balance: 0, actionableBalance: 0 });
+const UserProfileContext = createContext<{ profile: UserProfile | null; balance: number; totalToBePaid: number }>({ profile: null, balance: 0, totalToBePaid: 0 });
 export const useAccountProfile = () => useContext(UserProfileContext);
 
 const accountNavLinks = [
@@ -33,7 +33,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [balance, setBalance] = useState(0);
-    const [actionableBalance, setActionableBalance] = useState(0);
+    const [totalToBePaid, setTotalToBePaid] = useState(0);
     const [isDataLoading, setIsDataLoading] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -58,54 +58,23 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 // Fetch All Financial & Logistics Context
                 const [ledgerRes, shipmentsRes] = await Promise.all([
                     supabase.from('financial_ledger').select('*').eq('profile_id', user.id),
-                    supabase.from('shipments').select('tracking_number, status').eq('profile_id', user.id)
+                    supabase.from('shipments').select('tracking_number, status, total_cost_jmd, payment_status').eq('profile_id', user.id)
                 ]);
 
                 const ledgerData = ledgerRes.data || [];
                 const shipmentsData = shipmentsRes.data || [];
 
-                // 1. Calculate Absolute Net Balance (Accounting Truth)
+                // 1. Calculate Absolute Net Balance (Accounting Truth - for internal profile state)
                 const netBalance = ledgerData.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
                 setBalance(netBalance);
 
-                // 2. Identify "Actionable" Packages (Ready for collection)
-                const readyTrackingIds = new Set(
-                    shipmentsData
-                        .filter(s => shouldShowPrice(s.status))
-                        .map(s => s.tracking_number?.trim().toUpperCase())
-                );
+                // 2. Calculate "Total to be Paid" (Pure Addition of Ready items)
+                // Rule: Nothing should be subtracting. Only sum the costs of items ready for collection that are unpaid.
+                const totalReady = shipmentsData
+                    .filter(s => s.status?.toLowerCase() === 'ready for pick up' && s.payment_status === 'Unpaid')
+                    .reduce((acc, curr) => acc + Number(curr.total_cost_jmd || 0), 0);
 
-                // 3. Calculate Actionable Balance
-                // Logic: Credits (positive) + (Debits for READY items only)
-                const actionableSum = ledgerData.reduce((acc, curr) => {
-                    const amount = Number(curr.amount || 0);
-                    
-                    // Case A: Entry is a Credit (Payment, Refund, Adjustment Up)
-                    // These are ALWAYS actionable and should offset any debt.
-                    if (amount > 0) return acc + amount;
-
-                    // Case B: Entry is a Debit (Charge, Adjustment Down)
-                    const desc = (curr.description || '').toUpperCase();
-                    
-                    // Detect if this specific debit is linked to a package currently READY for pickup
-                    const isLinkedToReady = Array.from(readyTrackingIds).some(tid => desc.includes(tid));
-                    
-                    // We only include logistics charges if the item is actionable (Ready/Delivered)
-                    const isLogisticsCharge = curr.transaction_type === 'shipping_fee' || 
-                                           desc.includes('FEE') || 
-                                           desc.includes('SHIPMENT') ||
-                                           desc.includes('INTAKE') ||
-                                           desc.includes('ENTRY');
-
-                    if (isLogisticsCharge) {
-                        return isLinkedToReady ? acc + amount : acc;
-                    }
-
-                    // Fallback: Non-logistics manual adjustments are always actionable
-                    return acc + amount;
-                }, 0);
-
-                setActionableBalance(actionableSum);
+                setTotalToBePaid(totalReady);
                 setError(null);
                 
                 if (retryTimerRef.current) {
@@ -211,10 +180,10 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     if (!user || !profile) return null;
 
     const isSecurityPage = pathname === '/account/change-password';
-    const isIndebted = actionableBalance < 0;
+    const hasDues = totalToBePaid > 0;
 
     return (
-        <UserProfileContext.Provider value={{ profile, balance, actionableBalance }}>
+        <UserProfileContext.Provider value={{ profile, balance, totalToBePaid }}>
             <div className="min-h-screen bg-muted/20">
                 <div className="bg-background border-b shadow-sm sticky top-0 z-40 print:hidden">
                     <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-2">
@@ -257,18 +226,18 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                             {!isSecurityPage && (
                                 <div className={cn(
                                     "border-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[200px] sm:max-w-none transition-all",
-                                    isIndebted ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/10 opacity-40 hover:opacity-100"
+                                    hasDues ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/10 opacity-40 hover:opacity-100"
                                 )}>
-                                    {isIndebted ? <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600 shrink-0" /> : <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />}
+                                    {hasDues ? <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600 shrink-0" /> : <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />}
                                     <div className="flex flex-col min-w-0">
                                         <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest leading-none">
-                                            {isIndebted ? 'Actionable Due' : 'Balance'}
+                                            {hasDues ? 'Total to be paid' : 'Account Registry'}
                                         </span>
                                         <span className={cn(
                                             "text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate",
-                                            isIndebted ? "text-red-600" : "text-foreground"
+                                            hasDues ? "text-red-600" : "text-foreground"
                                         )}>
-                                            JMD ${Math.abs(actionableBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </span>
                                     </div>
                                 </div>
