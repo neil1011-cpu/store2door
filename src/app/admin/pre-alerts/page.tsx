@@ -55,7 +55,15 @@ export default function PreAlertsPage() {
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+
+        // Real-time sync for inbound pre-alerts feed
+        const channel = supabase
+            .channel('admin-prealerts-live-feed')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'pre_alerts' }, () => fetchData(true))
+            .subscribe();
+        
+        return () => { supabase.removeChannel(channel); };
+    }, [fetchData, supabase]);
 
     const handleSyncPreAlerts = async () => {
         setIsSyncing(true);

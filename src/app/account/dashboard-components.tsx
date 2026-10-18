@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -95,21 +95,35 @@ export function DashboardTab({ details }: { details: UserProfile }) {
   const [recentShipment, setRecentShipment] = useState<Shipment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchRecent = async () => {
-      const { data } = await supabase
-        .from('shipments')
-        .select('*')
-        .eq('profile_id', details.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      setRecentShipment(data);
-      setIsLoading(false);
-    };
-    fetchRecent();
+  const fetchRecent = useCallback(async () => {
+    const { data } = await supabase
+      .from('shipments')
+      .select('*')
+      .eq('profile_id', details.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    setRecentShipment(data);
+    setIsLoading(false);
   }, [details.id, supabase]);
+
+  useEffect(() => {
+    fetchRecent();
+
+    // Real-time synchronization
+    const channel = supabase
+        .channel(`dashboard-recent-updates-${details.id}`)
+        .on('postgres_changes', { 
+            event: '*', 
+            schema: 'public', 
+            table: 'shipments', 
+            filter: `profile_id=eq.${details.id}` 
+        }, () => fetchRecent())
+        .subscribe();
+    
+    return () => { supabase.removeChannel(channel); };
+  }, [details.id, supabase, fetchRecent]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -181,25 +195,45 @@ export function PackagesTab({ profileId }: { profileId: string }) {
   const [packages, setPackages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchPackages = async () => {
-      const { data: shipments } = await supabase.from('shipments').select('*').eq('profile_id', profileId);
-      const { data: preAlerts } = await supabase.from('pre_alerts').select('*').eq('profile_id', profileId).eq('status', 'Pending');
-      
-      const combined = [
-        ...(shipments || []).map(s => ({ ...s, type: 'shipment' })),
-        ...(preAlerts || []).map(p => ({ ...p, type: 'pre-alert' }))
-      ].sort((a, b) => {
-        const dateA = a.shipping_date || a.submission_date || a.created_at;
-        const dateB = b.shipping_date || b.submission_date || b.created_at;
-        return new Date(dateB).getTime() - new Date(dateA).getTime();
-      });
+  const fetchPackages = useCallback(async () => {
+    const { data: shipments } = await supabase.from('shipments').select('*').eq('profile_id', profileId);
+    const { data: preAlerts } = await supabase.from('pre_alerts').select('*').eq('profile_id', profileId).eq('status', 'Pending');
+    
+    const combined = [
+      ...(shipments || []).map(s => ({ ...s, type: 'shipment' })),
+      ...(preAlerts || []).map(p => ({ ...p, type: 'pre-alert' }))
+    ].sort((a, b) => {
+      const dateA = a.shipping_date || a.submission_date || a.created_at;
+      const dateB = b.shipping_date || b.submission_date || b.created_at;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
 
-      setPackages(combined);
-      setIsLoading(false);
-    };
-    fetchPackages();
+    setPackages(combined);
+    setIsLoading(false);
   }, [profileId, supabase]);
+
+  useEffect(() => {
+    fetchPackages();
+
+    // Real-time synchronization
+    const channel = supabase
+      .channel(`user-packages-sync-${profileId}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'shipments', 
+        filter: `profile_id=eq.${profileId}` 
+      }, () => fetchPackages())
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'pre_alerts', 
+        filter: `profile_id=eq.${profileId}` 
+      }, () => fetchPackages())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [profileId, supabase, fetchPackages]);
 
   return (
     <Card className="border-none shadow-none sm:border sm:shadow-sm">

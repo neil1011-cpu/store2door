@@ -67,7 +67,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 setBalance(totalBalance);
 
                 // 2. Determine Actionable Balance (Debt for items ready for pickup/delivered)
-                // We fetch shipments to see which ones are ready/delivered
                 const { data: shipments } = await supabase
                     .from('shipments')
                     .select('tracking_number, status')
@@ -77,7 +76,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                     .filter(s => shouldShowPrice(s.status))
                     .map(s => s.tracking_number);
 
-                // Sum only adjustments, payments, and fees linked to ready items
                 const actionableSum = ledgerData?.reduce((acc, curr) => {
                     const isGeneral = !curr.description?.includes('Shipping Fee:');
                     const isLinkedToReady = readyTrackingNumbers.some(tn => curr.description?.includes(tn));
@@ -118,11 +116,23 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     }, [user, isAuthLoading, router]);
 
     useEffect(() => {
-        if (user) fetchData();
-        return () => {
-            if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-        };
-    }, [fetchData, user]);
+        if (user) {
+            fetchData();
+
+            // Real-time listener for financial and shipment updates
+            const channel = supabase
+                .channel(`user-account-sync-${user.id}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_ledger', filter: `profile_id=eq.${user.id}` }, () => fetchData())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'shipments', filter: `profile_id=eq.${user.id}` }, () => fetchData())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` }, () => fetchData())
+                .subscribe();
+
+            return () => {
+                supabase.removeChannel(channel);
+                if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+            };
+        }
+    }, [fetchData, user, supabase]);
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
