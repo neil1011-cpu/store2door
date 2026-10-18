@@ -181,7 +181,7 @@ export default function UserDetailsPage() {
                     <ShieldAlert className="h-16 w-16 text-muted-foreground opacity-20" />
                 </div>
                 <div className="text-center space-y-2">
-                    h1 className="text-3xl font-black italic uppercase tracking-tighter">Identity Missing</h1>
+                    <h1 className="text-3xl font-black italic uppercase tracking-tighter">Identity Missing</h1>
                     <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold">This UID does not exist in the active registry.</p>
                 </div>
                 <Button variant="outline" asChild className="font-black uppercase italic border-2 h-12 px-10">

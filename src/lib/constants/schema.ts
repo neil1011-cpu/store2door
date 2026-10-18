@@ -274,4 +274,4 @@ CREATE PUBLICATION supabase_realtime FOR TABLE
     public.financial_ledger,
     public.system_logs;
 
-NOTIFY pgrst, 'reload schema';`
+NOTIFY pgrst, 'reload schema';`;

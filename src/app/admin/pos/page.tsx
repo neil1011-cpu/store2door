@@ -423,7 +423,7 @@ export default function POSPage() {
                                         <TableRow>
                                             <TableHead className="w-[100px] pl-10"></TableHead>
                                             <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Document ID</TableHead>
-                                            <TableHead className="text-[10px) font-black uppercase tracking-[0.3em]">Authorized Date</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Authorized Date</TableHead>
                                             <TableHead className="text-right pr-14 text-[10px] font-black uppercase tracking-[0.3em]">Line Total (JMD)</TableHead>
                                         </TableRow>
                                     </TableHeader>
