@@ -64,22 +64,6 @@ export default function AccountPage() {
         setYear(new Date().getFullYear());
     }, []);
 
-    const handleSignOut = async () => {
-        try {
-            await supabase.auth.signOut();
-            toast({
-                title: 'Signed Out',
-                description: 'You have been successfully signed out.',
-            });
-            router.push('/');
-        } catch (error) {
-            toast({
-                title: 'Sign Out Failed',
-                variant: 'destructive',
-            });
-        }
-    };
-
     if (!userProfile || !mounted) return null;
 
     const hasDues = totalToBePaid > 0;
@@ -90,11 +74,6 @@ export default function AccountPage() {
                 <div className="text-center md:text-left">
                     <h1 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter">Welcome, {userProfile.full_name?.split(' ')[0] || 'User'}!</h1>
                     <p className="text-muted-foreground text-xs sm:text-sm font-bold uppercase tracking-widest opacity-60 mt-1">Global Mailbox: {userProfile.mailbox_number}</p>
-                </div>
-                <div className="flex items-center justify-center md:justify-end gap-2">
-                    <Button variant="outline" onClick={handleSignOut} size="sm" className="font-black uppercase italic border-2 px-6 h-10">
-                        <LogOut className="mr-2 h-4 w-4" /> Sign Out
-                    </Button>
                 </div>
             </div>
 
