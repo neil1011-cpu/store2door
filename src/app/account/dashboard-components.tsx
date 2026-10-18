@@ -562,7 +562,7 @@ export function CustomsCalculatorTab() {
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <Label className="text-[10px) font-bold uppercase opacity-60">Category</Label>
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Category</Label>
                     <div className="relative">
                         <Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}>
                             <SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger>
