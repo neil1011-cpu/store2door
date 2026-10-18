@@ -58,7 +58,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 // Fetch All Financial & Logistics Context
                 const [ledgerRes, shipmentsRes] = await Promise.all([
                     supabase.from('financial_ledger').select('*').eq('profile_id', user.id),
-                    supabase.from('shipments').select('tracking_number, status, total_cost_jmd, payment_status').eq('profile_id', user.id)
+                    supabase.from('shipments').select('tracking_number, trackingNumber, status, total_cost_jmd, payment_status').eq('profile_id', user.id)
                 ]);
 
                 const ledgerData = ledgerRes.data || [];
@@ -69,7 +69,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 setBalance(netBalance);
 
                 // 2. Calculate "Total to be Paid" (Pure Addition of Ready items)
-                // Rule: Nothing should be subtracting. Only sum the costs of items ready for collection that are unpaid.
                 const totalReady = shipmentsData
                     .filter(s => s.status?.toLowerCase() === 'ready for pick up' && s.payment_status === 'Unpaid')
                     .reduce((acc, curr) => acc + Number(curr.total_cost_jmd || 0), 0);

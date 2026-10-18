@@ -143,7 +143,7 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                 <div className="flex-1">
                   <p className="text-[10px] font-bold uppercase opacity-60">Tracking Number</p>
                   <div className="flex items-center gap-3">
-                      <p className="font-mono font-bold text-lg text-primary">{recentShipment.tracking_number}</p>
+                      <p className="font-mono font-bold text-lg text-primary">{recentShipment.trackingNumber}</p>
                       {recentShipment.invoice_url && (
                           <Button variant="ghost" size="sm" asChild className="h-7 text-primary font-bold uppercase text-[9px] border-2 border-primary/10">
                               <Link href={`/api/storage/view?key=${encodeURIComponent(recentShipment.invoice_url)}`} target="_blank">
@@ -232,7 +232,7 @@ export function PackagesTab({ profileId }: { profileId: string }) {
             ) : packages.map((pkg) => (
               <TableRow key={pkg.id}>
                 <TableCell>
-                  <p className="font-mono font-bold text-primary">{pkg.tracking_number}</p>
+                  <p className="font-mono font-bold text-primary">{pkg.trackingNumber}</p>
                   <p className="text-[10px] uppercase opacity-60 truncate max-w-[150px]">{pkg.contents}</p>
                 </TableCell>
                 <TableCell><Badge variant={getStatusVariant(pkg.status)} className="text-[8px] font-black uppercase italic">{pkg.status}</Badge></TableCell>
