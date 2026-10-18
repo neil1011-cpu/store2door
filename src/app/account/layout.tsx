@@ -12,10 +12,10 @@ import { Wallet, Menu, TrendingDown, Loader2, LogOut, AlertTriangle, RefreshCcw 
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
+import { cn, shouldShowPrice } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 
-const UserProfileContext = createContext<{ profile: UserProfile | null; balance: number }>({ profile: null, balance: 0 });
+const UserProfileContext = createContext<{ profile: UserProfile | null; balance: number; actionableBalance: number }>({ profile: null, balance: 0, actionableBalance: 0 });
 export const useAccountProfile = () => useContext(UserProfileContext);
 
 const accountNavLinks = [
@@ -33,18 +33,12 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
     
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [balance, setBalance] = useState(0);
+    const [actionableBalance, setActionableBalance] = useState(0);
     const [isDataLoading, setIsDataLoading] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
     const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-    // SECURITY: Force password reset if flag is present in user metadata
-    useEffect(() => {
-        if (!isAuthLoading && user?.user_metadata?.needs_password_reset) {
-            router.push('/reset-password');
-        }
-    }, [user, isAuthLoading, router]);
 
     const fetchData = useCallback(async () => {
         if (!user) return;
@@ -63,28 +57,50 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             if (profileData) {
                 setProfile(profileData);
 
-                // Fetch Balance from the ledger
-                const { data: ledgerData, error: ledgerError } = await supabase
+                // 1. Fetch Ledger entries
+                const { data: ledgerData } = await supabase
                     .from('financial_ledger')
-                    .select('amount')
+                    .select('*')
                     .eq('profile_id', user.id);
                 
-                if (!ledgerError) {
-                    const totalBalance = ledgerData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
-                    setBalance(totalBalance);
-                }
+                const totalBalance = ledgerData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+                setBalance(totalBalance);
+
+                // 2. Determine Actionable Balance (Debt for items ready for pickup/delivered)
+                // We fetch shipments to see which ones are ready/delivered
+                const { data: shipments } = await supabase
+                    .from('shipments')
+                    .select('tracking_number, status')
+                    .eq('profile_id', user.id);
+                
+                const readyTrackingNumbers = (shipments || [])
+                    .filter(s => shouldShowPrice(s.status))
+                    .map(s => s.tracking_number);
+
+                // Sum only adjustments, payments, and fees linked to ready items
+                const actionableSum = ledgerData?.reduce((acc, curr) => {
+                    const isGeneral = !curr.description?.includes('Shipping Fee:');
+                    const isLinkedToReady = readyTrackingNumbers.some(tn => curr.description?.includes(tn));
+                    
+                    if (isGeneral || isLinkedToReady) {
+                        return acc + Number(curr.amount);
+                    }
+                    return acc;
+                }, 0) || 0;
+
+                setActionableBalance(actionableSum);
                 
                 if (retryTimerRef.current) {
                     clearTimeout(retryTimerRef.current);
                     retryTimerRef.current = null;
                 }
             } else {
-                if (retryCount < 12) { // 24 seconds of total polling
+                if (retryCount < 12) {
                     retryTimerRef.current = setTimeout(() => {
                         setRetryCount(prev => prev + 1);
                     }, 2000);
                 } else {
-                    setError("Identity sync timed out. Please check if your account was created correctly in the registry.");
+                    setError("Identity sync timed out. Please check your account registration.");
                 }
             }
         } catch (error: any) {
@@ -143,92 +159,67 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         );
     }
 
-    if (user && !profile) {
-        return (
-            <div className="container mx-auto py-24 px-4 flex flex-col items-center justify-center min-h-[80vh] text-center">
-                <div className="bg-primary/10 p-8 rounded-full mb-8">
-                    <RefreshCcw className="h-12 w-12 text-primary animate-spin" />
-                </div>
-                <h1 className="text-3xl font-black italic uppercase tracking-tighter mb-2">Finalizing Identity</h1>
-                <p className="text-muted-foreground max-w-sm mb-10 text-sm font-medium uppercase tracking-widest leading-relaxed">
-                    We are establishing your global mailbox in our registry. This takes a few seconds.
-                </p>
-                <div className="flex flex-col gap-4">
-                    <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-primary animate-pulse">
-                        <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        Awaiting Postgres Confirmation (Attempt {retryCount}/12)
-                    </div>
-                    <Button variant="ghost" onClick={handleSignOut} className="text-xs font-bold uppercase opacity-60">
-                        Sign Out & Try Again
-                    </Button>
-                </div>
-            </div>
-        );
-    }
-
     if (!user || !profile) return null;
 
     const isSecurityPage = pathname === '/account/change-password';
-    const isIndebted = balance < 0;
+    const isIndebted = actionableBalance < 0;
 
     return (
-        <UserProfileContext.Provider value={{ profile, balance }}>
+        <UserProfileContext.Provider value={{ profile, balance, actionableBalance }}>
             <div className="min-h-screen bg-muted/20">
                 <div className="bg-background border-b shadow-sm sticky top-0 z-40 print:hidden">
                     <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 md:gap-4 shrink-0">
-                            {!isSecurityPage && (
-                                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-                                    <SheetTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="md:hidden">
-                                            <Menu className="h-5 w-5" />
+                            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                                <SheetTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="md:hidden">
+                                        <Menu className="h-5 w-5" />
+                                    </Button>
+                                </SheetTrigger>
+                                <SheetContent side="left" className="w-[300px]">
+                                    <SheetHeader className="mb-8">
+                                        <SheetTitle><AppLogo onClick={() => setIsMobileMenuOpen(false)} /></SheetTitle>
+                                    </SheetHeader>
+                                    <nav className="flex flex-col gap-2">
+                                        {accountNavLinks.map(link => (
+                                            <Link 
+                                                key={link.href}
+                                                href={link.href}
+                                                onClick={() => setIsMobileMenuOpen(false)}
+                                                className={cn(
+                                                    "text-base font-bold uppercase tracking-wider p-4 rounded-lg transition-colors",
+                                                    pathname === link.href ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                                                )}
+                                            >
+                                                {link.label}
+                                            </Link>
+                                        ))}
+                                        <Separator className="my-4" />
+                                        <Button onClick={handleSignOut} variant="destructive" className="w-full h-12 font-black uppercase italic mt-4">
+                                            <LogOut className="mr-2 h-4 w-4" /> Sign Out
                                         </Button>
-                                    </SheetTrigger>
-                                    <SheetContent side="left" className="w-[300px]">
-                                        <SheetHeader className="mb-8">
-                                            <SheetTitle><AppLogo onClick={() => setIsMobileMenuOpen(false)} /></SheetTitle>
-                                        </SheetHeader>
-                                        <nav className="flex flex-col gap-2">
-                                            {accountNavLinks.map(link => (
-                                                <Link 
-                                                    key={link.href}
-                                                    href={link.href}
-                                                    onClick={() => setIsMobileMenuOpen(false)}
-                                                    className={cn(
-                                                        "text-base font-bold uppercase tracking-wider p-4 rounded-lg transition-colors",
-                                                        pathname === link.href ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-                                                    )}
-                                                >
-                                                    {link.label}
-                                                </Link>
-                                            ))}
-                                            <Separator className="my-4" />
-                                            <Button onClick={handleSignOut} variant="destructive" className="w-full h-12 font-black uppercase italic mt-4">
-                                                <LogOut className="mr-2 h-4 w-4" /> Sign Out
-                                            </Button>
-                                        </nav>
-                                    </SheetContent>
-                                </Sheet>
-                            )}
+                                    </nav>
+                                </SheetContent>
+                            </Sheet>
                             <AppLogo className="scale-75 sm:scale-90" />
                         </div>
                         
                         <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end overflow-hidden">
                             {!isSecurityPage && (
                                 <div className={cn(
-                                    "border-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[200px] sm:max-w-none transition-colors",
-                                    isIndebted ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/10"
+                                    "border-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-inner max-w-[200px] sm:max-w-none transition-all",
+                                    isIndebted ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/10 opacity-40 hover:opacity-100"
                                 )}>
                                     {isIndebted ? <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600 shrink-0" /> : <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />}
                                     <div className="flex flex-col min-w-0">
                                         <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest leading-none">
-                                            {isIndebted ? 'Outstanding' : 'Credit'}
+                                            {isIndebted ? 'Actionable Due' : 'Balance'}
                                         </span>
                                         <span className={cn(
                                             "text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate",
                                             isIndebted ? "text-red-600" : "text-foreground"
                                         )}>
-                                            JMD ${Math.abs(balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            JMD ${Math.abs(actionableBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </span>
                                     </div>
                                 </div>

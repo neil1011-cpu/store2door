@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSupabase } from '@/components/supabase-provider';
 
 export default function PreAlertPage() {
@@ -17,31 +17,36 @@ export default function PreAlertPage() {
     const [history, setHistory] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    const fetchHistory = useCallback(async () => {
+        if (!profile) return;
+        const { data } = await supabase
+            .from('pre_alerts')
+            .select('*')
+            .eq('profile_id', profile.id)
+            .order('submission_date', { ascending: false });
+        setHistory(data || []);
+        setIsLoading(false);
+    }, [profile, supabase]);
+
     useEffect(() => {
         if (!profile) return;
-        
-        const fetchHistory = async () => {
-            const { data } = await supabase
-                .from('pre_alerts')
-                .select('*')
-                .eq('profile_id', profile.id)
-                .order('submission_date', { ascending: false });
-            setHistory(data || []);
-            setIsLoading(false);
-        };
-
         fetchHistory();
 
-        // Real-time updates
+        // Real-time updates subscription
         const channel = supabase
-            .channel('pre-alert-updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'pre_alerts', filter: `profile_id=eq.${profile.id}` }, () => {
+            .channel(`pre-alert-owner-${profile.id}`)
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'pre_alerts', 
+                filter: `profile_id=eq.${profile.id}` 
+            }, () => {
                 fetchHistory();
             })
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [profile, supabase]);
+    }, [profile, supabase, fetchHistory]);
 
     if (!profile) return null;
 
@@ -72,7 +77,11 @@ export default function PreAlertPage() {
                             <CardDescription>Upload your commercial invoice for processing.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <PreAlertTab profileId={profile.id} mailbox={profile.mailbox_number} />
+                            <PreAlertTab 
+                                profileId={profile.id} 
+                                mailbox={profile.mailbox_number} 
+                                onSuccess={fetchHistory}
+                            />
                         </CardContent>
                     </Card>
                 </div>

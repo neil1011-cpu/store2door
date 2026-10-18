@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Zap, Calculator, Truck, DollarSign, Weight, Info, FileText, Download, MapPin, Copy } from 'lucide-react';
+import { Loader2, Zap, Calculator, Truck, DollarSign, Weight, Info, FileText, Download, MapPin, Copy, CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -260,7 +260,7 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
     const { supabase, user } = useSupabase();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [formKey, setFormKey] = useState(0); // To reset the file input
+    const [formKey, setFormKey] = useState(0);
     const [formData, setFormData] = useState({ trackingNumber: '', contents: '', weight: '', file: null as File | null });
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -277,9 +277,9 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
 
         try {
             let finalKey = null;
-            if (formData.file && user) {
-                const sessionRes = await supabase.auth.getSession();
-                const session = sessionRes.data.session;
+            if (formData.file) {
+                // Ensure fresh session token for binary transfer
+                const { data: { session } } = await supabase.auth.getSession();
                 
                 const body = new FormData();
                 body.append('file', formData.file);
@@ -333,23 +333,24 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase opacity-60">Tracking Number</Label>
-                    <Input value={formData.trackingNumber} onChange={e => setFormData({...formData, trackingNumber: e.target.value})} placeholder="e.g. 1Z..." className="font-mono uppercase" required />
+                    <Input value={formData.trackingNumber} onChange={e => setFormData({...formData, trackingNumber: e.target.value})} placeholder="e.g. 1Z..." className="font-mono uppercase h-12 border-2" required />
                 </div>
                 <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase opacity-60">Contents</Label>
-                    <Input value={formData.contents} onChange={e => setFormData({...formData, contents: e.target.value})} placeholder="Shoes, etc." required />
+                    <Input value={formData.contents} onChange={e => setFormData({...formData, contents: e.target.value})} placeholder="Shoes, etc." className="h-12 border-2" required />
                 </div>
             </div>
             <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase opacity-60">Weight (LBS)</Label>
-                <Input type="number" step="0.01" value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} placeholder="0.00" />
+                <Input type="number" step="0.01" value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} placeholder="0.00" className="h-12 border-2" />
             </div>
             <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase opacity-60">Invoice File (Max 5MB)</Label>
-                <Input type="file" onChange={e => setFormData({...formData, file: e.target.files?.[0] || null})} accept="image/*,application/pdf" />
+                <Input type="file" onChange={e => setFormData({...formData, file: e.target.files?.[0] || null})} accept="image/*,application/pdf" className="h-12 border-2 py-2" />
             </div>
-            <Button type="submit" className="w-full h-14 font-black uppercase italic shadow-lg" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Zap className="mr-2" />} Authorize Intake
+            <Button type="submit" className="w-full h-16 font-black uppercase italic shadow-lg text-lg" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="animate-spin mr-2 h-6 w-6" /> : <Zap className="mr-2 h-6 w-6" />} 
+                {isSubmitting ? "Transmitting..." : "Authorize Intake"}
             </Button>
         </form>
     );
@@ -395,13 +396,13 @@ export function AccountTab({ details }: { details: UserProfile }) {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label className="text-[10px] font-bold uppercase opacity-60">Phone Number</Label>
-                        <Input value={phone} onChange={e => setPhone(e.target.value)} className="border-2" />
+                        <Input value={phone} onChange={e => setPhone(e.target.value)} className="border-2 h-12" />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-[10px] font-bold uppercase opacity-60">Tax Registration Number (TRN)</Label>
-                        <Input value={trn} onChange={e => setTrn(e.target.value)} maxLength={9} className="border-2 font-mono" />
+                        <Input value={trn} onChange={e => setTrn(e.target.value)} maxLength={9} className="border-2 font-mono h-12" />
                     </div>
-                    <Button onClick={handleUpdate} disabled={isSaving} className="w-full font-black uppercase italic shadow-lg">
+                    <Button onClick={handleUpdate} disabled={isSaving} className="w-full h-12 font-black uppercase italic shadow-lg">
                         {isSaving ? <Loader2 className="animate-spin" /> : "Save Changes"}
                     </Button>
                 </CardContent>

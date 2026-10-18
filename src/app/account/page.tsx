@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, Wallet, TrendingDown, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, Wallet, TrendingDown, TrendingUp, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { DashboardTab } from './dashboard-components';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -55,7 +55,7 @@ export default function AccountPage() {
     const router = useRouter();
     const { toast } = useToast();
     const { supabase } = useSupabase();
-    const { profile: userProfile, balance: walletBalance } = useAccountProfile();
+    const { profile: userProfile, balance: walletBalance, actionableBalance } = useAccountProfile();
     const [mounted, setMounted] = useState(false);
     const [year, setYear] = useState<number>(new Date().getFullYear());
 
@@ -82,7 +82,7 @@ export default function AccountPage() {
 
     if (!userProfile || !mounted) return null;
 
-    const isIndebted = walletBalance < 0;
+    const isIndebted = actionableBalance < 0;
 
     return (
         <div className="container mx-auto px-4 md:px-6 pb-20">
@@ -144,19 +144,19 @@ export default function AccountPage() {
                                             <p className={cn(
                                                 "text-[10px] font-black uppercase tracking-widest",
                                                 isIndebted ? "text-red-600/70" : "text-muted-foreground"
-                                            )}>Ledger Standing</p>
+                                            )}>Actionable Standing</p>
                                             <div className="flex items-baseline gap-2">
                                                 <span className={cn(
                                                     "text-2xl font-black italic tracking-tighter",
                                                     isIndebted ? "text-red-600" : "text-foreground"
                                                 )}>
-                                                    JMD ${Math.abs(walletBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                    JMD ${Math.abs(actionableBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </span>
                                                 <Badge className={cn(
                                                     "uppercase text-[8px] font-black italic tracking-widest",
                                                     isIndebted ? "bg-red-600 text-white" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                                                 )}>
-                                                    {isIndebted ? 'Outstanding' : 'Credit'}
+                                                    {isIndebted ? 'Due Now' : 'Credit'}
                                                 </Badge>
                                             </div>
                                         </div>
@@ -172,8 +172,10 @@ export default function AccountPage() {
                                             isIndebted ? "text-red-800 dark:text-red-400" : "text-muted-foreground dark:text-zinc-400"
                                         )}>
                                             {isIndebted 
-                                                ? "Settlement required upon package arrival in Jamaica." 
-                                                : "Account in good standing. Credits auto-apply to transits."}
+                                                ? "Immediate settlement required for packages ready for pickup." 
+                                                : actionableBalance > 0 
+                                                  ? "Registry credit available. This will apply to your next pickup."
+                                                  : "No actionable charges detected. Registry is syncing."}
                                         </p>
                                     </div>
 

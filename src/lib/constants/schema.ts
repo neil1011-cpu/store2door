@@ -1,10 +1,10 @@
 /**
  * @fileOverview Definitive Production SQL Schema for FromStore2Door OS.
  * Hardened version with binary documentation storage, immutable ledger logic, and granular RLS.
- * Includes evolution logic to handle missing columns in existing deployments.
+ * Includes Real-time publication for live UI updates.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v4.9)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v5.1)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -57,7 +57,6 @@ CREATE TABLE IF NOT EXISTS public.addresses (
     created_at timestamptz DEFAULT now() NOT NULL
 );
 
--- Authoritative Document Storage
 CREATE TABLE IF NOT EXISTS public.document_assets (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
@@ -107,7 +106,7 @@ CREATE TABLE IF NOT EXISTS public.pre_alerts (
     contents text,
     weight_lbs numeric(10,2) DEFAULT 0 CHECK (weight_lbs >= 0),
     status text DEFAULT 'Pending' NOT NULL CHECK (status IN ('Pending', 'Processed', 'Cancelled')),
-    invoice_url text, -- Stores the ID of the document_asset
+    invoice_url text,
     logicware_id text UNIQUE,
     submission_date timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
@@ -123,7 +122,7 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     total_cost_jmd numeric(12,2) DEFAULT 0 CHECK (total_cost_jmd >= 0),
     payment_status text DEFAULT 'Unpaid' NOT NULL CHECK (payment_status IN ('Paid', 'Unpaid', 'Partial')),
     shipping_date timestamptz,
-    invoice_url text, -- Stores the ID of the document_asset
+    invoice_url text,
     logicware_id text UNIQUE,
     manifest_id uuid REFERENCES public.manifests(id),
     created_at timestamptz DEFAULT now() NOT NULL,
@@ -228,14 +227,12 @@ ALTER TABLE public.sent_emails ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.manifests ENABLE ROW LEVEL SECURITY;
 
--- 8. POLICIES (HARDENED)
--- PROFILES
+-- 8. POLICIES
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (auth.uid() = id OR is_admin());
 DROP POLICY IF EXISTS "profiles_update" ON public.profiles;
 CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
--- PRE_ALERTS
 DROP POLICY IF EXISTS "pre_alerts_select" ON public.pre_alerts;
 CREATE POLICY "pre_alerts_select" ON public.pre_alerts FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "pre_alerts_insert" ON public.pre_alerts;
@@ -243,47 +240,38 @@ CREATE POLICY "pre_alerts_insert" ON public.pre_alerts FOR INSERT WITH CHECK (au
 DROP POLICY IF EXISTS "pre_alerts_update" ON public.pre_alerts;
 CREATE POLICY "pre_alerts_update" ON public.pre_alerts FOR UPDATE USING (auth.uid() = profile_id OR is_admin());
 
--- SHIPMENTS
 DROP POLICY IF EXISTS "shipments_select" ON public.shipments;
 CREATE POLICY "shipments_select" ON public.shipments FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "shipments_admin" ON public.shipments;
 CREATE POLICY "shipments_admin" ON public.shipments FOR ALL USING (is_admin());
 
--- INVOICES
 DROP POLICY IF EXISTS "invoices_select" ON public.invoices;
 CREATE POLICY "invoices_select" ON public.invoices FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "invoices_admin" ON public.invoices;
 CREATE POLICY "invoices_admin" ON public.invoices FOR ALL USING (is_admin());
 
--- LEDGER
 DROP POLICY IF EXISTS "ledger_select" ON public.financial_ledger;
 CREATE POLICY "ledger_select" ON public.financial_ledger FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "ledger_insert_admin" ON public.financial_ledger;
 CREATE POLICY "ledger_insert_admin" ON public.financial_ledger FOR INSERT WITH CHECK (is_admin());
 
--- ADDRESSES
 DROP POLICY IF EXISTS "addresses_select" ON public.addresses;
 CREATE POLICY "addresses_select" ON public.addresses FOR SELECT USING (auth.uid() = profile_id OR is_admin());
 DROP POLICY IF EXISTS "addresses_owner" ON public.addresses;
 CREATE POLICY "addresses_owner" ON public.addresses FOR ALL USING (auth.uid() = profile_id OR is_admin());
 
--- DOCUMENT ASSETS
 DROP POLICY IF EXISTS "doc_assets_select" ON public.document_assets;
 CREATE POLICY "doc_assets_select" ON public.document_assets FOR SELECT USING (auth.uid() = profile_id OR is_admin());
+DROP POLICY IF EXISTS "doc_assets_insert" ON public.document_assets;
+CREATE POLICY "doc_assets_insert" ON public.document_assets FOR INSERT WITH CHECK (auth.uid() = profile_id OR is_admin());
 
--- MANIFESTS
-DROP POLICY IF EXISTS "manifests_select" ON public.manifests;
-CREATE POLICY "manifests_select" ON public.manifests FOR SELECT USING (is_admin());
-DROP POLICY IF EXISTS "manifests_all_admin" ON public.manifests;
-CREATE POLICY "manifests_all_admin" ON public.manifests FOR ALL USING (is_admin());
+-- 9. REAL-TIME PUBLICATIONS
+DROP PUBLICATION IF EXISTS supabase_realtime;
+CREATE PUBLICATION supabase_realtime FOR TABLE 
+    public.pre_alerts, 
+    public.shipments, 
+    public.profiles, 
+    public.financial_ledger,
+    public.system_logs;
 
--- ADMIN ONLY TABLES
-DROP POLICY IF EXISTS "logs_select_admin" ON public.system_logs;
-CREATE POLICY "logs_select_admin" ON public.system_logs FOR SELECT USING (is_admin());
-DROP POLICY IF EXISTS "emails_select_admin" ON public.sent_emails;
-CREATE POLICY "emails_select_admin" ON public.sent_emails FOR SELECT USING (is_admin());
-DROP POLICY IF EXISTS "configs_all_admin" ON public.system_configs;
-CREATE POLICY "configs_all_admin" ON public.system_configs FOR ALL USING (is_admin());
-
--- 9. NOTIFY
-NOTIFY pgrst, 'reload schema';`;
+NOTIFY pgrst, 'reload schema';`
