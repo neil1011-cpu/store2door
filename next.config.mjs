@@ -6,23 +6,19 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'picsum.photos',
       },
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-      }
     ],
   },
   webpack: (config, { isServer, webpack }) => {
-    // 1. Ignore Jaeger exporter which is an optional OTel dependency causing build failures
+    // 1. Ignore Jaeger exporter which causes build resolution errors
     config.resolve.fallback = {
       ...config.resolve.fallback,
       '@opentelemetry/exporter-jaeger': false,
     };
 
-    // 2. Polyfill process.version for libraries (like Supabase) in the Edge Runtime
+    // 2. Polyfill process.version for Supabase/Edge compatibility
     config.plugins.push(
       new webpack.DefinePlugin({
-        'process.version': JSON.stringify('v20.0.0'),
+        'process.version': JSON.stringify('v18.0.0'),
       })
     );
 
