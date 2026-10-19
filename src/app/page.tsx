@@ -1,41 +1,17 @@
-'use client';
-
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Package, ShieldCheck, ArrowRight, Truck, Quote, Globe, Box, MapPin } from 'lucide-react';
+import { ArrowRight, Globe, ShieldCheck, Box } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { AppLogo } from '@/components/app-logo';
 import placeholderImages from '@/lib/placeholder-images.json';
-import { useState, useEffect } from 'react';
 
-const features = [
-  {
-    icon: <Globe className="h-8 w-8 text-primary" />,
-    title: 'Global Delivery Reach',
-    description: 'We deliver your packages from anywhere in the world directly to your doorstep in Jamaica with unmatched efficiency.',
-  },
-  {
-    icon: <ShieldCheck className="h-8 w-8 text-primary" />,
-    title: 'Safe & Secure Transit',
-    description: 'Your packages are handled with professional care, ensuring they arrive in the same condition we received them, regardless of distance.',
-  },
-  {
-    icon: <Box className="h-8 w-8 text-primary" />,
-    title: 'Complete Brokerage',
-    description: 'We handle all global logistical aspects, including complex customs brokerage and clearance for seamless entry into Jamaica.',
-  },
-];
-
+/**
+ * @fileOverview Home Page (Server Component).
+ * Standardized to improve routing stability and performance.
+ */
 export default function HomePage() {
-  const [mounted, setMounted] = useState(false);
-  const [year, setYear] = useState<number>(2024);
-
-  useEffect(() => {
-    setMounted(true);
-    setYear(new Date().getFullYear());
-  }, []);
+  const currentYear = new Date().getFullYear();
 
   return (
     <div className="flex flex-col bg-background font-body" role="main">
@@ -125,7 +101,7 @@ export default function HomePage() {
                 <Link href="/tracking" className="hover:text-primary transition-colors focus:ring-2 focus:ring-primary focus:outline-none rounded">Global Tracking</Link>
             </nav>
             <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-8 opacity-60">
-                &copy; {mounted ? year : '2024'} FromStore2Door Global Logistics. Portmore, Jamaica.
+                &copy; {currentYear} FromStore2Door Global Logistics. Portmore, Jamaica.
             </p>
          </div>
       </footer>

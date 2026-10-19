@@ -14,12 +14,14 @@ env:
 
 # Define secrets here to make them available to your application.
 # You must also create these secrets in the Firebase Console / Secret Manager.
-# secrets:
-#   - variable: GOOGLE_GENAI_API_KEY
-#     secret: google_genai_api_key
-#   - variable: SUPABASE_SECRET_KEY
-#     secret: supabase_secret_key
-#   - variable: NEXT_PUBLIC_SUPABASE_URL
-#     secret: supabase_url
-#   - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
-#     secret: supabase_anon_key
+secrets:
+  - variable: SUPABASE_SECRET_KEY
+    secret: supabase_secret_key
+  - variable: NEXT_PUBLIC_SUPABASE_URL
+    secret: supabase_url
+  - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    secret: supabase_anon_key
+  - variable: GOOGLE_GENAI_API_KEY
+    secret: google_genai_api_key
+  - variable: LOGICWARE_API_KEY
+    secret: logicware_api_key
