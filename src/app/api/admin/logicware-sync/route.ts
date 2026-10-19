@@ -42,7 +42,7 @@ export async function POST(request: Request) {
             email: profile.email,
             name: profile.full_name,
             phone: profile.phone || '',
-            reference: profile.mailbox_number,
+            referenceCode: profile.mailbox_number,
         };
 
         let result;
