@@ -89,7 +89,7 @@ export async function POST(request: Request) {
                 email,
                 name: `${firstName} ${lastName}`,
                 phone: phone || '',
-                code: finalMailboxNumber
+                reference: finalMailboxNumber
             });
         }
     } catch (lwErr) {
