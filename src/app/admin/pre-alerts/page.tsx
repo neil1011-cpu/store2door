@@ -103,7 +103,8 @@ export default function PreAlertsPage() {
                 const hubNumeric = rawMailbox.replace(/[^0-9]/g, '');
                 const profile = latestUsers.find(u => {
                     const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
-                    const uNumeric = uMailbox.replace(/[^0-9]/g, '');
+                    const uMailboxBase = uMailbox.split('-')[0].trim();
+                    const uNumeric = uMailboxBase.replace(/[^0-9]/g, '');
                     return uMailbox === rawMailbox || (hubNumeric !== '' && uNumeric === hubNumeric);
                 });
 

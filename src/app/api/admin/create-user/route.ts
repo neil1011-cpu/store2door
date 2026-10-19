@@ -83,23 +83,14 @@ export async function POST(request: Request) {
 
     // 3. Logicware Hub Mirroring
     try {
-        const { data: configDoc } = await adminClient
-            .from('system_configs')
-            .select('config_value')
-            .eq('config_key', 'logicware')
-            .maybeSingle();
-        
-        const apiKey = configDoc?.config_value?.apiKey;
-        if (apiKey && apiKey !== '********') {
-            const lwClient = await getLogicwareClient(apiKey);
-            if (lwClient) {
-                await lwClient.shippers.create({
-                    email,
-                    name: `${firstName} ${lastName}`,
-                    phone: phone || '',
-                    code: finalMailboxNumber
-                });
-            }
+        const lwClient = await getLogicwareClient();
+        if (lwClient) {
+            await lwClient.shippers.create({
+                email,
+                name: `${firstName} ${lastName}`,
+                phone: phone || '',
+                code: finalMailboxNumber
+            });
         }
     } catch (lwErr) {
         console.warn('[ADMIN:CREATE_USER] Logicware mirror failed but Supabase succeeded:', lwErr);

@@ -15,14 +15,14 @@ export async function POST(request: Request) {
         }
 
         const client = await getLogicwareClient(apiKey);
+        if (!client) throw new Error('Client initialization failed.');
         
-        // Defensive module verification
-        if (client?.shippers) {
+        if (client.shippers) {
             await client.shippers.list({ limit: 1 });
-        } else if (client?.shipments) {
+        } else if (client.shipments) {
             await client.shipments.list({ limit: 1 });
         } else {
-            throw new Error('API Key valid but no accessible modules (shippers/shipments) found.');
+            throw new Error('API Key valid but no accessible modules found.');
         }
 
         return NextResponse.json({ 

@@ -23,39 +23,19 @@ export async function POST(request: Request) {
         const payload = await getSafeBody(request);
         let apiKey = payload.apiKey;
 
-        // 1. Authoritative API Key Resolution from Registry
-        if (!apiKey) {
-            const adminClient = await createAdminClient();
-            const { data: configDoc } = await adminClient
-                .from('system_configs')
-                .select('config_value')
-                .eq('config_key', 'logicware')
-                .maybeSingle();
-            
-            if (configDoc?.config_value?.apiKey && configDoc.config_value.apiKey !== '********') {
-                apiKey = configDoc.config_value.apiKey;
-            }
-        }
-
-        if (!apiKey) apiKey = process.env.LOGICWARE_API_KEY;
-
-        if (!apiKey) {
+        const client = await getLogicwareClient(apiKey);
+        if (!client) {
             return NextResponse.json({ 
                 success: false, 
                 message: 'Logicware Hub not configured in registry.' 
             }, { status: 400 });
         }
-
-        const client = await getLogicwareClient(apiKey);
-        if (!client) throw new Error('Logicware SDK Initialization Failed.');
         
         let rawResults: any = [];
         try {
-            // Attempt to list latest shipments
             rawResults = await client.shipments.list({ limit: 100 });
         } catch (err: any) {
             console.error('[LOGICWARE_API] Primary shipments.list failed:', err.message);
-            // Fallback for older Hub versions
             if (client.shippers) {
                 rawResults = await client.shippers.list();
             } else {
@@ -63,12 +43,11 @@ export async function POST(request: Request) {
             }
         }
 
-        // 2. ROBUST UNWRAPPING: Logicware SDK varies by Hub version
         let shipmentsArray = [];
         if (Array.isArray(rawResults)) {
             shipmentsArray = rawResults;
         } else if (rawResults && typeof rawResults === 'object') {
-            shipmentsArray = rawResults.data || rawResults.shipments || rawResults.results || rawResults.data?.shipments || [];
+            shipmentsArray = (rawResults as any).data || (rawResults as any).shipments || (rawResults as any).results || (rawResults as any).data?.shipments || [];
         }
 
         return NextResponse.json({ 

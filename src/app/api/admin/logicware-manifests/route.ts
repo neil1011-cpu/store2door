@@ -23,30 +23,15 @@ export async function POST(request: Request) {
         const payload = await getSafeBody(request);
         let apiKey = payload.apiKey;
 
-        if (!apiKey) {
-            const adminClient = await createAdminClient();
-            const { data: configDoc } = await adminClient
-                .from('system_configs')
-                .select('config_value')
-                .eq('config_key', 'logicware')
-                .maybeSingle();
-            
-            if (configDoc?.config_value?.apiKey) {
-                apiKey = configDoc.config_value.apiKey;
-            }
-        }
-
-        if (!apiKey) apiKey = process.env.LOGICWARE_API_KEY;
-
-        if (!apiKey) {
+        const client = await getLogicwareClient(apiKey);
+        if (!client) {
             return NextResponse.json({ 
                 success: false, 
                 message: 'Logicware configuration missing.' 
             }, { status: 400 });
         }
 
-        const client = await getLogicwareClient(apiKey);
-        if (!client || !client.manifests) {
+        if (!client.manifests) {
              return NextResponse.json({ success: true, manifests: [] });
         }
         

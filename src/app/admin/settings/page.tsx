@@ -309,7 +309,7 @@ export default function SettingsPage() {
                              Verify API Handshake
                         </Button>
                         <Button onClick={() => handleSave('logicware', logicware, setLogicwareStatus)} disabled={logicwareStatus === 'SAVING'} className="flex-1 h-14 text-lg font-black uppercase italic shadow-xl bg-blue-600 hover:bg-blue-700">
-                            {logicwareStatus === 'SAVING' ? <Loader2 className="animate-spin mr-2 h-6 w-6" /> : <RefreshCw className="mr-2 h-6 w-6" />}
+                            {logicwareStatus === 'SAVING' ? <Loader2 className="mr-2 h-6 w-6" /> : <RefreshCw className="mr-2 h-6 w-6" />}
                             Update Registry
                         </Button>
                     </div>

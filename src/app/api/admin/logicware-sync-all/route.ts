@@ -21,22 +21,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Access Denied' }, { status: 403 });
         }
 
-        // 2. Fetch Logicware Config
-        const { data: configDoc } = await adminClient
-            .from('system_configs')
-            .select('config_value')
-            .eq('config_key', 'logicware')
-            .maybeSingle();
-        
-        const apiKey = configDoc?.config_value?.apiKey;
-        if (!apiKey || apiKey === '********') {
+        const lwClient = await getLogicwareClient();
+        if (!lwClient) {
             return NextResponse.json({ message: 'Logicware Hub not configured in registry.' }, { status: 400 });
         }
 
-        const lwClient = await getLogicwareClient(apiKey);
-        if (!lwClient) throw new Error('SDK Initialization Failed');
-
-        // 3. Fetch All Local Profiles
+        // 2. Fetch All Local Profiles
         const { data: profiles, error: profileError } = await adminClient
             .from('profiles')
             .select('*');
@@ -47,7 +37,7 @@ export async function POST(request: Request) {
         let skipCount = 0;
         let failCount = 0;
 
-        // 4. Sequential Mirroring
+        // 3. Sequential Mirroring
         for (const profile of (profiles || [])) {
             try {
                 await lwClient.shippers.create({
@@ -58,7 +48,6 @@ export async function POST(request: Request) {
                 });
                 successCount++;
             } catch (err: any) {
-                // Logicware often returns error if user exists; we count that as a "skip"
                 if (err.message?.toLowerCase().includes('already exists') || err.code === 409) {
                     skipCount++;
                 } else {
@@ -68,7 +57,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 5. Audit Log
+        // 4. Audit Log
         await adminClient.from('system_logs').insert({
             log_type: 'logicware_bulk_sync',
             description: `Bulk user sync complete: ${successCount} mirrored, ${skipCount} already existed, ${failCount} failed.`,
