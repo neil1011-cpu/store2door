@@ -54,7 +54,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     };
   }, [supabase, router]);
 
-  // Prevent hydration mismatch by only showing config error after mount
+  // Prevent hydration mismatch by only showing conditional UI after client mount
   if (mounted && isConfigMissing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
@@ -75,7 +75,6 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
                 To activate the Global Logistics OS, you must define your Supabase Project credentials in the environment settings (.env file).
               </p>
             </div>
-
             <div className="space-y-4 font-mono text-[10px]">
               <div className="p-3 bg-zinc-950 text-zinc-400 rounded-lg border border-white/5 space-y-2 shadow-inner">
                 <div className="flex items-center gap-2">
@@ -87,7 +86,6 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
                 <p>SUPABASE_SECRET_KEY</p>
               </div>
             </div>
-
             <p className="text-center text-[9px] font-medium text-muted-foreground uppercase tracking-tight italic">
               Refresh this page once you have updated your .env settings.
             </p>
@@ -97,13 +95,18 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     );
   }
 
+  // Preserve structural consistency during hydration
+  if (!mounted || (isLoading && !user)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary opacity-20" />
+      </div>
+    );
+  }
+
   return (
     <Context.Provider value={{ supabase, user, isLoading }}>
-      {isLoading && !user ? (
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <Loader2 className="h-8 w-8 animate-spin text-primary opacity-20" />
-        </div>
-      ) : children}
+      {children}
     </Context.Provider>
   );
 }

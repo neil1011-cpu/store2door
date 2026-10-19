@@ -8,14 +8,14 @@ import placeholderImages from '@/lib/placeholder-images.json';
 
 /**
  * @fileOverview Home Page (Server Component).
- * Optimized for Next.js 15 with static date to prevent hydration errors.
+ * Optimized for stability with static year to eliminate hydration mismatches.
  */
 export default function HomePage() {
-  const year = 2025; // Use static year to avoid hydration mismatch
+  const year = 2025; 
 
   return (
     <div className="flex flex-col bg-background font-body" role="main">
-      {/* Hero Section with Professional Cargo Logistics Imagery */}
+      {/* Hero Section */}
       <section className="relative w-full py-24 md:py-40 lg:py-56 overflow-hidden" aria-label="Hero">
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <div className="absolute inset-0">

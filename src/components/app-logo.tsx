@@ -76,7 +76,6 @@ export function AppLogo({ className, isLink = true, onClick }: AppLogoProps) {
           fill="#DAA520"
         />
       </svg>
-
       <span className="hidden sm:inline-block italic uppercase tracking-tighter">FromStore2Door</span>
     </div>
   );
