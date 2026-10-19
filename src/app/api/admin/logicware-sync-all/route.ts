@@ -50,15 +50,10 @@ export async function POST(request: Request) {
         // 4. Sequential Mirroring
         for (const profile of (profiles || [])) {
             try {
-                const nameParts = profile.full_name.split(' ');
-                const firstName = nameParts[0] || 'User';
-                const lastName = nameParts.slice(1).join(' ') || 'FSTD-Client';
-
                 await lwClient.shippers.create({
                     email: profile.email,
-                    firstName,
-                    lastName,
-                    phoneNumber: profile.phone || '',
+                    name: profile.full_name,
+                    phone: profile.phone || '',
                     referenceCode: profile.mailbox_number
                 });
                 successCount++;

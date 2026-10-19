@@ -95,9 +95,8 @@ export async function POST(request: Request) {
             if (lwClient) {
                 await lwClient.shippers.create({
                     email,
-                    firstName,
-                    lastName,
-                    phoneNumber: phone || '',
+                    name: `${firstName} ${lastName}`,
+                    phone: phone || '',
                     referenceCode: finalMailboxNumber
                 });
             }

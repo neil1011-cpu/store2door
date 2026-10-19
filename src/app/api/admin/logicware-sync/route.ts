@@ -38,15 +38,10 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient();
         if (!client) throw new Error('Logicware Hub not configured.');
 
-        const nameParts = profile.full_name.split(' ');
-        const firstName = nameParts[0] || 'User';
-        const lastName = nameParts.slice(1).join(' ') || 'FSTD-Client';
-        
         const syncPayload = {
             email: profile.email,
-            firstName,
-            lastName,
-            phoneNumber: profile.phone || '',
+            name: profile.full_name,
+            phone: profile.phone || '',
             referenceCode: profile.mailbox_number,
         };
 
