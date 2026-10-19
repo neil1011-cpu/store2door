@@ -291,7 +291,7 @@ export default function UserDetailsPage() {
                     <Card className={cn("border-4 rounded-[2rem] overflow-hidden transition-all", isAdmin ? "border-primary/20 bg-primary/5" : "border-dashed opacity-70")}>
                         <CardHeader className="pb-4">
                             <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                                <ShieldCheck className="h-4 w-4 text-primary" /> Authority Context
+                                <ShieldCheck className="h-6 w-6 text-primary" /> Authority Context
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">

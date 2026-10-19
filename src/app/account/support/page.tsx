@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAccountProfile } from '../layout';
@@ -8,9 +7,9 @@ import { ArrowLeft, LifeBuoy } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SupportPage() {
-    const userProfile = useAccountProfile();
+    const { profile } = useAccountProfile();
 
-    if (!userProfile) return null;
+    if (!profile) return null;
 
     return (
         <div className="container mx-auto py-8 px-4 md:px-6 space-y-6">
@@ -31,7 +30,7 @@ export default function SupportPage() {
                 </div>
             </div>
             
-            <SupportTab details={userProfile} />
+            <SupportTab />
         </div>
     );
 }
