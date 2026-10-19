@@ -100,7 +100,6 @@ export default function UserDetailsPage() {
             
             if (error) throw error;
             
-            // OUTBOUND SYNC: Hub Update
             fetch('/api/admin/logicware-sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
