@@ -43,7 +43,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'Configuration missing in registry.' }, { status: 400 });
         }
 
-        const client = getLogicwareClient(apiKey);
+        const client = await getLogicwareClient(apiKey);
         if (!client?.shippers) throw new Error('Shippers module not available on this API key.');
         
         const results = await client.shippers.list({ limit: 100 });

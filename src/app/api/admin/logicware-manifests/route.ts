@@ -45,7 +45,7 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        const client = getLogicwareClient(apiKey);
+        const client = await getLogicwareClient(apiKey);
         if (!client || !client.manifests) {
              return NextResponse.json({ success: true, manifests: [] });
         }

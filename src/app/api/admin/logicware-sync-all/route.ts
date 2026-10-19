@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Logicware Hub not configured in registry.' }, { status: 400 });
         }
 
-        const lwClient = getLogicwareClient(apiKey);
+        const lwClient = await getLogicwareClient(apiKey);
         if (!lwClient) throw new Error('SDK Initialization Failed');
 
         // 3. Fetch All Local Profiles

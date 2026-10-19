@@ -46,7 +46,7 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        const client = getLogicwareClient(apiKey);
+        const client = await getLogicwareClient(apiKey);
         if (!client) throw new Error('Logicware SDK Initialization Failed.');
         
         let rawResults: any = [];

@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 
@@ -15,12 +14,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'API Key is missing.' }, { status: 400 });
         }
 
-        const client = getLogicwareClient(apiKey);
+        const client = await getLogicwareClient(apiKey);
         
         // Defensive module verification
-        if (client.shippers) {
+        if (client?.shippers) {
             await client.shippers.list({ limit: 1 });
-        } else if (client.shipments) {
+        } else if (client?.shipments) {
             await client.shipments.list({ limit: 1 });
         } else {
             throw new Error('API Key valid but no accessible modules (shippers/shipments) found.');

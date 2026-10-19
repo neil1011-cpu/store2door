@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         
         const apiKey = configDoc?.config_value?.apiKey;
         if (apiKey && apiKey !== '********') {
-            const lwClient = getLogicwareClient(apiKey);
+            const lwClient = await getLogicwareClient(apiKey);
             if (lwClient) {
                 await lwClient.shippers.create({
                     email,
