@@ -88,7 +88,7 @@ export type PreAlert = {
   weight_lbs?: number;
   status: 'Pending' | 'Processed' | 'Cancelled';
   submission_date: any;
-  invoice_url: string;
+  invoice_url?: string;
   logicware_id?: string;
   legacy_firebase_id?: string;
 };

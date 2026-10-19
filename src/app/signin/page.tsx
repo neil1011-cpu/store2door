@@ -93,7 +93,7 @@ function SignInForm() {
                 <FormItem>
                     <div className="flex items-center justify-between">
                       <FormLabel className="text-[10px] font-bold uppercase opacity-60">Access Key</FormLabel>
-                      <Link href="/forgot-password" size="sm" className="text-[10px] font-black uppercase text-primary hover:underline">
+                      <Link href="/forgot-password" className="text-[10px] font-black uppercase text-primary hover:underline">
                         Forgot key?
                       </Link>
                     </div>
