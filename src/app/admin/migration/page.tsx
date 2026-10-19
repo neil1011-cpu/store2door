@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, DatabaseZap, CheckCircle2, AlertTriangle, ShieldAlert, TableProperties, Play, SearchCode } from 'lucide-react';
+import { Loader2, Database, CheckCircle2, AlertTriangle, ShieldAlert, TableProperties, Play, SearchCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -141,7 +140,7 @@ export default function MigrationPage() {
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full opacity-20">
-                                <DatabaseZap className="h-8 w-8 mb-2" />
+                                <Database className="h-8 w-8 mb-2" />
                                 <p>Awaiting Trigger...</p>
                             </div>
                         )}

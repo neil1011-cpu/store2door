@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, DatabaseZap, ArrowRight, RefreshCcw, Zap, Search, Mail, CheckCircle2 } from 'lucide-react';
+import { PlusCircle, Loader2, UserPlus, ShieldCheck, AlertCircle, MailCheck, Database, ArrowRight, RefreshCcw, Zap, Search, Mail, CheckCircle2 } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -199,7 +199,7 @@ export default function UsersPage() {
             </Button>
             <Button variant="outline" asChild className="font-bold border-2">
                 <Link href="/admin/migration">
-                    <DatabaseZap className="mr-2 h-4 w-4" /> Migrate
+                    <Database className="mr-2 h-4 w-4" /> Migrate
                 </Link>
             </Button>
             <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
@@ -248,7 +248,7 @@ export default function UsersPage() {
                             </div>
                             <div className="space-y-1">
                                 <Label className="text-[10px] font-bold uppercase opacity-60">TRN</Label>
-                                <Input value={newUser.trn} onChange={e => setNewUser({...newUser, trn: e.target.value})} maxLength={9} className="h-11 border-2" />
+                                <Input value={newUser.trn} onChange={e => setNewUser({...newUser, trn: e.target.value})} maxLength={9} className="h-11 border-2 font-mono" />
                             </div>
                         </div>
                         
@@ -296,7 +296,7 @@ export default function UsersPage() {
 
       {users.length === 0 && !isLoading && (
         <Alert className="bg-primary/5 border-primary/20 shadow-lg border-2">
-            <DatabaseZap className="h-5 w-5 text-primary" />
+            <Database className="h-5 w-5 text-primary" />
             <AlertTitle className="font-black uppercase italic tracking-tight">Identity Registry Empty</AlertTitle>
             <AlertDescription className="text-xs font-medium uppercase tracking-widest leading-relaxed mt-2 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <span>Your Supabase identity registry is currently empty or RLS is blocking access.</span>

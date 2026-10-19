@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, ListRestart } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -461,7 +461,7 @@ function StatusUpdateDialog({ shipment, onUpdate }: { shipment: any, onUpdate: (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className="hover:bg-primary/5">
-          <ListRestart className="h-4 w-4 text-primary" />
+          <History className="h-4 w-4 text-primary" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">

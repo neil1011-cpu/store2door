@@ -6,19 +6,24 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'picsum.photos',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
     ],
   },
-  webpack: (config, { isServer, webpack }) => {
-    // 1. Ignore Jaeger exporter which causes build resolution errors
+  webpack: (config, { isServer }) => {
+    // Resolve Genkit/OpenTelemetry resolution errors
     config.resolve.fallback = {
       ...config.resolve.fallback,
       '@opentelemetry/exporter-jaeger': false,
     };
-
-    // 2. Polyfill process.version for Supabase/Edge compatibility
+    
+    // Polyfill process.version for Supabase/SSR in Edge Runtime
+    const webpack = require('webpack');
     config.plugins.push(
       new webpack.DefinePlugin({
-        'process.version': JSON.stringify('v18.0.0'),
+        'process.version': JSON.stringify(process.version),
       })
     );
 

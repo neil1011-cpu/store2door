@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { PlusCircle, ArrowLeft, Loader2, Zap, RefreshCw, CheckCircle2, Trash2, Eye, ImageIcon, ListRestart, BrainCircuit, AlertCircle } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Zap, RefreshCw, CheckCircle2, Trash2, Eye, ImageIcon, History, BrainCircuit, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -350,7 +350,7 @@ function PreAlertStatusUpdateDialog({ alert, onUpdate }: { alert: any, onUpdate:
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className="hover:bg-primary/5">
-          <ListRestart className="h-4 w-4 text-primary" />
+          <History className="h-4 w-4 text-primary" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
