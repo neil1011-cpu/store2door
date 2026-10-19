@@ -43,7 +43,7 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
     report.profiles.attempted = usersSnap.size;
 
     for (const doc of usersSnap.docs) {
-      const data = doc.data() as UserProfile;
+      const raw = doc.data();
       try {
         // Identity Check: Only migrate if Supabase Auth user exists
         const { data: authUser } = await supabase.auth.admin.getUserById(doc.id).catch(() => ({ data: { user: null } }));
@@ -56,29 +56,29 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
         if (!isDryRun) {
           const { error } = await supabase.from('profiles').upsert({
             id: doc.id,
-            full_name: data.full_name || (data as any).fullName || 'Legacy User',
-            email: data.email,
-            phone: data.phone || null,
-            trn: data.trn || null,
-            mailbox_number: data.mailbox_number || (data as any).mailboxNumber || `FSTD-LEGACY-${doc.id.slice(0,4)}`,
-            wallet_balance: data.wallet_balance || (data as any).walletBalance || 0,
-            created_at: data.created_at?.toDate?.() || new Date(),
+            full_name: raw.full_name || raw.fullName || 'Legacy User',
+            email: raw.email,
+            phone: raw.phone || null,
+            trn: raw.trn || null,
+            mailbox_number: raw.mailbox_number || raw.mailboxNumber || `FSTD-LEGACY-${doc.id.slice(0,4)}`,
+            wallet_balance: raw.wallet_balance || raw.walletBalance || 0,
+            created_at: raw.created_at?.toDate?.() || new Date(),
           });
           if (error) throw error;
         }
         report.profiles.migrated++;
 
         // 2. MIGRATION: ADDRESSES
-        if (data.address) {
+        if (raw.address) {
           report.addresses.attempted++;
           if (!isDryRun) {
             await supabase.from('addresses').upsert({
               profile_id: doc.id,
-              address_line_1: data.address.address1,
-              address_line_2: data.address.address2 || null,
-              city: data.address.city,
-              state_parish: data.address.state,
-              zip_code: data.address.zip || null,
+              address_line_1: raw.address.address1,
+              address_line_2: raw.address.address2 || null,
+              city: raw.address.city,
+              state_parish: raw.address.state,
+              zip_code: raw.address.zip || null,
               address_type: 'delivery_destination',
               is_default: true
             }, { onConflict: 'profile_id, address_type' });
@@ -95,7 +95,7 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
     const preAlertsSnap = await adminDb.collectionGroup('pre_alerts').get();
     report.pre_alerts.attempted = preAlertsSnap.size;
     for (const doc of preAlertsSnap.docs) {
-      const data = doc.data() as PreAlert;
+      const raw = doc.data();
       const ownerId = doc.ref.parent.parent?.id; // Get parent user ID
       
       if (!ownerId) {
@@ -107,12 +107,12 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
         if (!isDryRun) {
           const { error } = await supabase.from('pre_alerts').upsert({
             profile_id: ownerId,
-            tracking_number: data.trackingNumber,
-            contents: data.contents,
-            weight_lbs: data.weight || 0,
-            status: data.status || 'Pending',
-            invoice_url: data.uploadedInvoiceUrl || null,
-            submission_date: data.submissionDate?.toDate?.() || new Date(),
+            tracking_number: raw.tracking_number || raw.trackingNumber,
+            contents: raw.contents,
+            weight_lbs: raw.weight_lbs || raw.weight || 0,
+            status: raw.status || 'Pending',
+            invoice_url: raw.invoice_url || raw.uploadedInvoiceUrl || null,
+            submission_date: raw.submission_date?.toDate?.() || raw.submissionDate?.toDate?.() || new Date(),
             legacy_firebase_id: doc.id
           }, { onConflict: 'legacy_firebase_id' });
           if (error) throw error;
@@ -128,7 +128,7 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
     const shipmentsSnap = await adminDb.collectionGroup('shipments').get();
     report.shipments.attempted = shipmentsSnap.size;
     for (const doc of shipmentsSnap.docs) {
-      const data = doc.data() as Shipment;
+      const raw = doc.data();
       const ownerId = doc.ref.parent.parent?.id;
 
       if (!ownerId) {
@@ -140,13 +140,13 @@ export async function runDataMigration(isDryRun: boolean = true): Promise<Global
         if (!isDryRun) {
           const { error } = await supabase.from('shipments').upsert({
             profile_id: ownerId,
-            tracking_number: data.trackingNumber,
-            contents: data.contents,
-            weight_lbs: data.weight || 0,
-            status: data.status || 'Processed',
-            total_cost_jmd: data.total_cost_jmd || (data as any).cost || 0,
-            payment_status: data.paymentStatus || 'Unpaid',
-            shipping_date: data.shippingDate?.toDate?.() || null,
+            tracking_number: raw.tracking_number || raw.trackingNumber,
+            contents: raw.contents,
+            weight_lbs: raw.weight_lbs || raw.weight || 0,
+            status: raw.status || 'Processed',
+            total_cost_jmd: raw.total_cost_jmd || raw.cost || 0,
+            payment_status: raw.payment_status || raw.paymentStatus || 'Unpaid',
+            shipping_date: raw.shipping_date?.toDate?.() || raw.shippingDate?.toDate?.() || null,
             legacy_firebase_id: doc.id
           }, { onConflict: 'legacy_firebase_id' });
           if (error) throw error;
