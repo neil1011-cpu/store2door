@@ -1,3 +1,4 @@
+'use client';
 
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -10,7 +11,7 @@ type AppLogoProps = {
 
 export function AppLogo({ className, isLink = true, onClick }: AppLogoProps) {
   const content = (
-    <div className="flex items-center gap-2 text-xl font-black text-foreground" onClick={onClick}>
+    <div className="flex items-center gap-2 text-xl font-black text-foreground cursor-pointer" onClick={onClick}>
       <svg
         width="40"
         height="40"

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Database, AlertTriangle, Key } from 'lucide-react';
+import { Database, AlertTriangle, Key, Loader2 } from 'lucide-react';
 
 type SupabaseContext = {
   supabase: SupabaseClient;
@@ -26,10 +26,8 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // Validate configuration safely
     const isMissing = !url || 
-                      !url.startsWith('http') || 
-                      url.includes('placeholder') || 
+                      url === 'https://placeholder-project.supabase.co' ||
                       !key || 
                       key === 'placeholder-key';
 
@@ -44,8 +42,9 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
-      if (event === 'SIGNED_IN') router.refresh();
-      if (event === 'SIGNED_OUT') router.refresh();
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        router.refresh();
+      }
     });
 
     return () => {
@@ -97,7 +96,11 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
 
   return (
     <Context.Provider value={{ supabase, user, isLoading }}>
-      {children}
+      {isLoading && !user ? (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-primary opacity-20" />
+        </div>
+      ) : children}
     </Context.Provider>
   );
 }
