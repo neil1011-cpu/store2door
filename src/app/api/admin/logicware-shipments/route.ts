@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * @fileOverview Hardened Logicware Shipment Fetcher.
  * Robust unwrapping of Logicware SDK responses and detailed diagnostic meta-data.

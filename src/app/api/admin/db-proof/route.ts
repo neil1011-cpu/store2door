@@ -29,10 +29,10 @@ export async function GET() {
     const existing: string[] = [];
 
     for (const table of tablesToCheck) {
-      // Use a RPC-less check that triggers a PostgREST error if table is missing
+      // Correct syntax for checking existence/count without retrieving data
       const { error } = await supabase
         .from(table)
-        .select('count', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .limit(0);
         
       if (!error) {
