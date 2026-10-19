@@ -20,9 +20,11 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConfigMissing, setIsConfigMissing] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    setMounted(true);
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -52,7 +54,8 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     };
   }, [supabase, router]);
 
-  if (isConfigMissing) {
+  // Prevent hydration mismatch by only showing config error after mount
+  if (mounted && isConfigMissing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
         <Card className="max-w-md w-full shadow-2xl border-orange-200">

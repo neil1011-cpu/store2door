@@ -8,11 +8,9 @@ import placeholderImages from '@/lib/placeholder-images.json';
 
 /**
  * @fileOverview Home Page (Server Component).
- * Standardized to improve routing stability and performance.
+ * Optimized for Next.js 15 with static date to prevent hydration errors.
  */
 export default function HomePage() {
-  const currentYear = new Date().getFullYear();
-
   return (
     <div className="flex flex-col bg-background font-body" role="main">
       {/* Hero Section with Professional Cargo Logistics Imagery */}
@@ -101,7 +99,7 @@ export default function HomePage() {
                 <Link href="/tracking" className="hover:text-primary transition-colors focus:ring-2 focus:ring-primary focus:outline-none rounded">Global Tracking</Link>
             </nav>
             <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-8 opacity-60">
-                &copy; {currentYear} FromStore2Door Global Logistics. Portmore, Jamaica.
+                &copy; 2025 FromStore2Door Global Logistics. Portmore, Jamaica.
             </p>
          </div>
       </footer>
