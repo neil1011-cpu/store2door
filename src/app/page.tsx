@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Globe, ShieldCheck, Box } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { AppLogo } from '@/components/app-logo';
@@ -11,6 +11,8 @@ import placeholderImages from '@/lib/placeholder-images.json';
  * Optimized for Next.js 15 with static date to prevent hydration errors.
  */
 export default function HomePage() {
+  const year = 2025; // Use static year to avoid hydration mismatch
+
   return (
     <div className="flex flex-col bg-background font-body" role="main">
       {/* Hero Section with Professional Cargo Logistics Imagery */}
@@ -99,7 +101,7 @@ export default function HomePage() {
                 <Link href="/tracking" className="hover:text-primary transition-colors focus:ring-2 focus:ring-primary focus:outline-none rounded">Global Tracking</Link>
             </nav>
             <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-8 opacity-60">
-                &copy; 2025 FromStore2Door Global Logistics. Portmore, Jamaica.
+                &copy; {year} FromStore2Door Global Logistics. Portmore, Jamaica.
             </p>
          </div>
       </footer>

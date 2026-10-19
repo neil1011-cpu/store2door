@@ -8,25 +8,19 @@ const nextConfig = {
       },
     ],
   },
-  /**
-   * Hardened Webpack configuration to resolve production build blockers.
-   * 1. Polyfills process.version for Edge Runtime compatibility (Supabase/OTel).
-   * 2. Ignores the missing Jaeger exporter which Genkit/OTel traces by default.
-   */
   webpack: (config, { isServer, webpack }) => {
-    if (isServer) {
-      config.plugins.push(
-        new webpack.DefinePlugin({
-          'process.version': JSON.stringify('v18.0.0'),
-        })
-      );
-    }
-
-    // Solve "Module not found: Can't resolve '@opentelemetry/exporter-jaeger'"
+    // Ignore Jaeger exporter which is not installed and causes build failures in Genkit OTel
     config.resolve.fallback = {
       ...config.resolve.fallback,
       '@opentelemetry/exporter-jaeger': false,
     };
+
+    // Polyfill process.version for libraries that expect it (like @supabase/ssr in Edge Runtime)
+    config.plugins.push(
+      new webpack.DefinePlugin({
+        'process.version': JSON.stringify('v20.0.0'),
+      })
+    );
 
     return config;
   },
