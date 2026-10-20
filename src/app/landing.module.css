@@ -195,7 +195,7 @@
 .route {
   position: relative;
   height: 90px;
-  margin: 8px 8px 26px;
+  margin: 8px 0 26px;
   overflow: visible;
 }
 
@@ -212,7 +212,7 @@
   place-items: center;
   font-size: 17px;
   animation: fly 9s linear infinite;
-  offset-path: path('M0 65 Q 150 10 300 45 T 600 35');
+  offset-path: path('M0 70 Q 150 25 300 55 T 600 45');
 }
 
 @keyframes fly {
