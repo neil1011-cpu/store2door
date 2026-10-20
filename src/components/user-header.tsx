@@ -119,12 +119,7 @@ export function UserHeader() {
         </nav>
 
         <div className="flex items-center justify-end space-x-4 ml-8">
-             <div className={cn(
-                 "p-1 rounded-full border transition-colors",
-                 scrolled || !isHomepage ? "bg-muted/50" : "bg-white/10 border-white/20"
-             )}>
-                <ThemeToggle />
-             </div>
+             <ThemeToggle />
              {showAuthActions ? (
                 <>
                     <Button asChild variant="ghost" size="sm" className="font-bold uppercase tracking-tight hidden sm:flex">

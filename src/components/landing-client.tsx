@@ -21,9 +21,12 @@ export function Header({ loginHref, registerHref, ratesHref, contactHref }: { lo
           <Image src="/images/logo.png" alt="From Store 2 Door" width={46} height={38} className="h-10 w-auto" />
           From Store 2 Door
         </Link>
-        <button className={styles.menuBtn} type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
-          Menu
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+            {mounted && <ThemeToggle />}
+            <button className={styles.menuBtn} type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+              Menu
+            </button>
+        </div>
         <nav>
           <ul className={`${styles.links} ${open ? styles.open : ''}`} onClick={() => setOpen(false)}>
             <li><a href="#services">Services</a></li>
@@ -33,10 +36,8 @@ export function Header({ loginHref, registerHref, ratesHref, contactHref }: { lo
             <li><Link href={loginHref}>Login</Link></li>
             <li><Link className={styles.btn} href={registerHref}>Register</Link></li>
             {mounted && (
-                <li className="ml-2 pt-2 md:pt-0 border-t md:border-0 border-line">
-                    <div className="bg-muted/30 rounded-full p-0.5">
-                        <ThemeToggle />
-                    </div>
+                <li className="hidden md:block">
+                    <ThemeToggle />
                 </li>
             )}
           </ul>
