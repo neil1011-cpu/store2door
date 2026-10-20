@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { testSmtpConnection } from '@/lib/integrations/email-service';
-import { testVultrConnection } from '@/lib/integrations/vultr-service';
 import { testLogicwareConnection } from '@/lib/integrations/logicware-service';
 
 /**
@@ -28,19 +27,18 @@ export async function POST(request: Request) {
         const { data: persisted } = await adminClient
             .from('system_configs')
             .select('config_value')
-            .eq('config_key', type === 'email' ? 'email_config' : type === 'vultr' ? 'vultr_config' : 'logicware')
+            .eq('config_key', type === 'email' ? 'email_config' : 'logicware')
             .maybeSingle();
         
         const baseConfig = persisted?.config_value || {};
         const testConfig = { ...config };
-        const secretFields = ['pass', 'secretKey', 'apiKey'];
+        const secretFields = ['pass', 'apiKey'];
         secretFields.forEach(field => {
             if (testConfig[field] === '********') testConfig[field] = baseConfig[field];
         });
 
         let result;
         if (type === 'email') result = await testSmtpConnection(testConfig);
-        else if (type === 'vultr') result = await testVultrConnection(testConfig);
         else if (type === 'logicware') result = await testLogicwareConnection(testConfig);
         else throw new Error('Invalid test type.');
 

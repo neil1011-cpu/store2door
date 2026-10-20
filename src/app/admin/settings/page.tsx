@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { 
     ArrowLeft, Moon, Sun, Laptop, Eye, EyeOff, Zap, 
-    RefreshCw, ShieldCheck, Save, Loader2, Mail, Cloud, 
+    RefreshCw, ShieldCheck, Save, Loader2, Mail, 
     Database, CheckCircle2, AlertCircle, Terminal, Copy, Link as LinkIcon
 } from 'lucide-react';
 import Link from 'next/link';
@@ -32,11 +32,6 @@ export default function SettingsPage() {
   const [smtp, setSmtp] = useState({ host: '', port: '465', user: '', pass: '', fromEmail: '', fromName: '', isVisible: false });
   const [smtpStatus, setSmtpStatus] = useState<StatusState>('IDLE');
   const [smtpMsg, setSmtpMsg] = useState('');
-
-  // Vultr State
-  const [vultr, setVultr] = useState({ accessKey: '', secretKey: '', endpoint: 'ewr1.vultrobjects.com', bucket: '', isVisible: false });
-  const [vultrStatus, setVultrStatus] = useState<StatusState>('IDLE');
-  const [vultrMsg, setVultrMsg] = useState('');
 
   // Logicware State
   const [logicware, setLogicware] = useState({ apiKey: '', baseUrl: 'https://from-store-to-door-api.logicware.app', webhookSecret: '', isVisible: false });
@@ -62,9 +57,6 @@ export default function SettingsPage() {
             if (config.config_key === 'email_config') {
                 setSmtp(prev => ({ ...prev, ...val }));
                 setSmtpStatus('CONNECTED');
-            } else if (config.config_key === 'vultr_config') {
-                setVultr(prev => ({ ...prev, ...val }));
-                setVultrStatus('CONNECTED');
             } else if (config.config_key === 'logicware') {
                 setLogicware(prev => ({ ...prev, ...val }));
                 setLogicwareStatus('CONNECTED');
@@ -80,7 +72,7 @@ export default function SettingsPage() {
   const handleSave = async (type: string, data: any, statusSetter: any) => {
     statusSetter('SAVING');
     try {
-        const key = type === 'email' ? 'email_config' : type === 'vultr' ? 'vultr_config' : 'logicware';
+        const key = type === 'email' ? 'email_config' : 'logicware';
         const res = await fetch('/api/admin/settings/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -195,46 +187,6 @@ export default function SettingsPage() {
                         <Button onClick={() => handleSave('email', smtp, setSmtpStatus)} disabled={smtpStatus === 'SAVING'} className="flex-1 h-14 text-lg font-black uppercase italic shadow-xl">
                             {smtpStatus === 'SAVING' ? <Loader2 className="animate-spin mr-2 h-6 w-6" /> : <Save className="mr-2 h-6 w-6" />}
                             Save Relay
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Vultr */}
-            <Card className="border-orange-200 shadow-xl overflow-hidden rounded-2xl">
-                <CardHeader className="bg-orange-50/50 flex flex-row items-center gap-4">
-                    <div className="bg-orange-100 p-3 rounded-xl"><Cloud className="h-6 w-6 text-orange-600" /></div>
-                    <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm font-black uppercase tracking-widest italic text-orange-700">Vultr Cloud Storage</CardTitle>
-                            <StatusIndicator status={vultrStatus} />
-                        </div>
-                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Global documentation storage (S3 Compatible).</CardDescription>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-6 pt-8">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Access Key</Label><Input value={vultr.accessKey} onChange={e => setVultr({...vultr, accessKey: e.target.value})} className="h-11 border-2 font-mono" /></div>
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold uppercase opacity-60">Secret Key</Label>
-                            <div className="relative">
-                                <Input type={vultr.isVisible ? 'text' : 'password'} value={vultr.secretKey} onChange={e => setVultr({...vultr, secretKey: e.target.value})} className="h-11 border-2 pr-12 font-mono" />
-                                <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2" onClick={() => setVultr({...vultr, isVisible: !vultr.isVisible})}>
-                                    {vultr.isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </Button>
-                            </div>
-                        </div>
-                        <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Bucket Name</Label><Input value={vultr.bucket} onChange={e => setVultr({...vultr, bucket: e.target.value})} className="h-11 border-2" /></div>
-                        <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase opacity-60">Hostname Endpoint</Label><Input value={vultr.endpoint} onChange={e => setVultr({...vultr, endpoint: e.target.value})} className="h-11 border-2 font-mono" /></div>
-                    </div>
-                    {vultrMsg && <p className="text-[10px] font-mono text-red-500 bg-red-50 p-2 rounded border border-red-100">{vultrMsg}</p>}
-                    <div className="flex gap-4">
-                        <Button onClick={() => handleTest('vultr', vultr, setVultrStatus, setVultrMsg)} disabled={vultrStatus === 'TESTING'} variant="outline" className="flex-1 h-14 font-black uppercase italic border-2 border-orange-200 text-orange-700">
-                             Ping Storage
-                        </Button>
-                        <Button onClick={() => handleSave('vultr', vultr, setVultrStatus)} disabled={vultrStatus === 'SAVING'} className="flex-1 h-14 text-lg font-black uppercase italic shadow-xl bg-orange-600 hover:bg-orange-700">
-                            {vultrStatus === 'SAVING' ? <Loader2 className="animate-spin mr-2 h-6 w-6" /> : <Database className="mr-2 h-6 w-6" />}
-                            Link Storage
                         </Button>
                     </div>
                 </CardContent>

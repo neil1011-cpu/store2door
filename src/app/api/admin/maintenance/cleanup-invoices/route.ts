@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 /**
  * @fileOverview Universal Maintenance API: 30-Day Document Retention Policy.
- * Identifies and purges expired pre-alert invoices from Cloud Storage and Registry.
+ * Identifies and purges expired binary assets from PostgreSQL Registry.
  */
 
 export async function POST(request: Request) {
@@ -26,45 +25,24 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, purgedCount: 0, message: 'Registry is clean.' });
         }
 
-        // 2. Fetch Storage Credentials
-        const { data: configData } = await adminClient
-            .from('system_configs')
-            .select('config_value')
-            .eq('config_key', 'vultr_config')
-            .maybeSingle();
-
-        const config = configData?.config_value;
-        if (!config?.accessKey || !config?.secretKey || !config?.bucket) {
-            throw new Error('Vultr Cloud Storage configuration missing.');
-        }
-
-        const s3Client = new S3Client({
-            region: 'us-east-1',
-            endpoint: `https://${config.endpoint || 'ewr1.vultrobjects.com'}`,
-            credentials: {
-                accessKeyId: config.accessKey,
-                secretKeyId: config.secretKey,
-            },
-            forcePathStyle: true,
-        });
-
         let purgedCount = 0;
 
-        // 3. Sequential Purge
+        // 2. Sequential Registry Purge
         for (const alert of expiredAlerts) {
             try {
-                // Extract S3 Key from URL (Assuming format: https://bucket.endpoint/key)
-                const urlParts = alert.invoice_url.split('/');
-                const key = urlParts.slice(3).join('/'); // Skip protocol, bucket, and host segments
+                const assetId = alert.invoice_url;
 
-                if (key) {
-                    await s3Client.send(new DeleteObjectCommand({
-                        Bucket: config.bucket,
-                        Key: key
-                    }));
+                // A. Delete from binary documentation registry
+                const { error: deleteError } = await adminClient
+                    .from('document_assets')
+                    .delete()
+                    .eq('id', assetId);
+
+                if (deleteError) {
+                    console.warn(`[MAINTENANCE] Asset ${assetId} not found or already purged.`);
                 }
 
-                // 4. Update Database
+                // B. Nullify reference in the pre-alert record
                 await adminClient
                     .from('pre_alerts')
                     .update({ invoice_url: null })
@@ -72,14 +50,14 @@ export async function POST(request: Request) {
 
                 purgedCount++;
             } catch (err: any) {
-                console.error(`[MAINTENANCE] Failed to purge object for alert ${alert.id}:`, err.message);
+                console.error(`[MAINTENANCE] Failed to fully purge assets for alert ${alert.id}:`, err.message);
             }
         }
 
-        // 5. System Log
+        // 3. System Log
         await adminClient.from('system_logs').insert({
             log_type: 'retention_cleanup',
-            description: `Automated maintenance: Purged ${purgedCount} expired documentation assets.`,
+            description: `Automated maintenance: Purged ${purgedCount} expired documentation assets from DB registry.`,
             metadata: { purgedCount, timestamp: new Date().toISOString() }
         });
 

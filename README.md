@@ -14,9 +14,10 @@ A professional, high-performance courier management platform designed for worldw
 
 - **Frontend**: Next.js 15 (App Router), React 19, ShadCN UI, Tailwind CSS.
 - **Backend**: Firebase Firestore (NoSQL), Firebase Auth, Firebase App Hosting.
+- **Database (Modern)**: Supabase PostgreSQL for high-performance relational logistics and binary storage.
 - **Intelligence**: Genkit-powered flows for automated document and invoice generation.
-- **Email**: Dynamic SMTP delivery system with Gmail/App Password support.
+- **Email**: Dynamic SMTP delivery system with support for custom relays.
 
 ## Security
 
-The application implements strict Firestore Security Rules and administrative route guards to ensure that sensitive logistics data and financial records are only accessible to authorized personnel.
+The application implements strict Row Level Security (RLS) and administrative route guards to ensure that sensitive logistics data and financial records are only accessible to authorized personnel.

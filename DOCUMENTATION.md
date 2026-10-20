@@ -18,14 +18,14 @@ This is the public-facing part of the website where customers sign up, track pac
 
 ### 2.2. User Account & Authentication
 
--   **Sign Up (`/signup`)**: New users can create an account by providing their name, email, password, phone number, and TRN. Upon successful sign-up, a unique US mailing address and mailbox number are generated for them.
+-   **Sign Up (`/signup`)**: New users can create an account.
 -   **Sign In (`/signin`)**: Existing users can log in to access their account dashboard.
 -   **Account Page (`/account`)**: This is the central hub for logged-in users. It's organized into several tabs:
     -   **Dashboard**: Shows a welcome message and a summary of the user's most recent shipment.
     -   **Pre-Alert**: A form where users can notify the company of an incoming package by providing the tracking number, a description of the contents, and uploading a commercial invoice.
-    -   **My Packages**: A table listing all of the user's shipments, their current status, cost, and payment status. Users can pay for shipments and view/download invoices from here.
-    -   **Support**: A dedicated messaging center for the user to communicate with the admin/support team.
-    -   **My Account**: Displays the user's unique US shipping address. It also allows them to manage their authorized pickup personnel and their delivery addresses in Jamaica.
+    -   **My Packages**: A table listing all of the user's shipments, their current status, cost, and payment status.
+    -   **Support**: A dedicated messaging center.
+    -   **My Account**: Displays the user's unique US shipping address.
 
 ## 3. Admin Panel
 
@@ -33,38 +33,17 @@ The Admin Panel (`/admin`) is a secure area for managing the entire courier oper
 
 ### 3.1. Admin Access
 
--   **Admin Login (`/admin-login`)**: A separate login page for administrators. For this prototype, the credentials are `admin@example.com` and `password`.
+-   **Admin Login (`/admin-login`)**: A separate login page for administrators.
 
 ### 3.2. Core Features
 
-The admin panel is a single-page application with different sections accessible via the sidebar menu.
-
--   **Dashboard (`/admin`)**: The main landing page for the admin panel, providing quick links to all management features.
--   **Pre-Alerts (`/admin/pre-alerts`)**:
-    -   View a table of all pre-alerts submitted by customers.
-    -   View the invoice uploaded by the customer.
-    -   **Create a Shipment**: Process a pending pre-alert by clicking "Create Shipment". This opens a form pre-filled with the pre-alert data, where the admin can set the shipping cost and officially convert it into an active shipment.
--   **Shipping Status (`/admin/shipping`)**:
-    -   View a list of all shipments in the system.
-    -   **Edit Shipments**: Click the "Edit" button on any shipment to open a dialog where you can update its status (e.g., from "Processed" to "In Transit" or "Delivered"), contents, or cost.
-    -   **Email Customer**: Send a status update email directly to the customer.
--   **Flight Manifests (`/admin/manifests`)**: Manage and view flight manifest documents.
--   **Communications (`/admin/communications`)**:
-    -   **Compose Email**: Send promotional emails or updates to specific customers. The system uses an API route to send emails via a professional service (Resend).
-    -   **Sent History**: A table logs all emails that have been sent from the system.
--   **Finance & Invoices (`/admin/finance`)**:
-    -   **Dashboard**: View financial summaries (Revenue, Expenses, Profit) and a chart visualizing the data.
-    -   **Invoice Management**: Create, view, and manage customer invoices. You can generate a PDF invoice and mark invoices as "Paid" or "Unpaid".
-    -   **Breakdown Pages**: Includes detailed tables for all revenue and expense transactions.
--   **Users (`/admin/users`)**:
-    -   View a table of all registered users.
-    -   View each user's assigned mailbox number and US shipping address.
-    -   Add new users manually.
--   **Courier Rates (`/admin/rates`)**: View and edit the pricing tiers for shipping based on weight (in lbs).
--   **Customs Calculator (`/admin/customs-calculator`)**: An internal tool to estimate Jamaican customs fees based on item value, weight, and category.
--   **Settings (`/admin/settings`)**:
-    -   Manage application appearance (light/dark/system theme).
-    -   Manage API keys for third-party integrations.
+-   **Dashboard (`/admin`)**: The main landing page for the admin panel.
+-   **Pre-Alerts (`/admin/pre-alerts`)**: View and process customer documentation. Includes AI-powered analysis of uploaded invoices.
+-   **Shipping Status (`/admin/shipping`)**: View and manage all transits in the system. Supports bulk status updates and manifest building.
+-   **POS System (`/admin/pos`)**: High-performance checkout station for branch operations.
+-   **Finance & Invoices (`/admin/finance`)**: Centralized ledger for revenue and expense auditing.
+-   **Users (`/admin/users`)**: Identity management for all registered clients and staff.
+-   **Settings (`/admin/settings`)**: Management of system integrations (SMTP, Logicware API).
 
 ## 4. Technical Overview
 
@@ -72,22 +51,18 @@ The admin panel is a single-page application with different sections accessible 
 
 -   **Framework**: Next.js 15 with React
 -   **UI**: ShadCN UI components and Tailwind CSS
--   **Styling**: Theming is controlled via CSS variables in `src/app/globals.css`.
--   **Generative AI**: Genkit for AI-powered flows (e.g., invoice HTML generation).
+-   **Database**: Supabase PostgreSQL (Relational Logistics, Immutable Ledger, Binary Assets)
+-   **Generative AI**: Genkit for document analysis.
 
-### 4.2. Data
+### 4.2. Storage
 
--   **Mock Data**: The application currently runs on mock data located in `src/lib/mock-data.ts`. For a production environment, this data should be replaced with a real database backend (e.g., PostgreSQL). The schemas defined in `mock-data.ts` can serve as a blueprint for your database tables.
+The application utilizes the `document_assets` table in PostgreSQL to store commercial invoices and other documentation as `bytea` binary data. This ensures centralized, high-speed access without external cloud storage dependencies.
 
 ### 4.3. API Routes
 
-The application includes server-side API routes to handle specific backend tasks:
-
--   **/api/generate-pdf**: Takes HTML content and uses `puppeteer` to generate a PDF file (used for invoices).
--   **/api/send-email**: Sends an email using the **Resend** service. To get this working in a live environment, you must:
-    1.  Sign up for a Resend account (the free tier is very generous).
-    2.  Get your API key from the Resend dashboard.
-    3.  Add the key as an environment variable named `RESEND_API_KEY` on your production server.
--   **/api/notifications**: Provides mock notification data for the admin panel. This would be replaced by a real notification system in production.
+-   **/api/storage/upload**: Stores documentation in the database.
+-   **/api/storage/view**: Retrieves documentation from the database.
+-   **/api/send-email**: Sends automated correspondence via a configured SMTP relay.
+-   **/api/webhooks/logicware**: Receives real-time tracking updates from the external Logistics Hub.
 
 This documentation should provide a clear path for using, managing, and further developing the FromStore2Door application.
