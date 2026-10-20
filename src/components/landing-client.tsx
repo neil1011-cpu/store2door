@@ -1,91 +1,65 @@
 
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Menu, X, ArrowRight } from 'lucide-react';
 import styles from '@/app/landing.module.css';
 
-export function LandingClient() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
+export function Header({ loginHref, registerHref, ratesHref, contactHref }: { loginHref: string; registerHref: string; ratesHref: string; contactHref: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <>
-      <header className={styles.header}>
-        <div className={styles.navContainer}>
-          <div className={styles.logo}>
-            <div className="h-12 w-48 relative">
-              <Image 
-                src="/images/logo.png" 
-                alt="FromStore2Door Logo" 
-                fill 
-                className="object-contain" 
-                priority
-              />
-            </div>
-          </div>
-          
-          <nav className={styles.navLinks}>
-            <Link href="/rates" className={styles.navLink}>Rates</Link>
-            <Link href="/contact" className={styles.navLink}>Contact</Link>
-            <div className={styles.authButtons}>
-              <Link href="/signin" className={styles.navLink}>Login</Link>
-              <Link href="/signup" className={`${styles.btn} ${styles.btnPrimary}`}>Register</Link>
-            </div>
-          </nav>
-
-          <button className={styles.mobileMenuBtn} onClick={() => setIsMenuOpen(true)}>
-            <Menu size={32} />
-          </button>
-        </div>
-      </header>
-
-      {/* Mobile Menu Overlay */}
-      <div className={`${styles.mobileMenu} ${isMenuOpen ? styles.mobileMenuVisible : ''}`}>
-        <div className="flex justify-between items-center mb-8">
-          <div className="h-10 w-40 relative">
-             <Image src="/images/logo.png" alt="Logo" fill className="object-contain" />
-          </div>
-          <button onClick={() => setIsMenuOpen(false)}>
-            <X size={32} />
-          </button>
-        </div>
-        <Link href="/rates" onClick={() => setIsMenuOpen(false)} className={styles.navLink}>Rates</Link>
-        <Link href="/contact" onClick={() => setIsMenuOpen(false)} className={styles.navLink}>Contact</Link>
-        <div className="flex flex-col gap-4 mt-8">
-          <Link href="/signin" onClick={() => setIsMenuOpen(false)} className={`${styles.btn} ${styles.btnAccent}`}>Login</Link>
-          <Link href="/signup" onClick={() => setIsMenuOpen(false)} className={`${styles.btn} ${styles.btnPrimary}`}>Register</Link>
-        </div>
+    <header className={styles.header}>
+      <div className={`${styles.wrap} ${styles.nav}`}>
+        <Link className={styles.brand} href="/">
+          <Image src="/images/logo.png" alt="From Store 2 Door" width={46} height={38} className="h-10 w-auto" />
+          From Store 2 Door
+        </Link>
+        <button className={styles.menuBtn} type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+          Menu
+        </button>
+        <nav>
+          <ul className={`${styles.links} ${open ? styles.open : ''}`} onClick={() => setOpen(false)}>
+            <li><a href="#services">Services</a></li>
+            <li><a href="#how-it-works">How it works</a></li>
+            <li><Link href={ratesHref}>Rates</Link></li>
+            <li><Link href={contactHref}>Contact</Link></li>
+            <li><Link href={loginHref}>Login</Link></li>
+            <li><Link className={styles.btn} href={registerHref}>Register</Link></li>
+          </ul>
+        </nav>
       </div>
-    </>
+    </header>
   );
 }
 
-export function TrackingForm() {
-  const [trackingId, setTrackingId] = useState('');
+const STATUS = ['Received at warehouse', 'In transit', 'Quality check', 'Out for delivery'];
+const STEPS = ['Package received', 'In transit', 'Quality check', 'Delivery'];
 
-  const handleTrack = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (trackingId.trim()) {
-      window.location.href = `/tracking?id=${trackingId.trim().toUpperCase()}`;
-    }
-  };
-
+export function TrackingCard() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setN((v) => (v + 1) % 4), 2250);
+    return () => clearInterval(t);
+  }, []);
   return (
-    <div className={styles.trackingSection}>
-      <form onSubmit={handleTrack} className={styles.trackingInputWrapper}>
-        <input 
-          type="text" 
-          placeholder="ENTER YOUR TRACKING NUMBER..." 
-          className={styles.inputField}
-          value={trackingId}
-          onChange={(e) => setTrackingId(e.target.value)}
-        />
-        <button type="submit" className={`${styles.btn} ${styles.btnPrimary} h-auto py-5`}>
-          Track Package <ArrowRight className="ml-2 h-5 w-5" />
-        </button>
-      </form>
+    <div className={styles.track} aria-label="Example of package tracking">
+      <div className={styles.top}>
+        <span>Package FS2D-0917</span>
+        <span>{STATUS[n]}</span>
+      </div>
+      <div className={styles.route}>
+        <svg viewBox="0 0 600 90" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 70 Q 150 -30 300 40 T 600 20" fill="none" stroke="#00c2c7" strokeWidth="3" strokeDasharray="3 9" strokeLinecap="round" />
+        </svg>
+        <div className={styles.dot} aria-hidden="true">&#9992;</div>
+      </div>
+      <div className={styles.pts}><span>USA warehouse</span><span>Jamaica</span></div>
+      <ol className={styles.steps}>
+        {STEPS.map((s, i) => (
+          <li key={s} className={i < n ? styles.done : i === n ? styles.on : ''}>{s}</li>
+        ))}
+      </ol>
     </div>
   );
 }

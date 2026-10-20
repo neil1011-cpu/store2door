@@ -1,164 +1,178 @@
 
-import Image from 'next/image';
 import Link from 'next/link';
+import Image from 'next/image';
 import styles from './landing.module.css';
-import { LandingClient, TrackingForm } from '@/components/landing-client';
-import { Plane, Ship, CreditCard, Search, ArrowRight } from 'lucide-react';
+import { Header, TrackingCard } from '@/components/landing-client';
+
+const SIGNIN_HREF = '/signin';
+const SIGNUP_HREF = '/signup';
+const RATES_HREF = '/rates';
+const CONTACT_HREF = '/contact';
+const PRIVACY_HREF = '/privacy';
+const TERMS_HREF = '/terms';
+
+export const metadata = {
+  title: 'From Store 2 Door - Shipping Services from Store to Door',
+  description:
+    'Reliable shipping straight from the store to your door. Get your own USA shipping address and enjoy convenient delivery options.',
+};
 
 export default function HomePage() {
-  const year = new Date().getFullYear();
-
   return (
-    <div className={styles.landingPage}>
-      <LandingClient />
+    <div className={styles.landing}>
+      <Header 
+        loginHref={SIGNIN_HREF} 
+        registerHref={SIGNUP_HREF} 
+        ratesHref={RATES_HREF}
+        contactHref={CONTACT_HREF}
+      />
 
-      <section className={styles.hero}>
-        <div className={styles.heroContent}>
-          <h1>Store To <br /><span style={{color: '#f9bf29'}}>Door.</span></h1>
-          <p>
-            Experience seamless logistics with multiple weekly flights. Get your FREE US shipping address today and bring the world to your doorstep.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link href="/signup" className={`${styles.btn} ${styles.btnPrimary} h-16 px-12 text-lg`}>
-              Sign up for free
-            </Link>
-            <Link href="#services" className={`${styles.btn} ${styles.btnAccent} h-16 px-12 text-lg`}>
-              Our Services
-            </Link>
+      <main>
+        <section className={styles.hero}>
+          <div className={styles.wrap}>
+            <div>
+              <p className={styles.tag}>Shipping to Jamaica from Portmore</p>
+              <h1>From the store to your door, <em>hassle free.</em></h1>
+              <p>Sign up for a free USA shipping address, shop any online store, and we will get your packages home by air or sea.</p>
+              <div className={styles.cta}>
+                <Link className={styles.btn} href={SIGNUP_HREF}>Sign up for free</Link>
+                <a className={`${styles.btn} ${styles.btnGhost}`} href="#services">See our services</a>
+              </div>
+            </div>
+            <TrackingCard />
           </div>
+        </section>
+
+        <div className={styles.badges}>
+          <div><b>Fast shipping</b><span>Weekly air freight</span></div>
+          <div><b>Secure process</b><span>Checked before delivery</span></div>
+          <div><b>Customer support</b><span>Dedicated helpline</span></div>
+          <div><b>Top rated</b><span>Loved by our customers</span></div>
         </div>
-      </section>
 
-      <TrackingForm />
+        <section id="journey" className={styles.section}>
+          <div className={styles.wrap}>
+            <div className={styles.head}>
+              <p className={styles.tag}>Our simple process</p>
+              <h2>Follow your package from the store to your door</h2>
+            </div>
+            <div className={styles.journey}>
+              <div className={styles.stop}><i>1</i><h3>Package received</h3><p>We receive and process your orders at our warehouse facility.</p></div>
+              <div className={styles.stop}><i>2</i><h3>In transit</h3><p>Your items are securely transported by air or sea freight.</p></div>
+              <div className={styles.stop}><i>3</i><h3>Quality check</h3><p>We verify all items for condition and accuracy before delivery.</p></div>
+              <div className={styles.stop}><i>4</i><h3>Delivery</h3><p>Your packages arrive at your door or wait for you to pick up.</p></div>
+            </div>
+          </div>
+        </section>
 
-      <section id="services" className={styles.servicesSection}>
-        <div className={styles.servicesGrid}>
-          <div className={styles.serviceCard}>
-            <div className="relative h-[200px]">
-              <Image 
-                src="/images/air-freight.jpg" 
-                alt="Air Freight" 
-                fill 
-                className="object-cover" 
-                priority
-              />
+        <section id="services" className={`${styles.section} ${styles.alt}`}>
+          <div className={styles.wrap}>
+            <div className={styles.head}>
+              <p className={styles.tag}>Our services</p>
+              <h2>Shipping and logistics built around your shopping</h2>
+              <p>Everything you need to buy from stores abroad and bring it home.</p>
             </div>
-            <div className={styles.serviceContent}>
-              <h3 className={styles.serviceTitle}>Air Freight</h3>
-              <p className="text-muted-foreground text-sm">High-priority cargo flown weekly from Florida to Jamaica. Perfect for small packages.</p>
-            </div>
-          </div>
-          <div className={styles.serviceCard}>
-            <div className="relative h-[200px]">
-              <Image 
-                src="/images/sea-freight.jpg" 
-                alt="Sea Freight" 
-                fill 
-                className="object-cover" 
-              />
-            </div>
-            <div className={styles.serviceContent}>
-              <h3 className={styles.serviceTitle}>Sea Freight</h3>
-              <p className="text-muted-foreground text-sm">Economic choice for barrels and oversized cargo. Scheduled sailings for maximum savings.</p>
-            </div>
-          </div>
-          <div className={styles.serviceCard}>
-            <div className="relative h-[200px]">
-              <Image 
-                src="/images/credit-card-service.jpg" 
-                alt="Personal Shopping" 
-                fill 
-                className="object-cover" 
-              />
-            </div>
-            <div className={styles.serviceContent}>
-              <h3 className={styles.serviceTitle}>Personal Shopping</h3>
-              <p className="text-muted-foreground text-sm">No credit card? No problem. We shop for you with zero additional service fees.</p>
+            <div className={styles.grid}>
+              <article className={styles.svc}>
+                <Image src="/images/air-freight.jpg" alt="Air Freight" width={500} height={300} loading="lazy" />
+                <div><small>Weekly shipping</small><h3>Air freight</h3><p>Fast, efficient transit on our regular weekly schedule for your small to medium size packages.</p>
+                  <ul><li>Weekly shipping schedule</li><li>Fast and efficient transit</li><li>Ideal for small to medium packages</li></ul></div>
+              </article>
+              <article className={styles.svc}>
+                <Image src="/images/sea-freight.jpg" alt="Sea Freight" width={500} height={300} loading="lazy" />
+                <div><small>Commercial and personal</small><h3>Sea freight</h3><p>Courier and logistics solutions by sea, from the store straight to your door.</p>
+                  <ul><li>Commercial and personal shipping</li><li>Complete logistics solutions</li><li>Store to door delivery</li></ul></div>
+              </article>
+              <article className={styles.svc}>
+                <Image src="/images/credit-card-service.jpg" alt="Credit Card Service" width={500} height={300} loading="lazy" />
+                <div><small>Shop online anywhere</small><h3>Credit card service</h3><p>No credit card? Use ours to make your online purchases with ease.</p>
+                  <ul><li>No personal credit card needed</li><li>Shop at any online store</li><li>Secure payment handling</li></ul></div>
+              </article>
+              <article className={styles.svc}>
+                <Image src="/images/product-search.jpg" alt="Search Assistance" width={500} height={300} loading="lazy" />
+                <div><small>Best price guarantee</small><h3>Product search assistance</h3><p>We help you find the right product at the right price from top retailers.</p>
+                  <ul><li>Expert product research</li><li>Best price comparisons</li><li>Personalized shopping assistance</li></ul></div>
+              </article>
             </div>
           </div>
-          <div className={styles.serviceCard}>
-            <div className="relative h-[200px]">
-              <Image 
-                src="/images/product-search.jpg" 
-                alt="Product Search" 
-                fill 
-                className="object-cover" 
-              />
-            </div>
-            <div className={styles.serviceContent}>
-              <h3 className={styles.serviceTitle}>Product Search</h3>
-              <p className="text-muted-foreground text-sm">Can't find it? Our logistics team assists in sourcing rare products from the US.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section id="how-it-works" className={styles.stepsSection}>
-        <h2 className={styles.sectionTitle}>How It Works</h2>
-        <div className={styles.stepsGrid}>
-          <div className={styles.stepCard}>
-            <div className={styles.stepNumber}>01</div>
-            <h3 className={styles.serviceTitle}>Sign Up</h3>
-            <p className="text-muted-foreground text-sm">Register for free and get your unique US mailbox number instantly.</p>
+        <section id="how-it-works" className={styles.section}>
+          <div className={styles.wrap}>
+            <div className={styles.head}>
+              <p className={styles.tag}>How it works</p>
+              <h2>Three steps to your door</h2>
+              <p>Shipping from sign-up to pickup, without the hassle.</p>
+            </div>
+            <div className={styles.three}>
+              <div><b>1</b><h3>Sign up</h3><p>Register and receive your USA shipping address free of cost instantly.</p><Link href={SIGNUP_HREF}>Get started</Link></div>
+              <div><b>2</b><h3>Shop online</h3><p>Shop at any of your favourite stores. We collect and prepare your items for shipping.</p></div>
+              <div><b>3</b><h3>Pick up</h3><p>Get notified about your package status, then request delivery or pick up in store.</p></div>
+            </div>
           </div>
-          <div className={styles.stepCard}>
-            <div className={styles.stepNumber}>02</div>
-            <h3 className={styles.serviceTitle}>Shop Online</h3>
-            <p className="text-muted-foreground text-sm">Purchase from any US retailer using your new Florida address.</p>
+        </section>
+
+        <section className={`${styles.section} ${styles.alt}`}>
+          <div className={styles.wrap}>
+            <div className={styles.head}>
+              <p className={styles.tag}>Testimonials</p>
+              <h2>What our customers say</h2>
+            </div>
+            <div className={styles.three}>
+              <blockquote className={styles.quote}><p>The rates are competitive and I always receive my packages on time. Their customer service is exceptional.</p><b>Shanda James</b><span>Loyal customer</span></blockquote>
+              <blockquote className={styles.quote}><p>The staff is friendly and courteous. I have been using their service for years and could not be happier.</p><b>Karissa Campbell</b><span>Regular customer</span></blockquote>
+              <blockquote className={styles.quote}><p>The service is efficient and the wait time is short. Their tracking system keeps me informed.</p><b>Samantha Allen</b><span>Business customer</span></blockquote>
+            </div>
           </div>
-          <div className={styles.stepCard}>
-            <div className={styles.stepNumber}>03</div>
-            <h3 className={styles.serviceTitle}>We Ship</h3>
-            <p className="text-muted-foreground text-sm">Your packages arrive at our warehouse and are exported to Jamaica.</p>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.wrap}>
+            <div className={styles.head}>
+              <p className={styles.tag}>Global shopping</p>
+              <h2>Shop from the world&rsquo;s most trusted online stores</h2>
+              <p>From USA retailers to Chinese manufacturers, we ship from anywhere to Jamaica.</p>
+            </div>
+            <div className={styles.stores}><span>Amazon</span><span>eBay</span><span>Walmart</span><span>Shein</span><span>Temu</span></div>
           </div>
-          <div className={styles.stepCard}>
-            <div className={styles.stepNumber}>04</div>
-            <h3 className={styles.serviceTitle}>Collect</h3>
-            <p className="text-muted-foreground text-sm">Pick up your items from our local hub or choose home delivery.</p>
+        </section>
+
+        <section className={styles.final}>
+          <div className={styles.wrap}>
+            <h2>Ready to start shipping?</h2>
+            <p>Sign up today and enjoy hassle-free global shipping with our door-to-door service.</p>
+            <div className={styles.cta}><Link className={styles.btn} href={SIGNUP_HREF}>Sign up for free</Link></div>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
       <footer className={styles.footer}>
-        <div className={styles.footerContainer}>
-          <div className={styles.footerCol}>
-            <div className="mb-6 h-12 relative w-48">
-              <Image 
-                src="/images/logo.png" 
-                alt="FromStore2Door" 
-                fill 
-                className="object-contain" 
-              />
+        <div className={styles.wrap}>
+          <div className={styles.fg}>
+            <div>
+              <h4>From Store 2 Door</h4>
+              <p>Providing reliable shipping services straight from the store to your door, hassle free.</p>
             </div>
-            <p className="text-sm">Reliable shipping from Florida to Jamaica. Built for speed and security since inception.</p>
+            <div>
+              <h4>Quick links</h4>
+              <ul>
+                <li><Link href={RATES_HREF}>Rates</Link></li>
+                <li><Link href={CONTACT_HREF}>Contact Us</Link></li>
+                <li><Link href={SIGNIN_HREF}>Login</Link></li>
+                <li><Link href={SIGNUP_HREF}>Register</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4>Legal & Contact</h4>
+              <ul>
+                <li><Link href={PRIVACY_HREF}>Privacy Policy</Link></li>
+                <li><Link href={TERMS_HREF}>Terms of Service</Link></li>
+                <li>Portmore, St. Catherine</li>
+                <li>(876) 506-9727</li>
+              </ul>
+            </div>
           </div>
-          <div className={styles.footerCol}>
-            <h4>Navigation</h4>
-            <ul className={styles.footerLinks}>
-              <li><Link href="/rates">Rates</Link></li>
-              <li><Link href="/customs-calculator">Calculator</Link></li>
-              <li><Link href="/contact">Contact Hub</Link></li>
-              <li><Link href="#how-it-works">How it works</Link></li>
-            </ul>
-          </div>
-          <div className={styles.footerCol}>
-            <h4>Legal</h4>
-            <ul className={styles.footerLinks}>
-              <li><Link href="/privacy">Privacy Policy</Link></li>
-              <li><Link href="/terms">Terms of Service</Link></li>
-            </ul>
-          </div>
-          <div className={styles.footerCol}>
-            <h4>Contact</h4>
-            <ul className={styles.footerLinks}>
-              <li>Portmore, St. Catherine, JA</li>
-              <li>(876) 506-9727</li>
-              <li>info@fromstore2door.com</li>
-            </ul>
-          </div>
-        </div>
-        <div className="mt-16 pt-8 border-t border-white/5 text-center text-[10px] opacity-50 uppercase tracking-widest">
-          &copy; {year} FromStore2Door Global Logistics. Portmore, Jamaica.
+          <p className={styles.copy}>&copy; {new Date().getFullYear()} From Store 2 Door Shipping Services | All Rights Reserved</p>
         </div>
       </footer>
     </div>
