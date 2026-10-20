@@ -30,7 +30,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
         if (data && !error) {
           setIsAdmin(true);
         } else {
-          // Master Admin Fallback
           if (user.email === 'admin@neilussolutions.com') {
             setIsAdmin(true);
           } else {
@@ -54,7 +53,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-lg font-black uppercase italic">Authorizing Admin Session</p>
+        <p className="text-lg font-black uppercase italic tracking-tighter">Authorizing Admin Session</p>
       </div>
     );
   }
@@ -94,8 +93,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <AdminAuthGuard>
       <SidebarProvider>
-        <Sidebar>
-          <SidebarHeader className="p-4">
+        <Sidebar className="border-r-2">
+          <SidebarHeader className="p-4 border-b">
              <div className="flex items-center gap-3 p-1">
                   <Avatar className="h-9 w-9 border-2 border-primary/20">
                       <AvatarImage src={user?.user_metadata?.avatar_url} />
@@ -104,19 +103,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                       </AvatarFallback>
                   </Avatar>
                   <div className="text-sm overflow-hidden">
-                      <div className="font-bold truncate">{user?.user_metadata?.full_name || 'Admin'}</div>
-                      <div className="text-muted-foreground text-[10px] truncate">{user?.email}</div>
+                      <div className="font-bold truncate text-foreground">{user?.user_metadata?.full_name || 'Admin'}</div>
+                      <div className="text-muted-foreground text-[10px] truncate uppercase font-bold tracking-widest">{user?.email}</div>
                   </div>
               </div>
           </SidebarHeader>
           <SidebarContent>
-            <SidebarMenu className="px-2">
+            <SidebarMenu className="px-2 pt-4">
               {sidebarLinks.map((link) => (
                    <SidebarMenuItem key={link.href}>
-                      <SidebarMenuButton asChild isActive={pathname === link.href} className="h-10">
+                      <SidebarMenuButton asChild isActive={pathname === link.href} className="h-10 font-bold uppercase tracking-tight">
                           <Link href={link.href}>
                               {link.icon}
-                              <span className="font-medium">{link.label}</span>
+                              <span className="ml-2">{link.label}</span>
                           </Link>
                       </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -124,20 +123,22 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-4 border-t">
-            <Button variant="ghost" onClick={handleSignOut} className="w-full justify-start text-destructive hover:bg-destructive/5 font-bold">
+            <Button variant="ghost" onClick={handleSignOut} className="w-full justify-start text-destructive hover:bg-destructive/5 font-black uppercase italic text-xs">
                 <LogOut className="mr-2 h-4 w-4" /> Sign Out
             </Button>
           </SidebarFooter>
         </Sidebar>
         <SidebarInset>
-          <header className="flex h-16 items-center gap-4 border-b bg-background px-6 sticky top-0 z-30">
+          <header className="flex h-16 items-center gap-4 border-b bg-background px-6 sticky top-0 z-30 shadow-sm">
             <SidebarTrigger />
-            <div className="text-sm font-bold tracking-tight uppercase text-muted-foreground hidden md:block">FromStore2Door Admin</div>
+            <div className="text-xs font-black tracking-[0.2em] uppercase text-muted-foreground hidden md:block">FSTD Global OS</div>
             <div className="flex-1" />
-            <ThemeToggle />
-            <Notifications />
+            <div className="flex items-center gap-4">
+              <ThemeToggle />
+              <Notifications />
+            </div>
           </header>
-          <main className="flex-1 p-6 lg:p-8 max-w-[1600px] mx-auto w-full">{children}</main>
+          <main className="flex-1 p-6 lg:p-8 max-w-[1600px] mx-auto w-full bg-muted/5">{children}</main>
         </SidebarInset>
       </SidebarProvider>
     </AdminAuthGuard>

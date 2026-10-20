@@ -4,49 +4,68 @@
 
 @layer base {
   :root {
-    /* Rocketship-inspired High Contrast Dark Theme as Default */
-    --background: 240 30% 6%;
-    --foreground: 0 0% 100%;
-    --card: 240 30% 8%;
-    --card-foreground: 0 0% 100%;
-    --popover: 240 30% 5%;
-    --popover-foreground: 0 0% 100%;
-    --primary: 240 30% 15%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 20% 12%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 240 20% 12%;
-    --muted-foreground: 240 10% 70%;
-    --accent: 45 100% 60%;
-    --accent-foreground: 240 30% 5%;
+    /* Light Mode - Clean Slate/Zinc Palette */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 221.2 83.2% 53.3%; /* Royal Blue */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 47.9 95.8% 53.1%; /* Gold */
+    --accent-foreground: 240 5.9% 10%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 240 20% 15%;
-    --input: 240 20% 15%;
-    --ring: 45 100% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
     --radius: 1rem;
     
-    --sidebar-background: 240 30% 4%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 45 100% 60%;
-    --sidebar-primary-foreground: 240 30% 5%;
-    --sidebar-accent: 240 20% 15%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 240 20% 12%;
-    --sidebar-ring: 45 100% 60%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 221.2 83.2% 53.3%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 240 30% 4%;
-    --foreground: 0 0% 100%;
-    --card: 240 30% 6%;
-    --card-foreground: 0 0% 100%;
-    --primary: 240 30% 12%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 20% 10%;
-    --secondary-foreground: 0 0% 100%;
-    --accent: 45 100% 60%;
-    --accent-foreground: 240 30% 5%;
+    /* Dark Mode - Deep Navy / High Contrast */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 47.9 95.8% 53.1%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+
+    --sidebar-background: 240 10% 3.9%;
+    --sidebar-foreground: 240 5% 64.9%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 240 4.9% 83.9%;
   }
 }
 
@@ -65,8 +84,4 @@
 
 .rocket-gradient:hover {
   filter: brightness(1.1);
-}
-
-.hero-overlay {
-  background: radial-gradient(circle at center, transparent 0%, hsl(var(--background)) 100%);
 }

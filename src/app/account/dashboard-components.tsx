@@ -40,12 +40,12 @@ export function WarehouseAddressCard({ details }: { details: UserProfile }) {
   };
 
   return (
-    <Card className="border-none shadow-xl bg-zinc-950 text-white overflow-hidden rounded-2xl group">
-      <CardHeader className="bg-primary/20 pb-4 border-b border-white/5 flex flex-row items-center justify-between">
-        <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-primary" /> Your US Shipping Address
+    <Card className="border-2 shadow-xl bg-card text-card-foreground overflow-hidden rounded-2xl group">
+      <CardHeader className="bg-primary/5 pb-4 border-b flex flex-row items-center justify-between">
+        <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-primary">
+          <MapPin className="h-4 w-4" /> Your US Shipping Address
         </CardTitle>
-        <Button variant="ghost" size="sm" onClick={copyAddress} className="h-7 text-[8px] font-black uppercase text-zinc-400 hover:text-white hover:bg-white/10">
+        <Button variant="outline" size="sm" onClick={copyAddress} className="h-7 text-[8px] font-black uppercase border-2">
           <Copy className="h-3 w-3 mr-1" /> Copy All
         </Button>
       </CardHeader>
@@ -53,36 +53,36 @@ export function WarehouseAddressCard({ details }: { details: UserProfile }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-4">
             <div className="space-y-1">
-              <p className="text-[9px] uppercase font-bold text-zinc-500">Full Name</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">Full Name</p>
               <p className="text-sm font-bold uppercase">{details.full_name}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[9px] uppercase font-bold text-zinc-500">Address Line 1</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">Address Line 1</p>
               <p className="text-sm font-bold uppercase">3507 NW 19th ST</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[9px] uppercase font-bold text-zinc-500">Address Line 2 (Mailbox)</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">Address Line 2 (Mailbox)</p>
               <p className="text-sm font-black uppercase text-primary bg-primary/10 px-2 py-0.5 rounded inline-block">{details.mailbox_number}</p>
             </div>
           </div>
           <div className="space-y-4">
             <div className="space-y-1">
-              <p className="text-[9px] uppercase font-bold text-zinc-500">City</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">City</p>
               <p className="text-sm font-bold uppercase">Lauderdale Lake</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[9px] uppercase font-bold text-zinc-500">State</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">State</p>
               <p className="text-sm font-bold uppercase">FL</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[9px] uppercase font-bold text-zinc-500">Zip Code</p>
+              <p className="text-[9px] uppercase font-bold text-muted-foreground">Zip Code</p>
               <p className="text-sm font-bold uppercase">33311-4224</p>
             </div>
           </div>
         </div>
       </CardContent>
-      <CardFooter className="bg-white/5 p-3">
-        <p className="text-[8px] font-bold uppercase text-zinc-500 italic text-center w-full">
+      <CardFooter className="bg-muted/30 p-3 border-t">
+        <p className="text-[8px] font-bold uppercase text-muted-foreground italic text-center w-full">
           IMPORTANT: Always include your mailbox number in Address Line 2.
         </p>
       </CardFooter>
@@ -129,17 +129,17 @@ export function DashboardTab({ details }: { details: UserProfile }) {
     <div className="max-w-4xl mx-auto space-y-6">
       <WarehouseAddressCard details={details} />
       
-      <Card className="border-none shadow-none sm:border sm:shadow-sm">
+      <Card className="border-2 shadow-sm">
         <CardHeader>
-          <CardTitle>Activity Overview</CardTitle>
-          <CardDescription>Most recent transit updates.</CardDescription>
+          <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Activity Overview</CardTitle>
+          <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Most recent transit updates.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
           ) : recentShipment ? (
             <div className="space-y-4">
-              <div className="bg-muted/20 p-4 rounded-lg flex justify-between items-center">
+              <div className="bg-muted/50 p-4 rounded-xl flex justify-between items-center border">
                 <div className="flex-1">
                   <p className="text-[10px] font-bold uppercase opacity-60">Tracking Number</p>
                   <div className="flex items-center gap-3">
@@ -153,12 +153,12 @@ export function DashboardTab({ details }: { details: UserProfile }) {
                       )}
                   </div>
                 </div>
-                <Badge variant={getStatusVariant(recentShipment.status)}>{recentShipment.status}</Badge>
+                <Badge variant={getStatusVariant(recentShipment.status)} className="font-black italic uppercase text-[9px] border-2 px-4 h-8">{recentShipment.status}</Badge>
               </div>
-              <Button variant="outline" className="w-full font-bold uppercase italic" asChild><Link href="/account/packages">View All Packages</Link></Button>
+              <Button variant="outline" className="w-full font-bold uppercase italic border-2 h-12" asChild><Link href="/account/packages">View All Packages</Link></Button>
             </div>
           ) : (
-            <div className="text-center py-10 opacity-40 italic text-sm">No active shipments in your registry.</div>
+            <div className="text-center py-10 text-muted-foreground italic text-sm border-2 border-dashed rounded-xl">No active shipments in your registry.</div>
           )}
         </CardContent>
       </Card>
@@ -212,46 +212,46 @@ export function PackagesTab({ profileId }: { profileId: string }) {
   }, [profileId, supabase, fetchPackages]);
 
   return (
-    <Card className="border-none shadow-none sm:border sm:shadow-sm">
-      <CardHeader>
-        <CardTitle>My Packages</CardTitle>
+    <Card className="border-2 shadow-sm overflow-hidden rounded-2xl">
+      <CardHeader className="bg-muted/10 border-b">
+        <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Package Registry</CardTitle>
       </CardHeader>
-      <CardContent className="px-0 sm:px-6">
+      <CardContent className="p-0">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="text-[10px] font-black uppercase">Package</TableHead>
+              <TableHead className="text-[10px] font-black uppercase pl-6">Package</TableHead>
               <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
               <TableHead className="text-right text-[10px] font-black uppercase">Invoice</TableHead>
-              <TableHead className="text-right text-[10px] font-black uppercase">Cost (JMD)</TableHead>
+              <TableHead className="text-right text-[10px] font-black uppercase pr-6">Cost (JMD)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-10"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
             ) : packages.map((pkg) => (
-              <TableRow key={pkg.id}>
-                <TableCell>
-                  <p className="font-mono font-bold text-primary">{pkg.tracking_number}</p>
-                  <p className="text-[10px] uppercase opacity-60 truncate max-w-[150px]">{pkg.contents}</p>
+              <TableRow key={pkg.id} className="h-20 hover:bg-primary/5 transition-colors">
+                <TableCell className="pl-6">
+                  <p className="font-mono font-black text-primary text-sm tracking-tighter">{pkg.tracking_number}</p>
+                  <p className="text-[10px] uppercase font-bold opacity-60 truncate max-w-[150px]">{pkg.contents}</p>
                 </TableCell>
-                <TableCell><Badge variant={getStatusVariant(pkg.status)} className="text-[8px] font-black uppercase italic">{pkg.status}</Badge></TableCell>
+                <TableCell><Badge variant={getStatusVariant(pkg.status)} className="text-[8px] font-black uppercase italic tracking-widest border-2">{pkg.status}</Badge></TableCell>
                 <TableCell className="text-right">
                     {pkg.invoice_url ? (
-                        <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[9px]">
+                        <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[9px] border border-primary/10">
                             <Link href={`/api/storage/view?key=${encodeURIComponent(pkg.invoice_url)}`} target="_blank">
-                                <FileText className="h-3.5 w-3.5 mr-1" /> Doc
+                                <FileText className="h-3.5 w-3.5 mr-1" /> View
                             </Link>
                         </Button>
                     ) : (
                         <span className="text-[9px] opacity-20 italic">No File</span>
                     )}
                 </TableCell>
-                <TableCell className="text-right font-black italic tracking-tighter">
+                <TableCell className="text-right pr-6 font-black italic tracking-tighter text-lg">
                   {shouldShowPrice(pkg.status) ? (
                     pkg.total_cost_jmd ? `JMD $${pkg.total_cost_jmd.toLocaleString()}` : 'TBD'
                   ) : (
-                    <span className="text-[8px] opacity-30 uppercase tracking-widest font-black">Updating...</span>
+                    <span className="text-[8px] opacity-40 uppercase tracking-widest font-black">Updating...</span>
                   )}
                 </TableCell>
               </TableRow>
@@ -288,9 +288,7 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
         try {
             let finalKey = null;
             if (formData.file) {
-                // Ensure fresh session token for binary transfer
                 const { data: { session } } = await supabase.auth.getSession();
-                
                 const body = new FormData();
                 body.append('file', formData.file);
                 
@@ -317,7 +315,6 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
 
             if (error) throw error;
 
-            // HUB SYNC (Non-blocking)
             fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -325,13 +322,10 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
             }).catch(lwErr => console.warn('[LOGICWARE_PUSH_FAIL]', lwErr));
 
             toast({ title: "Intake Authorized", description: "Florida warehouse notified successfully." });
-            
-            // Reset state
             setFormData({ trackingNumber: '', contents: '', weight: '', file: null });
             setFormKey(prev => prev + 1);
             onSuccess?.();
         } catch (err: any) {
-            console.error('[PRE_ALERT_SUBMIT_FATAL]', err);
             toast({ title: "Authorization Denied", description: err.message, variant: "destructive" });
         } finally {
             setIsSubmitting(false);
@@ -358,7 +352,7 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
                 <Label className="text-[10px] font-bold uppercase opacity-60">Invoice File (Max 500MB)</Label>
                 <Input type="file" onChange={e => setFormData({...formData, file: e.target.files?.[0] || null})} accept="image/*,application/pdf" className="h-12 border-2 py-2" />
             </div>
-            <Button type="submit" className="w-full h-16 font-black uppercase italic shadow-lg text-lg" disabled={isSubmitting}>
+            <Button type="submit" className="w-full h-16 font-black uppercase italic shadow-xl text-lg" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="animate-spin mr-2 h-6 w-6" /> : <Zap className="mr-2 h-6 w-6" />} 
                 {isSubmitting ? "Transmitting..." : "Authorize Intake"}
             </Button>
@@ -378,17 +372,6 @@ export function AccountTab({ details }: { details: UserProfile }) {
         try {
             const { error } = await supabase.from('profiles').update({ phone, trn }).eq('id', details.id);
             if (error) throw error;
-            
-            try {
-                await fetch('/api/admin/logicware-sync', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ profileId: details.id })
-                });
-            } catch (syncErr) {
-                console.warn('[LOGICWARE_SYNC_WARN] Customer-triggered sync failed:', syncErr);
-            }
-
             toast({ title: "Profile Secured" });
         } catch (err: any) {
             toast({ title: "Update Failed", description: err.message, variant: "destructive" });
@@ -401,8 +384,8 @@ export function AccountTab({ details }: { details: UserProfile }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <WarehouseAddressCard details={details} />
 
-            <Card className="border-none shadow-md rounded-2xl">
-                <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest italic">Personal Details</CardTitle></CardHeader>
+            <Card className="border-2 shadow-md rounded-2xl">
+                <CardHeader><CardTitle className="text-xl font-black uppercase tracking-tighter italic">Personal Details</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label className="text-[10px] font-bold uppercase opacity-60">Phone Number</Label>
@@ -425,8 +408,8 @@ export function SupportTab() {
     return (
         <div className="max-w-2xl mx-auto py-10 space-y-8">
             <div className="text-center space-y-4">
-                <h2 className="text-4xl font-black italic uppercase tracking-tighter">Worldwide Support</h2>
-                <p className="text-muted-foreground font-bold uppercase text-[10px] tracking-widest">Dedicated logistics lifeline.</p>
+                <h2 className="text-4xl font-black italic uppercase tracking-tighter text-foreground">Worldwide Support</h2>
+                <p className="text-muted-foreground font-bold uppercase text-[10px] tracking-[0.2em]">Dedicated logistics lifeline.</p>
             </div>
             <div className="grid gap-4">
                 <Button variant="outline" className="h-20 text-lg font-black uppercase italic border-2 shadow-sm" asChild>
@@ -541,10 +524,10 @@ export function CustomsCalculatorTab() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="border-none shadow-md rounded-2xl">
+        <Card className="border-2 shadow-md rounded-2xl">
             <CardHeader>
-                <CardTitle className="text-sm font-black uppercase tracking-widest italic">Package Details</CardTitle>
-                <CardDescription>Official JCA Logic + FromStore2Door Rates</CardDescription>
+                <CardTitle className="text-xl font-black uppercase tracking-tighter italic">Package Details</CardTitle>
+                <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Official JCA Logic + FromStore2Door Rates</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -563,17 +546,15 @@ export function CustomsCalculatorTab() {
                 </div>
                 <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase opacity-60">Category</Label>
-                    <div className="relative">
-                        <Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}>
-                            <SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="GENERAL">General Items (20%)</SelectItem>
-                                <SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem>
-                                <SelectItem value="SHOES">Shoes (20%)</SelectItem>
-                                <SelectItem value="ELECTRONICS_OTHER">Electronics (20%)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}>
+                        <SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="GENERAL">General Items (20%)</SelectItem>
+                            <SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem>
+                            <SelectItem value="SHOES">Shoes (20%)</SelectItem>
+                            <SelectItem value="ELECTRONICS_OTHER">Electronics (20%)</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </CardContent>
             <CardFooter>
@@ -583,21 +564,21 @@ export function CustomsCalculatorTab() {
             </CardFooter>
         </Card>
 
-        <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
+        <Card className="border-2 shadow-xl rounded-2xl overflow-hidden">
             <CardHeader className="bg-primary text-primary-foreground">
                 <CardTitle className="text-sm font-black uppercase tracking-[0.2em] italic">Landed Estimate</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
                 {calculation.calculated ? (
                     <div className="space-y-6">
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-                            <span className="text-[10px] font-black uppercase">Currency: {displayCurrency}</span>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50 border">
+                            <span className="text-[10px] font-black uppercase">Display Currency: {displayCurrency}</span>
                             <Switch checked={displayCurrency === 'JMD'} onCheckedChange={c => setDisplayCurrency(c ? 'JMD' : 'USD')} />
                         </div>
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center px-2">
                                 <span className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2"><Truck className="h-3 w-3" /> Shipping Fee</span>
-                                <span className="font-black italic">{formatCurrency(calculation.freight)}</span>
+                                <span className="font-black italic text-lg">{formatCurrency(calculation.freight)}</span>
                             </div>
                             <Separator />
                             {calculation.isDutyFree ? (
@@ -607,7 +588,7 @@ export function CustomsCalculatorTab() {
                                     <AlertDescription className="text-[9px] uppercase font-bold text-green-700">Value is $100 USD or less.</AlertDescription>
                                 </Alert>
                             ) : (
-                                <div className="space-y-2 bg-muted/30 p-4 rounded-xl">
+                                <div className="space-y-2 bg-muted/30 p-4 rounded-xl border border-dashed">
                                     <p className="text-[8px] font-black uppercase opacity-40 mb-2">Customs Breakdown</p>
                                     <div className="flex justify-between text-xs font-medium uppercase opacity-80">
                                         <span>Duty + Compliance</span>
@@ -619,16 +600,16 @@ export function CustomsCalculatorTab() {
                                     </div>
                                 </div>
                             )}
-                            <div className="bg-primary/5 p-6 rounded-2xl border-2 border-dashed border-primary/20 text-center">
+                            <div className="bg-primary/5 p-6 rounded-2xl border-4 border-dashed border-primary/20 text-center">
                                 <p className="text-[10px] font-black uppercase opacity-60 mb-1">Estimated Total</p>
                                 <p className="text-5xl font-black italic tracking-tighter text-primary">{formatCurrency(calculation.total)}</p>
                             </div>
                         </div>
                     </div>
                 ) : (
-                    <div className="h-64 flex flex-col items-center justify-center text-muted-foreground opacity-20">
+                    <div className="h-64 flex flex-col items-center justify-center text-muted-foreground opacity-20 border-2 border-dashed rounded-xl">
                         <Calculator className="h-12 w-12 mb-2" />
-                        <p className="font-black uppercase text-xs italic">Enter details to calculate</p>
+                        <p className="font-black uppercase text-xs italic tracking-widest">Enter details to calculate</p>
                     </div>
                 )}
             </CardContent>
