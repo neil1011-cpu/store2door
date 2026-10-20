@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Button } from './ui/button';
-import { User, Menu, Search, Truck } from 'lucide-react';
+import { User, Menu, Facebook, Instagram, Twitter } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './theme-toggle';
@@ -12,15 +12,21 @@ import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 const navLinks = [
-    { href: '/tracking', label: 'Tracking' },
-    { href: '/services', label: 'Services' },
+    { href: '/customs-calculator', label: 'Calculator' },
     { href: '/rates', label: 'Rates' },
+    { href: '/services', label: 'Sea Freight' },
     { href: '/contact', label: 'Contact' },
+];
+
+const socialLinks = [
+    { icon: <Twitter className="h-4 w-4" />, href: '#' },
+    { icon: <Facebook className="h-4 w-4" />, href: '#' },
+    { icon: <Instagram className="h-4 w-4" />, href: '#' },
 ];
 
 export function UserHeader() {
   const pathname = usePathname();
-  const { user, isLoading } = useSupabase();
+  const { user } = useSupabase();
   const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -39,21 +45,21 @@ export function UserHeader() {
 
   return (
     <header className={cn(
-        "fixed top-0 z-50 w-full transition-all duration-300 h-20 flex items-center border-b",
+        "fixed top-0 z-50 w-full transition-all duration-500 h-20 flex items-center",
         scrolled || !isHomepage 
-            ? "bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-border" 
+            ? "bg-background/95 backdrop-blur-md border-b border-white/5" 
             : "bg-transparent border-transparent"
     )}>
       <div className="container mx-auto flex items-center px-4 md:px-6">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
                 <SheetTrigger asChild>
-                    <Button variant="ghost" size="icon" className={cn("md:hidden", isHomepage && !scrolled ? "text-white" : "text-foreground")}>
+                    <Button variant="ghost" size="icon" className="md:hidden text-white">
                         <Menu className="h-7 w-7" />
                         <span className="sr-only">Toggle menu</span>
                     </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[300px]">
+                <SheetContent side="left" className="w-[300px] bg-background text-white border-white/10">
                     <SheetHeader><SheetTitle><AppLogo onClick={() => setIsOpen(false)} /></SheetTitle></SheetHeader>
                     <nav className="flex flex-col gap-2 mt-10">
                         {navLinks.map(link => (
@@ -63,7 +69,7 @@ export function UserHeader() {
                                 onClick={() => setIsOpen(false)} 
                                 className={cn(
                                     "text-lg font-black uppercase italic tracking-tighter py-4 px-4 rounded-xl transition-colors",
-                                    pathname === link.href ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                                    pathname === link.href ? "bg-primary text-white" : "hover:bg-white/5"
                                 )}
                             >
                                 {link.label}
@@ -72,28 +78,35 @@ export function UserHeader() {
                         <div className="pt-6 flex flex-col gap-3">
                             {showAuthActions ? (
                                 <>
-                                    <Button asChild variant="outline" className="w-full h-14 font-black uppercase italic border-2"><Link href="/signin" onClick={() => setIsOpen(false)}>Sign In</Link></Button>
-                                    <Button asChild className="w-full h-14 font-black uppercase italic shadow-xl bg-accent text-accent-foreground"><Link href="/signup" onClick={() => setIsOpen(false)}>Sign Up</Link></Button>
+                                    <Button asChild variant="outline" className="w-full h-14 font-black uppercase italic border-2"><Link href="/signin" onClick={() => setIsOpen(false)}>Login</Link></Button>
+                                    <Button asChild className="w-full h-14 font-black uppercase italic rocket-gradient border-none"><Link href="/signup" onClick={() => setIsOpen(false)}>Sign Up</Link></Button>
                                 </>
                             ) : (
-                                <Button asChild className="w-full h-14 font-black uppercase italic shadow-xl"><Link href="/account" onClick={() => setIsOpen(false)}>Go to Dashboard</Link></Button>
+                                <Button asChild className="w-full h-14 font-black uppercase italic rocket-gradient border-none"><Link href="/account" onClick={() => setIsOpen(false)}>Dashboard</Link></Button>
                             )}
                         </div>
                     </nav>
                 </SheetContent>
             </Sheet>
-            <AppLogo className={cn("transition-all duration-300", isHomepage && !scrolled && "grayscale invert brightness-200")} />
+            <AppLogo className="grayscale brightness-200" />
         </div>
         
-        <nav className="ml-auto hidden md:flex items-center space-x-8">
+        <div className="hidden lg:flex items-center ml-8 gap-4 opacity-60">
+            {socialLinks.map((s, i) => (
+                <Link key={i} href={s.href} className="text-white hover:text-accent transition-colors">
+                    {s.icon}
+                </Link>
+            ))}
+        </div>
+
+        <nav className="ml-auto hidden md:flex items-center space-x-6">
             {navLinks.map(link => (
                 <Link 
                     key={link.href} 
                     href={link.href} 
                     className={cn(
-                        "text-xs font-black uppercase tracking-[0.2em] italic transition-colors hover:text-accent", 
-                        isHomepage && !scrolled ? "text-white/80" : "text-muted-foreground",
-                        pathname === link.href && "text-accent"
+                        "text-[11px] font-bold uppercase tracking-widest transition-colors hover:text-accent", 
+                        pathname === link.href ? "text-accent" : "text-white/70"
                     )}
                 >
                     {link.label}
@@ -101,19 +114,18 @@ export function UserHeader() {
             ))}
         </nav>
 
-        <div className="flex items-center justify-end space-x-3 ml-8">
-             <div className="hidden sm:block"><ThemeToggle /></div>
+        <div className="flex items-center justify-end space-x-4 ml-8">
              {showAuthActions ? (
                 <>
-                    <Button asChild variant="ghost" size="sm" className={cn("font-black uppercase italic hidden lg:flex", isHomepage && !scrolled ? "text-white hover:bg-white/10" : "text-foreground")}>
-                        <Link href="/signin">Sign In</Link>
+                    <Button asChild variant="ghost" size="sm" className="font-bold uppercase tracking-tight text-white hover:bg-white/5 hidden sm:flex">
+                        <Link href="/signup">Sign Up</Link>
                     </Button>
-                    <Button asChild size="sm" className="font-black h-10 px-8 bg-accent text-accent-foreground hover:bg-accent/90 shadow-lg shadow-accent/20 uppercase italic">
-                        <Link href="/signup">Join Now</Link>
+                    <Button asChild size="sm" className="font-black h-10 px-6 bg-white/10 hover:bg-white/20 text-white rounded-full uppercase italic border border-white/10">
+                        <Link href="/signin">Login <ArrowRight className="ml-2 h-4 w-4" /></Link>
                     </Button>
                 </>
              ) : (
-                <Button asChild size="sm" className="font-black h-10 px-8 uppercase italic shadow-lg transition-all">
+                <Button asChild size="sm" className="font-black h-10 px-6 rocket-gradient text-white rounded-full uppercase italic border-none">
                     <Link href="/account"><User className="mr-2 h-4 w-4" /> Account</Link>
                 </Button>
              )}

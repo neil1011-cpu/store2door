@@ -4,56 +4,49 @@
 
 @layer base {
   :root {
-    --background: 220 13% 96%;
-    --foreground: 224 71.4% 4.1%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 71.4% 4.1%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
-    --primary: 222 47% 11%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 220 13% 91%;
-    --secondary-foreground: 224 71.4% 4.1%;
-    --muted: 220 13% 91%;
-    --muted-foreground: 220 9% 46.1%;
-    --accent: 48 96% 53%;
-    --accent-foreground: 222 47% 11%;
+    /* Rocketship-inspired High Contrast Dark Theme as Default */
+    --background: 240 30% 6%;
+    --foreground: 0 0% 100%;
+    --card: 240 30% 8%;
+    --card-foreground: 0 0% 100%;
+    --popover: 240 30% 5%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 240 30% 15%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 20% 12%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 20% 12%;
+    --muted-foreground: 240 10% 70%;
+    --accent: 45 100% 60%;
+    --accent-foreground: 240 30% 5%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 89%;
-    --input: 220 13% 89%;
-    --ring: 222 47% 11%;
+    --border: 240 20% 15%;
+    --input: 240 20% 15%;
+    --ring: 45 100% 60%;
     --radius: 1rem;
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 48 96% 53%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 48 96% 53%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 222 47% 18%;
-    --sidebar-ring: 48 96% 53%;
+    
+    --sidebar-background: 240 30% 4%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 45 100% 60%;
+    --sidebar-primary-foreground: 240 30% 5%;
+    --sidebar-accent: 240 20% 15%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 240 20% 12%;
+    --sidebar-ring: 45 100% 60%;
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 5%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 48 96% 53%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --background: 240 30% 4%;
+    --foreground: 0 0% 100%;
+    --card: 240 30% 6%;
+    --card-foreground: 0 0% 100%;
+    --primary: 240 30% 12%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 20% 10%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 45 100% 60%;
+    --accent-foreground: 240 30% 5%;
   }
 }
 
@@ -66,6 +59,14 @@
   }
 }
 
-.hero-gradient {
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.4), hsl(var(--background)));
+.rocket-gradient {
+  background: linear-gradient(90deg, #d4145a 0%, #fbb03b 100%);
+}
+
+.rocket-gradient:hover {
+  filter: brightness(1.1);
+}
+
+.hero-overlay {
+  background: radial-gradient(circle at center, transparent 0%, hsl(var(--background)) 100%);
 }
