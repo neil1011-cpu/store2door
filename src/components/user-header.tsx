@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Button } from './ui/button';
-import { User, Menu, Facebook, Instagram, Twitter } from 'lucide-react';
+import { User, Menu, Facebook, Instagram, Twitter, ArrowRight } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './theme-toggle';
