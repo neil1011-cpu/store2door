@@ -170,7 +170,7 @@
   margin: 0 auto;
   padding: 4rem 2rem;
   display: grid;
-  grid-template-cols: 1fr;
+  grid-template-columns: 1fr;
   gap: 2rem;
 }
 

@@ -18,10 +18,10 @@ export default function HomePage() {
             Experience seamless logistics with 5 weekly flights. Get your FREE US shipping address today and bring the world to your doorstep.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link href="https://fromstore2door.com/register" className={`${styles.btn} ${styles.btnPrimary} h-16 px-12 text-lg`}>
+            <Link href="/signup" className={`${styles.btn} ${styles.btnPrimary} h-16 px-12 text-lg`}>
               Get Started Free
             </Link>
-            <Link href="https://fromstore2door.com/pages/about" className={`${styles.btn} ${styles.btnAccent} h-16 px-12 text-lg`}>
+            <Link href="/services" className={`${styles.btn} ${styles.btnAccent} h-16 px-12 text-lg`}>
               Our Services
             </Link>
           </div>
@@ -33,38 +33,59 @@ export default function HomePage() {
       <section className={styles.servicesGrid}>
         <div className={styles.serviceCard}>
           <div className="relative h-[200px]">
-            <Image src="/images/air-freight.jpg" alt="Air Freight" fill className="object-cover" />
+            <Image 
+              src="/images/air-freight.jpg" 
+              alt="Air Freight" 
+              fill 
+              className="object-cover" 
+              priority
+            />
           </div>
           <div className={styles.serviceContent}>
             <h3 className={styles.serviceTitle}>Air Freight</h3>
-            <p className={styles.textLight}>High-priority cargo flown 5x weekly from Florida to Jamaica. Perfect for small packages.</p>
+            <p className="text-muted-foreground text-sm">High-priority cargo flown 5x weekly from Florida to Jamaica. Perfect for small packages.</p>
           </div>
         </div>
         <div className={styles.serviceCard}>
           <div className="relative h-[200px]">
-            <Image src="/images/sea-freight.jpg" alt="Sea Freight" fill className="object-cover" />
+            <Image 
+              src="/images/sea-freight.jpg" 
+              alt="Sea Freight" 
+              fill 
+              className="object-cover" 
+            />
           </div>
           <div className={styles.serviceContent}>
             <h3 className={styles.serviceTitle}>Sea Freight</h3>
-            <p className={styles.textLight}>Economic choice for barrels and oversized cargo. Scheduled sailings for maximum savings.</p>
+            <p className="text-muted-foreground text-sm">Economic choice for barrels and oversized cargo. Scheduled sailings for maximum savings.</p>
           </div>
         </div>
         <div className={styles.serviceCard}>
           <div className="relative h-[200px]">
-            <Image src="/images/credit-card-service.jpg" alt="Personal Shopping" fill className="object-cover" />
+            <Image 
+              src="/images/credit-card-service.jpg" 
+              alt="Personal Shopping" 
+              fill 
+              className="object-cover" 
+            />
           </div>
           <div className={styles.serviceContent}>
             <h3 className={styles.serviceTitle}>Personal Shopping</h3>
-            <p className={styles.textLight}>No credit card? No problem. We shop for you with zero additional service fees.</p>
+            <p className="text-muted-foreground text-sm">No credit card? No problem. We shop for you with zero additional service fees.</p>
           </div>
         </div>
         <div className={styles.serviceCard}>
           <div className="relative h-[200px]">
-            <Image src="/images/product-search.jpg" alt="Product Search" fill className="object-cover" />
+            <Image 
+              src="/images/product-search.jpg" 
+              alt="Product Search" 
+              fill 
+              className="object-cover" 
+            />
           </div>
           <div className={styles.serviceContent}>
             <h3 className={styles.serviceTitle}>Product Search</h3>
-            <p className={styles.textLight}>Can't find it? Our logistics team assists in sourcing rare products from the US.</p>
+            <p className="text-muted-foreground text-sm">Can't find it? Our logistics team assists in sourcing rare products from the US.</p>
           </div>
         </div>
       </section>
@@ -75,22 +96,22 @@ export default function HomePage() {
           <div className={styles.stepCard}>
             <div className={styles.stepNumber}>01</div>
             <h3 className={styles.serviceTitle}>Sign Up</h3>
-            <p className={styles.textLight}>Register for free and get your unique US mailbox number instantly.</p>
+            <p className="text-muted-foreground text-sm">Register for free and get your unique US mailbox number instantly.</p>
           </div>
           <div className={styles.stepCard}>
             <div className={styles.stepNumber}>02</div>
             <h3 className={styles.serviceTitle}>Shop Online</h3>
-            <p className={styles.textLight}>Purchase from any US retailer using your new Florida address.</p>
+            <p className="text-muted-foreground text-sm">Purchase from any US retailer using your new Florida address.</p>
           </div>
           <div className={styles.stepCard}>
             <div className={styles.stepNumber}>03</div>
             <h3 className={styles.serviceTitle}>We Ship</h3>
-            <p className={styles.textLight}>Your packages arrive at our warehouse and are exported to Jamaica.</p>
+            <p className="text-muted-foreground text-sm">Your packages arrive at our warehouse and are exported to Jamaica.</p>
           </div>
           <div className={styles.stepCard}>
             <div className={styles.stepNumber}>04</div>
             <h3 className={styles.serviceTitle}>Collect</h3>
-            <p className={styles.textLight}>Pick up your items from our Portmore hub or choose home delivery.</p>
+            <p className="text-muted-foreground text-sm">Pick up your items from our Portmore hub or choose home delivery.</p>
           </div>
         </div>
       </section>
@@ -98,8 +119,15 @@ export default function HomePage() {
       <footer className={styles.footer}>
         <div className={styles.footerContainer}>
           <div className={styles.footerCol}>
-            <img src="/images/logo.png" alt="FromStore2Door" height="40" className="mb-6 opacity-80" />
-            <p>Reliable shipping from Florida to Jamaica. Built for speed and security since inception.</p>
+            <div className="mb-6 h-12 relative w-48">
+              <Image 
+                src="/images/logo.png" 
+                alt="FromStore2Door" 
+                fill 
+                className="object-contain" 
+              />
+            </div>
+            <p className="text-sm">Reliable shipping from Florida to Jamaica. Built for speed and security since inception.</p>
           </div>
           <div className={styles.footerCol}>
             <h4>Navigation</h4>
@@ -127,7 +155,7 @@ export default function HomePage() {
             </ul>
           </div>
         </div>
-        <div className="mt-16 pt-8 border-t border-white/5 text-center text-xs opacity-50 uppercase tracking-widest">
+        <div className="mt-16 pt-8 border-t border-white/5 text-center text-[10px] opacity-50 uppercase tracking-widest">
           &copy; {year} FromStore2Door Global Logistics. Portmore, Jamaica.
         </div>
       </footer>
