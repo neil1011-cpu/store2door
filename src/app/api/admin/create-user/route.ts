@@ -85,12 +85,18 @@ export async function POST(request: Request) {
     try {
         const lwClient = await getLogicwareClient();
         if (lwClient) {
-            await lwClient.shippers.create({
-                email,
-                name: `${firstName} ${lastName}`,
-                phone: phone || '',
-                code: finalMailboxNumber
-            });
+            // SDK v0.2.0 requires trn for CreateShipperInput
+            if (!trn) {
+                console.warn('[ADMIN:CREATE_USER] TRN missing. Skipping Logicware mirror.');
+            } else {
+                await lwClient.shippers.create({
+                    email,
+                    name: `${firstName} ${lastName}`,
+                    trn: trn,
+                    phone: phone || '',
+                    addressCode: finalMailboxNumber
+                });
+            }
         }
     } catch (lwErr) {
         console.warn('[ADMIN:CREATE_USER] Logicware mirror failed but Supabase succeeded:', lwErr);

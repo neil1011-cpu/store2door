@@ -6,25 +6,22 @@ import { createBrowserClient } from '@supabase/ssr';
  */
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Validate URL format to prevent createBrowserClient from throwing
+  // Validate URL format to prevent createBrowserClient from throwing during SSR
   const isValidUrl = (str: string | undefined): boolean => {
     if (!str) return false;
     try {
-      new URL(str);
-      return true;
+      const urlObj = new URL(str);
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
     } catch {
       return false;
     }
   };
 
   if (!url || !isValidUrl(url) || !key || key.length < 10) {
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('[Supabase Client] Credentials missing or invalid during initialization.');
-    }
-    // Return a client with placeholders to prevent immediate crash.
-    // The SupabaseProvider will handle the UI state.
+    // Return a client with placeholders to prevent immediate crash during pre-rendering.
+    // The SupabaseProvider handles the user-facing "Config Missing" UI.
     return createBrowserClient(
       'https://placeholder-project.supabase.co',
       'placeholder-key'

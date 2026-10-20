@@ -42,7 +42,7 @@ export async function POST(request: Request) {
             email: profile.email,
             name: profile.full_name,
             phone: profile.phone || '',
-            code: profile.mailbox_number,
+            addressCode: profile.mailbox_number,
         };
 
         let result;
@@ -51,10 +51,21 @@ export async function POST(request: Request) {
         // 3. EXECUTE SYNC
         if (profile.logicware_id) {
             operation = 'update';
-            result = await client.shippers.update(profile.logicware_id, syncPayload);
+            // Update supports optional trn
+            result = await client.shippers.update(profile.logicware_id, {
+                ...syncPayload,
+                trn: profile.trn || undefined
+            });
         } else {
             operation = 'create';
-            result = await client.shippers.create(syncPayload);
+            // Create requires trn strictly
+            if (!profile.trn) {
+                throw new Error('TRN required for Logicware registration. Please update user profile.');
+            }
+            result = await client.shippers.create({
+                ...syncPayload,
+                trn: profile.trn
+            });
             
             // Save the ID mapping
             if (result?.id) {

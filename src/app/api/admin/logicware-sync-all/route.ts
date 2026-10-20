@@ -40,11 +40,19 @@ export async function POST(request: Request) {
         // 3. Sequential Mirroring
         for (const profile of (profiles || [])) {
             try {
+                // SDK requires trn for create
+                if (!profile.trn) {
+                    console.warn(`[SYNC_ALL] Skipping ${profile.email}: TRN missing.`);
+                    skipCount++;
+                    continue;
+                }
+
                 await lwClient.shippers.create({
                     email: profile.email,
                     name: profile.full_name,
+                    trn: profile.trn,
                     phone: profile.phone || '',
-                    code: profile.mailbox_number
+                    addressCode: profile.mailbox_number
                 });
                 successCount++;
             } catch (err: any) {
@@ -60,14 +68,14 @@ export async function POST(request: Request) {
         // 4. Audit Log
         await adminClient.from('system_logs').insert({
             log_type: 'logicware_bulk_sync',
-            description: `Bulk user sync complete: ${successCount} mirrored, ${skipCount} already existed, ${failCount} failed.`,
+            description: `Bulk user sync complete: ${successCount} mirrored, ${skipCount} already existed/skipped, ${failCount} failed.`,
             actor_id: caller.id,
             metadata: { successCount, skipCount, failCount }
         });
 
         return NextResponse.json({ 
             success: true, 
-            message: `Synchronization complete. Mirrored: ${successCount}, Skips: ${skipCount}, Errors: ${failCount}` 
+            message: `Synchronization complete. Mirrored: ${successCount}, Skips/Existed: ${skipCount}, Errors: ${failCount}` 
         });
 
     } catch (error: any) {
