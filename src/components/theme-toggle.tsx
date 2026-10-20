@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
  * Features a day/night sky background with sliding sun/moon knob.
  */
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme()
+  const { theme, resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = React.useState(false)
 
   React.useEffect(() => {
@@ -18,7 +18,7 @@ export function ThemeToggle() {
 
   if (!mounted) return <div className="w-14 h-7 rounded-full bg-muted/20" />
 
-  const isDark = theme === "dark"
+  const isDark = resolvedTheme === "dark"
 
   return (
     <button
