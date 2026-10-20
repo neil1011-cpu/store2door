@@ -22,6 +22,10 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
     title: 'FromStore2Door - Shipping from US to Jamaica',
     description: 'Your Bridge Between Florida & Jamaica for seamless, reliable, and affordable shipping services.',
+    icons: {
+      icon: '/icon.png',
+      apple: '/icon.png',
+    },
 };
 
 export default function RootLayout({
