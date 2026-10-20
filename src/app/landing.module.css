@@ -107,12 +107,7 @@
 
 .brand {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--font-sora), sans-serif;
-  font-weight: 700;
-  text-decoration: none;
-  color: inherit;
+  align-items: center; gap: 10px; font-family: var(--font-sora), sans-serif; font-weight: 700; text-decoration: none; color: inherit;
 }
 
 .links {
@@ -212,7 +207,7 @@
   place-items: center;
   font-size: 17px;
   animation: fly 9s linear infinite;
-  offset-path: path('M0 70 Q 150 25 300 55 T 600 45');
+  offset-path: path('M20 70 Q 150 40 300 60 T 580 50');
 }
 
 @keyframes fly {
@@ -319,15 +314,7 @@
 
 .stop i {
   font-style: normal;
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: var(--acc);
-  color: var(--ink);
-  font-weight: 800;
-  margin: 0 auto 16px;
+  display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--acc); color: var(--ink); font-weight: 800; margin: 0 auto 16px;
 }
 
 .grid {

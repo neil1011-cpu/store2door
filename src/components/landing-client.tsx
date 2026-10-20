@@ -59,7 +59,7 @@ export function TrackingCard() {
       </div>
       <div className={styles.route}>
         <svg viewBox="0 0 600 90" preserveAspectRatio="none" aria-hidden="true" style={{ overflow: 'visible' }}>
-          <path d="M0 70 Q 150 25 300 55 T 600 45" fill="none" stroke="#00c2c7" strokeWidth="3" strokeDasharray="3 9" strokeLinecap="round" />
+          <path d="M20 70 Q 150 40 300 60 T 580 50" fill="none" stroke="#00c2c7" strokeWidth="3" strokeDasharray="3 9" strokeLinecap="round" />
         </svg>
         <div className={styles.dot} aria-hidden="true">&#9992;</div>
       </div>
