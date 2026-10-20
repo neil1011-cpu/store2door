@@ -4,15 +4,9 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import styles from '@/app/landing.module.css';
-import { ThemeToggle } from './theme-toggle';
 
 export function Header({ loginHref, registerHref, ratesHref, contactHref }: { loginHref: string; registerHref: string; ratesHref: string; contactHref: string }) {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-      setMounted(true);
-  }, []);
 
   return (
     <header className={styles.header}>
@@ -21,12 +15,9 @@ export function Header({ loginHref, registerHref, ratesHref, contactHref }: { lo
           <Image src="/images/logo.png" alt="From Store 2 Door" width={46} height={38} className="h-10 w-auto" />
           From Store 2 Door
         </Link>
-        <div className="flex items-center gap-2 md:hidden">
-            {mounted && <ThemeToggle />}
-            <button className={styles.menuBtn} type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
-              Menu
-            </button>
-        </div>
+        <button className={styles.menuBtn} type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+          Menu
+        </button>
         <nav>
           <ul className={`${styles.links} ${open ? styles.open : ''}`} onClick={() => setOpen(false)}>
             <li><a href="#services">Services</a></li>
@@ -35,11 +26,6 @@ export function Header({ loginHref, registerHref, ratesHref, contactHref }: { lo
             <li><Link href={contactHref}>Contact</Link></li>
             <li><Link href={loginHref}>Login</Link></li>
             <li><Link className={styles.btn} href={registerHref}>Register</Link></li>
-            {mounted && (
-                <li className="hidden md:block">
-                    <ThemeToggle />
-                </li>
-            )}
           </ul>
         </nav>
       </div>
