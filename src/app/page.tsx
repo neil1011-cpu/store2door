@@ -1,4 +1,3 @@
-
 import Link from 'next/link';
 import Image from 'next/image';
 import styles from './landing.module.css';
@@ -10,6 +9,9 @@ const RATES_HREF = '/rates';
 const CONTACT_HREF = '/contact';
 const PRIVACY_HREF = '/privacy';
 const TERMS_HREF = '/terms';
+const COOKIES_HREF = '/cookies';
+const SHIPPING_POLICY_HREF = '/shipping-policy';
+const REFUND_POLICY_HREF = '/refund-policy';
 
 export const metadata = {
   title: 'From Store 2 Door - Shipping Services from Store to Door',
@@ -112,31 +114,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className={`${styles.section} ${styles.alt}`}>
-          <div className={styles.wrap}>
-            <div className={styles.head}>
-              <p className={styles.tag}>Testimonials</p>
-              <h2>What our customers say</h2>
-            </div>
-            <div className={styles.three}>
-              <blockquote className={styles.quote}><p>The rates are competitive and I always receive my packages on time. Their customer service is exceptional.</p><b>Shanda James</b><span>Loyal customer</span></blockquote>
-              <blockquote className={styles.quote}><p>The staff is friendly and courteous. I have been using their service for years and could not be happier.</p><b>Karissa Campbell</b><span>Regular customer</span></blockquote>
-              <blockquote className={styles.quote}><p>The service is efficient and the wait time is short. Their tracking system keeps me informed.</p><b>Samantha Allen</b><span>Business customer</span></blockquote>
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.wrap}>
-            <div className={styles.head}>
-              <p className={styles.tag}>Global shopping</p>
-              <h2>Shop from the world&rsquo;s most trusted online stores</h2>
-              <p>From USA retailers to Chinese manufacturers, we ship from anywhere to Jamaica.</p>
-            </div>
-            <div className={styles.stores}><span>Amazon</span><span>eBay</span><span>Walmart</span><span>Shein</span><span>Temu</span></div>
-          </div>
-        </section>
-
         <section className={styles.final}>
           <div className={styles.wrap}>
             <h2>Ready to start shipping?</h2>
@@ -167,6 +144,9 @@ export default function HomePage() {
               <ul>
                 <li><Link href={PRIVACY_HREF}>Privacy Policy</Link></li>
                 <li><Link href={TERMS_HREF}>Terms of Service</Link></li>
+                <li><Link href={COOKIES_HREF}>Cookies Policy</Link></li>
+                <li><Link href={SHIPPING_POLICY_HREF}>Shipping Policy</Link></li>
+                <li><Link href={REFUND_POLICY_HREF}>Refund Policy</Link></li>
                 <li>Portmore, St. Catherine</li>
                 <li>(876) 506-9727</li>
               </ul>

@@ -43,12 +43,12 @@ export function CookieConsent() {
                                 </Button>
                             </div>
                             <p className="text-xs text-muted-foreground leading-relaxed">
-                                We use cookies to enhance your logistics experience and analyze site traffic. By clicking "Accept", you agree to our <Link href="/privacy" className="text-primary underline">Privacy Policy</Link>.
+                                We use cookies to enhance your logistics experience and analyze site traffic. By clicking "Accept", you agree to our <Link href="/cookies" className="text-primary underline">Cookies Policy</Link>.
                             </p>
                             <div className="flex gap-2 pt-1">
                                 <Button size="sm" onClick={handleAccept} className="font-bold uppercase text-[10px] h-8 px-6">Accept All</Button>
                                 <Button variant="outline" size="sm" asChild className="font-bold uppercase text-[10px] h-8 px-4">
-                                    <Link href="/privacy">Manage</Link>
+                                    <Link href="/privacy">Privacy</Link>
                                 </Button>
                             </div>
                         </div>
