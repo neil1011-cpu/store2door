@@ -33,7 +33,7 @@ export default function HomePage() {
         <section className={styles.hero}>
           <div className={styles.wrap}>
             <div>
-              <p className={styles.tag}>Shipping to Jamaica from Portmore</p>
+              <p className={styles.tag}>Shipping to Jamaica from Florida</p>
               <h1>From the store to your door, <em>hassle free.</em></h1>
               <p>Sign up for a free USA shipping address, shop any online store, and we will get your packages home by air or sea.</p>
               <div className={styles.cta}>
