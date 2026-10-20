@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         
         let rawResults: any = [];
         try {
-            rawResults = await client.shipments.list({ limit: 100 });
+            rawResults = await (client as any).shipments.list({ limit: 100 });
         } catch (err: any) {
             console.error('[LOGICWARE_API] Primary shipments.list failed:', err.message);
             if (client.shippers) {

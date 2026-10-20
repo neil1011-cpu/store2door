@@ -57,10 +57,10 @@ export async function POST(request: Request) {
         // 3. EXECUTE SYNC: Update if ID exists, otherwise Create
         if (logicwareId) {
             operation = 'update';
-            result = await client.shipments.update(logicwareId, payload);
+            result = await (client as any).shipments.update(logicwareId, payload);
         } else {
             operation = 'create';
-            result = await client.shipments.create(payload);
+            result = await (client as any).shipments.create(payload);
             
             // Save the Logicware ID back to our registry for future updates
             if (result?.id) {

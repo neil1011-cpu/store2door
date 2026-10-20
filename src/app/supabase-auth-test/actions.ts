@@ -17,9 +17,7 @@ export async function promoteToAdmin(userId: string) {
   
   const { error } = await supabaseAdmin
     .from('app_roles')
-    .insert({ user_id: userId, role: 'admin' })
-    .onConflict('user_id, role')
-    .ignore();
+    .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id,role', ignoreDuplicates: true });
 
   if (error) return { error: error.message };
   return { success: true };

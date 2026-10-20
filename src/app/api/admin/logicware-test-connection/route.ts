@@ -19,8 +19,6 @@ export async function POST(request: Request) {
         
         if (client.shippers) {
             await client.shippers.list({ pageSize: 1 });
-        } else if (client.shipments) {
-            await client.shipments.list({ limit: 1 });
         } else {
             throw new Error('API Key valid but no accessible modules found.');
         }

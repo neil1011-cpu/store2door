@@ -24,8 +24,6 @@ export async function testLogicwareConnection(config: LogicwareConfig) {
         // Simple ping via module check
         if (client.shippers) {
             await client.shippers.list({ pageSize: 1 });
-        } else if (client.shipments) {
-            await client.shipments.list({ limit: 1 });
         }
         return { success: true, message: 'Logistics Hub Synchronized.' };
     } catch (error: any) {

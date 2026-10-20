@@ -62,8 +62,8 @@ export async function fetchLogicwareShippers(apiKey?: string) {
 export async function fetchLogicwareShipments(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
-    if (!client?.shipments) return [];
-    const shipments = await client.shipments.list({ limit: 100 });
+    if (!(client as any)?.shipments) return [];
+    const shipments = await (client as any).shipments.list({ limit: 100 });
     return Array.isArray(shipments) ? shipments : (shipments as any).data || (shipments as any).shipments || [];
   } catch (error: any) {
     console.error('[LOGICWARE SHIPMENTS ERROR]', error);
