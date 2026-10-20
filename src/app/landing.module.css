@@ -1,3 +1,4 @@
+
 .landingPage {
   --primary-blue: #0056b3;
   --accent-yellow: #f9bf29;
@@ -5,8 +6,6 @@
   --text-light: #666666;
   --bg-light: #f8f9fa;
   --white: #ffffff;
-  
-  font-family: var(--font-dm-sans), sans-serif;
   color: var(--text-dark);
   background-color: var(--white);
 }
@@ -49,7 +48,7 @@
   text-decoration: none;
   color: var(--text-dark);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 1px;
   transition: color 0.3s;
@@ -69,19 +68,19 @@
   border-radius: 50px;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.3s;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: none;
 }
 
 .btnPrimary {
   background-color: var(--primary-blue);
   color: var(--white);
-  border: none;
 }
 
 .btnPrimary:hover {
@@ -92,7 +91,6 @@
 .btnAccent {
   background-color: var(--accent-yellow);
   color: var(--text-dark);
-  border: none;
 }
 
 .btnAccent:hover {
@@ -101,7 +99,7 @@
 }
 
 .hero {
-  padding: 5rem 2rem;
+  padding: 6rem 2rem;
   background-color: var(--bg-light);
   text-align: center;
 }
@@ -113,7 +111,7 @@
 
 .hero h1 {
   font-family: var(--font-sora), sans-serif;
-  font-size: 3rem;
+  font-size: 3.5rem;
   font-weight: 800;
   line-height: 1.1;
   margin-bottom: 1.5rem;
@@ -123,13 +121,14 @@
 }
 
 .hero p {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   color: var(--text-light);
   margin-bottom: 2.5rem;
+  line-height: 1.6;
 }
 
 .trackingSection {
-  max-width: 1000px;
+  max-width: 900px;
   margin: -4rem auto 4rem;
   background: var(--white);
   padding: 2rem;
@@ -165,10 +164,13 @@
   border-color: var(--primary-blue);
 }
 
+.servicesSection {
+  padding: 4rem 2rem;
+}
+
 .servicesGrid {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 4rem 2rem;
   display: grid;
   grid-template-columns: 1fr;
   gap: 2rem;
@@ -199,12 +201,6 @@
   transform: translateY(-10px);
 }
 
-.serviceImage {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-}
-
 .serviceContent {
   padding: 1.5rem;
 }
@@ -214,6 +210,8 @@
   font-weight: 700;
   margin-bottom: 0.75rem;
   color: var(--primary-blue);
+  text-transform: uppercase;
+  font-size: 1.1rem;
 }
 
 .stepsSection {
@@ -229,6 +227,7 @@
   margin-bottom: 4rem;
   text-transform: uppercase;
   font-style: italic;
+  color: var(--primary-blue);
 }
 
 .stepsGrid {
@@ -277,6 +276,8 @@
   margin-bottom: 1.5rem;
   text-transform: uppercase;
   font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 1px;
 }
 
 .footerLinks {
@@ -292,6 +293,7 @@
   color: #888;
   text-decoration: none;
   transition: color 0.3s;
+  font-size: 0.85rem;
 }
 
 .footerLinks a:hover {
@@ -303,7 +305,6 @@
   background: none;
   border: none;
   color: var(--text-dark);
-  font-size: 1.5rem;
   cursor: pointer;
 }
 
@@ -324,7 +325,7 @@
   padding: 2rem;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
   transform: translateX(-100%);
   transition: transform 0.3s ease-in-out;
 }

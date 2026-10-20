@@ -1,8 +1,9 @@
+
 import Image from 'next/image';
 import Link from 'next/link';
 import styles from './landing.module.css';
 import { LandingClient, TrackingForm } from '@/components/landing-client';
-import { Plane, Ship, CreditCard, Search, MapPin, Truck, ShieldCheck, Zap } from 'lucide-react';
+import { Plane, Ship, CreditCard, Search, ArrowRight } from 'lucide-react';
 
 export default function HomePage() {
   const year = new Date().getFullYear();
@@ -15,13 +16,13 @@ export default function HomePage() {
         <div className={styles.heroContent}>
           <h1>Store To <br /><span style={{color: '#f9bf29'}}>Door.</span></h1>
           <p>
-            Experience seamless logistics with 5 weekly flights. Get your FREE US shipping address today and bring the world to your doorstep.
+            Experience seamless logistics with multiple weekly flights. Get your FREE US shipping address today and bring the world to your doorstep.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Link href="/signup" className={`${styles.btn} ${styles.btnPrimary} h-16 px-12 text-lg`}>
-              Get Started Free
+              Sign up for free
             </Link>
-            <Link href="/services" className={`${styles.btn} ${styles.btnAccent} h-16 px-12 text-lg`}>
+            <Link href="#services" className={`${styles.btn} ${styles.btnAccent} h-16 px-12 text-lg`}>
               Our Services
             </Link>
           </div>
@@ -30,67 +31,69 @@ export default function HomePage() {
 
       <TrackingForm />
 
-      <section className={styles.servicesGrid}>
-        <div className={styles.serviceCard}>
-          <div className="relative h-[200px]">
-            <Image 
-              src="/images/air-freight.jpg" 
-              alt="Air Freight" 
-              fill 
-              className="object-cover" 
-              priority
-            />
+      <section id="services" className={styles.servicesSection}>
+        <div className={styles.servicesGrid}>
+          <div className={styles.serviceCard}>
+            <div className="relative h-[200px]">
+              <Image 
+                src="/images/air-freight.jpg" 
+                alt="Air Freight" 
+                fill 
+                className="object-cover" 
+                priority
+              />
+            </div>
+            <div className={styles.serviceContent}>
+              <h3 className={styles.serviceTitle}>Air Freight</h3>
+              <p className="text-muted-foreground text-sm">High-priority cargo flown weekly from Florida to Jamaica. Perfect for small packages.</p>
+            </div>
           </div>
-          <div className={styles.serviceContent}>
-            <h3 className={styles.serviceTitle}>Air Freight</h3>
-            <p className="text-muted-foreground text-sm">High-priority cargo flown 5x weekly from Florida to Jamaica. Perfect for small packages.</p>
+          <div className={styles.serviceCard}>
+            <div className="relative h-[200px]">
+              <Image 
+                src="/images/sea-freight.jpg" 
+                alt="Sea Freight" 
+                fill 
+                className="object-cover" 
+              />
+            </div>
+            <div className={styles.serviceContent}>
+              <h3 className={styles.serviceTitle}>Sea Freight</h3>
+              <p className="text-muted-foreground text-sm">Economic choice for barrels and oversized cargo. Scheduled sailings for maximum savings.</p>
+            </div>
           </div>
-        </div>
-        <div className={styles.serviceCard}>
-          <div className="relative h-[200px]">
-            <Image 
-              src="/images/sea-freight.jpg" 
-              alt="Sea Freight" 
-              fill 
-              className="object-cover" 
-            />
+          <div className={styles.serviceCard}>
+            <div className="relative h-[200px]">
+              <Image 
+                src="/images/credit-card-service.jpg" 
+                alt="Personal Shopping" 
+                fill 
+                className="object-cover" 
+              />
+            </div>
+            <div className={styles.serviceContent}>
+              <h3 className={styles.serviceTitle}>Personal Shopping</h3>
+              <p className="text-muted-foreground text-sm">No credit card? No problem. We shop for you with zero additional service fees.</p>
+            </div>
           </div>
-          <div className={styles.serviceContent}>
-            <h3 className={styles.serviceTitle}>Sea Freight</h3>
-            <p className="text-muted-foreground text-sm">Economic choice for barrels and oversized cargo. Scheduled sailings for maximum savings.</p>
-          </div>
-        </div>
-        <div className={styles.serviceCard}>
-          <div className="relative h-[200px]">
-            <Image 
-              src="/images/credit-card-service.jpg" 
-              alt="Personal Shopping" 
-              fill 
-              className="object-cover" 
-            />
-          </div>
-          <div className={styles.serviceContent}>
-            <h3 className={styles.serviceTitle}>Personal Shopping</h3>
-            <p className="text-muted-foreground text-sm">No credit card? No problem. We shop for you with zero additional service fees.</p>
-          </div>
-        </div>
-        <div className={styles.serviceCard}>
-          <div className="relative h-[200px]">
-            <Image 
-              src="/images/product-search.jpg" 
-              alt="Product Search" 
-              fill 
-              className="object-cover" 
-            />
-          </div>
-          <div className={styles.serviceContent}>
-            <h3 className={styles.serviceTitle}>Product Search</h3>
-            <p className="text-muted-foreground text-sm">Can't find it? Our logistics team assists in sourcing rare products from the US.</p>
+          <div className={styles.serviceCard}>
+            <div className="relative h-[200px]">
+              <Image 
+                src="/images/product-search.jpg" 
+                alt="Product Search" 
+                fill 
+                className="object-cover" 
+              />
+            </div>
+            <div className={styles.serviceContent}>
+              <h3 className={styles.serviceTitle}>Product Search</h3>
+              <p className="text-muted-foreground text-sm">Can't find it? Our logistics team assists in sourcing rare products from the US.</p>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className={styles.stepsSection}>
+      <section id="how-it-works" className={styles.stepsSection}>
         <h2 className={styles.sectionTitle}>How It Works</h2>
         <div className={styles.stepsGrid}>
           <div className={styles.stepCard}>
@@ -111,7 +114,7 @@ export default function HomePage() {
           <div className={styles.stepCard}>
             <div className={styles.stepNumber}>04</div>
             <h3 className={styles.serviceTitle}>Collect</h3>
-            <p className="text-muted-foreground text-sm">Pick up your items from our Portmore hub or choose home delivery.</p>
+            <p className="text-muted-foreground text-sm">Pick up your items from our local hub or choose home delivery.</p>
           </div>
         </div>
       </section>
@@ -132,16 +135,15 @@ export default function HomePage() {
           <div className={styles.footerCol}>
             <h4>Navigation</h4>
             <ul className={styles.footerLinks}>
-              <li><Link href="https://fromstore2door.com/pages/about">About Us</Link></li>
               <li><Link href="/rates">Rates</Link></li>
               <li><Link href="/customs-calculator">Calculator</Link></li>
               <li><Link href="/contact">Contact Hub</Link></li>
+              <li><Link href="#how-it-works">How it works</Link></li>
             </ul>
           </div>
           <div className={styles.footerCol}>
             <h4>Legal</h4>
             <ul className={styles.footerLinks}>
-              <li><Link href="/tracking">Track Parcel</Link></li>
               <li><Link href="/privacy">Privacy Policy</Link></li>
               <li><Link href="/terms">Terms of Service</Link></li>
             </ul>

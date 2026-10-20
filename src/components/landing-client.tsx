@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -26,9 +27,7 @@ export function LandingClient() {
           </div>
           
           <nav className={styles.navLinks}>
-            <Link href="https://fromstore2door.com/pages/china-shipping" className={styles.navLink}>China Shipping</Link>
             <Link href="/rates" className={styles.navLink}>Rates</Link>
-            <Link href="https://fromstore2door.com/pages/about" className={styles.navLink}>About</Link>
             <Link href="/contact" className={styles.navLink}>Contact</Link>
             <div className={styles.authButtons}>
               <Link href="/signin" className={styles.navLink}>Login</Link>
@@ -52,9 +51,7 @@ export function LandingClient() {
             <X size={32} />
           </button>
         </div>
-        <Link href="https://fromstore2door.com/pages/china-shipping" onClick={() => setIsMenuOpen(false)} className={styles.navLink}>China Shipping</Link>
         <Link href="/rates" onClick={() => setIsMenuOpen(false)} className={styles.navLink}>Rates</Link>
-        <Link href="https://fromstore2door.com/pages/about" onClick={() => setIsMenuOpen(false)} className={styles.navLink}>About</Link>
         <Link href="/contact" onClick={() => setIsMenuOpen(false)} className={styles.navLink}>Contact</Link>
         <div className="flex flex-col gap-4 mt-8">
           <Link href="/signin" onClick={() => setIsMenuOpen(false)} className={`${styles.btn} ${styles.btnAccent}`}>Login</Link>
