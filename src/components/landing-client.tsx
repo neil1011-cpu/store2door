@@ -1,13 +1,19 @@
-
 'use client';
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import styles from '@/app/landing.module.css';
+import { ThemeToggle } from './theme-toggle';
 
 export function Header({ loginHref, registerHref, ratesHref, contactHref }: { loginHref: string; registerHref: string; ratesHref: string; contactHref: string }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+      setMounted(true);
+  }, []);
+
   return (
     <header className={styles.header}>
       <div className={`${styles.wrap} ${styles.nav}`}>
@@ -26,6 +32,13 @@ export function Header({ loginHref, registerHref, ratesHref, contactHref }: { lo
             <li><Link href={contactHref}>Contact</Link></li>
             <li><Link href={loginHref}>Login</Link></li>
             <li><Link className={styles.btn} href={registerHref}>Register</Link></li>
+            {mounted && (
+                <li className="ml-2 pt-2 md:pt-0 border-t md:border-0 border-line">
+                    <div className="bg-muted/30 rounded-full p-0.5">
+                        <ThemeToggle />
+                    </div>
+                </li>
+            )}
           </ul>
         </nav>
       </div>
