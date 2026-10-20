@@ -4,7 +4,7 @@
  * Includes Real-time publication for live UI updates.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v5.1)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v5.2)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     amount numeric(12,2) NOT NULL CHECK (amount >= 0),
     status text DEFAULT 'Unpaid' NOT NULL CHECK (status IN ('Paid', 'Unpaid', 'Void')),
     invoice_number text UNIQUE NOT NULL,
+    tracking_number text,
     created_at timestamptz DEFAULT now() NOT NULL
 );
 
@@ -274,4 +275,4 @@ CREATE PUBLICATION supabase_realtime FOR TABLE
     public.financial_ledger,
     public.system_logs;
 
-NOTIFY pgrst, 'reload schema';`;
+NOTIFY pgrst, 'reload schema';`

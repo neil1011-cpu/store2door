@@ -210,7 +210,8 @@ export default function PreAlertsPage() {
                 profile_id: alert.profile_id,
                 amount: calculatedCost,
                 status: 'Unpaid',
-                invoice_number: `INV-${alert.tracking_number.slice(-4)}-${Date.now().toString().slice(-4)}`
+                invoice_number: `INV-${alert.tracking_number.slice(-4)}-${Date.now().toString().slice(-4)}`,
+                tracking_number: alert.tracking_number
             });
             await supabase.from('financial_ledger').insert({
                 profile_id: alert.profile_id,

@@ -208,7 +208,8 @@ export default function ShippingPage() {
             profile_id: profileId,
             amount: parseFloat(cost),
             status: 'Unpaid',
-            invoice_number: `INV-${trackingNumber.slice(-4)}-${Date.now().toString().slice(-4)}`
+            invoice_number: `INV-${trackingNumber.slice(-4)}-${Date.now().toString().slice(-4)}`,
+            tracking_number: trackingNumber.toUpperCase()
         });
 
         await supabase.from('financial_ledger').insert({

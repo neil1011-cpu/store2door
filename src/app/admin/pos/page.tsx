@@ -176,7 +176,20 @@ export default function POSPage() {
 
             if (ledgerError) throw ledgerError;
 
-            // 3. System Log
+            // 3. Update associated shipments to 'Delivered' (Picked up) and 'Paid'
+            const trackingNumbers = itemsToSnap.map(inv => inv.tracking_number).filter(Boolean);
+            if (trackingNumbers.length > 0) {
+                await supabase
+                    .from('shipments')
+                    .update({ 
+                        status: 'Delivered', 
+                        payment_status: 'Paid',
+                        updated_at: new Date().toISOString()
+                    })
+                    .in('tracking_number', trackingNumbers);
+            }
+
+            // 4. System Log
             await supabase.from('system_logs').insert({
                 log_type: 'pos_transaction',
                 description: `POS Checkout Complete: ${selectedUser.full_name}. JMD $${totalToSettle.toLocaleString()}`,
@@ -186,7 +199,8 @@ export default function POSPage() {
                     method: paymentMethod, 
                     amount: totalToSettle,
                     cashReceived: paymentMethod === 'Cash' ? parseFloat(cashReceived) : null,
-                    changeGiven: paymentMethod === 'Cash' ? changeDue : null
+                    changeGiven: paymentMethod === 'Cash' ? changeDue : null,
+                    packagesCleared: trackingNumbers
                 }
             });
 
@@ -201,7 +215,7 @@ export default function POSPage() {
             });
 
             setCheckoutComplete(true);
-            toast({ title: "Payment Secured", description: "Registry items marked as paid." });
+            toast({ title: "Payment Secured", description: "Registry items marked as paid and packages released." });
             
             refreshUserData(selectedUser.id);
         } catch (error: any) {
@@ -256,12 +270,15 @@ export default function POSPage() {
                         </div>
                         <div className="space-y-2 text-xs">
                             <div className="flex justify-between font-black border-b border-black pb-2 text-[10px] uppercase">
-                                <span>Description</span>
+                                <span>Description / Tracking</span>
                                 <span>Total (JMD)</span>
                             </div>
                             {receiptData.items.map((item: any) => (
                                 <div key={item.id} className="flex justify-between py-1">
-                                    <span className="uppercase">{item.invoice_number || 'Registry Item'}</span>
+                                    <div className="flex flex-col">
+                                        <span className="uppercase font-bold">{item.invoice_number}</span>
+                                        {item.tracking_number && <span className="text-[8px] opacity-60 font-mono">ID: {item.tracking_number}</span>}
+                                    </div>
                                     <span className="font-black">${Number(item.amount).toLocaleString()}</span>
                                 </div>
                             ))}
@@ -422,7 +439,7 @@ export default function POSPage() {
                                     <TableHeader className="bg-muted/50 h-20">
                                         <TableRow>
                                             <TableHead className="w-[100px] pl-10"></TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Document ID</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Document ID / Tracking</TableHead>
                                             <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Authorized Date</TableHead>
                                             <TableHead className="text-right pr-14 text-[10px] font-black uppercase tracking-[0.3em]">Line Total (JMD)</TableHead>
                                         </TableRow>
@@ -444,7 +461,14 @@ export default function POSPage() {
                                                         className="h-10 w-10 border-4 rounded-xl data-[state=checked]:bg-primary shadow-lg" 
                                                     />
                                                 </TableCell>
-                                                <TableCell className="font-mono font-black text-primary uppercase text-2xl italic tracking-tighter">{inv.invoice_number}</TableCell>
+                                                <TableCell>
+                                                    <p className="font-mono font-black text-primary uppercase text-2xl italic tracking-tighter leading-none">{inv.invoice_number}</p>
+                                                    {inv.tracking_number && (
+                                                        <Badge variant="outline" className="mt-2 bg-background/50 text-[9px] font-black uppercase border-2 py-0 h-5">
+                                                            ID: {inv.tracking_number}
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell className="text-xs font-black opacity-40 uppercase tracking-widest">{new Date(inv.created_at).toLocaleDateString(undefined, { dateStyle: 'full' })}</TableCell>
                                                 <TableCell className="text-right pr-14 font-black text-4xl italic tracking-tighter text-primary">
                                                     <span className="text-lg opacity-20 mr-2 font-black italic">JMD</span>
