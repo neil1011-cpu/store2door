@@ -1,94 +1,151 @@
-
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Ship, Package, Plane, Building, CreditCard, Box } from "lucide-react";
+import { Ship, Package, Plane, Building, CreditCard, Box, Zap, ShoppingBag, Truck, ShieldCheck, MapPin } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import placeholderImages from "@/lib/placeholder-images.json";
 
 const services = [
   {
-    icon: <Plane className="h-8 w-8 text-primary" />,
+    icon: <Plane className="h-8 w-8 text-blue-400" />,
     title: "Air Freight",
-    description: "Fast and reliable air cargo services from our Florida warehouse directly to Jamaica. Ideal for time-sensitive shipments.",
+    description: "Our primary service. We offer 5 flights per week from Florida to Jamaica, ensuring your packages arrive within 24-48 hours of warehouse processing.",
   },
   {
-    icon: <Ship className="h-8 w-8 text-primary" />,
+    icon: <Ship className="h-8 w-8 text-pink-400" />,
     title: "Sea Freight",
-    description: "Cost-effective sea freight for larger, heavier, and less urgent shipments. Perfect for barrels and large items.",
+    description: "For larger, heavier items such as furniture, appliances, or barrels. Our sea freight is the most cost-effective way to ship in bulk.",
   },
   {
-    icon: <Package className="h-8 w-8 text-primary" />,
-    title: "Package Consolidation",
-    description: "Shop from multiple online stores, and we'll consolidate your items into a single shipment to save you money.",
-  },
-  {
-    icon: <Building className="h-8 w-8 text-primary" />,
-    title: "Customs Clearance",
-    description: "We handle all customs brokerage and clearance procedures to ensure your packages are processed without hassle.",
-  },
-  {
-    icon: <Box className="h-8 w-8 text-primary" />,
+    icon: <ShoppingBag className="h-8 w-8 text-accent" />,
     title: "Personal Shopping",
-    description: "Don't have a US credit card? Our personal shopping team can purchase items on your behalf.",
+    description: "No international card? Simply send us the links to what you want to buy, and our team will handle the purchase for you at no extra service fee.",
   },
   {
-    icon: <CreditCard className="h-8 w-8 text-primary" />,
-    title: "Online Bill Payment",
-    description: "Conveniently pay your shipping and customs fees online through our secure portal.",
+    icon: <Package className="h-8 w-8 text-green-400" />,
+    title: "Consolidation",
+    description: "Reduce your shipping costs by consolidating multiple orders into a single shipment. We hold your items until you're ready to ship.",
+  },
+  {
+    icon: <Building className="h-8 w-8 text-purple-400" />,
+    title: "Customs Brokerage",
+    description: "We handle the entire documentation and clearance process with the Jamaica Customs Agency, so you don't have to worry about the paperwork.",
+  },
+  {
+    icon: <Truck className="h-8 w-8 text-orange-400" />,
+    title: "Island-wide Delivery",
+    description: "While our hub is in Portmore, we offer delivery services to Kingston, Spanish Town, and surrounding parishes for maximum convenience.",
   },
 ];
 
 export default function ServicesPage() {
     const servicesImage = placeholderImages.howItWorks;
-  return (
-    <div className="bg-background">
-      <div className="container mx-auto py-16 px-4 md:px-6">
-        <div className="max-w-4xl mx-auto text-center mb-16">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Our Services</h1>
-          <p className="mt-4 text-lg text-muted-foreground">
-            A complete suite of services to make your shipping experience as smooth and seamless as possible.
-          </p>
-        </div>
+    
+    return (
+        <div className="bg-background text-white min-h-screen">
+            <div className="container mx-auto py-32 px-4 md:px-6">
+                <div className="max-w-4xl mx-auto text-center mb-24 space-y-6">
+                    <h1 className="text-6xl font-black italic uppercase tracking-tighter sm:text-8xl">Logistics <span className="text-accent">Solutions.</span></h1>
+                    <p className="text-lg text-muted-foreground font-bold uppercase text-[10px] tracking-[0.4em]">
+                        The professional bridge between the US and Jamaica.
+                    </p>
+                </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {services.map((service, index) => (
-            <Card key={index} className="flex flex-col transform transition-all duration-300 hover:scale-105 hover:shadow-xl bg-card">
-              <CardHeader className="items-center text-center">
-                 <div className="bg-primary/10 p-4 rounded-full mb-4">
-                    {service.icon}
-                  </div>
-                <CardTitle>{service.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-grow text-center">
-                <p className="text-muted-foreground">{service.description}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        
-        <div className="mt-24 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center bg-muted/30 dark:bg-card p-8 rounded-lg">
-            <div className="space-y-4">
-                <h2 className="text-3xl font-bold tracking-tight">Your Trusted Shipping Partner</h2>
-                <p className="text-lg text-muted-foreground">
-                    At FromStore2Door, we are committed to providing a reliable and transparent service. We understand the importance of your packages, whether they are personal items from loved ones or goods for your business. Our team is dedicated to ensuring a safe and timely delivery, every time.
-                </p>
-                 <p className="text-lg text-muted-foreground">
-                    From our state-of-the-art warehouse in Florida to our final delivery at your door in Jamaica, we leverage technology and a customer-centric approach to give you peace of mind.
-                </p>
-            </div>
-            <div className="relative h-96 w-full overflow-hidden rounded-lg shadow-xl">
-                 <Image 
-                    src={servicesImage.src}
-                    alt="Warehouse with packages"
-                    fill
-                    className="object-cover"
-                    data-ai-hint={servicesImage.hint}
-                />
-            </div>
-        </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                    {services.map((service, index) => (
+                        <Card key={index} className="flex flex-col bg-[#0c0c10] border-2 border-white/5 rounded-[3rem] overflow-hidden group hover:border-accent transition-all duration-500 shadow-2xl">
+                            <CardHeader className="items-center text-center pt-12">
+                                <div className="bg-white/5 p-6 rounded-2xl mb-6 group-hover:scale-110 transition-transform">
+                                    {service.icon}
+                                </div>
+                                <CardTitle className="text-2xl font-black uppercase italic tracking-tight">{service.title}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex-grow text-center px-10 pb-12">
+                                <p className="text-muted-foreground font-medium leading-relaxed">{service.description}</p>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+                
+                {/* Value Proposition Section */}
+                <div className="mt-32 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center bg-white/5 p-12 md:p-20 rounded-[4rem] border-2 border-white/5 shadow-inner">
+                    <div className="space-y-8">
+                        <h2 className="text-5xl font-black tracking-tight uppercase italic leading-[0.9]">Why Choose <br/><span className="text-pink-500">FromStore2Door?</span></h2>
+                        <div className="space-y-6">
+                            {[
+                                { title: "Speed", text: "5 flights weekly mean you never have to wait long for your goods." },
+                                { title: "Security", text: "Our US and JA warehouses are monitored 24/7 with strict security protocols." },
+                                { title: "Savings", text: "No membership or hidden fees. You only pay for what you ship." }
+                            ].map((v, i) => (
+                                <div key={i} className="flex items-start gap-4">
+                                    <div className="h-6 w-6 rounded-full bg-accent flex items-center justify-center shrink-0 mt-1">
+                                        <Zap className="h-3.5 w-3.5 text-black" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black uppercase italic tracking-tighter text-lg">{v.title}</h4>
+                                        <p className="text-muted-foreground font-medium leading-relaxed">{v.text}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="pt-6">
+                            <Button size="lg" className="rocket-gradient font-black uppercase italic h-14 px-10 rounded-full" asChild>
+                                <Link href="/signup">Join Our Network <ArrowRight className="ml-2 h-5 w-5" /></Link>
+                            </Button>
+                        </div>
+                    </div>
+                    <div className="relative h-[600px] w-full overflow-hidden rounded-[3rem] shadow-2xl border-8 border-white/5">
+                        <Image 
+                            src={servicesImage.src}
+                            alt="Logistics Operations"
+                            fill
+                            className="object-cover grayscale hover:grayscale-0 transition-all duration-700"
+                            data-ai-hint={servicesImage.hint}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                        <div className="absolute bottom-10 left-10 right-10">
+                            <div className="p-6 bg-accent rounded-3xl text-black">
+                                <p className="font-black uppercase italic text-xs tracking-widest mb-1 opacity-60 text-black/60">Official Branch</p>
+                                <p className="font-black uppercase italic text-2xl tracking-tighter">Portmore, St. Catherine</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-      </div>
-    </div>
-  );
+                {/* Logistics Hub Info */}
+                <div className="mt-32 text-center space-y-12">
+                    <div className="max-w-2xl mx-auto space-y-4">
+                        <h3 className="text-3xl font-black uppercase italic tracking-tighter">Warehouse Operations</h3>
+                        <p className="text-muted-foreground font-medium leading-relaxed">
+                            Our Florida intake facility is optimized for speed. Every package is logged, photographed, and prepared for export immediately upon arrival.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="p-8 rounded-3xl bg-[#0c0c10] border-2 border-dashed border-white/10">
+                            <ShieldCheck className="h-10 w-10 text-accent mx-auto mb-6" />
+                            <h4 className="font-black uppercase italic tracking-tighter text-xl mb-2">Secure Storage</h4>
+                            <p className="text-xs font-medium text-muted-foreground leading-relaxed">30 days of free storage for consolidation items.</p>
+                        </div>
+                        <div className="p-8 rounded-3xl bg-[#0c0c10] border-2 border-dashed border-white/10">
+                            <Zap className="h-10 w-10 text-pink-500 mx-auto mb-6" />
+                            <h4 className="font-black uppercase italic tracking-tighter text-xl mb-2">Auto-Alert</h4>
+                            <p className="text-xs font-medium text-muted-foreground leading-relaxed">Instant email and portal notifications for all parcel movements.</p>
+                        </div>
+                        <div className="p-8 rounded-3xl bg-[#0c0c10] border-2 border-dashed border-white/10">
+                            <MapPin className="h-10 w-10 text-blue-500 mx-auto mb-6" />
+                            <h4 className="font-black uppercase italic tracking-tighter text-xl mb-2">Intake Sync</h4>
+                            <p className="text-xs font-medium text-muted-foreground leading-relaxed">Real-time synchronization with our Jamaican operations hub.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 }
+
+import { User } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { Mail } from "lucide-react";
+import { Phone } from "lucide-react";
