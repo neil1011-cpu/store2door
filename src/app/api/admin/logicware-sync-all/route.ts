@@ -44,7 +44,7 @@ export async function POST(request: Request) {
                     email: profile.email,
                     name: profile.full_name,
                     phone: profile.phone || '',
-                    referenceCode: profile.mailbox_number
+                    code: profile.mailbox_number
                 });
                 successCount++;
             } catch (err: any) {
