@@ -181,6 +181,7 @@
   border-radius: 20px;
   padding: 24px;
   box-shadow: 0 24px 60px rgba(0, 100, 110, .18);
+  overflow: visible;
 }
 
 .track .top {
@@ -195,6 +196,7 @@
   position: relative;
   height: 90px;
   margin: 8px 8px 26px;
+  overflow: visible;
 }
 
 .dot {
@@ -210,7 +212,7 @@
   place-items: center;
   font-size: 17px;
   animation: fly 9s linear infinite;
-  offset-path: path('M0 70 Q 150 -30 300 40 T 600 20');
+  offset-path: path('M0 65 Q 150 10 300 45 T 600 35');
 }
 
 @keyframes fly {
