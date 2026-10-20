@@ -23,7 +23,7 @@ export async function testLogicwareConnection(config: LogicwareConfig) {
         const client = getLogicwareInstance(config);
         // Simple ping via module check
         if (client.shippers) {
-            await client.shippers.list({ limit: 1 });
+            await client.shippers.list({ pageSize: 1 });
         } else if (client.shipments) {
             await client.shipments.list({ limit: 1 });
         }

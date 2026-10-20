@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
         if (!client.shippers) throw new Error('Shippers module not available on this API key.');
         
-        const results = await client.shippers.list({ limit: 100 });
+        const results = await client.shippers.list({ pageSize: 100 });
         
         let finalArray = Array.isArray(results) ? results : (results as any).data || [];
 

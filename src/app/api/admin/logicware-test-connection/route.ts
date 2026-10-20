@@ -18,7 +18,7 @@ export async function POST(request: Request) {
         if (!client) throw new Error('Client initialization failed.');
         
         if (client.shippers) {
-            await client.shippers.list({ limit: 1 });
+            await client.shippers.list({ pageSize: 1 });
         } else if (client.shipments) {
             await client.shipments.list({ limit: 1 });
         } else {

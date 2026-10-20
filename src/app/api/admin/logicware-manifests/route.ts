@@ -35,7 +35,7 @@ export async function POST(request: Request) {
              return NextResponse.json({ success: true, manifests: [] });
         }
         
-        const results: any = await client.manifests.list({ limit: 100 });
+        const results: any = await client.manifests.list({ pageSize: 100 });
         
         let manifestsArray = [];
         if (Array.isArray(results)) {

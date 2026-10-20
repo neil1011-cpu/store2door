@@ -51,7 +51,7 @@ export async function fetchLogicwareShippers(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
     if (!client?.shippers) return [];
-    const shippers = await client.shippers.list({ limit: 100 });
+    const shippers = await client.shippers.list({ pageSize: 100 });
     return Array.isArray(shippers) ? shippers : (shippers as any).data || (shippers as any).shippers || [];
   } catch (error: any) {
     console.error('[LOGICWARE SHIPPERS ERROR]', error);
@@ -75,7 +75,7 @@ export async function fetchLogicwareManifests(apiKey?: string) {
     try {
         const client = await getLogicwareClient(apiKey);
         if (!client?.manifests) return [];
-        const manifests = await client.manifests.list({ limit: 100, sort: 'desc' });
+        const manifests = await client.manifests.list({ pageSize: 100 });
         return Array.isArray(manifests) ? manifests : (manifests as any).data || (manifests as any).manifests || [];
     } catch (error) {
         console.error('[LOGICWARE MANIFESTS ERROR]', error);

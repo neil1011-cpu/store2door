@@ -51,22 +51,21 @@ export async function POST(request: Request) {
         // 3. EXECUTE SYNC
         if (profile.logicware_id) {
             operation = 'update';
-            // Update supports optional trn
+            // Update only accepts name, phone and address fields
             result = await client.shippers.update(profile.logicware_id, {
-                ...syncPayload,
-                trn: profile.trn || undefined
+                name: syncPayload.name,
+                phone: syncPayload.phone,
             });
         } else {
             operation = 'create';
-            // Create requires trn strictly
             if (!profile.trn) {
                 throw new Error('TRN required for Logicware registration. Please update user profile.');
             }
             result = await client.shippers.create({
                 ...syncPayload,
-                trn: profile.trn
+                trn: profile.trn,
             });
-            
+
             // Save the ID mapping
             if (result?.id) {
                 await adminClient

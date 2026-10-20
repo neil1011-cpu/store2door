@@ -1,0 +1,41 @@
+src/app/api/admin/logicware-manifests/route.ts(38,60): error TS2353: Object literal may only specify known properties, and 'limit' does not exist in type 'ListManifestsOptions'.
+src/app/api/admin/logicware-push-shipment/route.ts(60,35): error TS2339: Property 'shipments' does not exist on type 'LogicwareConnect'.
+src/app/api/admin/logicware-push-shipment/route.ts(63,35): error TS2339: Property 'shipments' does not exist on type 'LogicwareConnect'.
+src/app/api/admin/logicware-shipments/route.ts(38,39): error TS2339: Property 'shipments' does not exist on type 'LogicwareConnect'.
+src/app/api/admin/logicware-shippers/route.ts(32,54): error TS2353: Object literal may only specify known properties, and 'limit' does not exist in type 'ListShippersOptions'.
+src/app/api/admin/logicware-sync/route.ts(57,17): error TS2353: Object literal may only specify known properties, and 'trn' does not exist in type 'UpdateShipperInput'.
+src/app/api/admin/logicware-test-connection/route.ts(21,42): error TS2353: Object literal may only specify known properties, and 'limit' does not exist in type 'ListShippersOptions'.
+src/app/api/admin/logicware-test-connection/route.ts(22,27): error TS2339: Property 'shipments' does not exist on type 'LogicwareConnect'.
+src/app/api/admin/logicware-test-connection/route.ts(23,26): error TS2339: Property 'shipments' does not exist on type 'LogicwareConnect'.
+src/app/supabase-auth-test/actions.ts(21,6): error TS2339: Property 'onConflict' does not exist on type 'PostgrestFilterBuilder<any, any, any, null, "app_roles", unknown, "POST", false>'.
+src/components/theme-provider.tsx(6,41): error TS2307: Cannot find module 'next-themes/dist/types' or its corresponding type declarations.
+src/components/ui/calendar.tsx(5,27): error TS2307: Cannot find module 'react-day-picker' or its corresponding type declarations.
+src/components/ui/calendar.tsx(57,22): error TS7031: Binding element 'className' implicitly has an 'any' type.
+src/components/ui/calendar.tsx(60,23): error TS7031: Binding element 'className' implicitly has an 'any' type.
+src/lib/integrations/logicware-service.ts(26,42): error TS2353: Object literal may only specify known properties, and 'limit' does not exist in type 'ListShippersOptions'.
+src/lib/integrations/logicware-service.ts(27,27): error TS2339: Property 'shipments' does not exist on type 'LogicwareConnect'.
+src/lib/integrations/logicware-service.ts(28,26): error TS2339: Property 'shipments' does not exist on type 'LogicwareConnect'.
+src/lib/integrations/vultr-service.ts(1,63): error TS2307: Cannot find module '@aws-sdk/client-s3' or its corresponding type declarations.
+src/lib/integrations/vultr-service.ts(2,48): error TS2307: Cannot find module '@aws-sdk/s3-request-presigner' or its corresponding type declarations.
+src/lib/logicware.ts(54,51): error TS2353: Object literal may only specify known properties, and 'limit' does not exist in type 'ListShippersOptions'.
+src/lib/logicware.ts(65,18): error TS2339: Property 'shipments' does not exist on type 'LogicwareConnect'.
+src/lib/logicware.ts(66,36): error TS2339: Property 'shipments' does not exist on type 'LogicwareConnect'.
+src/lib/logicware.ts(78,57): error TS2353: Object literal may only specify known properties, and 'limit' does not exist in type 'ListManifestsOptions'.
+src/lib/supabase/middleware.ts(28,16): error TS7006: Parameter 'cookiesToSet' implicitly has an 'any' type.
+src/lib/supabase/middleware.ts(29,35): error TS7031: Binding element 'name' implicitly has an 'any' type.
+src/lib/supabase/middleware.ts(29,41): error TS7031: Binding element 'value' implicitly has an 'any' type.
+src/lib/supabase/middleware.ts(29,48): error TS7031: Binding element 'options' implicitly has an 'any' type.
+src/lib/supabase/middleware.ts(33,35): error TS7031: Binding element 'name' implicitly has an 'any' type.
+src/lib/supabase/middleware.ts(33,41): error TS7031: Binding element 'value' implicitly has an 'any' type.
+src/lib/supabase/middleware.ts(33,48): error TS7031: Binding element 'options' implicitly has an 'any' type.
+src/lib/supabase/server.ts(27,16): error TS7006: Parameter 'cookiesToSet' implicitly has an 'any' type.
+src/lib/supabase/server.ts(29,37): error TS7031: Binding element 'name' implicitly has an 'any' type.
+src/lib/supabase/server.ts(29,43): error TS7031: Binding element 'value' implicitly has an 'any' type.
+src/lib/supabase/server.ts(29,50): error TS7031: Binding element 'options' implicitly has an 'any' type.
+src/middleware.ts(35,16): error TS7006: Parameter 'cookiesToSet' implicitly has an 'any' type.
+src/middleware.ts(36,35): error TS7031: Binding element 'name' implicitly has an 'any' type.
+src/middleware.ts(36,41): error TS7031: Binding element 'value' implicitly has an 'any' type.
+src/middleware.ts(36,48): error TS7031: Binding element 'options' implicitly has an 'any' type.
+src/middleware.ts(40,35): error TS7031: Binding element 'name' implicitly has an 'any' type.
+src/middleware.ts(40,41): error TS7031: Binding element 'value' implicitly has an 'any' type.
+src/middleware.ts(40,48): error TS7031: Binding element 'options' implicitly has an 'any' type.
