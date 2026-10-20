@@ -134,6 +134,13 @@
   background: radial-gradient(900px 420px at 80% 0, #00c2c744, transparent), var(--bg);
 }
 
+.hero .wrap {
+  display: grid;
+  grid-template-columns: 1.05fr .95fr;
+  gap: 48px;
+  align-items: center;
+}
+
 .hero h1 {
   font-size: clamp(2.2rem, 5.6vw, 3.8rem);
   margin: 10px 0 18px;
