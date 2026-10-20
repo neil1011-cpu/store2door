@@ -1,0 +1,50 @@
+{
+  "homeHero": {
+    "src": "https://picsum.photos/seed/rocketship-logistics/1920/1080",
+    "alt": "Modern cargo airplane and shipping warehouse",
+    "hint": "logistics air"
+  },
+  "serviceAir": {
+    "src": "https://picsum.photos/seed/airfreight/800/600",
+    "alt": "Air freight logistics",
+    "hint": "cargo plane"
+  },
+  "serviceSea": {
+    "src": "https://picsum.photos/seed/seafreight/800/600",
+    "alt": "Sea freight shipping containers",
+    "hint": "cargo ship"
+  },
+  "howItWorks": {
+    "src": "https://picsum.photos/seed/delivery-package/800/600",
+    "alt": "Customer receiving a package",
+    "hint": "happy customer"
+  },
+  "landing": {
+    "air": {
+      "src": "https://picsum.photos/seed/air/800/600",
+      "alt": "Air freight plane",
+      "hint": "cargo aircraft"
+    },
+    "sea": {
+      "src": "https://picsum.photos/seed/sea/800/600",
+      "alt": "Cargo ship",
+      "hint": "container ship"
+    },
+    "shop": {
+      "src": "https://picsum.photos/seed/shop/800/600",
+      "alt": "Shopping packages",
+      "hint": "shopping parcel"
+    },
+    "search": {
+      "src": "https://picsum.photos/seed/search/800/600",
+      "alt": "Product searching",
+      "hint": "finding products"
+    }
+  },
+  "avatars": {
+    "supportAgent": {
+      "src": "https://picsum.photos/seed/support/40/40",
+      "alt": "Support Agent Avatar"
+    }
+  }
+}

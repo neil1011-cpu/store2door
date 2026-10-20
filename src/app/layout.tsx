@@ -3,11 +3,21 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from "@/components/ui/toaster";
 import { AppContent } from '@/components/app-content';
-import { Inter } from 'next/font/google';
+import { Sora, DM_Sans } from 'next/font/google';
 import SupabaseProvider from '@/components/supabase-provider';
 import { CookieConsent } from '@/components/cookie-consent';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const sora = Sora({ 
+  subsets: ['latin'], 
+  variable: '--font-sora',
+  weight: ['400', '600', '700', '800'] 
+});
+
+const dmSans = DM_Sans({ 
+  subsets: ['latin'], 
+  variable: '--font-dm-sans',
+  weight: ['400', '500', '700'] 
+});
 
 export const metadata: Metadata = {
     title: 'FromStore2Door - Shipping from US to Jamaica',
@@ -21,7 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-body antialiased`}>
+      <body className={`${sora.variable} ${dmSans.variable} font-body antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
