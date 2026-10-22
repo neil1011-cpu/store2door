@@ -67,8 +67,8 @@ export async function fetchLogicwareManifests(apiKey?: string) {
         if (!client?.manifests) return [];
         const response = await client.manifests.list({ pageSize: 100 });
         return Array.isArray(response) ? response : ((response as any).data || []);
-    } catch (error) {
-        console.error('[LOGICWARE MANIFESTS ERROR]', error);
+    } catch (error: any) {
+        console.error('[LOGICWARE MANIFESTS ERROR]', error.message);
         return [];
     }
 }

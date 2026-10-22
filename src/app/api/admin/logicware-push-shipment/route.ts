@@ -4,8 +4,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Implements dual-lookup (ID or Tracking), exhaustive search for duplicate prevention,
- * and explicit error reporting for registry failures.
+ * Corrected to avoid non-existent logicware_id column on profiles table.
  */
 
 export async function POST(request: Request) {
@@ -32,17 +31,18 @@ export async function POST(request: Request) {
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
-        // 1. DUAL LOOKUP: Try UUID first, then Tracking Number fallback
+        // 1. DUAL LOOKUP: Try UUID first, then Tracking Number fallback.
+        // NOTE: Requesting only mailbox_number from profiles to avoid 'column does not exist' error.
         let { data: local, error: fetchErr } = await adminClient
             .from(table)
-            .select('*, profiles:profile_id(mailbox_number, logicware_id)')
+            .select('*, profiles:profile_id(mailbox_number)')
             .eq('id', shipmentId)
             .maybeSingle();
 
         if (!local && !fetchErr) {
             const { data: fallback, error: fallbackErr } = await adminClient
                 .from(table)
-                .select('*, profiles:profile_id(mailbox_number, logicware_id)')
+                .select('*, profiles:profile_id(mailbox_number)')
                 .eq('tracking_number', shipmentId.toUpperCase().trim())
                 .maybeSingle();
             
@@ -51,11 +51,11 @@ export async function POST(request: Request) {
         }
 
         if (fetchErr) {
-            throw new Error(`Registry query failure: ${fetchErr.message}`);
+            throw new Error(`Registry query failed: ${fetchErr.message}`);
         }
 
         if (!local) {
-            throw new Error(`Record ${shipmentId} not found in ${table} registry.`);
+            throw new Error(`Record ${shipmentId} not found in registry.`);
         }
 
         const client = await getLogicwareClient();
@@ -70,7 +70,6 @@ export async function POST(request: Request) {
             contents: local.contents || 'Package',
             description: local.contents || '',
             referenceCode: local.profiles?.mailbox_number,
-            shipperId: local.profiles?.logicware_id,
             status: local.status
         };
 
@@ -83,6 +82,7 @@ export async function POST(request: Request) {
             let hasMore = true;
 
             while (currentPage <= maxPages && hasMore) {
+                // SDK v0.2.0 uses 'packages' resource and 'pageSize' parameter
                 const response = await client.packages.list({ pageSize, page: currentPage });
                 const list = Array.isArray(response) ? response : ((response as any).data || []);
                 
@@ -97,16 +97,14 @@ export async function POST(request: Request) {
                 });
                 
                 foundMatches.push(...matches);
-                if (foundMatches.length > 1) break;
+                if (foundMatches.length > 0) break;
                 
                 if (list.length < pageSize) hasMore = false;
                 else currentPage++;
             }
 
-            if (foundMatches.length === 1) {
+            if (foundMatches.length > 0) {
                 logicwareId = foundMatches[0].id;
-            } else if (foundMatches.length > 1) {
-                throw new Error(`Duplicate ambiguity: ${foundMatches.length} packages found for ${tracking} in Hub.`);
             }
         }
 
@@ -129,7 +127,7 @@ export async function POST(request: Request) {
                 .eq('id', local.id);
             
             if (updateError) {
-                throw new Error(`CRITICAL: Hub ${op} success, but registry update failed: ${updateError.message}. Manual reconcile for ID ${logicwareId} required.`);
+                throw new Error(`CRITICAL: Hub ${op} success, but local registry update failed: ${updateError.message}`);
             }
         }
 

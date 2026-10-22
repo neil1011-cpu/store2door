@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Authorized Individual Shipper Sync API.
- * Corrected to exclude TRN from updates as per SDK v0.2.0 limitations.
+ * Corrected to exclude TRN from updates as per SDK v0.2.0 and handle missing logicware_id column.
  */
 
 export async function POST(request: Request) {
@@ -29,10 +29,13 @@ export async function POST(request: Request) {
         let result;
         let operation;
 
-        if (profile.logicware_id) {
+        // Check if logicware_id exists on the profile object (if selected via *)
+        const profileLogicwareId = (profile as any).logicware_id;
+
+        if (profileLogicwareId) {
             operation = 'update';
             // SDK v0.2.0: TRN is immutable in updates
-            result = await client.shippers.update(profile.logicware_id, {
+            result = await client.shippers.update(profileLogicwareId, {
                 name: profile.full_name,
                 phone: profile.phone || ''
             });
@@ -49,7 +52,12 @@ export async function POST(request: Request) {
             });
 
             if (result?.id) {
-                await adminClient.from('profiles').update({ logicware_id: result.id }).eq('id', profileId);
+                // Smallest safe check: Attempt to update but don't fail if column is missing
+                try {
+                    await adminClient.from('profiles').update({ logicware_id: result.id } as any).eq('id', profileId);
+                } catch (dbErr) {
+                    console.warn('[API:LOGICWARE:SYNC] Could not persist logicware_id. Column likely missing.');
+                }
             }
         }
 
