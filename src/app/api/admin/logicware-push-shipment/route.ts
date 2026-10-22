@@ -32,7 +32,7 @@ export async function POST(request: Request) {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         const { data: local, error: fetchErr } = await adminClient
             .from(table)
-            .select('*, profiles(mailbox_number)')
+            .select('*, profiles(mailbox_number, logicware_id)')
             .eq('id', shipmentId)
             .maybeSingle();
 
@@ -47,9 +47,11 @@ export async function POST(request: Request) {
         const payload = {
             trackingNumber: tracking,
             weight: parseFloat(local.weight_lbs) || 0,
+            weightLbs: parseFloat(local.weight_lbs) || 0,
             contents: local.contents || 'Package',
             description: local.contents || '',
             referenceCode: local.profiles?.mailbox_number,
+            shipperId: local.profiles?.logicware_id,
             status: local.status
         };
 
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
             let hasMore = true;
 
             while (currentPage <= maxPages && hasMore) {
-                // FETCH: v0.2.0 supports page and pageSize but not trackingNumber filter
+                // FETCH: v0.2.0 supports page and pageSize
                 const response = await client.packages.list({ 
                     pageSize, 
                     page: currentPage
@@ -71,13 +73,12 @@ export async function POST(request: Request) {
                 
                 const list = Array.isArray(response) ? response : (response.data || []);
                 
-                // Termination condition: empty page
                 if (list.length === 0) {
                     hasMore = false;
                     break;
                 }
 
-                // Strict exact match filtering (Case-insensitive via SDK field normalization)
+                // Strict exact match filtering
                 const matches = list.filter((m: any) => {
                     const remoteTracking = (m.trackingNumber || m.code || '').toString().toUpperCase().trim();
                     return remoteTracking === tracking;
@@ -85,10 +86,8 @@ export async function POST(request: Request) {
                 
                 foundMatches.push(...matches);
 
-                // Early exit if multiple matches found
                 if (foundMatches.length > 1) break;
                 
-                // Termination condition: partial page indicates we've reached the end
                 if (list.length < pageSize) {
                     hasMore = false;
                 } else {
@@ -116,7 +115,6 @@ export async function POST(request: Request) {
         }
 
         if (logicwareId) {
-            // FIX: Removed 'updated_at' to resolve schema cache mismatch errors
             const { error: updateError } = await adminClient
                 .from(table)
                 .update({ 
