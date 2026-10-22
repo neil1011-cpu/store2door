@@ -53,45 +53,56 @@ export async function POST(request: Request) {
             status: local.status
         };
 
-        // SEARCH BEFORE CREATE (Iterative Pagination)
-        // We scan the Hub to prevent duplicate package creation if the logicware_id is missing locally.
+        // EXHAUSTIVE SEARCH BEFORE CREATE
+        // Prevents duplicate package creation if the logicware_id is missing locally.
         if (!logicwareId) {
             let currentPage = 1;
             let foundMatches: any[] = [];
-            const maxPages = 10; // Scan up to 1000 most recent records
+            const maxPages = 10; 
+            const pageSize = 100;
+            let hasMore = true;
 
-            while (currentPage <= maxPages) {
+            while (currentPage <= maxPages && hasMore) {
                 const response = await client.packages.list({ 
-                    pageSize: 100, 
+                    pageSize, 
                     page: currentPage 
                 });
                 
-                // SDK v0.2.0 returns { data: T[] } or T[]
                 const list = Array.isArray(response) ? response : (response.data || []);
-                if (list.length === 0) break;
+                
+                // Termination condition: empty page
+                if (list.length === 0) {
+                    hasMore = false;
+                    break;
+                }
 
-                // Compare tracking numbers using exact equality
+                // Strict exact match filtering
                 const matches = list.filter((m: any) => {
-                    const remoteTracking = (m.trackingNumber || m.code || '').toString();
+                    const remoteTracking = (m.trackingNumber || m.code || '').toString().toUpperCase().trim();
                     return remoteTracking === tracking;
                 });
                 
                 foundMatches.push(...matches);
 
-                // Stop early if we have multiple matches (ambiguity found)
+                // Early exit if multiple matches found
                 if (foundMatches.length > 1) break;
                 
-                // If this page was the last one, stop
-                if (list.length < 100) break;
-                
-                currentPage++;
+                // Termination condition: partial page
+                if (list.length < pageSize) {
+                    hasMore = false;
+                } else {
+                    currentPage++;
+                }
             }
 
             if (foundMatches.length === 1) {
                 logicwareId = foundMatches[0].id;
-                console.log(`[PUSH] Identified existing package in Hub: ${logicwareId}`);
             } else if (foundMatches.length > 1) {
                 throw new Error(`Ambiguity detected: ${foundMatches.length} matching packages found for tracking ${tracking} in Logicware Hub. Aborting to prevent data fragmentation.`);
+            } else if (currentPage > maxPages && hasMore) {
+                // We hit the scan limit but more records exist. 
+                // Creating a new package here risks a duplicate.
+                throw new Error(`Exhaustive search limit reached (1,000 records). Package ${tracking} was not found in the most recent history. Please link the ID manually to avoid creating a duplicate.`);
             }
         }
 
@@ -114,7 +125,11 @@ export async function POST(request: Request) {
                 })
                 .eq('id', shipmentId);
             
-            if (updateError) throw new Error(`Remote ${op} succeeded but local registry update failed: ${updateError.message}`);
+            if (updateError) {
+                // CRITICAL: Remote operation was successful but local state failed to update.
+                // We report this specifically so admins know the Hub is updated.
+                throw new Error(`CRITICAL: Remote Hub ${op} SUCCEEDED, but local registry update failed: ${updateError.message}. Manual ID linking for ID "${logicwareId}" may be required.`);
+            }
         } else {
             throw new Error(`Hub ${op} appeared successful but no Logicware ID was returned.`);
         }
