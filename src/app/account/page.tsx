@@ -57,7 +57,7 @@ export default function AccountPage() {
     const { supabase } = useSupabase();
     const { profile: userProfile, totalToBePaid } = useAccountProfile();
     const [mounted, setMounted] = useState(false);
-    const [year, setYear] = useState<number>(new Date().getFullYear());
+    const [year, setYear] = useState<number | null>(null);
 
     useEffect(() => {
         setMounted(true);

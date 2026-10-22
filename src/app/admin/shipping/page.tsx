@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History, RefreshCcw } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -597,7 +597,11 @@ function ManualShipmentForm({ users, onSubmit, isSubmitting }: { users: any[], o
 }
 
 function ManifestBuilderForm({ onSubmit, isSubmitting, count }: { onSubmit: (data: any) => void, isSubmitting: boolean, count: number }) {
-    const [formData, setFormData] = useState({ flightNumber: '', date: new Date().toISOString().split('T')[0], carrier: '', origin: 'Florida', destination: 'Jamaica', type: 'Air' });
+    const [formData, setFormData] = useState({ flightNumber: '', date: '', carrier: '', origin: 'Florida', destination: 'Jamaica', type: 'Air' });
+
+    useEffect(() => {
+        setFormData(prev => ({ ...prev, date: new Date().toISOString().split('T')[0] }));
+    }, []);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

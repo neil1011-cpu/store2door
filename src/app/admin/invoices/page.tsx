@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -126,11 +125,15 @@ export default function InvoicesPage() {
   const { toast } = useToast();
 
   const [customerName, setCustomerName] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceDate, setInvoiceDate] = useState('');
   const [lineItems, setLineItems] = useState(initialLineItems);
   
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
+
+  useEffect(() => {
+    setInvoiceDate(new Date().toISOString().split('T')[0]);
+  }, []);
 
   const addLineItem = () => {
     setLineItems([...lineItems, { description: '', quantity: 1, price: 0 }]);
@@ -331,7 +334,3 @@ export default function InvoicesPage() {
     </div>
   );
 }
-
-    
-
-    
