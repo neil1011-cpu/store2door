@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Authorized Hub Manifest Fetcher.
- * Correctly uses 'pageSize' for pagination in SDK v0.2.0.
+ * Correctly uses 'pageSize' and 'data' as per SDK v0.2.0 types.
  */
 
 export async function POST() {
@@ -28,9 +28,11 @@ export async function POST() {
              return NextResponse.json({ success: true, manifests: [] });
         }
         
-        // v0.2.0 uses pageSize
-        const results = await client.manifests.list({ pageSize: 100 });
-        const list = Array.isArray(results) ? results : (results.data || results.results || []);
+        // SDK v0.2.0 uses pageSize for Manifest pagination
+        const response = await client.manifests.list({ pageSize: 100 });
+        
+        // ManifestListResponse contains 'data' or is a raw array
+        const list = Array.isArray(response) ? response : (response.data || []);
 
         return NextResponse.json({ success: true, manifests: list });
 

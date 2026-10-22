@@ -69,8 +69,8 @@ export async function POST(request: Request) {
 
         if (!logicwareId) {
             console.log(`[PUSH] Searching Hub for tracking: ${tracking}`);
-            const results = await packagesResource.list({ pageSize: 50 });
-            const list = Array.isArray(results) ? results : (results.data || results.results || []);
+            const response = await packagesResource.list({ pageSize: 50 });
+            const list = Array.isArray(response) ? response : (response.data || []);
             
             // Client-side exact match check to prevent partial match collisions
             const exactMatches = list.filter((m: any) => 

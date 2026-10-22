@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
-import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Secure server-side bridge for Logicware Shipper Sync using Supabase config.
+ * Updated to use 'pageSize' and 'data' field for SDK v0.2.0 compatibility.
  */
 
 async function getSafeBody(request: Request) {
@@ -29,11 +29,12 @@ export async function POST(request: Request) {
 
         if (!client.shippers) throw new Error('Shippers module not available on this API key.');
         
-        const results = await client.shippers.list({ pageSize: 100 });
+        // SDK v0.2.0 uses pageSize instead of limit
+        const response = await client.shippers.list({ pageSize: 100 });
         
-        let finalArray = Array.isArray(results) ? results : (results as any).data || [];
+        const list = Array.isArray(response) ? response : (response.data || []);
 
-        return NextResponse.json({ success: true, shippers: finalArray });
+        return NextResponse.json({ success: true, shippers: list });
 
     } catch (error: any) {
         console.error('Logicware Shippers Fetch Error:', error);
