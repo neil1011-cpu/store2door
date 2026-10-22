@@ -5,7 +5,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 /**
  * @fileOverview Hardened Logicware Inbound Webhook.
  * Implements official signature verification and idempotent processing.
- * Enhanced identity resolution and diagnostic logging.
+ * Optimized identity resolution using targeted Supabase queries.
  */
 
 export async function POST(request: Request) {
@@ -54,8 +54,6 @@ export async function POST(request: Request) {
             } catch (e) {
                 return NextResponse.json({ message: 'Unauthorized: Security validation failed' }, { status: 401 });
             }
-        } else {
-            console.warn(`[WEBHOOK:${requestId}] Validation skipped: Webhook secret missing in registry.`);
         }
 
         // 4. PAYLOAD PROCESSING
@@ -77,22 +75,45 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Missing tracking identifier' }, { status: 400 });
         }
 
-        // 5. RESOLVE CUSTOMER IDENTITY
+        // 5. RESOLVE CUSTOMER IDENTITY (Optimized)
+        let targetProfile = null;
         const hubNumeric = mailboxRaw.replace(/[^0-9]/g, '');
-        const { data: profiles } = await adminClient.from('profiles').select('id, mailbox_number');
-        
-        const targetProfile = profiles?.find(p => {
-            const localMailbox = (p.mailbox_number || '').toUpperCase().trim();
-            const localNumeric = localMailbox.replace(/[^0-9]/g, '');
-            return localMailbox === mailboxRaw || (hubNumeric !== '' && localNumeric === hubNumeric);
-        });
+
+        // Attempt 1: Exact Match
+        const { data: exactMatches } = await adminClient
+            .from('profiles')
+            .select('id, mailbox_number')
+            .eq('mailbox_number', mailboxRaw)
+            .limit(1);
+
+        if (exactMatches && exactMatches.length > 0) {
+            targetProfile = exactMatches[0];
+        } else if (hubNumeric) {
+            // Attempt 2: Numeric Suffix Fallback
+            const { data: possibleMatches } = await adminClient
+                .from('profiles')
+                .select('id, mailbox_number')
+                .ilike('mailbox_number', `%${hubNumeric}`)
+                .limit(5);
+
+            const filtered = possibleMatches?.filter(p => 
+                (p.mailbox_number || '').replace(/[^0-9]/g, '') === hubNumeric
+            );
+
+            if (filtered && filtered.length === 1) {
+                targetProfile = filtered[0];
+            } else if (filtered && filtered.length > 1) {
+                console.warn(`[WEBHOOK:${requestId}] Ambiguous identity for code: ${hubNumeric}`);
+                return NextResponse.json({ message: 'Ambiguous identity match' }, { status: 422 });
+            }
+        }
 
         if (!targetProfile) {
             console.warn(`[WEBHOOK:${requestId}] Identity resolution failed for Mailbox: ${mailboxRaw}`);
             await adminClient.from('system_logs').insert({
                 log_type: 'webhook_unresolved_mailbox',
-                description: `Webhook event ${event} for ${trackingId} skipped. Mailbox ${mailboxRaw} not found in local registry.`,
-                metadata: { mailboxRaw, trackingId, hubNumeric }
+                description: `Webhook event ${event} for ${trackingId} skipped. Mailbox ${mailboxRaw} not found.`,
+                metadata: { mailboxRaw, trackingId }
             });
             return NextResponse.json({ success: false, message: 'Identity not resolved' });
         }
@@ -126,9 +147,9 @@ export async function POST(request: Request) {
 
         await adminClient.from('system_logs').insert({
             log_type: 'webhook_processed',
-            description: `Successfully synchronized Hub event ${event} for tracking ${trackingId}`,
+            description: `Synchronized Hub event ${event} for ${trackingId}`,
             actor_id: targetProfile.id,
-            metadata: { event, status, weight, logicwareId }
+            metadata: { event, status, logicwareId }
         });
 
         return NextResponse.json({ success: true });

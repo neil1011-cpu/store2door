@@ -21,16 +21,14 @@ export function getLogicwareInstance(config: LogicwareConfig) {
 export async function testLogicwareConnection(config: LogicwareConfig) {
     try {
         const client = getLogicwareInstance(config);
+        const hub = client.packages || client.shippers;
+        if (!hub) throw new Error('No accessible modules found.');
         
-        // SDK v0.2.0 resource health check
-        const hub = (client as any).packages || client.shippers;
-        if (!hub) throw new Error('API Key valid but no modules accessible.');
-        
-        await hub.list({ limit: 1 });
+        await hub.list({ pageSize: 1 });
         
         return { success: true, message: 'Logistics Hub Synchronized.' };
     } catch (error: any) {
         console.error('[LOGICWARE_TEST_ERROR]', error);
-        return { success: false, message: error.message || 'API Key rejected by hub.' };
+        return { success: false, message: error.message || 'API Key rejected.' };
     }
 }

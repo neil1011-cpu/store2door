@@ -6,15 +6,10 @@ import { createAdminClient } from '@/lib/supabase/server';
  * Authoritative client factory that pulls configuration from the Supabase registry.
  */
 
-/**
- * Factory function to create a Logicware client instance asynchronously.
- * Fetches API Key and Base URL from system_configs to ensure environment consistency.
- */
 export async function getLogicwareClient(apiKeyOverride?: string) {
   let apiKey = apiKeyOverride;
   let baseUrl = process.env.LOGICWARE_BASE_URL || 'https://from-store-to-door-api.logicware.app';
 
-  // Attempt to load authoritative config from Registry
   try {
     const adminClient = await createAdminClient();
     const { data: configDoc } = await adminClient
@@ -32,14 +27,11 @@ export async function getLogicwareClient(apiKeyOverride?: string) {
         }
     }
   } catch (err) {
-    console.warn('[LOGICWARE_CLIENT] Could not load registry config, using environment fallbacks.');
+    console.warn('[LOGICWARE_CLIENT] Using environment fallbacks.');
   }
 
   const finalKey = apiKey || process.env.LOGICWARE_API_KEY;
-  
-  if (!finalKey) {
-    return null;
-  }
+  if (!finalKey) return null;
 
   return new LogicwareConnect({
     apiKey: finalKey,
@@ -51,10 +43,10 @@ export async function fetchLogicwareShippers(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
     if (!client?.shippers) return [];
-    const shippers = await client.shippers.list({ pageSize: 100 });
-    return Array.isArray(shippers) ? shippers : (shippers as any).data || (shippers as any).results || [];
+    const response = await client.shippers.list({ pageSize: 100 });
+    return Array.isArray(response) ? response : (response.data || []);
   } catch (error: any) {
-    console.error('[LOGICWARE SHIPPERS ERROR]', error);
+    console.error('[LOGICWARE SHIPPERS ERROR]', error.message);
     return [];
   }
 }
@@ -62,16 +54,11 @@ export async function fetchLogicwareShippers(apiKey?: string) {
 export async function fetchLogicwarePackages(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
-    if (!client) return [];
-    
-    // SDK v0.2.0 uses 'packages' resource
-    const hub = (client as any).packages;
-    if (!hub) return [];
-    
-    const results = await hub.list({ limit: 100 });
-    return Array.isArray(results) ? results : (results.data || results.results || []);
+    if (!client?.packages) return [];
+    const response = await client.packages.list({ pageSize: 100 });
+    return Array.isArray(response) ? response : (response.data || []);
   } catch (error: any) {
-    console.error('[LOGICWARE PACKAGES ERROR]', error);
+    console.error('[LOGICWARE PACKAGES ERROR]', error.message);
     return [];
   }
 }
@@ -80,8 +67,8 @@ export async function fetchLogicwareManifests(apiKey?: string) {
     try {
         const client = await getLogicwareClient(apiKey);
         if (!client?.manifests) return [];
-        const manifests = await client.manifests.list({ pageSize: 100 });
-        return Array.isArray(manifests) ? manifests : (manifests as any).data || (manifests as any).results || [];
+        const response = await client.manifests.list({ pageSize: 100 });
+        return Array.isArray(response) ? response : (response.data || []);
     } catch (error) {
         console.error('[LOGICWARE MANIFESTS ERROR]', error);
         return [];

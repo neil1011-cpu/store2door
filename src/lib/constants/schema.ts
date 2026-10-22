@@ -4,7 +4,7 @@
  * Includes Real-time publication for live UI updates.
  */
 
-export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v5.2)
+export const DEFINITIVE_SQL = `-- FROMSTORE2DOOR PRODUCTION SCHEMA (HARDENED v5.3)
 -- Run this in your Supabase SQL Editor
 
 -- 1. EXTENSIONS
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS public.manifests (
 CREATE TABLE IF NOT EXISTS public.pre_alerts (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-    tracking_number text NOT NULL,
+    tracking_number text UNIQUE NOT NULL,
     contents text,
     weight_lbs numeric(10,2) DEFAULT 0 CHECK (weight_lbs >= 0),
     status text DEFAULT 'Pending' NOT NULL CHECK (status IN ('Pending', 'Processed', 'Cancelled')),
