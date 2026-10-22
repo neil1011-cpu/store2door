@@ -21,9 +21,11 @@ export function getLogicwareInstance(config: LogicwareConfig) {
 export async function testLogicwareConnection(config: LogicwareConfig) {
     try {
         const client = getLogicwareInstance(config);
-        // Simple ping via module check
+        // SDK v0.2.0 uses 'packages' or 'shippers'
         if (client.shippers) {
             await client.shippers.list({ pageSize: 1 });
+        } else if ((client as any).packages) {
+            await (client as any).packages.list({ pageSize: 1 });
         }
         return { success: true, message: 'Logistics Hub Synchronized.' };
     } catch (error: any) {

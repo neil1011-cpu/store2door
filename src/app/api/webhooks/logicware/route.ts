@@ -131,6 +131,7 @@ export async function POST(request: Request) {
             const targetProfile = profiles?.find(p => {
                 const localMailbox = (p.mailbox_number || '').toUpperCase().trim();
                 const localNumeric = localMailbox.replace(/[^0-9]/g, '');
+                // Corrected uNumeric to localNumeric
                 return localMailbox === mailboxRaw || (hubNumeric !== '' && localNumeric === hubNumeric);
             });
 

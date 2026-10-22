@@ -40,7 +40,7 @@ export async function POST(request: Request) {
         if (!client) throw new Error('Logicware Hub not configured.');
 
         const trackingNumber = localRecord.tracking_number;
-        const logicwareId = localRecord.logicware_id;
+        let logicwareId = localRecord.logicware_id;
         
         const payload = {
             trackingNumber: trackingNumber,
@@ -51,16 +51,34 @@ export async function POST(request: Request) {
             status: localRecord.status
         };
 
+        const packagesResource = (client as any).packages;
+        if (!packagesResource) throw new Error('SDK packages resource unavailable.');
+
         let result;
         let operation;
 
-        // 3. EXECUTE SYNC: Update if ID exists, otherwise Create
+        // 3. IDENTIFY BEFORE CREATE (Duplicate Prevention)
+        if (!logicwareId) {
+            console.log(`[PUSH_SHIPMENT] No ID for ${trackingNumber}. Searching Hub...`);
+            const existing = await packagesResource.list({ trackingNumber: trackingNumber });
+            const matches = Array.isArray(existing) ? existing : (existing.data || existing.results || []);
+
+            if (matches.length === 1) {
+                logicwareId = matches[0].id;
+                console.log(`[PUSH_SHIPMENT] Match found: ${logicwareId}. Mapping state.`);
+                await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', shipmentId);
+            } else if (matches.length > 1) {
+                throw new Error(`Ambiguous tracking number: ${trackingNumber} matches ${matches.length} remote packages.`);
+            }
+        }
+
+        // 4. EXECUTE SYNC
         if (logicwareId) {
             operation = 'update';
-            result = await (client as any).shipments.update(logicwareId, payload);
+            result = await packagesResource.update(logicwareId, payload);
         } else {
             operation = 'create';
-            result = await (client as any).shipments.create(payload);
+            result = await packagesResource.create(payload);
             
             // Save the Logicware ID back to our registry for future updates
             if (result?.id) {
@@ -71,7 +89,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 4. Audit Log
+        // 5. Audit Log
         await adminClient.from('system_logs').insert({
             log_type: `logicware_${operation}_success`,
             description: `Shipment ${trackingNumber} synchronized (${operation}) with Logicware Hub.`,

@@ -59,14 +59,15 @@ export async function fetchLogicwareShippers(apiKey?: string) {
   }
 }
 
-export async function fetchLogicwareShipments(apiKey?: string) {
+export async function fetchLogicwarePackages(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
-    if (!(client as any)?.shipments) return [];
-    const shipments = await (client as any).shipments.list({ limit: 100 });
-    return Array.isArray(shipments) ? shipments : (shipments as any).data || (shipments as any).shipments || [];
+    if (!client) return [];
+    // SDK v0.2.0 uses 'packages' resource
+    const results = await (client as any).packages.list({ limit: 100 });
+    return Array.isArray(results) ? results : (results as any).data || (results as any).packages || [];
   } catch (error: any) {
-    console.error('[LOGICWARE SHIPMENTS ERROR]', error);
+    console.error('[LOGICWARE PACKAGES ERROR]', error);
     return [];
   }
 }
