@@ -3,25 +3,20 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 
 /**
- * @fileOverview Hardened Logicware Inbound Webhook (v4).
- * Matches official knight-dev/connect-sdk-js protocol:
- * - Signature: X-Logicware-Signature (sha256=<hex>)
- * - Timestamp: X-Logicware-Timestamp
- * - Canonical: ${timestamp}.${rawBody}
- * - Tolerance: 300s
+ * @fileOverview Hardened Logicware Inbound Webhook.
+ * Implements official signature verification and idempotent processing.
  */
 
 export async function POST(request: Request) {
     const adminClient = await createAdminClient();
     const requestId = Math.random().toString(36).slice(2, 9);
-    const start = Date.now();
-
+    
     // 1. COLLECT METADATA & HEADERS
     const h = request.headers;
     const signatureHeader = h.get('x-logicware-signature') || '';
     const timestampHeader = h.get('x-logicware-timestamp') || '';
     
-    console.log(`[LOGICWARE_WEBHOOK_ENTRY:${requestId}] Request received. Sig: ${!!signatureHeader}, Ts: ${timestampHeader}`);
+    console.log(`[WEBHOOK:${requestId}] Entry. Sig: ${!!signatureHeader}, Ts: ${timestampHeader}`);
 
     try {
         const rawBody = await request.text();
@@ -35,59 +30,51 @@ export async function POST(request: Request) {
 
         const webhookSecret = configDoc?.config_value?.webhookSecret;
 
-        // 3. SECURE VERIFICATION (If configured)
+        // 3. SECURE SIGNATURE VERIFICATION
         if (webhookSecret && webhookSecret !== '********') {
             if (!signatureHeader || !timestampHeader) {
-                return new NextResponse(JSON.stringify({ message: 'Unauthorized: Missing headers' }), { status: 401 });
+                console.error(`[WEBHOOK:${requestId}] Unauthorized: Missing security headers.`);
+                return NextResponse.json({ message: 'Unauthorized: Missing security headers' }, { status: 401 });
             }
 
             const timestamp = parseInt(timestampHeader, 10);
             const now = Math.floor(Date.now() / 1000);
-            const age = Math.abs(now - timestamp);
-            
-            if (isNaN(timestamp) || age > 300) {
-                return new NextResponse(JSON.stringify({ message: 'Unauthorized: Timestamp expired' }), { status: 401 });
+            if (isNaN(timestamp) || Math.abs(now - timestamp) > 300) {
+                console.error(`[WEBHOOK:${requestId}] Unauthorized: Timestamp expired.`);
+                return NextResponse.json({ message: 'Unauthorized: Timestamp expired' }, { status: 401 });
             }
 
-            const expectedSignatureHex = signatureHeader.replace('sha256=', '');
             const hmac = createHmac('sha256', webhookSecret);
             const calculatedSignature = hmac.update(`${timestampHeader}.${rawBody}`).digest('hex');
+            const expectedSignature = signatureHeader.replace('sha256=', '');
 
-            const sigBuf = Buffer.from(expectedSignatureHex, 'hex');
-            const calcBuf = Buffer.from(calculatedSignature, 'hex');
-
-            if (sigBuf.length !== calcBuf.length || !timingSafeEqual(sigBuf, calcBuf)) {
-                return new NextResponse(JSON.stringify({ message: 'Unauthorized: Signature mismatch' }), { status: 401 });
+            if (!timingSafeEqual(Buffer.from(calculatedSignature, 'hex'), Buffer.from(expectedSignature, 'hex'))) {
+                console.error(`[WEBHOOK:${requestId}] Unauthorized: Signature mismatch.`);
+                return NextResponse.json({ message: 'Unauthorized: Signature mismatch' }, { status: 401 });
             }
+        } else {
+            console.warn(`[WEBHOOK:${requestId}] Secret missing in registry. Bypassing verification (Insecure).`);
         }
 
         // 4. PAYLOAD PROCESSING
-        let body;
-        try {
-            body = JSON.parse(rawBody);
-        } catch (e) {
-            return new NextResponse(JSON.stringify({ message: 'Malformed JSON' }), { status: 400 });
-        }
-
+        const body = JSON.parse(rawBody);
         const { event, data } = body;
+        
         if (!event || !data) {
-            return new NextResponse(JSON.stringify({ message: 'Invalid payload segment' }), { status: 400 });
+            return NextResponse.json({ message: 'Invalid payload' }, { status: 400 });
         }
 
-        // IDENTIFICATION (shipperAddressCode / trackingNumber)
         const trackingId = (data.trackingNumber || data.code || '').toString().toUpperCase().trim();
-        const mailboxRaw = (data.shipperAddressCode || data.shipper?.referenceCode || '').toString().toUpperCase().trim();
+        const mailboxRaw = (data.shipperAddressCode || data.shipper?.referenceCode || data.referenceCode || '').toString().toUpperCase().trim();
         const weight = parseFloat(data.weightLbs ?? data.weight ?? 0);
-        const status = data.status || 'Updated';
-        const description = data.description || data.contents || 'Hub Synchronized';
-        const logicwareId = data.packageId || data.id;
+        const status = data.status?.name || data.status || 'Updated';
+        const logicwareId = data.id || data.packageId;
 
         if (!trackingId) {
-            console.warn(`[LOGICWARE_WEBHOOK_WARN:${requestId}] Payload missing tracking number.`);
-            return NextResponse.json({ success: false, message: 'Tracking ID required' }, { status: 400 });
+            return NextResponse.json({ message: 'Missing tracking identifier' }, { status: 400 });
         }
 
-        // 5. RESOLVE CUSTOMER
+        // 5. RESOLVE CUSTOMER IDENTITY
         const hubNumeric = mailboxRaw.replace(/[^0-9]/g, '');
         const { data: profiles } = await adminClient.from('profiles').select('id, mailbox_number');
         
@@ -98,70 +85,53 @@ export async function POST(request: Request) {
         });
 
         if (!targetProfile) {
-            console.warn(`[LOGICWARE_WEBHOOK_WARN:${requestId}] No local profile matches mailbox: ${mailboxRaw}`);
+            console.warn(`[WEBHOOK:${requestId}] Mailbox ${mailboxRaw} could not be resolved locally.`);
             await adminClient.from('system_logs').insert({
-                log_type: 'logicware_webhook_unresolved',
-                description: `Unresolved customer mailbox: ${mailboxRaw} for package ${trackingId}`,
-                metadata: { event, trackingId, mailboxRaw }
+                log_type: 'webhook_unresolved_mailbox',
+                description: `Webhook event ${event} for ${trackingId} skipped. Mailbox ${mailboxRaw} not found.`,
+                metadata: { mailboxRaw, trackingId }
             });
-            // We return 200 to Logicware to prevent retries of an unresolveable identity
-            return NextResponse.json({ success: false, message: 'Identity missing' });
+            return NextResponse.json({ success: false, message: 'Identity not resolved' });
         }
 
-        // 6. ROUTE BY STATUS: Received/InTransit -> Shipments, PreAlert/Pending -> Pre-Alerts
-        const isPreAlert = status.toLowerCase().includes('prealert') || status.toLowerCase().includes('pending');
-
+        // 6. UPSERT SHIPMENT/PRE-ALERT (Idempotent)
+        const isPreAlert = status.toLowerCase().includes('pre-alert') || status.toLowerCase().includes('pending');
+        
         if (isPreAlert) {
-            const { data: existing } = await adminClient.from('pre_alerts').select('id').eq('tracking_number', trackingId).maybeSingle();
-            const payload = {
+            const { error } = await adminClient.from('pre_alerts').upsert({
                 profile_id: targetProfile.id,
                 tracking_number: trackingId,
-                contents: description,
+                contents: data.contents || data.description || 'Hub Update',
                 weight_lbs: weight,
                 status: 'Pending',
                 logicware_id: logicwareId,
                 submission_date: new Date().toISOString()
-            };
-
-            if (existing) {
-                await adminClient.from('pre_alerts').update(payload).eq('id', existing.id);
-            } else {
-                await adminClient.from('pre_alerts').insert(payload);
-            }
+            }, { onConflict: 'tracking_number' });
+            if (error) throw error;
         } else {
-            const { data: existing } = await adminClient.from('shipments').select('id').eq('tracking_number', trackingId).maybeSingle();
-            const payload = {
+            const { error } = await adminClient.from('shipments').upsert({
                 profile_id: targetProfile.id,
                 tracking_number: trackingId,
-                contents: description,
+                contents: data.contents || data.description || 'Hub Update',
                 weight_lbs: weight,
                 status: status,
                 logicware_id: logicwareId,
                 updated_at: new Date().toISOString()
-            };
-
-            if (existing) {
-                await adminClient.from('shipments').update(payload).eq('id', existing.id);
-            } else {
-                await adminClient.from('shipments').insert({
-                    ...payload,
-                    total_cost_jmd: 0,
-                    payment_status: 'Unpaid'
-                });
-            }
+            }, { onConflict: 'tracking_number' });
+            if (error) throw error;
         }
 
         await adminClient.from('system_logs').insert({
-            log_type: 'logicware_webhook_processed',
-            description: `Successfully processed ${event} for ${trackingId}`,
+            log_type: 'webhook_processed',
+            description: `Successfully synchronized ${event} for ${trackingId}`,
             actor_id: targetProfile.id,
-            metadata: { event, trackingId, status, weight, logicwareId }
+            metadata: { event, status, weight }
         });
 
-        return NextResponse.json({ success: true, duration: `${Date.now() - start}ms` });
+        return NextResponse.json({ success: true });
 
-    } catch (error: any) {
-        console.error(`[LOGICWARE_WEBHOOK_FATAL:${requestId}]`, error);
-        return new NextResponse(JSON.stringify({ message: 'Internal Processor Error' }), { status: 500 });
+    } catch (err: any) {
+        console.error(`[WEBHOOK:${requestId}] FATAL:`, err.message);
+        return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
     }
 }

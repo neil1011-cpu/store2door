@@ -1,44 +1,37 @@
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
+import { createClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Fetches live manifests from the Logicware portal.
+ * @fileOverview Authorized Hub Manifest Fetcher.
  */
 
 export async function POST() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+    const { data: isAdmin } = await supabase.rpc('is_admin');
+    if (!isAdmin && user.email !== 'admin@neilussolutions.com') {
+        return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+
     try {
         const client = await getLogicwareClient();
-        if (!client) {
-            return NextResponse.json({ 
-                success: false, 
-                message: 'Logicware configuration missing.' 
-            }, { status: 400 });
-        }
+        if (!client) throw new Error('Hub configuration missing.');
 
-        // SDK v0.2.0 might not have manifests resource depending on API key permissions
         if (!client.manifests) {
              return NextResponse.json({ success: true, manifests: [] });
         }
         
-        const results: any = await client.manifests.list({ pageSize: 100 });
-        
-        let manifestsArray = [];
-        if (Array.isArray(results)) {
-            manifestsArray = results;
-        } else if (results && typeof results === 'object') {
-            manifestsArray = results.data || results.manifests || results.results || [];
-        }
+        const results = await client.manifests.list({ pageSize: 100 });
+        const list = Array.isArray(results) ? results : (results.data || results.results || []);
 
-        return NextResponse.json({ 
-            success: true, 
-            manifests: manifestsArray 
-        });
+        return NextResponse.json({ success: true, manifests: list });
 
-    } catch (error: any) {
-        console.error('[API:LOGICWARE:MANIFESTS] ERROR:', error);
-        return NextResponse.json({ 
-            success: false, 
-            message: error.message || 'Manifest registry unreachable.' 
-        }, { status: 500 });
+    } catch (err: any) {
+        console.error('[API:MANIFESTS] Error:', err.message);
+        return NextResponse.json({ message: err.message }, { status: 500 });
     }
 }

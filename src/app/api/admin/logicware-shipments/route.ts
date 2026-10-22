@@ -1,48 +1,40 @@
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
+import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * @fileOverview Hardened Logicware Package Fetcher.
- * Uses correct 'packages' resource for SDK v0.2.0.
+ * @fileOverview Authorized Hub Package Fetcher.
+ * Correctly references 'packages' resource for SDK v0.2.0.
  */
 
 export async function POST(request: Request) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+    const { data: isAdmin } = await supabase.rpc('is_admin');
+    if (!isAdmin && user.email !== 'admin@neilussolutions.com') {
+        return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+
     try {
         const client = await getLogicwareClient();
-        if (!client) {
-            return NextResponse.json({ 
-                success: false, 
-                message: 'Logicware Hub not configured in registry.' 
-            }, { status: 400 });
-        }
+        if (!client) throw new Error('Hub configuration missing.');
         
         // SDK v0.2.0 uses 'packages'
-        const packagesResource = (client as any).packages;
-        if (!packagesResource) {
-            throw new Error('Packages resource not found in SDK.');
-        }
+        const hub = (client as any).packages;
+        if (!hub) throw new Error('SDK packages module missing.');
 
-        const rawResults = await packagesResource.list({ limit: 100 });
+        const results = await hub.list({ limit: 100 });
+        const list = Array.isArray(results) ? results : (results.data || results.results || []);
 
-        let shipmentsArray = [];
-        if (Array.isArray(rawResults)) {
-            shipmentsArray = rawResults;
-        } else if (rawResults && typeof rawResults === 'object') {
-            shipmentsArray = (rawResults as any).data || (rawResults as any).packages || (rawResults as any).results || [];
-        }
+        return NextResponse.json({ success: true, shipments: list });
 
-        return NextResponse.json({ 
-            success: true, 
-            shipments: shipmentsArray
-        });
-
-    } catch (error: any) {
-        console.error('[API:LOGICWARE:SHIPMENTS] FATAL:', error);
-        return NextResponse.json({ 
-            success: false, 
-            message: error.message || 'Logistics Hub unreachable.' 
-        }, { status: 500 });
+    } catch (err: any) {
+        console.error('[API:SHIPMENTS] Error:', err.message);
+        return NextResponse.json({ message: err.message }, { status: 500 });
     }
 }
