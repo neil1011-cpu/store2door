@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Authorized Hub Manifest Fetcher.
+ * Correctly uses 'pageSize' for pagination in SDK v0.2.0.
  */
 
 export async function POST() {
@@ -13,7 +14,9 @@ export async function POST() {
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const { data: isAdmin } = await supabase.rpc('is_admin');
-    if (!isAdmin && user.email !== 'admin@neilussolutions.com') {
+    const isMaster = user.email === 'admin@neilussolutions.com';
+
+    if (!isAdmin && !isMaster) {
         return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
@@ -25,6 +28,7 @@ export async function POST() {
              return NextResponse.json({ success: true, manifests: [] });
         }
         
+        // v0.2.0 uses pageSize
         const results = await client.manifests.list({ pageSize: 100 });
         const list = Array.isArray(results) ? results : (results.data || results.results || []);
 

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * @fileOverview Authorized Hub Package Fetcher.
- * Correctly references 'packages' resource for SDK v0.2.0.
+ * Correctly references 'packages' resource and 'pageSize' for SDK v0.2.0.
  */
 
 export async function POST(request: Request) {
@@ -16,7 +16,9 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const { data: isAdmin } = await supabase.rpc('is_admin');
-    if (!isAdmin && user.email !== 'admin@neilussolutions.com') {
+    const isMaster = user.email === 'admin@neilussolutions.com';
+
+    if (!isAdmin && !isMaster) {
         return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
@@ -25,10 +27,10 @@ export async function POST(request: Request) {
         if (!client) throw new Error('Hub configuration missing.');
         
         // SDK v0.2.0 uses 'packages'
-        const hub = (client as any).packages;
-        if (!hub) throw new Error('SDK packages module missing.');
+        const packagesResource = (client as any).packages;
+        if (!packagesResource) throw new Error('SDK packages module missing.');
 
-        const results = await hub.list({ limit: 100 });
+        const results = await packagesResource.list({ pageSize: 100 });
         const list = Array.isArray(results) ? results : (results.data || results.results || []);
 
         return NextResponse.json({ success: true, shipments: list });

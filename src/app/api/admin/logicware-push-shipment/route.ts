@@ -5,6 +5,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
  * Ensures authorization and prevents duplicate record creation in the Logistics Hub.
+ * Optimized for Logicware SDK v0.2.0.
  */
 
 export async function POST(request: Request) {
@@ -17,7 +18,9 @@ export async function POST(request: Request) {
 
     // Verify Authorization
     const { data: isAdmin } = await supabase.rpc('is_admin');
-    if (!isAdmin && caller.email !== 'admin@neilussolutions.com') {
+    const isMaster = caller.email === 'admin@neilussolutions.com';
+    
+    if (!isAdmin && !isMaster) {
         return NextResponse.json({ message: 'Access Denied: Administrative role required' }, { status: 403 });
     }
 
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient();
         if (!client) throw new Error('Logicware Hub configuration missing.');
 
-        const tracking = local.tracking_number;
+        const tracking = local.tracking_number.toUpperCase().trim();
         let logicwareId = local.logicware_id;
 
         const syncPayload = {
@@ -61,42 +64,48 @@ export async function POST(request: Request) {
 
         // 3. IDENTIFY BEFORE CREATE (Deduplication)
         // SDK v0.2.0 uses client.packages
-        const hub = (client as any).packages;
-        if (!hub) throw new Error('SDK packages resource unavailable.');
+        const packagesResource = (client as any).packages;
+        if (!packagesResource) throw new Error('SDK packages resource unavailable.');
 
         if (!logicwareId) {
             console.log(`[PUSH] Searching Hub for tracking: ${tracking}`);
-            const results = await hub.list({ trackingNumber: tracking });
-            const matches = Array.isArray(results) ? results : (results.data || results.results || []);
+            const results = await packagesResource.list({ pageSize: 50 });
+            const list = Array.isArray(results) ? results : (results.data || results.results || []);
             
-            // Client-side exact match check
-            const exactMatches = matches.filter((m: any) => (m.trackingNumber || m.code || '').toUpperCase() === tracking.toUpperCase());
+            // Client-side exact match check to prevent partial match collisions
+            const exactMatches = list.filter((m: any) => 
+                (m.trackingNumber || m.code || '').toUpperCase() === tracking
+            );
 
             if (exactMatches.length === 1) {
                 logicwareId = exactMatches[0].id;
                 console.log(`[PUSH] Identified existing Hub record: ${logicwareId}`);
             } else if (exactMatches.length > 1) {
-                throw new Error(`Ambiguity error: Multiple packages found in Hub with tracking ${tracking}.`);
+                throw new Error(`Ambiguity error: Multiple records found in Hub for tracking ${tracking}. Manual reconciliation required.`);
             }
         }
 
         // 4. EXECUTE SYNC
-        let result;
-        let op;
+        let op: 'create' | 'update';
         if (logicwareId) {
             op = 'update';
-            result = await hub.update(logicwareId, syncPayload);
+            await packagesResource.update(logicwareId, syncPayload);
         } else {
             op = 'create';
-            result = await hub.create(syncPayload);
+            const result = await packagesResource.create(syncPayload);
             if (result?.id) {
                 logicwareId = result.id;
             }
         }
 
-        // 5. PERSIST MAPPING
+        // 5. PERSIST MAPPING (Critical for state integrity)
         if (logicwareId) {
-            await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', shipmentId);
+            const { error: saveError } = await adminClient
+                .from(table)
+                .update({ logicware_id: logicwareId, updated_at: new Date().toISOString() })
+                .eq('id', shipmentId);
+            
+            if (saveError) throw new Error(`Hub sync succeeded but local ID persistence failed: ${saveError.message}`);
         }
 
         // 6. AUDIT
@@ -104,7 +113,7 @@ export async function POST(request: Request) {
             log_type: `logicware_${op}_success`,
             description: `Shipment ${tracking} synchronized (${op}) with Hub.`,
             actor_id: caller.id,
-            metadata: { tracking, logicwareId, type }
+            metadata: { tracking, logicwareId, type, op }
         });
 
         return NextResponse.json({ success: true, logicwareId, operation: op });

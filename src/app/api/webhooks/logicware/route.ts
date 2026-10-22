@@ -5,6 +5,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 /**
  * @fileOverview Hardened Logicware Inbound Webhook.
  * Implements official signature verification and idempotent processing.
+ * Enhanced identity resolution and diagnostic logging.
  */
 
 export async function POST(request: Request) {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     const signatureHeader = h.get('x-logicware-signature') || '';
     const timestampHeader = h.get('x-logicware-timestamp') || '';
     
-    console.log(`[WEBHOOK:${requestId}] Entry. Sig: ${!!signatureHeader}, Ts: ${timestampHeader}`);
+    console.log(`[WEBHOOK:${requestId}] Entry. Signature: ${!!signatureHeader}, Timestamp: ${timestampHeader}`);
 
     try {
         const rawBody = await request.text();
@@ -33,14 +34,12 @@ export async function POST(request: Request) {
         // 3. SECURE SIGNATURE VERIFICATION
         if (webhookSecret && webhookSecret !== '********') {
             if (!signatureHeader || !timestampHeader) {
-                console.error(`[WEBHOOK:${requestId}] Unauthorized: Missing security headers.`);
                 return NextResponse.json({ message: 'Unauthorized: Missing security headers' }, { status: 401 });
             }
 
             const timestamp = parseInt(timestampHeader, 10);
             const now = Math.floor(Date.now() / 1000);
             if (isNaN(timestamp) || Math.abs(now - timestamp) > 300) {
-                console.error(`[WEBHOOK:${requestId}] Unauthorized: Timestamp expired.`);
                 return NextResponse.json({ message: 'Unauthorized: Timestamp expired' }, { status: 401 });
             }
 
@@ -48,12 +47,15 @@ export async function POST(request: Request) {
             const calculatedSignature = hmac.update(`${timestampHeader}.${rawBody}`).digest('hex');
             const expectedSignature = signatureHeader.replace('sha256=', '');
 
-            if (!timingSafeEqual(Buffer.from(calculatedSignature, 'hex'), Buffer.from(expectedSignature, 'hex'))) {
-                console.error(`[WEBHOOK:${requestId}] Unauthorized: Signature mismatch.`);
-                return NextResponse.json({ message: 'Unauthorized: Signature mismatch' }, { status: 401 });
+            try {
+                if (!timingSafeEqual(Buffer.from(calculatedSignature, 'hex'), Buffer.from(expectedSignature, 'hex'))) {
+                    return NextResponse.json({ message: 'Unauthorized: Signature mismatch' }, { status: 401 });
+                }
+            } catch (e) {
+                return NextResponse.json({ message: 'Unauthorized: Security validation failed' }, { status: 401 });
             }
         } else {
-            console.warn(`[WEBHOOK:${requestId}] Secret missing in registry. Bypassing verification (Insecure).`);
+            console.warn(`[WEBHOOK:${requestId}] Validation skipped: Webhook secret missing in registry.`);
         }
 
         // 4. PAYLOAD PROCESSING
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
         const { event, data } = body;
         
         if (!event || !data) {
-            return NextResponse.json({ message: 'Invalid payload' }, { status: 400 });
+            return NextResponse.json({ message: 'Invalid payload structure' }, { status: 400 });
         }
 
         const trackingId = (data.trackingNumber || data.code || '').toString().toUpperCase().trim();
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
         const logicwareId = data.id || data.packageId;
 
         if (!trackingId) {
+            console.warn(`[WEBHOOK:${requestId}] Event ${event} received without tracking identifier.`);
             return NextResponse.json({ message: 'Missing tracking identifier' }, { status: 400 });
         }
 
@@ -85,23 +88,23 @@ export async function POST(request: Request) {
         });
 
         if (!targetProfile) {
-            console.warn(`[WEBHOOK:${requestId}] Mailbox ${mailboxRaw} could not be resolved locally.`);
+            console.warn(`[WEBHOOK:${requestId}] Identity resolution failed for Mailbox: ${mailboxRaw}`);
             await adminClient.from('system_logs').insert({
                 log_type: 'webhook_unresolved_mailbox',
-                description: `Webhook event ${event} for ${trackingId} skipped. Mailbox ${mailboxRaw} not found.`,
-                metadata: { mailboxRaw, trackingId }
+                description: `Webhook event ${event} for ${trackingId} skipped. Mailbox ${mailboxRaw} not found in local registry.`,
+                metadata: { mailboxRaw, trackingId, hubNumeric }
             });
             return NextResponse.json({ success: false, message: 'Identity not resolved' });
         }
 
-        // 6. UPSERT SHIPMENT/PRE-ALERT (Idempotent)
+        // 6. UPSERT SHIPMENT/PRE-ALERT (Idempotency)
         const isPreAlert = status.toLowerCase().includes('pre-alert') || status.toLowerCase().includes('pending');
         
         if (isPreAlert) {
             const { error } = await adminClient.from('pre_alerts').upsert({
                 profile_id: targetProfile.id,
                 tracking_number: trackingId,
-                contents: data.contents || data.description || 'Hub Update',
+                contents: data.contents || data.description || 'Hub Generated Update',
                 weight_lbs: weight,
                 status: 'Pending',
                 logicware_id: logicwareId,
@@ -112,7 +115,7 @@ export async function POST(request: Request) {
             const { error } = await adminClient.from('shipments').upsert({
                 profile_id: targetProfile.id,
                 tracking_number: trackingId,
-                contents: data.contents || data.description || 'Hub Update',
+                contents: data.contents || data.description || 'Hub Generated Update',
                 weight_lbs: weight,
                 status: status,
                 logicware_id: logicwareId,
@@ -123,9 +126,9 @@ export async function POST(request: Request) {
 
         await adminClient.from('system_logs').insert({
             log_type: 'webhook_processed',
-            description: `Successfully synchronized ${event} for ${trackingId}`,
+            description: `Successfully synchronized Hub event ${event} for tracking ${trackingId}`,
             actor_id: targetProfile.id,
-            metadata: { event, status, weight }
+            metadata: { event, status, weight, logicwareId }
         });
 
         return NextResponse.json({ success: true });
