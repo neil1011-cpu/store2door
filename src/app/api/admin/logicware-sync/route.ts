@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient } from '@/lib/supabase/server';
 
+/**
+ * @fileOverview Authorized Individual Shipper Sync API.
+ * Corrected to exclude TRN from updates as per SDK v0.2.0 limitations.
+ */
+
 export async function POST(request: Request) {
     const adminClient = await createAdminClient();
     const payload = await request.json().catch(() => ({}));
@@ -16,7 +21,7 @@ export async function POST(request: Request) {
             .eq('id', profileId)
             .maybeSingle();
 
-        if (fetchErr || !profile) throw new Error('Identity not found.');
+        if (fetchErr || !profile) throw new Error('Identity not found in registry.');
 
         const client = await getLogicwareClient();
         if (!client) throw new Error('Hub not configured.');
@@ -26,14 +31,14 @@ export async function POST(request: Request) {
 
         if (profile.logicware_id) {
             operation = 'update';
+            // SDK v0.2.0: TRN is immutable in updates
             result = await client.shippers.update(profile.logicware_id, {
                 name: profile.full_name,
                 phone: profile.phone || ''
-                // TRN is omitted as it is immutable in SDK v0.2.0 updates
             });
         } else {
             operation = 'create';
-            if (!profile.trn) throw new Error('TRN required for registration.');
+            if (!profile.trn) throw new Error('TRN required for initial registration.');
             
             result = await client.shippers.create({
                 email: profile.email,

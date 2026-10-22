@@ -4,7 +4,8 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Optimized for Logicware SDK v0.2.0 with iterative duplicate prevention.
+ * Implements dual-lookup (ID or Tracking), exhaustive search for duplicate prevention,
+ * and explicit error reporting for registry failures.
  */
 
 export async function POST(request: Request) {
@@ -26,28 +27,45 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const { shipmentId, type = 'shipment' } = body;
 
-    if (!shipmentId) return NextResponse.json({ message: 'Shipment ID required' }, { status: 400 });
+    if (!shipmentId) return NextResponse.json({ message: 'Shipment ID or Tracking Number required' }, { status: 400 });
 
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
-        // Use explicit join on profile_id to ensure identity resolution
-        const { data: local, error: fetchErr } = await adminClient
+        
+        // 1. DUAL LOOKUP: Try UUID first, then Tracking Number fallback
+        let { data: local, error: fetchErr } = await adminClient
             .from(table)
             .select('*, profiles:profile_id(mailbox_number, logicware_id)')
             .eq('id', shipmentId)
             .maybeSingle();
 
-        if (fetchErr || !local) throw new Error('Local record not found in registry.');
+        if (!local && !fetchErr) {
+            const { data: fallback, error: fallbackErr } = await adminClient
+                .from(table)
+                .select('*, profiles:profile_id(mailbox_number, logicware_id)')
+                .eq('tracking_number', shipmentId.toUpperCase().trim())
+                .maybeSingle();
+            
+            local = fallback;
+            fetchErr = fallbackErr;
+        }
+
+        if (fetchErr) {
+            throw new Error(`Registry query failure: ${fetchErr.message}`);
+        }
+
+        if (!local) {
+            throw new Error(`Record ${shipmentId} not found in ${table} registry.`);
+        }
 
         const client = await getLogicwareClient();
-        if (!client) throw new Error('Logicware Hub not configured.');
+        if (!client) throw new Error('Logicware Hub configuration missing.');
 
         const tracking = local.tracking_number.toUpperCase().trim();
         let logicwareId = local.logicware_id;
 
         const payload = {
             trackingNumber: tracking,
-            weight: parseFloat(local.weight_lbs) || 0,
             weightLbs: parseFloat(local.weight_lbs) || 0,
             contents: local.contents || 'Package',
             description: local.contents || '',
@@ -56,7 +74,7 @@ export async function POST(request: Request) {
             status: local.status
         };
 
-        // EXHAUSTIVE SEARCH BEFORE CREATE
+        // 2. EXHAUSTIVE DEDUPLICATION SEARCH
         if (!logicwareId) {
             let currentPage = 1;
             let foundMatches: any[] = [];
@@ -65,12 +83,8 @@ export async function POST(request: Request) {
             let hasMore = true;
 
             while (currentPage <= maxPages && hasMore) {
-                const response = await client.packages.list({ 
-                    pageSize, 
-                    page: currentPage
-                });
-                
-                const list = Array.isArray(response) ? response : (response.data || []);
+                const response = await client.packages.list({ pageSize, page: currentPage });
+                const list = Array.isArray(response) ? response : ((response as any).data || []);
                 
                 if (list.length === 0) {
                     hasMore = false;
@@ -83,25 +97,20 @@ export async function POST(request: Request) {
                 });
                 
                 foundMatches.push(...matches);
-
                 if (foundMatches.length > 1) break;
                 
-                if (list.length < pageSize) {
-                    hasMore = false;
-                } else {
-                    currentPage++;
-                }
+                if (list.length < pageSize) hasMore = false;
+                else currentPage++;
             }
 
             if (foundMatches.length === 1) {
                 logicwareId = foundMatches[0].id;
             } else if (foundMatches.length > 1) {
-                throw new Error(`Ambiguity detected: ${foundMatches.length} matching packages found for tracking ${tracking} in Logicware Hub.`);
-            } else if (currentPage > maxPages && hasMore) {
-                throw new Error(`Search limit reached. Package ${tracking} not found in last 1,000 records. Manual link required.`);
+                throw new Error(`Duplicate ambiguity: ${foundMatches.length} packages found for ${tracking} in Hub.`);
             }
         }
 
+        // 3. EXECUTE HUB OPERATION
         let op: 'create' | 'update';
         if (logicwareId) {
             op = 'update';
@@ -112,14 +121,15 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        if (logicwareId) {
+        // 4. PERSIST HUB ID LOCALLY
+        if (logicwareId && logicwareId !== local.logicware_id) {
             const { error: updateError } = await adminClient
                 .from(table)
                 .update({ logicware_id: logicwareId })
-                .eq('id', shipmentId);
+                .eq('id', local.id);
             
             if (updateError) {
-                throw new Error(`CRITICAL: Remote Hub ${op} SUCCEEDED, but local registry update failed: ${updateError.message}. Manual ID linking for "${logicwareId}" required.`);
+                throw new Error(`CRITICAL: Hub ${op} success, but registry update failed: ${updateError.message}. Manual reconcile for ID ${logicwareId} required.`);
             }
         }
 

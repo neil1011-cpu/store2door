@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Logicware Connect SDK utility.
- * Authoritative client factory using Supabase registry config.
+ * Standardized client factory aligned with SDK v0.2.0 (packages resource, pageSize param).
  */
 
 export async function getLogicwareClient(apiKeyOverride?: string) {
@@ -41,9 +41,8 @@ export async function fetchLogicwareShippers(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
     if (!client?.shippers) return [];
-    // Corrected parameter to pageSize for SDK v0.2.0
     const response = await client.shippers.list({ pageSize: 100 });
-    return Array.isArray(response) ? response : (response.data || []);
+    return Array.isArray(response) ? response : ((response as any).data || []);
   } catch (error: any) {
     console.error('[LOGICWARE SHIPPERS ERROR]', error.message);
     return [];
@@ -54,9 +53,8 @@ export async function fetchLogicwarePackages(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
     if (!client?.packages) return [];
-    // Corrected resource to packages and parameter to pageSize for SDK v0.2.0
     const response = await client.packages.list({ pageSize: 100 });
-    return Array.isArray(response) ? response : (response.data || []);
+    return Array.isArray(response) ? response : ((response as any).data || []);
   } catch (error: any) {
     console.error('[LOGICWARE PACKAGES ERROR]', error.message);
     return [];
@@ -67,9 +65,8 @@ export async function fetchLogicwareManifests(apiKey?: string) {
     try {
         const client = await getLogicwareClient(apiKey);
         if (!client?.manifests) return [];
-        // Corrected parameter to pageSize for SDK v0.2.0
         const response = await client.manifests.list({ pageSize: 100 });
-        return Array.isArray(response) ? response : (response.data || []);
+        return Array.isArray(response) ? response : ((response as any).data || []);
     } catch (error) {
         console.error('[LOGICWARE MANIFESTS ERROR]', error);
         return [];
