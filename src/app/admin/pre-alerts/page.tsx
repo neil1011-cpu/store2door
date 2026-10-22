@@ -314,7 +314,7 @@ export default function PreAlertsPage() {
                                                 alert={alert} 
                                                 onUpdate={(newStatus) => handleStatusUpdate(alert.id, newStatus)} 
                                                 />
-                                                <InvoicePreviewDialog url={alert.invoice_url ? `/api/storage/view?key=${alert.invoice_url}` : null} storageKey={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
+                                                <InvoicePreviewDialog url={alert.invoice_url ? `/api/storage/view?key=${encodeURIComponent(alert.invoice_url)}` : null} storageKey={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
                                                 <AlertDialog>
                                                 <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                                                 <AlertDialogContent>
@@ -410,18 +410,18 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button variant="outline" size="sm" className="h-10 font-black uppercase italic text-[10px] border-2 shadow-sm px-6"><Eye className="mr-2 h-4 w-4" /> Review Record</Button></DialogTrigger>
-            <DialogContent className="sm:max-w-7xl max-h-[95vh] flex flex-col p-0 overflow-hidden rounded-3xl border-4">
+            <DialogContent className="sm:max-w-7xl h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border-4">
                 <DialogHeader className="p-8 pb-4 bg-muted/10 border-b">
                     <div className="flex items-center justify-between w-full">
                         <div><DialogTitle className="text-3xl font-black italic uppercase tracking-tighter">Viewing Terminal</DialogTitle><DialogDescription className="font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Universal Logistics ID: {trackingNumber}</DialogDescription></div>
                         {storageKey && <Button onClick={handleRunAi} disabled={isAnalyzing} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase italic text-[10px] h-8 px-6 shadow-lg">{isAnalyzing ? <Loader2 className="animate-spin h-3.5 w-3.5 mr-2" /> : <BrainCircuit className="h-3.5 w-3.5 mr-2" />} Run AI Smart Analysis</Button>}
                     </div>
                 </DialogHeader>
-                <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-                    <div className="lg:col-span-7 bg-zinc-100 dark:bg-zinc-900 p-8 flex items-center justify-center relative min-h-[500px]">
-                        {url ? <iframe src={url} className="w-full h-full border-none rounded-xl bg-white shadow-2xl" /> : <div className="text-center opacity-30 italic">No document available for review.</div>}
+                <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0">
+                    <div className="lg:col-span-7 bg-zinc-100 dark:bg-zinc-900 p-8 flex items-center justify-center relative min-h-[400px]">
+                        {url ? <iframe src={url} title={`Invoice ${trackingNumber}`} className="w-full h-full border-none rounded-xl bg-white shadow-2xl" /> : <div className="text-center opacity-30 italic">No document available for review.</div>}
                     </div>
-                    <div className="lg:col-span-5 bg-background p-8 border-l-4 flex flex-col gap-8 shadow-inner overflow-y-auto">
+                    <div className="lg:col-span-5 bg-background p-8 border-l-4 flex flex-col gap-8 shadow-inner overflow-y-auto min-h-0">
                         {aiResult && (
                             <div className="p-5 rounded-2xl bg-indigo-50 border-2 border-indigo-200 space-y-4">
                                 <h4 className="text-xs font-black uppercase text-indigo-700 flex items-center gap-2"><BrainCircuit className="h-4 w-4" /> AI Analysis Results</h4>
@@ -435,7 +435,7 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
                             <div className="p-5 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 space-y-2"><p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Customer Identity</p><p className="font-black uppercase text-lg tracking-tighter italic">{alert.profiles?.full_name}</p></div>
                             <div className="p-5 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 space-y-2"><p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Contents Declaration</p><p className="font-bold uppercase text-xs italic opacity-80 leading-relaxed">"{alert.contents || 'No declaration'}"</p></div>
                         </div>
-                        <div className="flex-1 flex flex-col justify-end gap-4">
+                        <div className="mt-auto flex flex-col gap-4 pt-8">
                             <Alert className="bg-orange-50 border-orange-200 rounded-2xl border-2"><AlertCircle className="h-4 w-4 text-orange-600" /><AlertDescription className="text-[10px] font-black text-orange-800 uppercase leading-relaxed italic">VIEWING ONLY: NO LEDGER MUTATIONS AUTHORIZED ON THIS SCREEN.</AlertDescription></Alert>
                             {alert.status === 'Pending' && (
                                 <div className="space-y-3">
