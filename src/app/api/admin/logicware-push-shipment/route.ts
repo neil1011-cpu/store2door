@@ -4,7 +4,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Optimized for Logicware SDK v0.2.0 with enhanced duplicate prevention.
+ * Optimized for Logicware SDK v0.2.0 with iterative duplicate prevention.
  */
 
 export async function POST(request: Request) {
@@ -53,22 +53,45 @@ export async function POST(request: Request) {
             status: local.status
         };
 
-        // SEARCH BEFORE CREATE
+        // SEARCH BEFORE CREATE (Iterative Pagination)
+        // We scan the Hub to prevent duplicate package creation if the logicware_id is missing locally.
         if (!logicwareId) {
-            // SDK v0.2.0 ListPackagesOptions does not support server-side trackingNumber filtering in its type definition.
-            // We fetch the most recent 100 records and perform an exact match client-side to prevent duplicates.
-            const response = await client.packages.list({ pageSize: 100 });
-            const list = Array.isArray(response) ? response : (response.data || []);
-            
-            const exactMatches = list.filter((m: any) => 
-                (m.trackingNumber || m.code || '').toUpperCase() === tracking
-            );
+            let currentPage = 1;
+            let foundMatches: any[] = [];
+            const maxPages = 10; // Scan up to 1000 most recent records
 
-            if (exactMatches.length === 1) {
-                logicwareId = exactMatches[0].id;
-                console.log(`[PUSH] Matched existing package: ${logicwareId}`);
-            } else if (exactMatches.length > 1) {
-                throw new Error(`Ambiguity: Multiple packages found for tracking ${tracking}`);
+            while (currentPage <= maxPages) {
+                const response = await client.packages.list({ 
+                    pageSize: 100, 
+                    page: currentPage 
+                });
+                
+                // SDK v0.2.0 returns { data: T[] } or T[]
+                const list = Array.isArray(response) ? response : (response.data || []);
+                if (list.length === 0) break;
+
+                // Compare tracking numbers using exact equality
+                const matches = list.filter((m: any) => {
+                    const remoteTracking = (m.trackingNumber || m.code || '').toString();
+                    return remoteTracking === tracking;
+                });
+                
+                foundMatches.push(...matches);
+
+                // Stop early if we have multiple matches (ambiguity found)
+                if (foundMatches.length > 1) break;
+                
+                // If this page was the last one, stop
+                if (list.length < 100) break;
+                
+                currentPage++;
+            }
+
+            if (foundMatches.length === 1) {
+                logicwareId = foundMatches[0].id;
+                console.log(`[PUSH] Identified existing package in Hub: ${logicwareId}`);
+            } else if (foundMatches.length > 1) {
+                throw new Error(`Ambiguity detected: ${foundMatches.length} matching packages found for tracking ${tracking} in Logicware Hub. Aborting to prevent data fragmentation.`);
             }
         }
 
@@ -83,10 +106,17 @@ export async function POST(request: Request) {
         }
 
         if (logicwareId) {
-            await adminClient
+            const { error: updateError } = await adminClient
                 .from(table)
-                .update({ logicware_id: logicwareId, updated_at: new Date().toISOString() })
+                .update({ 
+                    logicware_id: logicwareId, 
+                    updated_at: new Date().toISOString() 
+                })
                 .eq('id', shipmentId);
+            
+            if (updateError) throw new Error(`Remote ${op} succeeded but local registry update failed: ${updateError.message}`);
+        } else {
+            throw new Error(`Hub ${op} appeared successful but no Logicware ID was returned.`);
         }
 
         await adminClient.from('system_logs').insert({
