@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Authorized Individual Shipper Sync API.
- * Corrected to exclude TRN from updates as per SDK v0.2.0 and handle missing logicware_id column.
+ * Corrected to exclude TRN from updates as per SDK v0.2.0 and handle missing logicware_id column safely.
  */
 
 export async function POST(request: Request) {
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         let result;
         let operation;
 
-        // Check if logicware_id exists on the profile object (if selected via *)
+        // Safely check for logicware_id since it may be missing from the DB schema
         const profileLogicwareId = (profile as any).logicware_id;
 
         if (profileLogicwareId) {
@@ -52,11 +52,11 @@ export async function POST(request: Request) {
             });
 
             if (result?.id) {
-                // Smallest safe check: Attempt to update but don't fail if column is missing
+                // Attempt update but don't fail if column is missing from the DB
                 try {
                     await adminClient.from('profiles').update({ logicware_id: result.id } as any).eq('id', profileId);
                 } catch (dbErr) {
-                    console.warn('[API:LOGICWARE:SYNC] Could not persist logicware_id. Column likely missing.');
+                    console.warn('[API:LOGICWARE:SYNC] Could not persist logicware_id locally. Registry column missing.');
                 }
             }
         }
