@@ -30,14 +30,14 @@ export async function POST(request: Request) {
 
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
-        // Use authoritative relationship name 'profiles' for the join
+        // Use explicit join on profile_id to ensure identity resolution
         const { data: local, error: fetchErr } = await adminClient
             .from(table)
-            .select('*, profiles(mailbox_number, logicware_id)')
+            .select('*, profiles:profile_id(mailbox_number, logicware_id)')
             .eq('id', shipmentId)
             .maybeSingle();
 
-        if (fetchErr || !local) throw new Error('Local record not found.');
+        if (fetchErr || !local) throw new Error('Local record not found in registry.');
 
         const client = await getLogicwareClient();
         if (!client) throw new Error('Logicware Hub not configured.');
@@ -57,7 +57,6 @@ export async function POST(request: Request) {
         };
 
         // EXHAUSTIVE SEARCH BEFORE CREATE
-        // Prevents duplicate package creation if the logicware_id is missing locally.
         if (!logicwareId) {
             let currentPage = 1;
             let foundMatches: any[] = [];
@@ -114,16 +113,13 @@ export async function POST(request: Request) {
         }
 
         if (logicwareId) {
-            // FIX: Removed updated_at mutation to resolve schema mismatch errors
             const { error: updateError } = await adminClient
                 .from(table)
-                .update({ 
-                    logicware_id: logicwareId
-                })
+                .update({ logicware_id: logicwareId })
                 .eq('id', shipmentId);
             
             if (updateError) {
-                throw new Error(`CRITICAL: Remote Hub ${op} SUCCEEDED, but local registry update failed: ${updateError.message}. Manual ID linking for "${logicwareId}" is required.`);
+                throw new Error(`CRITICAL: Remote Hub ${op} SUCCEEDED, but local registry update failed: ${updateError.message}. Manual ID linking for "${logicwareId}" required.`);
             }
         }
 

@@ -41,7 +41,7 @@ export async function fetchLogicwareShippers(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
     if (!client?.shippers) return [];
-    // Corrected parameter name from limit to pageSize for SDK v0.2.0
+    // Corrected parameter to pageSize for SDK v0.2.0
     const response = await client.shippers.list({ pageSize: 100 });
     return Array.isArray(response) ? response : (response.data || []);
   } catch (error: any) {
@@ -54,7 +54,7 @@ export async function fetchLogicwarePackages(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
     if (!client?.packages) return [];
-    // Corrected parameter name from limit to pageSize for SDK v0.2.0
+    // Corrected resource to packages and parameter to pageSize for SDK v0.2.0
     const response = await client.packages.list({ pageSize: 100 });
     return Array.isArray(response) ? response : (response.data || []);
   } catch (error: any) {
@@ -67,7 +67,7 @@ export async function fetchLogicwareManifests(apiKey?: string) {
     try {
         const client = await getLogicwareClient(apiKey);
         if (!client?.manifests) return [];
-        // Corrected parameter name from limit to pageSize for SDK v0.2.0
+        // Corrected parameter to pageSize for SDK v0.2.0
         const response = await client.manifests.list({ pageSize: 100 });
         return Array.isArray(response) ? response : (response.data || []);
     } catch (error) {
