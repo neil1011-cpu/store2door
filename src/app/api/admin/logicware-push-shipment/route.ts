@@ -55,7 +55,9 @@ export async function POST(request: Request) {
 
         // SEARCH BEFORE CREATE
         if (!logicwareId) {
-            const response = await client.packages.list({ pageSize: 20, trackingNumber: tracking });
+            // SDK v0.2.0 ListPackagesOptions does not support server-side trackingNumber filtering in its type definition.
+            // We fetch the most recent 100 records and perform an exact match client-side to prevent duplicates.
+            const response = await client.packages.list({ pageSize: 100 });
             const list = Array.isArray(response) ? response : (response.data || []);
             
             const exactMatches = list.filter((m: any) => 
