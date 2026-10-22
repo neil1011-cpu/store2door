@@ -32,7 +32,7 @@ export async function POST(request: Request) {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         const { data: local, error: fetchErr } = await adminClient
             .from(table)
-            .select('*, profiles(mailbox_number, logicware_id)')
+            .select('*, profiles:profile_id(mailbox_number, logicware_id)')
             .eq('id', shipmentId)
             .maybeSingle();
 
@@ -65,7 +65,6 @@ export async function POST(request: Request) {
             let hasMore = true;
 
             while (currentPage <= maxPages && hasMore) {
-                // FETCH: v0.2.0 supports page and pageSize
                 const response = await client.packages.list({ 
                     pageSize, 
                     page: currentPage
@@ -78,7 +77,6 @@ export async function POST(request: Request) {
                     break;
                 }
 
-                // Strict exact match filtering
                 const matches = list.filter((m: any) => {
                     const remoteTracking = (m.trackingNumber || m.code || '').toString().toUpperCase().trim();
                     return remoteTracking === tracking;
@@ -98,9 +96,9 @@ export async function POST(request: Request) {
             if (foundMatches.length === 1) {
                 logicwareId = foundMatches[0].id;
             } else if (foundMatches.length > 1) {
-                throw new Error(`Ambiguity detected: ${foundMatches.length} matching packages found for tracking ${tracking} in Logicware Hub. Aborting to prevent data fragmentation.`);
+                throw new Error(`Ambiguity detected: ${foundMatches.length} matching packages found for tracking ${tracking} in Logicware Hub.`);
             } else if (currentPage > maxPages && hasMore) {
-                throw new Error(`Exhaustive search limit reached (1,000 records). Package ${tracking} was not found in the most recent history. Please link the ID manually to avoid creating a duplicate.`);
+                throw new Error(`Search limit reached. Package ${tracking} not found in last 1,000 records. Manual link required.`);
             }
         }
 
@@ -123,10 +121,8 @@ export async function POST(request: Request) {
                 .eq('id', shipmentId);
             
             if (updateError) {
-                throw new Error(`CRITICAL: Remote Hub ${op} SUCCEEDED, but local registry update failed: ${updateError.message}. Manual ID linking for ID "${logicwareId}" is required.`);
+                throw new Error(`CRITICAL: Remote Hub ${op} SUCCEEDED, but local registry update failed: ${updateError.message}. Manual ID linking for "${logicwareId}" is required.`);
             }
-        } else {
-            throw new Error(`Hub ${op} appeared successful but no Logicware ID was returned.`);
         }
 
         await adminClient.from('system_logs').insert({

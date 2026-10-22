@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Logicware Connect SDK utility.
- * Authoritative client factory that pulls configuration from the Supabase registry.
+ * Authoritative client factory using Supabase registry config.
  */
 
 export async function getLogicwareClient(apiKeyOverride?: string) {
@@ -22,12 +22,10 @@ export async function getLogicwareClient(apiKeyOverride?: string) {
         if (!apiKey && configDoc.config_value.apiKey && configDoc.config_value.apiKey !== '********') {
             apiKey = configDoc.config_value.apiKey;
         }
-        if (configDoc.config_value.baseUrl) {
-            baseUrl = configDoc.config_value.baseUrl;
-        }
+        if (configDoc.config_value.baseUrl) baseUrl = configDoc.config_value.baseUrl;
     }
   } catch (err) {
-    console.warn('[LOGICWARE_CLIENT] Using environment fallbacks.');
+    console.warn('[LOGICWARE_CLIENT] Using env fallbacks.');
   }
 
   const finalKey = apiKey || process.env.LOGICWARE_API_KEY;

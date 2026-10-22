@@ -2,11 +2,6 @@ import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient } from '@/lib/supabase/server';
 
-/**
- * @fileOverview Universal Shipper Sync API.
- * Synchronizes local user profiles with the Logicware Hub as Shippers.
- */
-
 export async function POST(request: Request) {
     const adminClient = await createAdminClient();
     const payload = await request.json().catch(() => ({}));
@@ -34,6 +29,7 @@ export async function POST(request: Request) {
             result = await client.shippers.update(profile.logicware_id, {
                 name: profile.full_name,
                 phone: profile.phone || '',
+                // trn is omitted from update as per SDK v0.2.0 types
             });
         } else {
             operation = 'create';
