@@ -179,12 +179,12 @@ export default function POSPage() {
             // 3. Update associated shipments to 'Delivered' (Picked up) and 'Paid'
             const trackingNumbers = itemsToSnap.map(inv => inv.tracking_number).filter(Boolean);
             if (trackingNumbers.length > 0) {
+                // FIX: Removed 'updated_at' to resolve schema mismatch errors on shipments table
                 await supabase
                     .from('shipments')
                     .update({ 
                         status: 'Delivered', 
-                        payment_status: 'Paid',
-                        updated_at: new Date().toISOString()
+                        payment_status: 'Paid'
                     })
                     .in('tracking_number', trackingNumbers);
             }

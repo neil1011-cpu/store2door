@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 import { mapLogicwareStatus, STATUS_PRIORITY } from '@/lib/utils';
 
 /**
  * @fileOverview Hardened Logicware Inbound Webhook.
  * Implements status normalization, protection against out-of-order events, and optimized identity resolution.
+ * Uses explicit node: prefixed imports for Next.js 15 stability.
  */
 
 export async function POST(request: Request) {
@@ -153,8 +155,7 @@ export async function POST(request: Request) {
                 contents: data.contents || data.description || 'Hub Generated Update',
                 weight_lbs: weight,
                 status: status,
-                logicware_id: logicwareId,
-                updated_at: new Date().toISOString()
+                logicware_id: logicwareId
             }, { onConflict: 'tracking_number' });
             if (error) throw error;
 

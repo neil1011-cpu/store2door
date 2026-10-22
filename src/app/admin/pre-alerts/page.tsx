@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { PlusCircle, ArrowLeft, Loader2, Zap, RefreshCw, CheckCircle2, Trash2, Eye, ImageIcon, History, BrainCircuit, AlertCircle } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Zap, RefreshCw, CheckCircle2, Trash2, Eye, ImageIcon, History, BrainCircuit, AlertCircle, ExternalLink, FileText, Download } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -23,14 +23,14 @@ const PRE_ALERT_STATUSES = ['Pending', 'Processed', 'Cancelled'];
 export default function PreAlertsPage() {
     const { supabase } = useSupabase();
     const { toast } = useToast();
-    
+
     const [preAlerts, setPreAlerts] = useState<any[]>([]);
     const [users, setUsers] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
-    
+
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newAlert, setNewAlert] = useState({ profileId: '', trackingNumber: '', contents: '', weight: '' });
 
@@ -61,7 +61,7 @@ export default function PreAlertsPage() {
             .channel('admin-prealerts-live-feed')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'pre_alerts' }, () => fetchData(true))
             .subscribe();
-        
+
         return () => { supabase.removeChannel(channel); };
     }, [fetchData, supabase]);
 
@@ -74,7 +74,7 @@ export default function PreAlertsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
             });
-            
+
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || 'Hub communication failed');
 
@@ -92,7 +92,7 @@ export default function PreAlertsPage() {
                 if (!tracking) continue;
 
                 const exists = latestLocal.find(pa => pa.tracking_number === tracking || pa.logicware_id === logicwareId);
-                
+
                 if (exists) {
                     if (!exists.logicware_id) {
                         await supabase.from('pre_alerts').update({ logicware_id: logicwareId }).eq('id', exists.id);
@@ -134,7 +134,7 @@ export default function PreAlertsPage() {
         try {
             const { error } = await supabase.from('pre_alerts').update({ status: newStatus }).eq('id', id);
             if (error) throw error;
-            
+
             fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -299,9 +299,9 @@ export default function PreAlertsPage() {
                                 preAlerts.map(alert => (
                                     <TableRow key={alert.id} className={cn("hover:bg-primary/5 transition-colors h-24", alert.status === 'Processed' && "opacity-60")}>
                                         <TableCell className="pl-6">
-                                            <div className="h-16 w-16 rounded-lg bg-muted/10 border-2 border-dashed flex items-center justify-center text-muted-foreground/30">
+                                            <div className="h-16 w-16 rounded-lg bg-muted/10 border-2 border-dashed flex items-center justify-center text-muted-foreground/30 overflow-hidden">
                                                 {alert.invoice_url ? (
-                                                    <img src={`/api/storage/view?key=${encodeURIComponent(alert.invoice_url)}`} alt="Doc" className="object-cover w-full h-full rounded-lg" />
+                                                    <img src={`/api/storage/view?key=${encodeURIComponent(alert.invoice_url)}`} alt="Doc" className="object-cover w-full h-full" />
                                                 ) : <ImageIcon className="h-6 w-6" />}
                                             </div>
                                         </TableCell>
@@ -310,11 +310,11 @@ export default function PreAlertsPage() {
                                         <TableCell className="font-mono font-black text-primary uppercase text-sm">{alert.tracking_number}</TableCell>
                                         <TableCell className="text-right pr-6">
                                             <div className="flex justify-end gap-2">
-                                                <PreAlertStatusUpdateDialog 
-                                                alert={alert} 
-                                                onUpdate={(newStatus) => handleStatusUpdate(alert.id, newStatus)} 
+                                                <PreAlertStatusUpdateDialog
+                                                alert={alert}
+                                                onUpdate={(newStatus) => handleStatusUpdate(alert.id, newStatus)}
                                                 />
-                                                <InvoicePreviewDialog url={alert.invoice_url ? `/api/storage/view?key=${encodeURIComponent(alert.invoice_url)}` : null} storageKey={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
+                                                <InvoicePreviewDialog storageKey={alert.invoice_url} trackingNumber={alert.tracking_number} alert={alert} onProcess={handleProcessIntake} />
                                                 <AlertDialog>
                                                 <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                                                 <AlertDialogContent>
@@ -375,12 +375,12 @@ function PreAlertStatusUpdateDialog({ alert, onUpdate }: { alert: any, onUpdate:
         </div>
         <DialogFooter className="gap-2">
           <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
-          <Button 
-            onClick={handleConfirm} 
-            disabled={isUpdating || status === alert.status} 
+          <Button
+            onClick={handleConfirm}
+            disabled={isUpdating || status === alert.status}
             className="flex-1 h-12 font-black uppercase italic shadow-xl"
           >
-            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
+            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
             Save Status
           </Button>
         </DialogFooter>
@@ -389,11 +389,19 @@ function PreAlertStatusUpdateDialog({ alert, onUpdate }: { alert: any, onUpdate:
   );
 }
 
-function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProcess }: { url: string | null, storageKey: string, trackingNumber: string, alert: any, onProcess: (a: any, w: number, c: number) => Promise<void> }) {
+function InvoicePreviewDialog({ storageKey, trackingNumber, alert, onProcess }: { storageKey: string, trackingNumber: string, alert: any, onProcess: (a: any, w: number, c: number) => Promise<void> }) {
     const [open, setOpen] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [aiResult, setAiResult] = useState<GenerateCustomsFormOutput | null>(null);
     const { toast } = useToast();
+
+    // Determine the authoritative URL for the iframe.
+    // If it's a legacy URL (http), use it directly. If it's a DB key, use our proxy.
+    const url = storageKey
+        ? (storageKey.startsWith('http')
+            ? storageKey
+            : `/api/storage/view?key=${encodeURIComponent(storageKey)}`)
+        : null;
 
     const handleRunAi = async () => {
         if (!storageKey) return;
@@ -414,16 +422,50 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
                 <DialogHeader className="p-8 pb-4 bg-muted/10 border-b">
                     <div className="flex items-center justify-between w-full">
                         <div><DialogTitle className="text-3xl font-black italic uppercase tracking-tighter">Viewing Terminal</DialogTitle><DialogDescription className="font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Universal Logistics ID: {trackingNumber}</DialogDescription></div>
-                        {storageKey && <Button onClick={handleRunAi} disabled={isAnalyzing} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase italic text-[10px] h-8 px-6 shadow-lg">{isAnalyzing ? <Loader2 className="animate-spin h-3.5 w-3.5 mr-2" /> : <BrainCircuit className="h-3.5 w-3.5 mr-2" />} Run AI Smart Analysis</Button>}
+                        <div className="flex items-center gap-3">
+                            {url && (
+                                <div className="flex gap-2">
+                                    <Button variant="ghost" size="sm" asChild className="font-bold uppercase text-[10px]">
+                                        <Link href={url} target="_blank"><ExternalLink className="mr-2 h-3.5 w-3.5" /> Open Externally</Link>
+                                    </Button>
+                                    <Button variant="secondary" size="sm" asChild className="font-bold uppercase text-[10px]">
+                                        <Link href={url} download={`invoice-${trackingNumber}.pdf`}><Download className="mr-2 h-3.5 w-3.5" /> Download</Link>
+                                    </Button>
+                                </div>
+                            )}
+                            {storageKey && <Button onClick={handleRunAi} disabled={isAnalyzing} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase italic text-[10px] h-8 px-6 shadow-lg">{isAnalyzing ? <Loader2 className="animate-spin h-3.5 w-3.5 mr-2" /> : <BrainCircuit className="h-3.5 w-3.5 mr-2" />} Run AI Smart Analysis</Button>}
+                        </div>
                     </div>
                 </DialogHeader>
-                <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0">
-                    <div className="lg:col-span-7 bg-zinc-100 dark:bg-zinc-900 p-8 flex items-center justify-center relative min-h-[400px]">
-                        {url ? <iframe src={url} title={`Invoice ${trackingNumber}`} className="w-full h-full border-none rounded-xl bg-white shadow-2xl" /> : <div className="text-center opacity-30 italic">No document available for review.</div>}
+                <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0 h-full">
+                    <div className="lg:col-span-7 bg-zinc-100 dark:bg-zinc-900 p-8 flex flex-col items-center justify-center relative min-h-[500px]">
+                        {url ? (
+                            <div className="w-full h-full min-h-[500px] flex flex-col items-stretch">
+                                <div className="flex-1 w-full bg-white rounded-xl shadow-2xl overflow-hidden relative" style={{ height: 'calc(90vh - 200px)' }}>
+                                    <iframe
+                                        src={url}
+                                        title={`Invoice ${trackingNumber}`}
+                                        className="absolute inset-0 w-full h-full border-none"
+                                        loading="lazy"
+                                    />
+                                </div>
+                                <div className="mt-4 p-4 bg-black/5 dark:bg-white/5 rounded-xl border border-dashed text-center">
+                                    <p className="text-[10px] font-bold uppercase opacity-60">If the document above is blank, your browser security settings may be blocking the preview.</p>
+                                    <Button variant="link" asChild className="text-primary font-black uppercase text-[10px] h-auto p-0 mt-1">
+                                        <Link href={url} target="_blank">Click here to open in a new tab</Link>
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center gap-4 opacity-30 italic">
+                                <FileText className="h-16 w-16" />
+                                <p>No document available for review.</p>
+                            </div>
+                        )}
                     </div>
-                    <div className="lg:col-span-5 bg-background p-8 border-l-4 flex flex-col gap-8 shadow-inner overflow-y-auto min-h-0">
+                    <div className="lg:col-span-5 bg-background p-8 border-l-4 flex flex-col gap-8 shadow-inner overflow-y-auto min-h-0 h-full">
                         {aiResult && (
-                            <div className="p-5 rounded-2xl bg-indigo-50 border-2 border-indigo-200 space-y-4">
+                            <div className="p-5 rounded-2xl bg-indigo-50 border-2 border-indigo-200 space-y-4 animate-in fade-in slide-in-from-right-4">
                                 <h4 className="text-xs font-black uppercase text-indigo-700 flex items-center gap-2"><BrainCircuit className="h-4 w-4" /> AI Analysis Results</h4>
                                 <div className="space-y-4">
                                     <div><p className="text-[10px] font-black uppercase opacity-60 text-indigo-600">Sender Info</p><p className="text-xs font-bold">{aiResult.customsForm.sender}</p></div>
@@ -435,7 +477,7 @@ function InvoicePreviewDialog({ url, storageKey, trackingNumber, alert, onProces
                             <div className="p-5 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 space-y-2"><p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Customer Identity</p><p className="font-black uppercase text-lg tracking-tighter italic">{alert.profiles?.full_name}</p></div>
                             <div className="p-5 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 space-y-2"><p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Contents Declaration</p><p className="font-bold uppercase text-xs italic opacity-80 leading-relaxed">"{alert.contents || 'No declaration'}"</p></div>
                         </div>
-                        <div className="mt-auto flex flex-col gap-4 pt-8">
+                        <div className="mt-auto flex flex-col gap-4 pt-8 border-t border-dashed">
                             <Alert className="bg-orange-50 border-orange-200 rounded-2xl border-2"><AlertCircle className="h-4 w-4 text-orange-600" /><AlertDescription className="text-[10px] font-black text-orange-800 uppercase leading-relaxed italic">VIEWING ONLY: NO LEDGER MUTATIONS AUTHORIZED ON THIS SCREEN.</AlertDescription></Alert>
                             {alert.status === 'Pending' && (
                                 <div className="space-y-3">

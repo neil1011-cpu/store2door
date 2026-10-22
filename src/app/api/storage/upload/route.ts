@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
+import { Buffer } from 'node:buffer';
 
 /**
  * @fileOverview Authorized Documentation Porter (Database Backed).
  * Stores uploaded files directly in the Supabase PostgreSQL database as binary data (bytea).
- * Hardened to use direct Buffer transmission and descriptive logging.
+ * Hardened to use explicit node:buffer for stable Webpack chunks.
  */
 
 export async function POST(request: Request) {

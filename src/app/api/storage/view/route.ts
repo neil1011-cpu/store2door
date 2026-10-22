@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { Buffer } from 'node:buffer';
 
 /**
  * @fileOverview Secure Database Documentation Proxy.
  * Retrieves binary data from PostgreSQL and serves it to the browser.
- * Hardened to handle various PostgreSQL bytea output formats.
+ * Hardened to handle various PostgreSQL bytea output formats and prevent cross-origin redirect blocks.
  */
 
 export async function GET(request: Request) {
@@ -21,6 +22,8 @@ export async function GET(request: Request) {
         // 1. Legacy URL Detection
         const decodedKey = decodeURIComponent(idOrKey);
         if (decodedKey.startsWith('http')) {
+            // NOTE: In-browser iframes often block cross-origin redirects. 
+            // The frontend now handles this by loading directly, but we keep this for direct browser hits.
             return Response.redirect(decodedKey, 307);
         }
 
@@ -34,6 +37,7 @@ export async function GET(request: Request) {
             .maybeSingle();
 
         if (fetchError || !asset) {
+            console.error('[STORAGE_VIEW] Asset lookup failed:', fetchError);
             return NextResponse.json({ message: 'Document not found or access denied.' }, { status: 404 });
         }
 
@@ -52,24 +56,47 @@ export async function GET(request: Request) {
             return NextResponse.json({ message: 'Access Denied: You do not own this asset.' }, { status: 403 });
         }
 
-        // 4. Binary Conversion
+        // 4. Binary Conversion (Hardened for various PostgreSQL/Supabase formats)
         let buffer: Buffer;
-        if (typeof asset.file_data === 'string' && asset.file_data.startsWith('\\x')) {
-            buffer = Buffer.from(asset.file_data.substring(2), 'hex');
-        } else if (typeof asset.file_data === 'string') {
-            buffer = Buffer.from(asset.file_data, 'base64');
-        } else {
-            // Postgres node driver might return it as a Buffer directly
-            buffer = Buffer.from(asset.file_data as any);
+        const rawData = asset.file_data;
+
+        if (!rawData) {
+            throw new Error('Asset record exists but contains no binary data.');
         }
 
+        // Handle hex format (\x...), raw Uint8Arrays, and standard buffers
+        if (Buffer.isBuffer(rawData)) {
+            buffer = rawData;
+        } else if (typeof rawData === 'string' && rawData.startsWith('\\x')) {
+            buffer = Buffer.from(rawData.substring(2), 'hex');
+        } else if (typeof rawData === 'string') {
+            const isHex = /^[0-9a-fA-F]+$/.test(rawData);
+            buffer = Buffer.from(rawData, isHex ? 'hex' : 'base64');
+        } else if (rawData instanceof Uint8Array) {
+            buffer = Buffer.from(rawData);
+        } else {
+            // Fallback for objects or other stream types
+            buffer = Buffer.from(rawData as any);
+        }
+
+        if (buffer.length === 0) {
+            throw new Error('Extracted binary buffer is empty.');
+        }
+
+        // 5. Build authoritative response
+        const headers = new Headers();
+        headers.set('Content-Type', asset.mime_type || 'application/pdf');
+        headers.set('Content-Disposition', `inline; filename="${asset.file_name || 'document.pdf'}"`);
+        headers.set('Content-Length', buffer.length.toString());
+        headers.set('Cache-Control', 'private, max-age=3600');
+        headers.set('X-Content-Type-Options', 'nosniff');
+        
+        // Ensure browser doesn't block the preview if it's served as an iframe
+        headers.set('Access-Control-Allow-Origin', '*');
+
         return new Response(buffer, {
-            headers: {
-                'Content-Type': asset.mime_type,
-                'Content-Disposition': `inline; filename="${asset.file_name}"`,
-                'Content-Length': buffer.length.toString(),
-                'Cache-Control': 'private, max-age=3600'
-            }
+            status: 200,
+            headers
         });
 
     } catch (error: any) {

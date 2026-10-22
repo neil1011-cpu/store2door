@@ -63,9 +63,10 @@ export async function POST(request: Request) {
             let hasMore = true;
 
             while (currentPage <= maxPages && hasMore) {
+                // FETCH: v0.2.0 supports page and pageSize but not trackingNumber filter
                 const response = await client.packages.list({ 
                     pageSize, 
-                    page: currentPage 
+                    page: currentPage
                 });
                 
                 const list = Array.isArray(response) ? response : (response.data || []);
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
                     break;
                 }
 
-                // Strict exact match filtering
+                // Strict exact match filtering (Case-insensitive via SDK field normalization)
                 const matches = list.filter((m: any) => {
                     const remoteTracking = (m.trackingNumber || m.code || '').toString().toUpperCase().trim();
                     return remoteTracking === tracking;
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
                 // Early exit if multiple matches found
                 if (foundMatches.length > 1) break;
                 
-                // Termination condition: partial page
+                // Termination condition: partial page indicates we've reached the end
                 if (list.length < pageSize) {
                     hasMore = false;
                 } else {
@@ -100,8 +101,6 @@ export async function POST(request: Request) {
             } else if (foundMatches.length > 1) {
                 throw new Error(`Ambiguity detected: ${foundMatches.length} matching packages found for tracking ${tracking} in Logicware Hub. Aborting to prevent data fragmentation.`);
             } else if (currentPage > maxPages && hasMore) {
-                // We hit the scan limit but more records exist. 
-                // Creating a new package here risks a duplicate.
                 throw new Error(`Exhaustive search limit reached (1,000 records). Package ${tracking} was not found in the most recent history. Please link the ID manually to avoid creating a duplicate.`);
             }
         }
@@ -117,17 +116,16 @@ export async function POST(request: Request) {
         }
 
         if (logicwareId) {
+            // FIX: Removed 'updated_at' to resolve schema cache mismatch errors
             const { error: updateError } = await adminClient
                 .from(table)
                 .update({ 
-                    logicware_id: logicwareId, 
-                    updated_at: new Date().toISOString() 
+                    logicware_id: logicwareId
                 })
                 .eq('id', shipmentId);
             
             if (updateError) {
-                // CRITICAL: Remote operation was successful but local state failed to update.
-                throw new Error(`CRITICAL: Remote Hub ${op} SUCCEEDED, but local registry update failed: ${updateError.message}. Manual ID linking for ID "${logicwareId}" may be required.`);
+                throw new Error(`CRITICAL: Remote Hub ${op} SUCCEEDED, but local registry update failed: ${updateError.message}. Manual ID linking for ID "${logicwareId}" is required.`);
             }
         } else {
             throw new Error(`Hub ${op} appeared successful but no Logicware ID was returned.`);
