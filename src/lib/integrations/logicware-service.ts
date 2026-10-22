@@ -24,6 +24,7 @@ export async function testLogicwareConnection(config: LogicwareConfig) {
         const hub = client.packages || client.shippers;
         if (!hub) throw new Error('No accessible modules found.');
         
+        // Corrected parameter name from limit to pageSize for SDK v0.2.0
         await hub.list({ pageSize: 1 });
         
         return { success: true, message: 'Logistics Hub Synchronized.' };

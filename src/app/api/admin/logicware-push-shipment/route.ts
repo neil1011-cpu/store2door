@@ -30,9 +30,10 @@ export async function POST(request: Request) {
 
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
+        // Use authoritative relationship name 'profiles' for the join
         const { data: local, error: fetchErr } = await adminClient
             .from(table)
-            .select('*, profiles:profile_id(mailbox_number, logicware_id)')
+            .select('*, profiles(mailbox_number, logicware_id)')
             .eq('id', shipmentId)
             .maybeSingle();
 
@@ -113,6 +114,7 @@ export async function POST(request: Request) {
         }
 
         if (logicwareId) {
+            // FIX: Removed updated_at mutation to resolve schema mismatch errors
             const { error: updateError } = await adminClient
                 .from(table)
                 .update({ 

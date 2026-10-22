@@ -28,8 +28,8 @@ export async function POST(request: Request) {
             operation = 'update';
             result = await client.shippers.update(profile.logicware_id, {
                 name: profile.full_name,
-                phone: profile.phone || '',
-                // trn is omitted from update as per SDK v0.2.0 types
+                phone: profile.phone || ''
+                // TRN is immutable during update in SDK v0.2.0
             });
         } else {
             operation = 'create';

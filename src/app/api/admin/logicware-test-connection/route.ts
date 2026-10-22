@@ -13,6 +13,7 @@ export async function POST(request: Request) {
         
         const testResource = client.packages || client.shippers;
         if (testResource) {
+            // Corrected parameter name from limit to pageSize for SDK v0.2.0
             await testResource.list({ pageSize: 1 });
         }
 
