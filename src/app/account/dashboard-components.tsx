@@ -175,9 +175,13 @@ export function PackagesTab({ profileId }: { profileId: string }) {
     const { data: shipments } = await supabase.from('shipments').select('*').eq('profile_id', profileId);
     const { data: preAlerts } = await supabase.from('pre_alerts').select('*').eq('profile_id', profileId).eq('status', 'Pending');
     
+    // Deduplicate: If an item is in both tables, prioritize the shipment
+    const shipmentTrackingNumbers = new Set((shipments || []).map(s => s.tracking_number));
+    const filteredPreAlerts = (preAlerts || []).filter(p => !shipmentTrackingNumbers.has(p.tracking_number));
+
     const combined = [
       ...(shipments || []).map(s => ({ ...s, type: 'shipment' })),
-      ...(preAlerts || []).map(p => ({ ...p, type: 'pre-alert' }))
+      ...filteredPreAlerts.map(p => ({ ...p, type: 'pre-alert' }))
     ].sort((a, b) => {
       const dateA = a.shipping_date || a.submission_date || a.created_at;
       const dateB = b.shipping_date || b.submission_date || b.created_at;
@@ -232,8 +236,13 @@ export function PackagesTab({ profileId }: { profileId: string }) {
             ) : packages.map((pkg) => (
               <TableRow key={pkg.id} className="h-20 hover:bg-primary/5 transition-colors">
                 <TableCell className="pl-6">
-                  <p className="font-mono font-black text-primary text-sm tracking-tighter">{pkg.tracking_number}</p>
-                  <p className="text-[10px] uppercase font-bold opacity-60 truncate max-w-[150px]">{pkg.contents}</p>
+                  <div className="flex flex-col">
+                    <p className="font-mono font-black text-primary text-sm tracking-tighter">{pkg.tracking_number}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[10px] uppercase font-bold opacity-60 truncate max-w-[150px]">{pkg.contents || 'No Description'}</p>
+                      {pkg.weight_lbs > 0 && <span className="text-[9px] font-bold text-muted-foreground bg-muted px-1.5 rounded">{pkg.weight_lbs} LBS</span>}
+                    </div>
+                  </div>
                 </TableCell>
                 <TableCell><Badge variant={getStatusVariant(pkg.status)} className="text-[8px] font-black uppercase italic tracking-widest border-2">{pkg.status}</Badge></TableCell>
                 <TableCell className="text-right">

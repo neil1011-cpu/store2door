@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History, RefreshCcw, User } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -53,7 +53,7 @@ export default function ShippingPage() {
     if (!silent) setIsLoading(true);
     try {
       const [shipRes, usersRes] = await Promise.all([
-        supabase.from('shipments').select('*, profiles(full_name, mailbox_number)').order('created_at', { ascending: false }),
+        supabase.from('shipments').select('*, profiles:profile_id(full_name, mailbox_number)').order('created_at', { ascending: false }),
         supabase.from('profiles').select('*').order('full_name', { ascending: true })
       ]);
       if (shipRes.error) throw shipRes.error;
@@ -389,7 +389,7 @@ export default function ShippingPage() {
                         <Checkbox checked={selectedIds.size === filtered.length && filtered.length > 0} onCheckedChange={toggleSelectAll} />
                     </TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Tracking ID</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase">Shipper/User</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Shipper/Customer</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
@@ -414,11 +414,18 @@ export default function ShippingPage() {
                                 <p className="text-[9px] font-bold opacity-40 uppercase truncate max-w-[150px]">{s.contents || 'No Description'}</p>
                             </TableCell>
                             <TableCell>
-                                <p className="font-bold text-xs uppercase italic">{s.profiles?.full_name}</p>
-                                <p className="text-[9px] font-mono opacity-60 uppercase">{s.profiles?.mailbox_number}</p>
+                                <div className="flex items-center gap-2">
+                                  <div className="bg-muted p-1.5 rounded-lg">
+                                    <User className="h-3 w-3 text-muted-foreground" />
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-xs uppercase italic">{s.profiles?.full_name || 'N/A'}</p>
+                                    <p className="text-[9px] font-mono opacity-60 uppercase">{s.profiles?.mailbox_number}</p>
+                                  </div>
+                                </div>
                             </TableCell>
                             <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
-                            <TableCell className="text-xs font-bold uppercase">{s.weight_lbs} LBS</TableCell>
+                            <TableCell className="text-xs font-bold uppercase">{s.weight_lbs ? `${s.weight_lbs} LBS` : '—'}</TableCell>
                             <TableCell className="text-[10px] font-medium opacity-60">{new Date(s.created_at).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right pr-6">
                             <div className="flex justify-end gap-2">

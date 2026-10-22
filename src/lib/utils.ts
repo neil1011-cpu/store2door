@@ -64,3 +64,33 @@ export function getSiteOrigin(request?: Request): string {
     }
     return 'http://localhost:3000';
 }
+
+/**
+ * Maps Logicware Hub status names to internal FromStore2Door statuses.
+ */
+export function mapLogicwareStatus(hubStatus: string): string {
+  const s = hubStatus.toLowerCase();
+  if (s.includes('pickup') || s.includes('destination') || s.includes('jamaica')) return 'Ready for pick up';
+  if (s.includes('transit') || s.includes('departed') || s.includes('shipped') || s.includes('flight') || s.includes('voyage')) return 'In transit';
+  if (s.includes('received') || s.includes('arrived') || s.includes('warehouse') || s.includes('intake')) return 'Received';
+  if (s.includes('delivery')) return 'Out for delivery';
+  if (s.includes('delivered') || s.includes('picked up')) return 'Delivered';
+  return hubStatus;
+}
+
+/**
+ * Defines status priority to prevent "downgrading" (e.g. overwriting 'Ready for pick up' with 'Received').
+ */
+export const STATUS_PRIORITY: Record<string, number> = {
+    'Pending': 0,
+    'Pre-alert': 0,
+    'Processed': 1,
+    'Received': 2,
+    'Processing': 2,
+    'In transit': 3,
+    'Out for delivery': 4,
+    'Ready for pick up': 5,
+    'Delivered': 6,
+    'Returned': 7,
+    'On Hold': 1
+};

@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { mapLogicwareStatus, STATUS_PRIORITY } from '@/lib/utils';
 
 /**
  * @fileOverview Hardened Logicware Inbound Webhook.
- * Implements official signature verification and idempotent processing.
- * Optimized identity resolution using targeted Supabase queries.
+ * Implements status normalization, protection against out-of-order events, and optimized identity resolution.
  */
 
 export async function POST(request: Request) {
     const adminClient = await createAdminClient();
     const requestId = Math.random().toString(36).slice(2, 9);
     
-    // 1. COLLECT METADATA & HEADERS
     const h = request.headers;
     const signatureHeader = h.get('x-logicware-signature') || '';
     const timestampHeader = h.get('x-logicware-timestamp') || '';
@@ -22,7 +21,6 @@ export async function POST(request: Request) {
     try {
         const rawBody = await request.text();
 
-        // 2. RETRIEVE CONFIG
         const { data: configDoc } = await adminClient
             .from('system_configs')
             .select('config_value')
@@ -31,7 +29,6 @@ export async function POST(request: Request) {
 
         const webhookSecret = configDoc?.config_value?.webhookSecret;
 
-        // 3. SECURE SIGNATURE VERIFICATION
         if (webhookSecret && webhookSecret !== '********') {
             if (!signatureHeader || !timestampHeader) {
                 return NextResponse.json({ message: 'Unauthorized: Missing security headers' }, { status: 401 });
@@ -56,7 +53,6 @@ export async function POST(request: Request) {
             }
         }
 
-        // 4. PAYLOAD PROCESSING
         const body = JSON.parse(rawBody);
         const { event, data } = body;
         
@@ -67,7 +63,8 @@ export async function POST(request: Request) {
         const trackingId = (data.trackingNumber || data.code || '').toString().toUpperCase().trim();
         const mailboxRaw = (data.shipperAddressCode || data.shipper?.referenceCode || data.referenceCode || '').toString().toUpperCase().trim();
         const weight = parseFloat(data.weightLbs ?? data.weight ?? 0);
-        const status = data.status?.name || data.status || 'Updated';
+        const rawStatus = data.status?.name || data.status || 'Updated';
+        const status = mapLogicwareStatus(rawStatus);
         const logicwareId = data.id || data.packageId;
 
         if (!trackingId) {
@@ -75,11 +72,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Missing tracking identifier' }, { status: 400 });
         }
 
-        // 5. RESOLVE CUSTOMER IDENTITY (Optimized)
         let targetProfile = null;
         const hubNumeric = mailboxRaw.replace(/[^0-9]/g, '');
 
-        // Attempt 1: Exact Match
         const { data: exactMatches } = await adminClient
             .from('profiles')
             .select('id, mailbox_number')
@@ -89,7 +84,6 @@ export async function POST(request: Request) {
         if (exactMatches && exactMatches.length > 0) {
             targetProfile = exactMatches[0];
         } else if (hubNumeric) {
-            // Attempt 2: Numeric Suffix Fallback
             const { data: possibleMatches } = await adminClient
                 .from('profiles')
                 .select('id, mailbox_number')
@@ -118,10 +112,30 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'Identity not resolved' });
         }
 
-        // 6. UPSERT SHIPMENT/PRE-ALERT (Idempotency)
-        const isPreAlert = status.toLowerCase().includes('pre-alert') || status.toLowerCase().includes('pending');
+        const isPreAlertEvent = rawStatus.toLowerCase().includes('pre-alert') || rawStatus.toLowerCase().includes('pending');
         
-        if (isPreAlert) {
+        const { data: existingShipment } = await adminClient
+            .from('shipments')
+            .select('status')
+            .eq('tracking_number', trackingId)
+            .maybeSingle();
+
+        const { data: existingPreAlert } = await adminClient
+            .from('pre_alerts')
+            .select('status')
+            .eq('tracking_number', trackingId)
+            .maybeSingle();
+
+        const currentStatus = existingShipment?.status || existingPreAlert?.status || 'Pending';
+        const currentPriority = STATUS_PRIORITY[currentStatus] || 0;
+        const newPriority = STATUS_PRIORITY[status] || 0;
+
+        if (currentPriority > newPriority) {
+            console.log(`[WEBHOOK:${requestId}] Status protection: Skipping update from '${currentStatus}' to '${status}' (Lower Priority).`);
+            return NextResponse.json({ success: true, message: 'Status priority protection' });
+        }
+
+        if (isPreAlertEvent && !existingShipment) {
             const { error } = await adminClient.from('pre_alerts').upsert({
                 profile_id: targetProfile.id,
                 tracking_number: trackingId,
@@ -143,13 +157,17 @@ export async function POST(request: Request) {
                 updated_at: new Date().toISOString()
             }, { onConflict: 'tracking_number' });
             if (error) throw error;
+
+            if (existingPreAlert) {
+                await adminClient.from('pre_alerts').update({ status: 'Processed' }).eq('tracking_number', trackingId);
+            }
         }
 
         await adminClient.from('system_logs').insert({
             log_type: 'webhook_processed',
-            description: `Synchronized Hub event ${event} for ${trackingId}`,
+            description: `Synchronized Hub event ${event} for ${trackingId}. Mapped status: ${status}`,
             actor_id: targetProfile.id,
-            metadata: { event, status, logicwareId }
+            metadata: { event, rawStatus, mappedStatus: status, logicwareId }
         });
 
         return NextResponse.json({ success: true });
