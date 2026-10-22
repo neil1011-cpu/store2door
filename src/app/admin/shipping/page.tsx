@@ -36,6 +36,7 @@ export default function ShippingPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncingShipmentId, setSyncingShipmentId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -188,6 +189,29 @@ export default function ShippingPage() {
     }
   };
 
+  const handleSyncShipment = async (shipmentId: string) => {
+    setSyncingShipmentId(shipmentId);
+    try {
+        const response = await fetch('/api/admin/logicware-push-shipment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shipmentId })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Push failed');
+
+        toast({ 
+            title: "Hub Synchronized", 
+            description: `Shipment record ${data.operation === 'create' ? 'created' : 'updated'} in Hub.` 
+        });
+        fetchData(true); 
+    } catch (err: any) {
+        toast({ title: "Sync Error", description: err.message, variant: "destructive" });
+    } finally {
+        setSyncingShipmentId(null);
+    }
+  };
+
   const handleManualEntry = async (data: any) => {
     setIsSubmitting(true);
     try {
@@ -320,7 +344,7 @@ export default function ShippingPage() {
                 Sync Hub
             </Button>
             <Button variant="outline" onClick={() => fetchData()} className="font-bold border-2">
-                <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
+                <RefreshCcw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
             </Button>
             
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -369,7 +393,7 @@ export default function ShippingPage() {
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
-                    <TableHead className="w-[100px]"></TableHead>
+                    <TableHead className="w-[120px]"></TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -398,6 +422,16 @@ export default function ShippingPage() {
                             <TableCell className="text-[10px] font-medium opacity-60">{new Date(s.created_at).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right pr-6">
                             <div className="flex justify-end gap-2">
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => handleSyncShipment(s.id)}
+                                    disabled={syncingShipmentId === s.id}
+                                    className="hover:bg-blue-50 text-blue-600"
+                                    title="Sync to Logicware"
+                                >
+                                    {syncingShipmentId === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                                </Button>
                                 <StatusUpdateDialog 
                                 shipment={s} 
                                 onUpdate={(newStatus) => handleStatusUpdate(s.id, newStatus)} 
