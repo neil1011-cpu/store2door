@@ -127,7 +127,6 @@ export async function POST(request: Request) {
             
             if (updateError) {
                 // CRITICAL: Remote operation was successful but local state failed to update.
-                // We report this specifically so admins know the Hub is updated.
                 throw new Error(`CRITICAL: Remote Hub ${op} SUCCEEDED, but local registry update failed: ${updateError.message}. Manual ID linking for ID "${logicwareId}" may be required.`);
             }
         } else {
