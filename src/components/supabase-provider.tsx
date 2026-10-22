@@ -49,8 +49,12 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       }
     });
 
+    // SAFETY: Ensure loading state eventually resolves even if auth change never fires
+    const timer = setTimeout(() => setIsLoading(false), 5000);
+
     return () => {
       subscription.unsubscribe();
+      clearTimeout(timer);
     };
   }, [supabase, router]);
 
@@ -99,7 +103,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   if (!mounted || (isLoading && !user)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary opacity-20" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary opacity-60" />
       </div>
     );
   }

@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { Buffer } from 'node:buffer';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { mapLogicwareStatus, STATUS_PRIORITY } from '@/lib/utils';
 
 /**
  * @fileOverview Hardened Logicware Inbound Webhook.
- * Implements status normalization, protection against out-of-order events, and schema-safe updates.
+ * Implements status normalization, protection against out-of-order events, and length-safe signature validation.
  */
 
 export async function POST(request: Request) {
@@ -35,7 +34,12 @@ export async function POST(request: Request) {
             const hmac = createHmac('sha256', webhookSecret);
             const calculatedSignature = hmac.update(`${timestampHeader}.${rawBody}`).digest('hex');
             const expectedSignature = signatureHeader.replace('sha256=', '');
-            if (!timingSafeEqual(Buffer.from(calculatedSignature, 'hex'), Buffer.from(expectedSignature, 'hex'))) {
+            
+            // SECURITY: timingSafeEqual requires buffers of identical length.
+            const calculatedBuffer = Buffer.from(calculatedSignature, 'hex');
+            const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+
+            if (calculatedBuffer.length !== expectedBuffer.length || !timingSafeEqual(calculatedBuffer, expectedBuffer)) {
                 return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
             }
         }
