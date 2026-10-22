@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 /**
  * @fileOverview Universal Shipment Sync API.
  * Synchronizes local shipments/pre-alerts with the Logicware Hub.
- * Handles both .create() and .update() using persistent logicware_id mapping.
+ * Uses 'packages' resource for SDK v0.2.0 compatibility.
  */
 
 export async function POST(request: Request) {
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
             status: localRecord.status
         };
 
+        // SDK v0.2.0 uses 'packages'
         const packagesResource = (client as any).packages;
         if (!packagesResource) throw new Error('SDK packages resource unavailable.');
 
@@ -59,16 +60,23 @@ export async function POST(request: Request) {
 
         // 3. IDENTIFY BEFORE CREATE (Duplicate Prevention)
         if (!logicwareId) {
-            console.log(`[PUSH_SHIPMENT] No ID for ${trackingNumber}. Searching Hub...`);
+            console.log(`[PUSH_SHIPMENT] Searching Hub for existing tracking: ${trackingNumber}`);
             const existing = await packagesResource.list({ trackingNumber: trackingNumber });
+            
+            // Unwrapping SDK response
             const matches = Array.isArray(existing) ? existing : (existing.data || existing.results || []);
+            
+            // Client-side verification filter to ensure server-side filtering actually worked
+            const exactMatches = matches.filter((m: any) => 
+                (m.trackingNumber || m.code || '').toUpperCase() === trackingNumber.toUpperCase()
+            );
 
-            if (matches.length === 1) {
-                logicwareId = matches[0].id;
+            if (exactMatches.length === 1) {
+                logicwareId = exactMatches[0].id;
                 console.log(`[PUSH_SHIPMENT] Match found: ${logicwareId}. Mapping state.`);
                 await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', shipmentId);
-            } else if (matches.length > 1) {
-                throw new Error(`Ambiguous tracking number: ${trackingNumber} matches ${matches.length} remote packages.`);
+            } else if (exactMatches.length > 1) {
+                throw new Error(`Ambiguity: Tracking ${trackingNumber} matches ${exactMatches.length} remote packages.`);
             }
         }
 
@@ -80,22 +88,23 @@ export async function POST(request: Request) {
             operation = 'create';
             result = await packagesResource.create(payload);
             
-            // Save the Logicware ID back to our registry for future updates
+            // Atomic state persistence
             if (result?.id) {
                 await adminClient
                     .from(table)
                     .update({ logicware_id: result.id })
                     .eq('id', shipmentId);
+                logicwareId = result.id;
             }
         }
 
         // 5. Audit Log
         await adminClient.from('system_logs').insert({
             log_type: `logicware_${operation}_success`,
-            description: `Shipment ${trackingNumber} synchronized (${operation}) with Logicware Hub.`,
+            description: `Shipment ${trackingNumber} synchronized (${operation}) with Hub.`,
             metadata: { 
                 trackingNumber, 
-                logicwareId: logicwareId || result?.id,
+                logicwareId,
                 localId: shipmentId,
                 type 
             }
@@ -104,18 +113,11 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
             success: true, 
             operation,
-            logicwareId: logicwareId || result?.id 
+            logicwareId 
         });
 
     } catch (error: any) {
         console.error('[API:LOGICWARE:PUSH_SHIPMENT] FATAL:', error);
-        
-        await adminClient.from('system_logs').insert({
-            log_type: 'logicware_sync_failed',
-            description: `Hub sync failed for local item ${shipmentId}: ${error.message}`,
-            metadata: { error: error.message, shipmentId }
-        });
-
         return NextResponse.json({ 
             success: false, 
             message: error.message || 'Hub synchronization encountered an exception.' 

@@ -1,31 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
-import { createAdminClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * @fileOverview Hardened Logicware Shipment Fetcher.
- * Robust unwrapping of Logicware SDK responses and detailed diagnostic meta-data.
+ * @fileOverview Hardened Logicware Package Fetcher.
+ * Uses correct 'packages' resource for SDK v0.2.0.
  */
-
-async function getSafeBody(request: Request) {
-  try {
-    const text = await request.text();
-    if (!text) return {};
-    const parsed = JSON.parse(text);
-    return (parsed && typeof parsed === 'object') ? parsed : {};
-  } catch (e) {
-    return {};
-  }
-}
 
 export async function POST(request: Request) {
     try {
-        const payload = await getSafeBody(request);
-        let apiKey = payload.apiKey;
-
-        const client = await getLogicwareClient(apiKey);
+        const client = await getLogicwareClient();
         if (!client) {
             return NextResponse.json({ 
                 success: false, 
@@ -33,33 +18,24 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
         
-        let rawResults: any = [];
-        try {
-            rawResults = await (client as any).shipments.list({ limit: 100 });
-        } catch (err: any) {
-            console.error('[LOGICWARE_API] Primary shipments.list failed:', err.message);
-            if (client.shippers) {
-                rawResults = await client.shippers.list();
-            } else {
-                throw err;
-            }
+        // SDK v0.2.0 uses 'packages'
+        const packagesResource = (client as any).packages;
+        if (!packagesResource) {
+            throw new Error('Packages resource not found in SDK.');
         }
+
+        const rawResults = await packagesResource.list({ limit: 100 });
 
         let shipmentsArray = [];
         if (Array.isArray(rawResults)) {
             shipmentsArray = rawResults;
         } else if (rawResults && typeof rawResults === 'object') {
-            shipmentsArray = (rawResults as any).data || (rawResults as any).shipments || (rawResults as any).results || (rawResults as any).data?.shipments || [];
+            shipmentsArray = (rawResults as any).data || (rawResults as any).packages || (rawResults as any).results || [];
         }
 
         return NextResponse.json({ 
             success: true, 
-            shipments: shipmentsArray,
-            diagnostic: {
-                rawCount: shipmentsArray.length,
-                structure: rawResults ? typeof rawResults : 'null',
-                firstItemFields: shipmentsArray.length > 0 ? Object.keys(shipmentsArray[0]) : []
-            }
+            shipments: shipmentsArray
         });
 
     } catch (error: any) {

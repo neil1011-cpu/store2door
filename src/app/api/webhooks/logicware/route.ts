@@ -37,49 +37,18 @@ export async function POST(request: Request) {
 
         // 3. SECURE VERIFICATION (If configured)
         if (webhookSecret && webhookSecret !== '********') {
-            console.log(`[LOGICWARE_WEBHOOK_AUTH:${requestId}] Verifying against SDK protocol...`);
-
             if (!signatureHeader || !timestampHeader) {
-                console.warn(`[LOGICWARE_WEBHOOK_AUTH:${requestId}] 401: Missing headers.`);
-                return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), {
-                    status: 401,
-                    headers: { 
-                        'X-Store2Door-Webhook-Version': 'logicware-v4',
-                        'X-Store2Door-Diag-Code': 'AUTH_MISSING_HEADERS' 
-                    }
-                });
+                return new NextResponse(JSON.stringify({ message: 'Unauthorized: Missing headers' }), { status: 401 });
             }
 
-            // A. Timestamp Tolerance (SDK default: 300s)
             const timestamp = parseInt(timestampHeader, 10);
             const now = Math.floor(Date.now() / 1000);
             const age = Math.abs(now - timestamp);
             
-            console.log(`[LOGICWARE_WEBHOOK_AUTH:${requestId}] Timestamp age: ${age}s`);
             if (isNaN(timestamp) || age > 300) {
-                console.warn(`[LOGICWARE_WEBHOOK_AUTH:${requestId}] 401: Timestamp drift too high (${age}s).`);
-                return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), {
-                    status: 401,
-                    headers: { 
-                        'X-Store2Door-Webhook-Version': 'logicware-v4',
-                        'X-Store2Door-Diag-Code': 'AUTH_TIMESTAMP_EXPIRED' 
-                    }
-                });
+                return new NextResponse(JSON.stringify({ message: 'Unauthorized: Timestamp expired' }), { status: 401 });
             }
 
-            // B. Signature Format (sha256=<hex>)
-            if (!signatureHeader.startsWith('sha256=')) {
-                console.warn(`[LOGICWARE_WEBHOOK_AUTH:${requestId}] 401: Invalid signature format.`);
-                return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), {
-                    status: 401,
-                    headers: { 
-                        'X-Store2Door-Webhook-Version': 'logicware-v4',
-                        'X-Store2Door-Diag-Code': 'AUTH_SIG_FORMAT_INVALID' 
-                    }
-                });
-            }
-
-            // C. HMAC Calculation
             const expectedSignatureHex = signatureHeader.replace('sha256=', '');
             const hmac = createHmac('sha256', webhookSecret);
             const calculatedSignature = hmac.update(`${timestampHeader}.${rawBody}`).digest('hex');
@@ -88,16 +57,8 @@ export async function POST(request: Request) {
             const calcBuf = Buffer.from(calculatedSignature, 'hex');
 
             if (sigBuf.length !== calcBuf.length || !timingSafeEqual(sigBuf, calcBuf)) {
-                console.warn(`[LOGICWARE_WEBHOOK_AUTH:${requestId}] 401: Signature mismatch.`);
-                return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), {
-                    status: 401,
-                    headers: { 
-                        'X-Store2Door-Webhook-Version': 'logicware-v4',
-                        'X-Store2Door-Diag-Code': 'AUTH_SIG_MISMATCH' 
-                    }
-                });
+                return new NextResponse(JSON.stringify({ message: 'Unauthorized: Signature mismatch' }), { status: 401 });
             }
-            console.log(`[LOGICWARE_WEBHOOK_AUTH:${requestId}] Handshake Approved.`);
         }
 
         // 4. PAYLOAD PROCESSING
@@ -121,89 +82,86 @@ export async function POST(request: Request) {
         const description = data.description || data.contents || 'Hub Synchronized';
         const logicwareId = data.packageId || data.id;
 
-        console.log(`[LOGICWARE_WEBHOOK_DATA:${requestId}] Processing ${event} for ${trackingId}. Hub ID: ${logicwareId}`);
-
-        if (trackingId) {
-            // Find Customer by Numeric-Only Match
-            const hubNumeric = mailboxRaw.replace(/[^0-9]/g, '');
-            const { data: profiles } = await adminClient.from('profiles').select('id, mailbox_number');
-            
-            const targetProfile = profiles?.find(p => {
-                const localMailbox = (p.mailbox_number || '').toUpperCase().trim();
-                const localNumeric = localMailbox.replace(/[^0-9]/g, '');
-                // Corrected uNumeric to localNumeric
-                return localMailbox === mailboxRaw || (hubNumeric !== '' && localNumeric === hubNumeric);
-            });
-
-            if (!targetProfile) {
-                await adminClient.from('system_logs').insert({
-                    log_type: 'logicware_webhook_unresolved',
-                    description: `Unresolved customer mailbox: ${mailboxRaw} for package ${trackingId}`,
-                    metadata: { event, trackingId, mailboxRaw }
-                });
-                return NextResponse.json({ success: false, message: 'Identity missing' }, { status: 200 });
-            }
-
-            // ROUTE BY STATUS: Received/InTransit -> Shipments, PreAlert/Pending -> Pre-Alerts
-            const isPreAlert = status.toLowerCase().includes('prealert') || status.toLowerCase().includes('pending');
-
-            if (isPreAlert) {
-                const { data: existing } = await adminClient.from('pre_alerts').select('id').eq('tracking_number', trackingId).maybeSingle();
-                const payload = {
-                    profile_id: targetProfile.id,
-                    tracking_number: trackingId,
-                    contents: description,
-                    weight_lbs: weight,
-                    status: 'Pending',
-                    logicware_id: logicwareId,
-                    submission_date: new Date().toISOString()
-                };
-
-                if (existing) {
-                    await adminClient.from('pre_alerts').update(payload).eq('id', existing.id);
-                } else {
-                    await adminClient.from('pre_alerts').insert(payload);
-                }
-            } else {
-                const { data: existing } = await adminClient.from('shipments').select('id').eq('tracking_number', trackingId).maybeSingle();
-                const payload = {
-                    profile_id: targetProfile.id,
-                    tracking_number: trackingId,
-                    contents: description,
-                    weight_lbs: weight,
-                    status: status,
-                    logicware_id: logicwareId,
-                    updated_at: new Date().toISOString()
-                };
-
-                if (existing) {
-                    await adminClient.from('shipments').update(payload).eq('id', existing.id);
-                } else {
-                    await adminClient.from('shipments').insert({
-                        ...payload,
-                        total_cost_jmd: 0,
-                        payment_status: 'Unpaid'
-                    });
-                }
-            }
-
-            await adminClient.from('system_logs').insert({
-                log_type: 'logicware_webhook_processed',
-                description: `Successfully processed ${event} for ${trackingId}`,
-                actor_id: targetProfile.id,
-                metadata: { event, trackingId, status, weight, logicwareId }
-            });
+        if (!trackingId) {
+            console.warn(`[LOGICWARE_WEBHOOK_WARN:${requestId}] Payload missing tracking number.`);
+            return NextResponse.json({ success: false, message: 'Tracking ID required' }, { status: 400 });
         }
 
-        return NextResponse.json({ success: true, duration: `${Date.now() - start}ms` }, {
-            headers: { 'X-Store2Door-Webhook-Version': 'logicware-v4' }
+        // 5. RESOLVE CUSTOMER
+        const hubNumeric = mailboxRaw.replace(/[^0-9]/g, '');
+        const { data: profiles } = await adminClient.from('profiles').select('id, mailbox_number');
+        
+        const targetProfile = profiles?.find(p => {
+            const localMailbox = (p.mailbox_number || '').toUpperCase().trim();
+            const localNumeric = localMailbox.replace(/[^0-9]/g, '');
+            return localMailbox === mailboxRaw || (hubNumeric !== '' && localNumeric === hubNumeric);
         });
+
+        if (!targetProfile) {
+            console.warn(`[LOGICWARE_WEBHOOK_WARN:${requestId}] No local profile matches mailbox: ${mailboxRaw}`);
+            await adminClient.from('system_logs').insert({
+                log_type: 'logicware_webhook_unresolved',
+                description: `Unresolved customer mailbox: ${mailboxRaw} for package ${trackingId}`,
+                metadata: { event, trackingId, mailboxRaw }
+            });
+            // We return 200 to Logicware to prevent retries of an unresolveable identity
+            return NextResponse.json({ success: false, message: 'Identity missing' });
+        }
+
+        // 6. ROUTE BY STATUS: Received/InTransit -> Shipments, PreAlert/Pending -> Pre-Alerts
+        const isPreAlert = status.toLowerCase().includes('prealert') || status.toLowerCase().includes('pending');
+
+        if (isPreAlert) {
+            const { data: existing } = await adminClient.from('pre_alerts').select('id').eq('tracking_number', trackingId).maybeSingle();
+            const payload = {
+                profile_id: targetProfile.id,
+                tracking_number: trackingId,
+                contents: description,
+                weight_lbs: weight,
+                status: 'Pending',
+                logicware_id: logicwareId,
+                submission_date: new Date().toISOString()
+            };
+
+            if (existing) {
+                await adminClient.from('pre_alerts').update(payload).eq('id', existing.id);
+            } else {
+                await adminClient.from('pre_alerts').insert(payload);
+            }
+        } else {
+            const { data: existing } = await adminClient.from('shipments').select('id').eq('tracking_number', trackingId).maybeSingle();
+            const payload = {
+                profile_id: targetProfile.id,
+                tracking_number: trackingId,
+                contents: description,
+                weight_lbs: weight,
+                status: status,
+                logicware_id: logicwareId,
+                updated_at: new Date().toISOString()
+            };
+
+            if (existing) {
+                await adminClient.from('shipments').update(payload).eq('id', existing.id);
+            } else {
+                await adminClient.from('shipments').insert({
+                    ...payload,
+                    total_cost_jmd: 0,
+                    payment_status: 'Unpaid'
+                });
+            }
+        }
+
+        await adminClient.from('system_logs').insert({
+            log_type: 'logicware_webhook_processed',
+            description: `Successfully processed ${event} for ${trackingId}`,
+            actor_id: targetProfile.id,
+            metadata: { event, trackingId, status, weight, logicwareId }
+        });
+
+        return NextResponse.json({ success: true, duration: `${Date.now() - start}ms` });
 
     } catch (error: any) {
         console.error(`[LOGICWARE_WEBHOOK_FATAL:${requestId}]`, error);
-        return new NextResponse(JSON.stringify({ message: 'Internal Processor Error' }), {
-            status: 500,
-            headers: { 'X-Store2Door-Webhook-Version': 'logicware-v4' }
-        });
+        return new NextResponse(JSON.stringify({ message: 'Internal Processor Error' }), { status: 500 });
     }
 }

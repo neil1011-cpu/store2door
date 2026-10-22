@@ -1,29 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
-import { createAdminClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Fetches live manifests from the Logicware portal using Supabase config.
- * Simplified call to ensure compatibility with all Hub API versions.
+ * @fileOverview Fetches live manifests from the Logicware portal.
  */
 
-async function getSafeBody(request: Request) {
-  try {
-    const text = await request.text();
-    if (!text) return {};
-    const parsed = JSON.parse(text);
-    return (parsed && typeof parsed === 'object') ? parsed : {};
-  } catch (e) {
-    return {};
-  }
-}
-
-export async function POST(request: Request) {
+export async function POST() {
     try {
-        const payload = await getSafeBody(request);
-        let apiKey = payload.apiKey;
-
-        const client = await getLogicwareClient(apiKey);
+        const client = await getLogicwareClient();
         if (!client) {
             return NextResponse.json({ 
                 success: false, 
@@ -31,6 +15,7 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
+        // SDK v0.2.0 might not have manifests resource depending on API key permissions
         if (!client.manifests) {
              return NextResponse.json({ success: true, manifests: [] });
         }
