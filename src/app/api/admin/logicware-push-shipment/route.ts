@@ -92,17 +92,21 @@ export async function POST(request: Request) {
         }
 
         // 3. STATUS MAPPING: Logicware Hub v2 Sentence Case Enumerations
-        const mapToHubStatus = (s2dStatus: string) => {
-            const s = (s2dStatus || '').toLowerCase();
+        const mapToHubStatus = (s2dStatus: string): string => {
+            const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
-            if (s.includes('pickup') || s.includes('ready')) return 'Arrived at destination';
-            if (s.includes('transit')) return 'In transit';
-            if (s.includes('received') || s.includes('processing') || s.includes('processed') || s.includes('hold') || s.includes('return')) return 'Received at warehouse';
-            return 'Pre-alert';
+            if (s.includes('out for delivery')) return 'OutForDelivery';
+            if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'ReadyForPickup';
+            if (s.includes('in transit') || s.includes('transit')) return 'InTransit';
+            if (s.includes('ready to ship')) return 'ReadyToShip';
+            if (s.includes('shipped')) return 'Shipped';
+            if (s.includes('customs')) return 'AtCustoms';
+            if (s.includes('processing') || s.includes('processed')) return 'Processing';
+            if (s.includes('received') || s.includes('warehouse') || s.includes('hold')) return 'ReceivedAtWarehouse';
+            if (s.includes('return')) return 'Returned';
+            return 'PreAlert';
         };
-
         const hubStatus = mapToHubStatus(local.status);
-
         const payload = {
             trackingNumber: tracking,
             weightLbs: parseFloat(local.weight_lbs) || 0,
@@ -145,42 +149,24 @@ export async function POST(request: Request) {
 
         // 6. SEQUENTIAL STATUS TRANSITIONS (State Machine Compliance)
         let statusUpdated = false;
-        let statusUpdateError = null;
-        let transitionSteps = [];
+        let statusUpdateError: string | null = null;
+        const transitionSteps: string[] = [];
 
         if (logicwareId && hubStatus) {
-            const workflow = ['Pre-alert', 'Received at warehouse', 'In transit', 'Arrived at destination', 'Delivered'];
-            const currentIndex = workflow.indexOf(currentHubStatusName || 'Pre-alert');
-            const targetIndex = workflow.indexOf(hubStatus);
-
-            if (targetIndex > currentIndex && currentIndex !== -1) {
-                try {
-                    // Transition through each milestone sequentially to satisfy Hub linear rules
-                    for (let i = currentIndex + 1; i <= targetIndex; i++) {
-                        const stepStatus = workflow[i];
-                        await client.packages.updateStatus(logicwareId, stepStatus);
-                        transitionSteps.push(stepStatus);
-                    }
-                    statusUpdated = true;
-                } catch (statusErr: any) {
-                    statusUpdateError = statusErr.message;
-                    console.warn('[PUSH_SHIPMENT] Hub status transition interrupted:', statusErr.message);
-                }
-            } else if (targetIndex !== -1 && hubStatus !== currentHubStatusName) {
-                // If not in standard workflow or moving backwards (rare), try direct
-                try {
-                    await client.packages.updateStatus(logicwareId, hubStatus);
-                    statusUpdated = true;
-                    transitionSteps.push(hubStatus);
-                } catch (statusErr: any) {
-                    statusUpdateError = statusErr.message;
-                }
-            } else {
-                statusUpdated = true; // Already at or ahead of target
+            try {
+                await client.packages.update(logicwareId, {
+                    ...payload,
+                    status: hubStatus as any,
+                });
+                statusUpdated = true;
+                transitionSteps.push(hubStatus);
+                currentHubStatusName = hubStatus;
+            } catch (statusErr: any) {
+                statusUpdateError = statusErr?.message || String(statusErr);
+                console.warn('[Logicware] Package status update failed:', statusUpdateError);
             }
         }
 
-        // 7. PERSIST HUB ID LOCALLY
         if (logicwareId && logicwareId !== local.logicware_id) {
             await adminClient
                 .from(table)

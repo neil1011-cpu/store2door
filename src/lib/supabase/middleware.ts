@@ -1,6 +1,6 @@
 import type { CookieOptions } from '@supabase/ssr';
 import { createServerClient } from '@supabase/ssr';
-import { NextResponse, type NextRequest } from 'next/request';
+import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * @fileOverview Supabase Middleware for FromStore2Door OS.
