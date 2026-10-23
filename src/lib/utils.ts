@@ -70,6 +70,10 @@ export function getSiteOrigin(request?: Request): string {
  */
 export function mapLogicwareStatus(hubStatus: string): string {
   const s = hubStatus.toLowerCase();
+  if (s === 'prealert') return 'Pre-alert';
+  if (s === 'readytoship') return 'Received';
+  if (s === 'atcustoms') return 'In transit';
+  if (s === 'atheadoffice' || s === 'atlocaloffice') return 'Ready for pick up';
   if (s.includes('pickup') || s.includes('destination') || s.includes('jamaica')) return 'Ready for pick up';
   if (s.includes('transit') || s.includes('departed') || s.includes('shipped') || s.includes('flight') || s.includes('voyage')) return 'In transit';
   if (s.includes('received') || s.includes('arrived') || s.includes('warehouse') || s.includes('intake')) return 'Received';

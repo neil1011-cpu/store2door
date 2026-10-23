@@ -98,7 +98,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, message: 'Priority protection' });
         }
 
-        const isPreAlertEvent = rawStatus.toLowerCase().includes('pre-alert') || rawStatus.toLowerCase().includes('pending');
+        const isPreAlertEvent = (rawStatus.toLowerCase().includes('pre-alert') || rawStatus.toLowerCase().includes('prealert')) || rawStatus.toLowerCase().includes('pending');
         
         if (isPreAlertEvent && !existingShipment) {
             await adminClient.from('pre_alerts').upsert({
