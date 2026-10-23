@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useSupabase } from '@/components/supabase-provider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { HeadphonesContact, Inbox, Truck, Search, Loader2, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { HeadphonesIcon, Inbox, Truck, Search, Loader2, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';

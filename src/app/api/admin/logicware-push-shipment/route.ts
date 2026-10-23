@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 
         // 2. Identify Hub Package and Current Status
         let logicwareId = local.logicware_id;
-        let currentHubStatusName = 'Pre-alert';
+        let currentHubStatusName = 'PreAlert';
 
         for (let page = 1; page <= 10; page++) {
             const res = await client.packages.list({ pageSize: 100, page } as any);
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
             const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
             if (match) {
                 logicwareId = match.id;
-                currentHubStatusName = match.status?.name || match.status || 'Pre-alert';
+                currentHubStatusName = match.status?.name || match.status || 'PreAlert';
                 break;
             }
             if (list.length < 100) break;
@@ -97,28 +97,28 @@ export async function POST(request: Request) {
         const mapToHubStatus = (s2dStatus: string): string => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
-            if (s.includes('out for delivery')) return 'Out for delivery';
-            if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'Arrived at destination';
-            if (s.includes('in transit') || s.includes('transit')) return 'In transit';
-            if (s.includes('processing') || s.includes('processed') || s.includes('received')) return 'Received at warehouse';
-            return 'Pre-alert';
+            if (s.includes('out for delivery')) return 'OutForDelivery';
+            if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'ReadyForPickup';
+            if (s.includes('in transit') || s.includes('transit')) return 'InTransit';
+            if (s.includes('processing') || s.includes('processed') || s.includes('received')) return 'ReceivedAtWarehouse';
+            return 'PreAlert';
         };
 
         const targetHubStatus = mapToHubStatus(local.status);
         const payload: any = {
             trackingNumber: tracking,
             weightLbs: parseFloat(local.weight_lbs) || 0,
-            contents: local.contents || 'Package',
             description: local.contents || '',
-            referenceCode: (local as any).profiles?.mailbox_number,
-            shipperId: shipperId
+            shipperId: shipperId || undefined,
+            shipperAddressCode: shipperId ? undefined : (local as any).profiles?.mailbox_number
         };
 
         // 4. Create/Update Base Data
         let op: 'create' | 'update';
         if (logicwareId) {
             op = 'update';
-            await client.packages.update(logicwareId, payload);
+            const { shipperId: _sid, shipperAddressCode: _sac, ...updatePayload } = payload;
+            await client.packages.update(logicwareId, updatePayload);
         } else {
             op = 'create';
             const result = await client.packages.create(payload);
@@ -127,11 +127,11 @@ export async function POST(request: Request) {
 
         // 5. Sequential Status Transitions (Workflow Compliance)
         const statusSequence = [
-            'Pre-alert',
-            'Received at warehouse',
-            'In transit',
-            'Arrived at destination',
-            'Out for delivery',
+            'PreAlert',
+            'ReceivedAtWarehouse',
+            'InTransit',
+            'ReadyForPickup',
+            'OutForDelivery',
             'Delivered'
         ];
 
@@ -155,12 +155,12 @@ export async function POST(request: Request) {
             const startIndex = findIndexInsensitive(statusSequence, currentHubStatusName);
             const targetIndex = findIndexInsensitive(statusSequence, targetHubStatus);
 
-            if (startIndex !== -1 && targetIndex !== -1 && targetIndex > startIndex) {
-                for (let i = startIndex + 1; i <= targetIndex; i++) {
+            if (targetIndex !== -1 && targetIndex !== startIndex) {
+                for (let i = targetIndex; i <= targetIndex; i++) {
                     const stepStatus = statusSequence[i];
                     try {
                         // Use authoritative transition method
-                        const updateResult = await (client.packages as any).updateStatus(logicwareId, stepStatus);
+                        const updateResult = await client.packages.update(logicwareId, { status: stepStatus as any });
                         
                         let confirmedStatus = getStatusName(updateResult);
                         let verificationSource = 'RESPONSE';

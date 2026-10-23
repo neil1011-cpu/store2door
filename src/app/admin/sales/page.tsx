@@ -50,7 +50,8 @@ export default function SalesDashboardPage() {
             const custMap: Record<string, any> = {};
             topCustomers?.forEach(s => {
                 const id = s.profile_id;
-                if (!custMap[id]) custMap[id] = { name: s.profiles?.full_name, mailbox: s.profiles?.mailbox_number, count: 0 };
+                const prof: any = Array.isArray(s.profiles) ? s.profiles[0] : s.profiles;
+                if (!custMap[id]) custMap[id] = { name: prof?.full_name, mailbox: prof?.mailbox_number, count: 0 };
                 custMap[id].count++;
             });
             const topList = Object.entries(custMap)

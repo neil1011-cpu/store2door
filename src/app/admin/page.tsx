@@ -1,4 +1,5 @@
 'use client';
+import { Button } from '@/components/ui/button';
 
 import Link from 'next/link';
 import { Users, Inbox, Truck, ArrowRightCircle, Loader2, DollarSign, Plane, Tag, Calculator, Settings, TrendingUp, Package, AlertCircle, CheckCircle2 } from 'lucide-react';

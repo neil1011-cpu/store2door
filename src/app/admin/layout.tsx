@@ -2,7 +2,7 @@
 
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger, SidebarFooter } from '@/components/ui/sidebar';
 import Link from 'next/link';
-import { LayoutDashboard, Users, Package, Settings, LogOut, Loader2, Inbox, Truck, DollarSign, Mail, Plane, Tag, Calculator, Bell, ShoppingCart, History, Database, BarChart3, HeadphonesContact } from 'lucide-react';
+import { LayoutDashboard, Users, Package, Settings, LogOut, Loader2, Inbox, Truck, DollarSign, Mail, Plane, Tag, Calculator, Bell, ShoppingCart, History, Database, BarChart3, HeadphonesIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -76,7 +76,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const sidebarLinks = [
     { href: "/admin", icon: <LayoutDashboard />, label: "Operations Hub" },
     { href: "/admin/sales", icon: <BarChart3 />, label: "Sales & Growth" },
-    { href: "/admin/customer-service", icon: <HeadphonesContact />, label: "Customer Service" },
+    { href: "/admin/customer-service", icon: <HeadphonesIcon />, label: "Customer Service" },
     { href: "/admin/pos", icon: <ShoppingCart />, label: "POS System" },
     { href: "/admin/pre-alerts", icon: <Inbox />, label: "Pre-Alerts" },
     { href: "/admin/shipping", icon: <Truck />, label: "Shipping" },
