@@ -61,7 +61,6 @@ export async function POST(request: Request) {
         try {
             const normalizedMailbox = (local as any).profiles?.mailbox_number?.trim().toUpperCase();
             if (normalizedMailbox) {
-                // Paginated search for shipper
                 for (let page = 1; page <= 10; page++) {
                     const res = await client.shippers.list({ pageSize: 100, page } as any);
                     const list = Array.isArray(res) ? res : ((res as any).data || []);
@@ -76,11 +75,10 @@ export async function POST(request: Request) {
             }
         } catch (e) { console.warn('[PUSH_SHIPMENT] Shipper resolution warning.'); }
 
-        // 3. Current Hub Status Retrieval (Pre-Sync Check)
+        // 3. Current Hub Status Retrieval
         let logicwareId = local.logicware_id;
         let currentHubStatusName = 'Pre-alert';
 
-        // Find package and its actual status in Logicware
         for (let page = 1; page <= 10; page++) {
             const res = await client.packages.list({ pageSize: 100, page } as any);
             const list = Array.isArray(res) ? res : ((res as any).data || []);
@@ -128,7 +126,7 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        // 6. Sequential Transitions with Active Verification
+        // 6. Sequential Transitions with Strict Verification
         const statusSequence = [
             'Pre-alert',
             'Received at warehouse',
@@ -142,16 +140,21 @@ export async function POST(request: Request) {
         let statusUpdateError: string | null = null;
         let finalVerifiedStatus = initialHubStatusAtStart;
         const transitionSteps: string[] = [];
-        const rawApiResponses: any[] = [];
+        const verificationAudit: any[] = [];
 
         const getStatusName = (obj: any) => {
             const val = obj?.status?.name || obj?.status || '';
             return String(val).trim();
         };
 
+        const findIndexInsensitive = (arr: string[], val: string) => {
+            const target = val.toLowerCase().trim();
+            return arr.findIndex(item => item.toLowerCase().trim() === target);
+        };
+
         if (logicwareId && targetHubStatus) {
-            const startIndex = statusSequence.indexOf(currentHubStatusName);
-            const targetIndex = statusSequence.indexOf(targetHubStatus);
+            const startIndex = findIndexInsensitive(statusSequence, currentHubStatusName);
+            const targetIndex = findIndexInsensitive(statusSequence, targetHubStatus);
 
             if (startIndex !== -1 && targetIndex !== -1 && targetIndex > startIndex) {
                 // Execute linear progression
@@ -160,27 +163,44 @@ export async function POST(request: Request) {
                     try {
                         // A. Dispatch Update
                         const updateResult = await client.packages.update(logicwareId, { ...payload, status: stepStatus as any });
-                        rawApiResponses.push({ step: stepStatus, response: updateResult });
-
+                        
                         // B. Verification Pass 1: Inspect immediate response
-                        let confirmed = getStatusName(updateResult);
+                        let confirmedStatus = getStatusName(updateResult);
+                        let verificationSource = 'RESPONSE';
 
-                        // C. Verification Pass 2: Active fetch if response is inconclusive
-                        if (confirmed !== stepStatus) {
-                            // Find the package again to verify the status
+                        // C. Verification Pass 2: Active Registry Lookup
+                        if (confirmedStatus.toLowerCase() !== stepStatus.toLowerCase()) {
                             let verifiedMatch = null;
-                            for (let page = 1; page <= 5; page++) {
+                            for (let page = 1; page <= 10; page++) {
                                 const verifyRes = await client.packages.list({ pageSize: 100, page } as any);
                                 const list = Array.isArray(verifyRes) ? verifyRes : ((verifyRes as any).data || []);
-                                verifiedMatch = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
+                                if (list.length === 0) break;
+                                
+                                verifiedMatch = list.find((m: any) => 
+                                    m.id === logicwareId || 
+                                    (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking
+                                );
+                                
                                 if (verifiedMatch) break;
+                                if (list.length < 100) break;
                             }
-                            if (verifiedMatch) confirmed = getStatusName(verifiedMatch);
+                            
+                            if (verifiedMatch) {
+                                confirmedStatus = getStatusName(verifiedMatch);
+                                verificationSource = 'REGISTRY';
+                            }
                         }
 
-                        // D. Final Assertion for this step
-                        if (confirmed !== stepStatus) {
-                            throw new Error(`Verification Failure: Requested transition to "${stepStatus}" but Hub state remains "${confirmed}".`);
+                        verificationAudit.push({ 
+                            step: stepStatus, 
+                            source: verificationSource, 
+                            confirmed: confirmedStatus,
+                            updateResponse: updateResult 
+                        });
+
+                        // D. Final Assertion
+                        if (confirmedStatus.toLowerCase() !== stepStatus.toLowerCase()) {
+                            throw new Error(`State machine rejection: Requested "${stepStatus}" but Hub reports "${confirmedStatus}". Verification Source: ${verificationSource}`);
                         }
 
                         transitionSteps.push(stepStatus);
@@ -191,9 +211,11 @@ export async function POST(request: Request) {
                         break; // STOP: Linear integrity broken
                     }
                 }
-            } else if (targetHubStatus === currentHubStatusName) {
+            } else if (targetHubStatus.toLowerCase() === currentHubStatusName.toLowerCase()) {
                 statusUpdated = true;
                 finalVerifiedStatus = targetHubStatus;
+            } else if (targetIndex !== -1 && startIndex !== -1 && targetIndex < startIndex) {
+                statusUpdateError = `Target status "${targetHubStatus}" is behind current Hub status "${currentHubStatusName}". Jumps backwards are restricted.`;
             }
         }
 
@@ -215,19 +237,20 @@ export async function POST(request: Request) {
                 statusUpdated, 
                 statusUpdateError,
                 transitionSteps,
-                rawApiResponses: rawApiResponses.length > 0 ? rawApiResponses : undefined
+                verificationAudit
             }
         });
 
         // 8. Return Detailed Report
-        if (!statusUpdated && targetHubStatus !== initialHubStatusAtStart) {
+        if (!statusUpdated && targetHubStatus.toLowerCase() !== initialHubStatusAtStart.toLowerCase()) {
             return NextResponse.json({ 
                 success: false, 
                 message: statusUpdateError || 'Status verification failed.',
                 initialHubStatus: initialHubStatusAtStart,
                 targetHubStatus,
                 finalVerifiedStatus,
-                transitionSteps
+                transitionSteps,
+                verificationAudit
             }, { status: 422 });
         }
 
@@ -239,7 +262,8 @@ export async function POST(request: Request) {
             targetHubStatus,
             finalVerifiedStatus,
             statusUpdated,
-            transitionSteps
+            transitionSteps,
+            verificationAudit
         });
 
     } catch (err: any) {
