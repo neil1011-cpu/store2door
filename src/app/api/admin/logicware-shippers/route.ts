@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 
+/**
+ * @fileOverview Authorized Hub Shippers Fetcher.
+ * Standardized for SDK v0.2.0.
+ */
+
 export async function POST(request: Request) {
     try {
         const client = await getLogicwareClient();

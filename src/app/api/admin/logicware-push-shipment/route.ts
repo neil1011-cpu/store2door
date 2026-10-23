@@ -32,17 +32,18 @@ export async function POST(request: Request) {
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
-        // 1. LOOKUP: Fetch full profile info for identity matching
-        let { data: local, error: fetchErr } = await adminClient
+        // 1. LOOKUP: Fetch local record. Supports UUID lookup then fallback to tracking number.
+        // NOTE: profiles.logicware_id is excluded as it does not exist in the current schema.
+        let { data: local } = await adminClient
             .from(table)
-            .select('*, profiles:profile_id(full_name, email, mailbox_number, logicware_id)')
+            .select('*, profiles:profile_id(full_name, email, mailbox_number)')
             .eq('id', shipmentId)
             .maybeSingle();
 
-        if (!local && !fetchErr) {
+        if (!local) {
             const { data: fallback } = await adminClient
                 .from(table)
-                .select('*, profiles:profile_id(full_name, email, mailbox_number, logicware_id)')
+                .select('*, profiles:profile_id(full_name, email, mailbox_number)')
                 .eq('tracking_number', shipmentId.toUpperCase().trim())
                 .maybeSingle();
             
@@ -58,22 +59,20 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 2. IDENTITY RESOLUTION: Find the Logicware Shipper ID
-        let shipperId = (local.profiles as any)?.logicware_id;
-        if (!shipperId) {
-            try {
-                const shippersResponse = await client.shippers.list({ pageSize: 100 });
-                const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
-                const foundShipper = shipperList.find((s: any) => 
-                    s.referenceCode === local.profiles?.mailbox_number || 
-                    s.email?.toLowerCase() === (local.profiles as any)?.email?.toLowerCase()
-                );
-                if (foundShipper) {
-                    shipperId = foundShipper.id;
-                }
-            } catch (shipperErr) {
-                console.warn('[PUSH_SHIPMENT] Shipper resolution failed:', shipperErr);
+        // 2. IDENTITY RESOLUTION: Find the Logicware Shipper ID via mailbox/email
+        let shipperId = null;
+        try {
+            const shippersResponse = await client.shippers.list({ pageSize: 100 });
+            const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
+            const foundShipper = shipperList.find((s: any) => 
+                s.referenceCode === local.profiles?.mailbox_number || 
+                s.email?.toLowerCase() === (local.profiles as any)?.email?.toLowerCase()
+            );
+            if (foundShipper) {
+                shipperId = foundShipper.id;
             }
+        } catch (shipperErr) {
+            console.warn('[PUSH_SHIPMENT] Shipper resolution failed:', shipperErr);
         }
 
         // 3. STATUS MAPPING: Convert S2D status to Hub-recognized status
@@ -95,8 +94,8 @@ export async function POST(request: Request) {
             contents: local.contents || 'Package',
             description: local.contents || '',
             referenceCode: local.profiles?.mailbox_number,
-            shipperId: shipperId, // FIX: Resolves "Unknown" customer
-            status: hubStatus // FIX: Resolves stuck "Pre-Alert"
+            shipperId: shipperId,
+            status: hubStatus
         };
 
         // 4. EXHAUSTIVE DEDUPLICATION SEARCH
@@ -119,13 +118,13 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        // 6. PERSIST HUB ID LOCALLY
+        // 6. PERSIST HUB ID LOCALLY (if logicware_id column exists on shipments/pre_alerts)
         if (logicwareId && logicwareId !== local.logicware_id) {
             await adminClient
                 .from(table)
                 .update({ logicware_id: logicwareId } as any)
                 .eq('id', local.id)
-                .catch(() => console.warn('[PUSH_SHIPMENT] Could not persist logicware_id. Column may be missing.'));
+                .catch(() => console.warn('[PUSH_SHIPMENT] Could not persist logicware_id locally.'));
         }
 
         await adminClient.from('system_logs').insert({
