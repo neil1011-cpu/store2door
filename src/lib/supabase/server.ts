@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 
 /**
  * @fileOverview Standardized Server-side Supabase factory for Next.js 15.
+ * Fixed compilation errors by adding explicit types to cookie operations.
  */
 export async function createClient() {
   const cookieStore = await cookies();

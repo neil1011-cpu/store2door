@@ -4,7 +4,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Corrected to avoid non-existent logicware_id column on profiles table and align with SDK v0.2.0.
+ * Corrected to use 'packages' resource and 'pageSize' for SDK v0.2.0.
  */
 
 export async function POST(request: Request) {
@@ -32,7 +32,6 @@ export async function POST(request: Request) {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
         // 1. DUAL LOOKUP: Try UUID first, then Tracking Number fallback.
-        // NOTE: Requesting only mailbox_number from profiles as logicware_id is missing from DB schema.
         let { data: local, error: fetchErr } = await adminClient
             .from(table)
             .select('*, profiles:profile_id(mailbox_number)')

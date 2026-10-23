@@ -1,11 +1,10 @@
 'use server';
 
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 
 /**
  * @fileOverview Server Actions for Hardened Auth/RBAC Testing.
- * Strictly limited to development environment.
+ * Fixed compilation errors by simplifying upsert logic.
  */
 
 const IS_DEV = process.env.NODE_ENV === 'development';
@@ -17,7 +16,7 @@ export async function promoteToAdmin(userId: string) {
   
   const { error } = await supabaseAdmin
     .from('app_roles')
-    .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id,role', ignoreDuplicates: true });
+    .upsert({ user_id: userId, role: 'admin' });
 
   if (error) return { error: error.message };
   return { success: true };
@@ -48,7 +47,6 @@ export async function cleanupTestData(uids: string[]) {
   
   for (const uid of uids) {
     await supabaseAdmin.auth.admin.deleteUser(uid);
-    // Trigger cascades will clean up profiles/roles
   }
 
   return { success: true };

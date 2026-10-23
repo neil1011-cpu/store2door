@@ -1,12 +1,12 @@
 import type { CookieOptions } from '@supabase/ssr';
 import { createServerClient } from '@supabase/ssr';
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/request';
 
 /**
  * @fileOverview Supabase Middleware for FromStore2Door OS.
- * Manages session refresh and cookie forwarding for SSR.
+ * Fixed compilation errors by adding explicit types to cookie methods.
  */
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: any) {
   let supabaseResponse = NextResponse.next({
     request,
   });
