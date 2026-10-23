@@ -3,8 +3,8 @@ import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Hardened Universal Shipment Sync API.
- * Implements exhaustive identity resolution and sequential Hub v2 status transitions.
+ * @fileOverview Hardened Universal Shipment Sync API with Strict Status Verification.
+ * Implements sequential transitions and post-transition state verification for Hub v2 compliance.
  */
 
 export async function POST(request: Request) {
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
-        // 1. Robust Dual-Lookup: Support both UUID and Tracking Number identifiers
+        // 1. Dual-Lookup Identity in Local Registry
         let { data: local, error: localErr } = await adminClient
             .from(table)
             .select('*, profiles:profile_id(full_name, email, mailbox_number)')
@@ -56,43 +56,26 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 2. EXHAUSTIVE IDENTITY RESOLUTION
+        // 2. Identity Resolution (Exhaustive Paginated Search)
         let shipperId = null;
-        let shipperName = null;
-        let matchMethod = 'NONE';
-
         try {
             const normalizedMailbox = (local as any).profiles?.mailbox_number?.trim().toUpperCase();
-            const normalizedEmail = (local as any).profiles?.email?.trim().toLowerCase();
-
-            if (normalizedMailbox || normalizedEmail) {
-                // Scan registry for existing shipper
+            if (normalizedMailbox) {
                 for (let page = 1; page <= 10; page++) {
-                    const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
-                    const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
-                    
-                    if (shipperList.length === 0) break;
-
-                    const match = shipperList.find((s: any) => {
-                        const hubMailbox = (s.referenceCode || s.code || '').trim().toUpperCase();
-                        const hubEmail = (s.email || '').trim().toLowerCase();
-                        return (normalizedMailbox && hubMailbox === normalizedMailbox) || (normalizedEmail && hubEmail === normalizedEmail);
-                    });
-
+                    const res = await client.shippers.list({ pageSize: 100, page } as any);
+                    const list = Array.isArray(res) ? res : ((res as any).data || []);
+                    if (list.length === 0) break;
+                    const match = list.find((s: any) => (s.referenceCode || s.code || '').trim().toUpperCase() === normalizedMailbox);
                     if (match) {
                         shipperId = match.id;
-                        shipperName = match.name;
-                        matchMethod = normalizedMailbox && (match.referenceCode || match.code)?.trim().toUpperCase() === normalizedMailbox ? 'MAILBOX' : 'EMAIL';
                         break;
                     }
-                    if (shipperList.length < 100) break;
+                    if (list.length < 100) break;
                 }
             }
-        } catch (shipperErr) {
-            console.warn('[PUSH_SHIPMENT] Shipper resolution interrupted:', shipperErr);
-        }
+        } catch (e) { console.warn('[PUSH_SHIPMENT] Identity resolution warning.'); }
 
-        // 3. STATUS MAPPING: Logicware Hub v2 Sentence Case Enumerations
+        // 3. Status Mapping (Hub v2 Sentence Case)
         const mapToHubStatus = (s2dStatus: string): string => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
@@ -100,7 +83,6 @@ export async function POST(request: Request) {
             if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'Arrived at destination';
             if (s.includes('in transit') || s.includes('transit')) return 'In transit';
             if (s.includes('processing') || s.includes('processed') || s.includes('received')) return 'Received at warehouse';
-            if (s.includes('return')) return 'Returned';
             return 'Pre-alert';
         };
 
@@ -114,13 +96,13 @@ export async function POST(request: Request) {
             shipperId: shipperId
         };
 
-        // 4. EXHAUSTIVE DEDUPLICATION & CURRENT STATUS RETRIEVAL
+        // 4. Current Hub Status Retrieval & Deduplication
         let logicwareId = local.logicware_id;
         let currentHubStatusName = 'Pre-alert';
 
         for (let page = 1; page <= 5; page++) {
-            const searchResponse = await client.packages.list({ pageSize: 100, page } as any);
-            const list = Array.isArray(searchResponse) ? searchResponse : ((searchResponse as any).data || []);
+            const res = await client.packages.list({ pageSize: 100, page } as any);
+            const list = Array.isArray(res) ? res : ((res as any).data || []);
             if (list.length === 0) break;
             const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
             if (match) {
@@ -131,7 +113,7 @@ export async function POST(request: Request) {
             if (list.length < 100) break;
         }
 
-        // 5. EXECUTE HUB DATA SYNC
+        // 5. Primary Data Sync
         let op: 'create' | 'update';
         if (logicwareId) {
             op = 'update';
@@ -142,7 +124,7 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        // 6. SEQUENTIAL STATUS TRANSITIONS (State Machine Compliance)
+        // 6. Sequential Transitions with Strict Verification
         const statusSequence = [
             'Pre-alert',
             'Received at warehouse',
@@ -154,71 +136,83 @@ export async function POST(request: Request) {
 
         let statusUpdated = false;
         let statusUpdateError: string | null = null;
+        let finalVerifiedStatus = currentHubStatusName;
         const transitionSteps: string[] = [];
+
+        const getStatusName = (obj: any) => {
+            const val = obj?.status?.name || obj?.status || '';
+            return String(val).trim();
+        };
 
         if (logicwareId && hubStatus) {
             const startIndex = statusSequence.indexOf(currentHubStatusName);
             const targetIndex = statusSequence.indexOf(hubStatus);
 
             if (startIndex !== -1 && targetIndex !== -1 && targetIndex > startIndex) {
-                // Perform linear steps to satisfy Hub state machine
+                // Execute linear progression required by Hub state machine
                 for (let i = startIndex + 1; i <= targetIndex; i++) {
                     const stepStatus = statusSequence[i];
                     try {
-                        await client.packages.update(logicwareId, { ...payload, status: stepStatus as any });
+                        // A. Dispatch Update
+                        const updateResult = await client.packages.update(logicwareId, { ...payload, status: stepStatus as any });
+                        
+                        // B. Verification Pass 1: Inspect immediate response
+                        let confirmed = getStatusName(updateResult);
+
+                        // C. Verification Pass 2: Active fetch if response is inconclusive
+                        if (confirmed !== stepStatus) {
+                            const verifyRes = await client.packages.list({ pageSize: 10 } as any);
+                            const list = Array.isArray(verifyRes) ? verifyRes : ((verifyRes as any).data || []);
+                            const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
+                            if (match) confirmed = getStatusName(match);
+                        }
+
+                        // D. Final Assertion
+                        if (confirmed !== stepStatus) {
+                            throw new Error(`Verification Failure: Requested transition to "${stepStatus}" but Hub state remains "${confirmed}".`);
+                        }
+
                         transitionSteps.push(stepStatus);
+                        finalVerifiedStatus = stepStatus;
                         statusUpdated = true;
-                    } catch (stepErr: any) {
-                        statusUpdateError = stepErr?.message || String(stepErr);
-                        break;
+                    } catch (err: any) {
+                        statusUpdateError = err?.message || String(err);
+                        break; // Stop sequential transitions on failure to preserve state integrity
                     }
                 }
-            } else if (hubStatus !== currentHubStatusName) {
-                // Single jump or fallback
-                try {
-                    await client.packages.update(logicwareId, { ...payload, status: hubStatus as any });
-                    statusUpdated = true;
-                    transitionSteps.push(hubStatus);
-                } catch (err: any) {
-                    statusUpdateError = err?.message || String(err);
-                }
+            } else if (hubStatus === currentHubStatusName) {
+                statusUpdated = true;
+                finalVerifiedStatus = hubStatus;
             }
         }
 
-        // 7. PERSIST HUB ID LOCALLY
+        // 7. Persist Logicware ID & Audit Log
         if (logicwareId && logicwareId !== local.logicware_id) {
-            await adminClient
-                .from(table)
-                .update({ logicware_id: logicwareId })
-                .eq('id', local.id);
+            await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', local.id);
         }
 
-        // 8. AUDIT LOG
         await adminClient.from('system_logs').insert({
-            log_type: `logicware_${op}_success`,
-            description: `Shipment ${tracking} synced. Identity: ${shipperName || 'Unknown'} (${matchMethod}). Hub State: ${hubStatus}`,
+            log_type: `logicware_${op}_verification`,
+            description: `Shipment ${tracking} sync attempt. Final Verified State: ${finalVerifiedStatus}.`,
             actor_id: caller.id,
             metadata: { 
                 tracking, 
                 logicwareId, 
-                op, 
                 targetHubStatus: hubStatus, 
                 initialHubStatus: currentHubStatusName,
+                finalVerifiedStatus,
                 statusUpdated, 
                 statusUpdateError,
-                transitionSteps,
-                matchMethod,
-                mailbox: (local as any).profiles?.mailbox_number
+                transitionSteps
             }
         });
 
-        // Fail if status update was required but failed completely
-        if (transitionSteps.length === 0 && hubStatus !== currentHubStatusName) {
+        if (!statusUpdated && hubStatus !== currentHubStatusName) {
             return NextResponse.json({ 
                 success: false, 
-                message: `Status transition failed: ${statusUpdateError || 'Unknown error'}`,
-                hubStatus,
-                initialHubStatus: currentHubStatusName
+                message: statusUpdateError || 'Status verification failed.',
+                finalVerifiedStatus,
+                hubStatus
             }, { status: 422 });
         }
 
@@ -228,14 +222,13 @@ export async function POST(request: Request) {
             operation: op, 
             hubStatus, 
             initialHubStatus: currentHubStatusName,
+            finalVerifiedStatus,
             statusUpdated,
-            transitionSteps,
-            statusUpdateError,
-            shipperResolved: !!shipperId 
+            transitionSteps
         });
 
     } catch (err: any) {
-        console.error('[PUSH_SHIPMENT] Sync Error:', err.message);
+        console.error('[PUSH_SHIPMENT] FATAL:', err.message);
         return NextResponse.json({ message: err.message }, { status: 500 });
     }
 }
