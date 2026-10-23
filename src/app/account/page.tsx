@@ -3,58 +3,49 @@
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, Wallet, TrendingDown, TrendingUp, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
-import { DashboardTab } from './dashboard-components';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, Wallet, TrendingDown, TrendingUp, AlertCircle, CheckCircle2, Loader2, ArrowRight, ShieldCheck, MapPin } from 'lucide-react';
+import { DashboardTab, WarehouseAddressCard } from './dashboard-components';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAccountProfile } from './layout';
 import { useState, useEffect } from 'react';
 import { useSupabase } from '@/components/supabase-provider';
+import { Separator } from '@/components/ui/separator';
 
 const featureCards = [
     {
         href: '/account/pre-alert',
         title: 'Pre-Alert',
-        description: 'Notify us of an incoming package.',
-        icon: <BellRing className="h-5 w-5 sm:h-6 sm:w-6" />,
+        description: 'Notify us of incoming items.',
+        icon: <BellRing className="h-5 w-5" />,
         color: 'bg-orange-500 text-white',
     },
     {
         href: '/account/packages',
         title: 'My Packages',
-        description: 'Track all your shipments.',
-        icon: <Package className="h-5 w-5 sm:h-6 sm:w-6" />,
+        description: 'Track your shipments.',
+        icon: <Package className="h-5 w-5" />,
         color: 'bg-green-500 text-white',
     },
     {
         href: '/account/calculator',
         title: 'Calculator',
-        description: 'Estimate your customs costs.',
-        icon: <Calculator className="h-5 w-5 sm:h-6 sm:w-6" />,
+        description: 'Estimate customs costs.',
+        icon: <Calculator className="h-5 w-5" />,
         color: 'bg-indigo-500 text-white',
     },
     {
         href: '/account/profile',
-        title: 'My Account',
-        description: 'Manage profile and addresses.',
-        icon: <User className="h-5 w-5 sm:h-6 sm:w-6" />,
+        title: 'My Profile',
+        description: 'Manage details & addresses.',
+        icon: <User className="h-5 w-5" />,
         color: 'bg-red-500 text-white',
-    },
-    {
-        href: '/account/support',
-        title: 'Support',
-        description: 'Need help? Contact our team.',
-        icon: <LifeBuoy className="h-5 w-5 sm:h-6 sm:w-6" />,
-        color: 'bg-purple-500 text-white',
     },
 ];
 
 export default function AccountPage() {
-    const router = useRouter();
-    const { toast } = useToast();
-    const { supabase } = useSupabase();
     const { profile: userProfile, totalToBePaid } = useAccountProfile();
     const [mounted, setMounted] = useState(false);
     const [year, setYear] = useState<number | null>(null);
@@ -64,114 +55,138 @@ export default function AccountPage() {
         setYear(new Date().getFullYear());
     }, []);
 
-    if (!userProfile || !mounted) return null;
+    if (!userProfile || !mounted) return (
+        <div className="flex flex-col items-center justify-center py-40 gap-4">
+            <Loader2 className="animate-spin text-primary h-8 w-8" />
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Syncing with Registry...</p>
+        </div>
+    );
 
     const hasDues = totalToBePaid > 0;
 
     return (
-        <div className="container mx-auto px-4 md:px-6 pb-20">
-            <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
-                <div className="text-center md:text-left">
-                    <h1 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter">Welcome, {userProfile.full_name?.split(' ')[0] || 'User'}!</h1>
-                    <p className="text-muted-foreground text-xs sm:text-sm font-bold uppercase tracking-widest opacity-60 mt-1">Global Mailbox: {userProfile.mailbox_number}</p>
+        <div className="container mx-auto px-4 md:px-6 pb-20 space-y-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b pb-8">
+                <div>
+                    <h1 className="text-3xl sm:text-5xl font-black italic uppercase tracking-tighter">Welcome, {userProfile.full_name?.split(' ')[0] || 'User'}!</h1>
+                    <div className="flex items-center gap-4 mt-2">
+                        <Badge variant="outline" className="h-8 px-4 font-black italic tracking-widest border-2">MAILBOX: {userProfile.mailbox_number}</Badge>
+                        <Badge className="bg-primary text-primary-foreground font-black italic text-[9px] uppercase h-8 px-4">Status: Verified</Badge>
+                    </div>
+                </div>
+                <div className="hidden lg:flex items-center gap-4 text-right">
+                    <div>
+                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest italic">Registry Balance</p>
+                        <p className={cn("text-2xl font-black italic tracking-tighter leading-none mt-1", hasDues ? "text-red-600" : "text-primary")}>
+                            JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </p>
+                    </div>
                 </div>
             </div>
 
-            <div className="space-y-8">
-                {/* Feature Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {featureCards.map(card => (
-                        <Link href={card.href} key={card.href}>
-                            <Card className="h-full cursor-pointer hover:shadow-lg transition-all group overflow-hidden border-none shadow-md rounded-xl active:scale-[0.98]">
-                                <CardHeader className="flex flex-row items-center gap-3 p-4">
-                                    <div className={cn("p-2.5 rounded-lg transition-transform group-hover:scale-110", card.color)}>
-                                        {card.icon}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <div className="lg:col-span-8 space-y-8">
+                    {/* Settlement Banner */}
+                    <Card className={cn(
+                        "border-none shadow-2xl rounded-[2.5rem] overflow-hidden transition-all relative group",
+                        hasDues ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
+                    )}>
+                        <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:scale-110 transition-transform">
+                            <Wallet size={160} />
+                        </div>
+                        <CardContent className="p-8 md:p-12 relative z-10">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <ShieldCheck className="h-6 w-6" />
+                                        <h2 className="text-3xl font-black uppercase italic tracking-tighter">Authorized Standing</h2>
                                     </div>
-                                    <div className="space-y-0.5">
-                                        <CardTitle className="text-sm font-black uppercase italic tracking-tight">{card.title}</CardTitle>
-                                        <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest line-clamp-1">{card.description}</p>
+                                    <p className="text-sm font-medium leading-relaxed opacity-80 max-w-md">
+                                        {hasDues 
+                                            ? "Immediate settlement is required for packages currently waiting at our local collection hub." 
+                                            : "Your registry is clear. We'll notify you as soon as new items arrive at our warehouse."}
+                                    </p>
+                                    <div className="pt-4">
+                                        <h3 className="text-5xl font-black italic tracking-tighter">JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-2">Dues for collection</p>
                                     </div>
-                                </CardHeader>
-                            </Card>
-                        </Link>
-                    ))}
-                </div>
-
-                <div className="space-y-6">
-                    <div className="space-y-4">
-                        <h2 className="text-xl sm:text-2xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                            <LayoutGrid className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-                            Activity Terminal
-                        </h2>
-
-                        <Card className={cn(
-                            "border-none shadow-lg rounded-2xl overflow-hidden transition-all",
-                            hasDues 
-                                ? "bg-red-50 dark:bg-zinc-900 border-l-4 border-l-red-600 border border-zinc-200 dark:border-zinc-800" 
-                                : "bg-zinc-100 dark:bg-zinc-900 text-foreground dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800"
-                        )}>
-                            <CardContent className="p-4 sm:p-5">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className={cn(
-                                            "h-12 w-12 rounded-xl flex items-center justify-center shadow-sm",
-                                            hasDues ? "bg-red-600 text-white" : "bg-primary text-primary-foreground shadow-inner"
-                                        )}>
-                                            <Wallet className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <p className={cn(
-                                                "text-[10px] font-black uppercase tracking-widest",
-                                                hasDues ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
-                                            )}>Total to be paid</p>
-                                            <div className="flex items-baseline gap-2">
-                                                <span className={cn(
-                                                    "text-2xl font-black italic tracking-tighter",
-                                                    hasDues ? "text-red-600 dark:text-white" : "text-foreground"
-                                                )}>
-                                                    JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                </span>
-                                                <Badge className={cn(
-                                                    "uppercase text-[8px] font-black italic tracking-widest",
-                                                    hasDues ? "bg-red-600 text-white" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
-                                                )}>
-                                                    {hasDues ? 'Ready for Pickup' : 'Clear Registry'}
-                                                </Badge>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className={cn(
-                                        "flex-1 sm:max-w-md p-3 rounded-xl flex items-center gap-3",
-                                        hasDues ? "bg-red-100/50 dark:bg-red-900/20" : "bg-white/50 dark:bg-black/20 border border-zinc-200 dark:border-zinc-800"
-                                    )}>
-                                        {hasDues ? <AlertCircle className="h-4 w-4 text-red-600 shrink-0" /> : <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
-                                        <p className={cn(
-                                            "text-[9px] font-bold leading-tight uppercase tracking-tight",
-                                            hasDues ? "text-red-800 dark:text-zinc-200" : "text-muted-foreground dark:text-zinc-400"
-                                        )}>
-                                            {hasDues 
-                                                ? "Immediate settlement required for all packages confirmed as ready for pickup." 
-                                                : "No actionable charges detected for pickup at this time."}
-                                        </p>
-                                    </div>
-
-                                    <Button variant="outline" size="sm" className={cn(
-                                        "font-black uppercase italic tracking-tighter h-10 px-6 shrink-0 border-2",
-                                        hasDues ? "border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/40" : "border-zinc-200 dark:border-zinc-700"
-                                    )} asChild>
-                                        <Link href="/account/packages">View Invoice Details</Link>
+                                </div>
+                                <div className="shrink-0">
+                                    <Button variant={hasDues ? "secondary" : "outline"} className={cn("h-16 px-10 rounded-2xl font-black uppercase italic text-lg shadow-2xl transition-all", hasDues ? "text-red-600 hover:scale-105" : "text-white border-white/20 hover:bg-white/10")} asChild>
+                                        <Link href="/account/packages">
+                                            {hasDues ? "Settle Now" : "Manage Registry"} <ArrowRight className="ml-2 h-6 w-6" />
+                                        </Link>
                                     </Button>
                                 </div>
-                            </CardContent>
-                        </Card>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Feature Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {featureCards.map(card => (
+                            <Link href={card.href} key={card.href}>
+                                <Card className="h-full cursor-pointer hover:shadow-xl transition-all group overflow-hidden border-2 rounded-[2rem] hover:border-primary/20">
+                                    <CardContent className="p-6 flex flex-col items-center text-center gap-3">
+                                        <div className={cn("p-4 rounded-2xl transition-transform group-hover:scale-110 shadow-lg", card.color)}>
+                                            {card.icon}
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-xs font-black uppercase italic tracking-widest">{card.title}</CardTitle>
+                                            <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mt-1 opacity-60">{card.description}</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </Link>
+                        ))}
                     </div>
-                    <DashboardTab details={userProfile} />
+
+                    <div className="space-y-4 pt-4">
+                        <h2 className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3">
+                            <LayoutGrid className="h-6 w-6 text-primary" /> Active Registry Feed
+                        </h2>
+                        <DashboardTab details={userProfile} />
+                    </div>
+                </div>
+
+                <div className="lg:col-span-4 space-y-6">
+                    <WarehouseAddressCard details={userProfile} />
+
+                    <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden bg-zinc-950 text-white">
+                        <CardHeader className="bg-white/5 border-b p-8 pb-6">
+                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3 text-zinc-400">
+                                <LifeBuoy className="h-4 w-4 text-primary" /> Logistics Support
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-8 space-y-6">
+                            <p className="text-xs font-medium leading-relaxed opacity-60 italic">
+                                Need assistance with tracking, customs, or delivery scheduling? Our worldwide helpdesk is standing by.
+                            </p>
+                            <div className="grid gap-3">
+                                <Button className="w-full h-14 bg-indigo-600 hover:bg-indigo-500 font-black uppercase italic shadow-xl rounded-xl" asChild>
+                                    <Link href="https://wa.me/18765069727" target="_blank">WhatsApp Hub</Link>
+                                </Button>
+                                <Button variant="outline" className="w-full h-14 border-white/10 hover:bg-white/5 font-black uppercase italic text-xs rounded-xl" asChild>
+                                    <Link href="/account/support">Email Helpdesk</Link>
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <div className="p-8 rounded-[2rem] border-4 border-dashed bg-muted/20 flex flex-col items-center text-center gap-4 group hover:bg-muted/30 transition-all">
+                        <div className="bg-primary/10 p-4 rounded-2xl group-hover:scale-110 transition-transform">
+                            <MapPin className="h-8 w-8 text-primary" />
+                        </div>
+                        <div>
+                            <h4 className="font-black uppercase italic tracking-tighter text-lg">Collection Station</h4>
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground mt-1">Portmore, St. Catherine, Jamaica</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div className="mt-16 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-8 opacity-40">
-                <p>&copy; {year} FromStore2Door Global Logistics. Portmore, Jamaica.</p>
+                <p>&copy; {year} FromStore2Door Global Logistics. All Rights Reserved.</p>
             </div>
         </div>
     );
