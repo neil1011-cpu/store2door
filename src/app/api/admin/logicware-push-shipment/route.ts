@@ -95,19 +95,16 @@ export async function POST(request: Request) {
         const mapToHubStatus = (s2dStatus: string): string => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
-            if (s.includes('out for delivery')) return 'OutForDelivery';
-            if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'ReadyForPickup';
-            if (s.includes('in transit') || s.includes('transit')) return 'InTransit';
-            if (s.includes('ready to ship')) return 'ReadyToShip';
-            if (s.includes('shipped')) return 'Shipped';
-            if (s.includes('customs')) return 'AtCustoms';
-            if (s.includes('processing') || s.includes('processed')) return 'Processing';
-            if (s.includes('received') || s.includes('warehouse') || s.includes('hold')) return 'ReceivedAtWarehouse';
+            if (s.includes('out for delivery')) return 'Out for delivery';
+            if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'Arrived at destination';
+            if (s.includes('in transit') || s.includes('transit')) return 'In transit';
+            if (s.includes('processing') || s.includes('processed') || s.includes('received')) return 'Received at warehouse';
             if (s.includes('return')) return 'Returned';
-            return 'PreAlert';
+            return 'Pre-alert';
         };
+
         const hubStatus = mapToHubStatus(local.status);
-        const payload = {
+        const payload: any = {
             trackingNumber: tracking,
             weightLbs: parseFloat(local.weight_lbs) || 0,
             contents: local.contents || 'Package',
@@ -118,21 +115,19 @@ export async function POST(request: Request) {
 
         // 4. EXHAUSTIVE DEDUPLICATION & CURRENT STATUS RETRIEVAL
         let logicwareId = local.logicware_id;
-        let currentHubStatusName = null;
+        let currentHubStatusName = 'Pre-alert';
 
-        if (!logicwareId || true) { // Always verify current state to avoid illegal transitions
-            for (let page = 1; page <= 5; page++) {
-                const searchResponse = await client.packages.list({ pageSize: 100, page } as any);
-                const list = Array.isArray(searchResponse) ? searchResponse : ((searchResponse as any).data || []);
-                if (list.length === 0) break;
-                const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
-                if (match) {
-                    logicwareId = match.id;
-                    currentHubStatusName = match.status?.name || match.status;
-                    break;
-                }
-                if (list.length < 100) break;
+        for (let page = 1; page <= 5; page++) {
+            const searchResponse = await client.packages.list({ pageSize: 100, page } as any);
+            const list = Array.isArray(searchResponse) ? searchResponse : ((searchResponse as any).data || []);
+            if (list.length === 0) break;
+            const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
+            if (match) {
+                logicwareId = match.id;
+                currentHubStatusName = match.status?.name || match.status || 'Pre-alert';
+                break;
             }
+            if (list.length < 100) break;
         }
 
         // 5. EXECUTE HUB DATA SYNC
@@ -144,29 +139,52 @@ export async function POST(request: Request) {
             op = 'create';
             const result = await client.packages.create(payload);
             logicwareId = result?.id;
-            currentHubStatusName = 'Pre-alert';
         }
 
         // 6. SEQUENTIAL STATUS TRANSITIONS (State Machine Compliance)
+        const statusSequence = [
+            'Pre-alert',
+            'Received at warehouse',
+            'In transit',
+            'Arrived at destination',
+            'Out for delivery',
+            'Delivered'
+        ];
+
         let statusUpdated = false;
         let statusUpdateError: string | null = null;
         const transitionSteps: string[] = [];
 
         if (logicwareId && hubStatus) {
-            try {
-                await client.packages.update(logicwareId, {
-                    ...payload,
-                    status: hubStatus as any,
-                });
-                statusUpdated = true;
-                transitionSteps.push(hubStatus);
-                currentHubStatusName = hubStatus;
-            } catch (statusErr: any) {
-                statusUpdateError = statusErr?.message || String(statusErr);
-                console.warn('[Logicware] Package status update failed:', statusUpdateError);
+            const startIndex = statusSequence.indexOf(currentHubStatusName);
+            const targetIndex = statusSequence.indexOf(hubStatus);
+
+            if (startIndex !== -1 && targetIndex !== -1 && targetIndex > startIndex) {
+                // Perform linear steps to satisfy Hub state machine
+                for (let i = startIndex + 1; i <= targetIndex; i++) {
+                    const stepStatus = statusSequence[i];
+                    try {
+                        await client.packages.update(logicwareId, { ...payload, status: stepStatus as any });
+                        transitionSteps.push(stepStatus);
+                        statusUpdated = true;
+                    } catch (stepErr: any) {
+                        statusUpdateError = stepErr?.message || String(stepErr);
+                        break;
+                    }
+                }
+            } else if (hubStatus !== currentHubStatusName) {
+                // Single jump or fallback
+                try {
+                    await client.packages.update(logicwareId, { ...payload, status: hubStatus as any });
+                    statusUpdated = true;
+                    transitionSteps.push(hubStatus);
+                } catch (err: any) {
+                    statusUpdateError = err?.message || String(err);
+                }
             }
         }
 
+        // 7. PERSIST HUB ID LOCALLY
         if (logicwareId && logicwareId !== local.logicware_id) {
             await adminClient
                 .from(table)
@@ -177,7 +195,7 @@ export async function POST(request: Request) {
         // 8. AUDIT LOG
         await adminClient.from('system_logs').insert({
             log_type: `logicware_${op}_success`,
-            description: `Shipment ${tracking} synced. Identity: ${shipperName || 'Unknown'} (${matchMethod}). Hub State: ${hubStatus} (${statusUpdated ? 'Success' : 'Partial/Fail'})`,
+            description: `Shipment ${tracking} synced. Identity: ${shipperName || 'Unknown'} (${matchMethod}). Hub State: ${hubStatus}`,
             actor_id: caller.id,
             metadata: { 
                 tracking, 
