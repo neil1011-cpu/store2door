@@ -15,10 +15,11 @@ export function AppContent({
   const pathname = usePathname();
   
   // Administrative routes (starts with /admin or /admin-login)
-  const isAdminPage = pathname.startsWith('/admin');
+  // NEXT15_FIX: Added null check for pathname to prevent SSR crashes
+  const isAdminPage = pathname?.startsWith('/admin') || false;
   
   // Logged-in user dashboard routes
-  const isAccountPage = pathname.startsWith('/account');
+  const isAccountPage = pathname?.startsWith('/account') || false;
   
   // Custom branded landing page (handled within src/app/page.tsx)
   const isLandingPage = pathname === '/';
