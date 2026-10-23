@@ -66,6 +66,7 @@ export async function POST(request: Request) {
             const normalizedEmail = (local as any).profiles?.email?.trim().toLowerCase();
 
             if (normalizedMailbox || normalizedEmail) {
+                // Scan registry for existing shipper
                 for (let page = 1; page <= 10; page++) {
                     const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
                     const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
@@ -210,6 +211,16 @@ export async function POST(request: Request) {
                 mailbox: (local as any).profiles?.mailbox_number
             }
         });
+
+        // Fail if status update was required but failed completely
+        if (transitionSteps.length === 0 && hubStatus !== currentHubStatusName) {
+            return NextResponse.json({ 
+                success: false, 
+                message: `Status transition failed: ${statusUpdateError || 'Unknown error'}`,
+                hubStatus,
+                initialHubStatus: currentHubStatusName
+            }, { status: 422 });
+        }
 
         return NextResponse.json({ 
             success: true, 
