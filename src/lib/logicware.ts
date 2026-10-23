@@ -41,7 +41,6 @@ export async function fetchLogicwareShippers(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
     if (!client?.shippers) return [];
-    // Corrected parameter from limit to pageSize for SDK v0.2.0
     const response = await client.shippers.list({ pageSize: 100 });
     return Array.isArray(response) ? response : ((response as any).data || []);
   } catch (error: any) {
@@ -53,7 +52,6 @@ export async function fetchLogicwareShippers(apiKey?: string) {
 export async function fetchLogicwarePackages(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
-    // SDK v0.2.0 uses 'packages' instead of 'shipments'
     if (!client?.packages) return [];
     const response = await client.packages.list({ pageSize: 100 });
     return Array.isArray(response) ? response : ((response as any).data || []);
@@ -67,7 +65,6 @@ export async function fetchLogicwareManifests(apiKey?: string) {
     try {
         const client = await getLogicwareClient(apiKey);
         if (!client?.manifests) return [];
-        // Corrected parameter from limit to pageSize for SDK v0.2.0
         const response = await client.manifests.list({ pageSize: 100 });
         return Array.isArray(response) ? response : ((response as any).data || []);
     } catch (error: any) {

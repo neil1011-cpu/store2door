@@ -5,7 +5,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 /**
  * @fileOverview Hardened Universal Shipment Sync API with Strict Sequential Verification.
  * Implements linear transitions and active state verification for Hub v2 compliance.
- * Designed to provide a complete diagnostic audit trail.
+ * Uses client.packages.updateStatus for authoritative state changes.
  */
 
 export async function POST(request: Request) {
@@ -32,7 +32,6 @@ export async function POST(request: Request) {
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
-        // 1. Resolve Local Identity
         let { data: local, error: localErr } = await adminClient
             .from(table)
             .select('*, profiles:profile_id(full_name, email, mailbox_number)')
@@ -56,7 +55,6 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 2. Identity Resolution (Shipper)
         let shipperId = null;
         try {
             const normalizedMailbox = (local as any).profiles?.mailbox_number?.trim().toUpperCase();
@@ -75,7 +73,6 @@ export async function POST(request: Request) {
             }
         } catch (e) { console.warn('[PUSH_SHIPMENT] Shipper resolution warning.'); }
 
-        // 3. Current Hub Status Retrieval
         let logicwareId = local.logicware_id;
         let currentHubStatusName = 'Pre-alert';
 
@@ -94,7 +91,6 @@ export async function POST(request: Request) {
 
         const initialHubStatusAtStart = currentHubStatusName;
 
-        // 4. Status Mapping
         const mapToHubStatus = (s2dStatus: string): string => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
@@ -115,7 +111,6 @@ export async function POST(request: Request) {
             shipperId: shipperId
         };
 
-        // 5. Data Sync (Base Properties)
         let op: 'create' | 'update';
         if (logicwareId) {
             op = 'update';
@@ -126,7 +121,6 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        // 6. Sequential Transitions with Strict Verification
         const statusSequence = [
             'Pre-alert',
             'Received at warehouse',
@@ -157,18 +151,15 @@ export async function POST(request: Request) {
             const targetIndex = findIndexInsensitive(statusSequence, targetHubStatus);
 
             if (startIndex !== -1 && targetIndex !== -1 && targetIndex > startIndex) {
-                // Execute linear progression
                 for (let i = startIndex + 1; i <= targetIndex; i++) {
                     const stepStatus = statusSequence[i];
                     try {
-                        // A. Dispatch Update
-                        const updateResult = await client.packages.update(logicwareId, { ...payload, status: stepStatus as any });
+                        // Use explicit status transition method for Hub v2
+                        const updateResult = await (client.packages as any).updateStatus(logicwareId, stepStatus);
                         
-                        // B. Verification Pass 1: Inspect immediate response
                         let confirmedStatus = getStatusName(updateResult);
                         let verificationSource = 'RESPONSE';
 
-                        // C. Verification Pass 2: Active Registry Lookup
                         if (confirmedStatus.toLowerCase() !== stepStatus.toLowerCase()) {
                             let verifiedMatch = null;
                             for (let page = 1; page <= 10; page++) {
@@ -194,13 +185,11 @@ export async function POST(request: Request) {
                         verificationAudit.push({ 
                             step: stepStatus, 
                             source: verificationSource, 
-                            confirmed: confirmedStatus,
-                            updateResponse: updateResult 
+                            confirmed: confirmedStatus
                         });
 
-                        // D. Final Assertion
                         if (confirmedStatus.toLowerCase() !== stepStatus.toLowerCase()) {
-                            throw new Error(`State machine rejection: Requested "${stepStatus}" but Hub reports "${confirmedStatus}". Verification Source: ${verificationSource}`);
+                            throw new Error(`Verification mismatch: Hub reports "${confirmedStatus}".`);
                         }
 
                         transitionSteps.push(stepStatus);
@@ -208,18 +197,15 @@ export async function POST(request: Request) {
                         statusUpdated = true;
                     } catch (err: any) {
                         statusUpdateError = err?.message || String(err);
-                        break; // STOP: Linear integrity broken
+                        break;
                     }
                 }
             } else if (targetHubStatus.toLowerCase() === currentHubStatusName.toLowerCase()) {
                 statusUpdated = true;
                 finalVerifiedStatus = targetHubStatus;
-            } else if (targetIndex !== -1 && startIndex !== -1 && targetIndex < startIndex) {
-                statusUpdateError = `Target status "${targetHubStatus}" is behind current Hub status "${currentHubStatusName}". Jumps backwards are restricted.`;
             }
         }
 
-        // 7. Persist Metadata & Audit Log
         if (logicwareId && logicwareId !== local.logicware_id) {
             await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', local.id);
         }
@@ -241,7 +227,6 @@ export async function POST(request: Request) {
             }
         });
 
-        // 8. Return Detailed Report
         if (!statusUpdated && targetHubStatus.toLowerCase() !== initialHubStatusAtStart.toLowerCase()) {
             return NextResponse.json({ 
                 success: false, 

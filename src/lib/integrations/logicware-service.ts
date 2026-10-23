@@ -21,11 +21,9 @@ export function getLogicwareInstance(config: LogicwareConfig) {
 export async function testLogicwareConnection(config: LogicwareConfig) {
     try {
         const client = getLogicwareInstance(config);
-        // SDK v0.2.0 uses 'packages' instead of 'shipments'
         const hub = client.packages || client.shippers;
         if (!hub) throw new Error('No accessible modules found.');
         
-        // Corrected parameter name from limit to pageSize for SDK v0.2.0
         await hub.list({ pageSize: 1 });
         
         return { success: true, message: 'Logistics Hub Synchronized.' };

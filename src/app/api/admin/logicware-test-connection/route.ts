@@ -15,10 +15,8 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient(apiKey);
         if (!client) throw new Error('Client initialization failed.');
         
-        // Use 'packages' instead of 'shipments' for SDK v0.2.0
         const testResource = client.packages || client.shippers;
         if (testResource) {
-            // Corrected parameter name from limit to pageSize for SDK v0.2.0
             await testResource.list({ pageSize: 1 });
         }
 
