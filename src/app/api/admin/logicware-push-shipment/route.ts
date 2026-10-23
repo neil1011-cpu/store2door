@@ -4,7 +4,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Implements exhaustive identity resolution and explicit Hub v2 status transitions.
+ * Implements exhaustive identity resolution and sequential Hub v2 status transitions.
  */
 
 export async function POST(request: Request) {
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 2. EXHAUSTIVE IDENTITY RESOLUTION: Paginated scan for Shipper ID
+        // 2. EXHAUSTIVE IDENTITY RESOLUTION
         let shipperId = null;
         let shipperName = null;
         let matchMethod = 'NONE';
@@ -66,7 +66,6 @@ export async function POST(request: Request) {
             const normalizedEmail = (local as any).profiles?.email?.trim().toLowerCase();
 
             if (normalizedMailbox || normalizedEmail) {
-                // Scan up to 10 pages (1,000 shippers) to find a match
                 for (let page = 1; page <= 10; page++) {
                     const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
                     const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
@@ -113,9 +112,11 @@ export async function POST(request: Request) {
             shipperId: shipperId
         };
 
-        // 4. EXHAUSTIVE DEDUPLICATION SEARCH
+        // 4. EXHAUSTIVE DEDUPLICATION & CURRENT STATUS RETRIEVAL
         let logicwareId = local.logicware_id;
-        if (!logicwareId) {
+        let currentHubStatusName = null;
+
+        if (!logicwareId || true) { // Always verify current state to avoid illegal transitions
             for (let page = 1; page <= 5; page++) {
                 const searchResponse = await client.packages.list({ pageSize: 100, page } as any);
                 const list = Array.isArray(searchResponse) ? searchResponse : ((searchResponse as any).data || []);
@@ -123,6 +124,7 @@ export async function POST(request: Request) {
                 const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
                 if (match) {
                     logicwareId = match.id;
+                    currentHubStatusName = match.status?.name || match.status;
                     break;
                 }
                 if (list.length < 100) break;
@@ -138,44 +140,68 @@ export async function POST(request: Request) {
             op = 'create';
             const result = await client.packages.create(payload);
             logicwareId = result?.id;
+            currentHubStatusName = 'Pre-alert';
         }
 
-        // 6. EXECUTE EXPLICIT STATUS TRANSITION
+        // 6. SEQUENTIAL STATUS TRANSITIONS (State Machine Compliance)
         let statusUpdated = false;
         let statusUpdateError = null;
-        if (logicwareId) {
-            try {
-                // Nana Banana Hubs require explicit updateStatus method calls for state changes
-                await client.packages.updateStatus(logicwareId, hubStatus);
-                statusUpdated = true;
-            } catch (statusErr: any) {
-                statusUpdateError = statusErr.message;
-                console.warn('[PUSH_SHIPMENT] Hub status transition rejected:', statusErr.message);
+        let transitionSteps = [];
+
+        if (logicwareId && hubStatus) {
+            const workflow = ['Pre-alert', 'Received at warehouse', 'In transit', 'Arrived at destination', 'Delivered'];
+            const currentIndex = workflow.indexOf(currentHubStatusName || 'Pre-alert');
+            const targetIndex = workflow.indexOf(hubStatus);
+
+            if (targetIndex > currentIndex && currentIndex !== -1) {
+                try {
+                    // Transition through each milestone sequentially to satisfy Hub linear rules
+                    for (let i = currentIndex + 1; i <= targetIndex; i++) {
+                        const stepStatus = workflow[i];
+                        await client.packages.updateStatus(logicwareId, stepStatus);
+                        transitionSteps.push(stepStatus);
+                    }
+                    statusUpdated = true;
+                } catch (statusErr: any) {
+                    statusUpdateError = statusErr.message;
+                    console.warn('[PUSH_SHIPMENT] Hub status transition interrupted:', statusErr.message);
+                }
+            } else if (targetIndex !== -1 && hubStatus !== currentHubStatusName) {
+                // If not in standard workflow or moving backwards (rare), try direct
+                try {
+                    await client.packages.updateStatus(logicwareId, hubStatus);
+                    statusUpdated = true;
+                    transitionSteps.push(hubStatus);
+                } catch (statusErr: any) {
+                    statusUpdateError = statusErr.message;
+                }
+            } else {
+                statusUpdated = true; // Already at or ahead of target
             }
         }
 
         // 7. PERSIST HUB ID LOCALLY
         if (logicwareId && logicwareId !== local.logicware_id) {
-            const { error: updateErr } = await adminClient
+            await adminClient
                 .from(table)
                 .update({ logicware_id: logicwareId })
                 .eq('id', local.id);
-            
-            if (updateErr) console.error('[PUSH_SHIPMENT] Local ID update failed:', updateErr.message);
         }
 
         // 8. AUDIT LOG
         await adminClient.from('system_logs').insert({
             log_type: `logicware_${op}_success`,
-            description: `Shipment ${tracking} synced. Identity: ${shipperName || 'Unknown'} (${matchMethod}). Status: ${hubStatus} (${statusUpdated ? 'Success' : 'Failed'})`,
+            description: `Shipment ${tracking} synced. Identity: ${shipperName || 'Unknown'} (${matchMethod}). Hub State: ${hubStatus} (${statusUpdated ? 'Success' : 'Partial/Fail'})`,
             actor_id: caller.id,
             metadata: { 
                 tracking, 
                 logicwareId, 
                 op, 
-                hubStatus, 
+                targetHubStatus: hubStatus, 
+                initialHubStatus: currentHubStatusName,
                 statusUpdated, 
                 statusUpdateError,
+                transitionSteps,
                 matchMethod,
                 mailbox: (local as any).profiles?.mailbox_number
             }
@@ -186,7 +212,9 @@ export async function POST(request: Request) {
             logicwareId, 
             operation: op, 
             hubStatus, 
+            initialHubStatus: currentHubStatusName,
             statusUpdated,
+            transitionSteps,
             statusUpdateError,
             shipperResolved: !!shipperId 
         });
