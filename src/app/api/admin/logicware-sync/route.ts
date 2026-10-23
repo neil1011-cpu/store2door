@@ -74,6 +74,7 @@ export async function POST(request: Request) {
 
         if (logicwareId) {
             operation = 'update';
+            // SDK v0.2.0: UpdateShipperInput does not allow TRN update to prevent identity collision.
             await client.shippers.update(logicwareId, {
                 name: profile.full_name,
                 phone: profile.phone || ''
