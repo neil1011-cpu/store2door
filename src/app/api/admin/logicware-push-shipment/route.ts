@@ -4,8 +4,8 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Resolves "Unknown" customer by matching shipperId and "Pre-Alert" status
- * by mapping S2D state to Hub recognized state strings.
+ * Resolves "Unknown" customer by iterating through shipper pages and maps
+ * statuses to Hub-compliant standard strings.
  */
 
 export async function POST(request: Request) {
@@ -33,8 +33,7 @@ export async function POST(request: Request) {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
         // 1. LOOKUP: Fetch local record. Supports UUID lookup then fallback to tracking number.
-        // NOTE: profiles.logicware_id is excluded as it does not exist in the current schema.
-        let { data: local } = await adminClient
+        let { data: local, error: localErr } = await adminClient
             .from(table)
             .select('*, profiles:profile_id(full_name, email, mailbox_number)')
             .eq('id', shipmentId)
@@ -51,7 +50,7 @@ export async function POST(request: Request) {
         }
 
         if (!local) {
-            throw new Error(`Record ${shipmentId} not found in registry.`);
+            throw new Error(`Local record ${shipmentId} not found in registry. Error: ${localErr?.message || 'No rows'}`);
         }
 
         const client = await getLogicwareClient();
@@ -59,23 +58,31 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 2. IDENTITY RESOLUTION: Find the Logicware Shipper ID via mailbox/email
+        // 2. IDENTITY RESOLUTION: Paginated scan for Shipper ID
         let shipperId = null;
         try {
-            const shippersResponse = await client.shippers.list({ pageSize: 100 });
-            const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
-            const foundShipper = shipperList.find((s: any) => 
-                s.referenceCode === local.profiles?.mailbox_number || 
-                s.email?.toLowerCase() === (local.profiles as any)?.email?.toLowerCase()
-            );
-            if (foundShipper) {
-                shipperId = foundShipper.id;
+            // Scan up to 5 pages (500 shippers) to ensure high-numbered mailboxes are found
+            for (let page = 1; page <= 5; page++) {
+                const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
+                const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
+                
+                if (shipperList.length === 0) break;
+
+                const foundShipper = shipperList.find((s: any) => 
+                    s.referenceCode === (local as any).profiles?.mailbox_number || 
+                    s.email?.toLowerCase() === (local as any).profiles?.email?.toLowerCase()
+                );
+
+                if (foundShipper) {
+                    shipperId = foundShipper.id;
+                    break;
+                }
             }
         } catch (shipperErr) {
             console.warn('[PUSH_SHIPMENT] Shipper resolution failed:', shipperErr);
         }
 
-        // 3. STATUS MAPPING: Convert S2D status to Hub-recognized status
+        // 3. STATUS MAPPING: Precise Hub state strings
         const mapToHubStatus = (s2dStatus: string) => {
             const s = (s2dStatus || '').toLowerCase();
             if (s.includes('transit')) return 'In Transit';
@@ -93,7 +100,7 @@ export async function POST(request: Request) {
             weightLbs: parseFloat(local.weight_lbs) || 0,
             contents: local.contents || 'Package',
             description: local.contents || '',
-            referenceCode: local.profiles?.mailbox_number,
+            referenceCode: (local as any).profiles?.mailbox_number,
             shipperId: shipperId,
             status: hubStatus
         };
@@ -118,7 +125,7 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        // 6. PERSIST HUB ID LOCALLY (if logicware_id column exists on shipments/pre_alerts)
+        // 6. PERSIST HUB ID LOCALLY
         if (logicwareId && logicwareId !== local.logicware_id) {
             const { error: persistError } = await adminClient
                 .from(table)
@@ -126,18 +133,26 @@ export async function POST(request: Request) {
                 .eq('id', local.id);
 
             if (persistError) {
-                console.warn('[PUSH_SHIPMENT] Could not persist logicware_id locally:', persistError.message);
+                console.warn('[PUSH_SHIPMENT] Local persistence warning:', persistError.message);
             }
         }
 
+        // 7. ENHANCED AUDIT LOG
         await adminClient.from('system_logs').insert({
             log_type: `logicware_${op}_success`,
             description: `Shipment ${tracking} synced with Hub. Hub Status: ${hubStatus}`,
             actor_id: caller.id,
-            metadata: { tracking, logicwareId, op, shipperId }
+            metadata: { 
+                tracking, 
+                logicwareId, 
+                op, 
+                shipperId: shipperId || 'NOT_RESOLVED', 
+                hubStatus,
+                mailbox: (local as any).profiles?.mailbox_number
+            }
         });
 
-        return NextResponse.json({ success: true, logicwareId, operation: op, hubStatus });
+        return NextResponse.json({ success: true, logicwareId, operation: op, hubStatus, shipperResolved: !!shipperId });
 
     } catch (err: any) {
         console.error('[PUSH_SHIPMENT] Error:', err.message);
