@@ -4,7 +4,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Implements exhaustive paginated identity resolution and Hub v2 status mapping.
+ * Implements exhaustive paginated identity resolution and Hub v2 (Nana Banana) status mapping.
  */
 
 export async function POST(request: Request) {
@@ -31,13 +31,14 @@ export async function POST(request: Request) {
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
+        // Robust Dual-Lookup: Support both UUID and Tracking Number identifiers
         let { data: local, error: localErr } = await adminClient
             .from(table)
             .select('*, profiles:profile_id(full_name, email, mailbox_number)')
             .eq('id', shipmentId)
             .maybeSingle();
 
-        if (!local) {
+        if (!local && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shipmentId)) {
             const { data: fallback } = await adminClient
                 .from(table)
                 .select('*, profiles:profile_id(full_name, email, mailbox_number)')
@@ -47,9 +48,8 @@ export async function POST(request: Request) {
             local = fallback;
         }
 
-        if (!local) {
-            throw new Error(`Local record ${shipmentId} not found in registry.`);
-        }
+        if (localErr) throw new Error(`Registry query failed: ${localErr.message}`);
+        if (!local) throw new Error(`Local record ${shipmentId} not found in registry.`);
 
         const client = await getLogicwareClient();
         if (!client) throw new Error('Logicware Hub configuration missing.');
@@ -66,66 +66,65 @@ export async function POST(request: Request) {
             const normalizedMailbox = (local as any).profiles?.mailbox_number?.trim().toUpperCase();
             const normalizedEmail = (local as any).profiles?.email?.trim().toLowerCase();
 
-            // Scan up to 50 pages (5,000 shippers) to find a mailbox match
-            for (let page = 1; page <= 50; page++) {
-                const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
-                const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
-                
-                if (shipperList.length === 0) {
-                    searchCompleted = true;
-                    break;
-                }
+            if (!normalizedMailbox && !normalizedEmail) {
+                console.warn('[PUSH_SHIPMENT] No identifying customer metadata found.');
+            } else {
+                // Scan up to 50 pages (5,000 shippers) to find a mailbox match
+                for (let page = 1; page <= 50; page++) {
+                    const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
+                    const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
+                    
+                    if (shipperList.length === 0) {
+                        searchCompleted = true;
+                        break;
+                    }
 
-                // Priority 1: Exact Mailbox Match
-                const mailboxMatch = shipperList.find((s: any) => 
-                    (s.referenceCode || s.code || '').trim().toUpperCase() === normalizedMailbox
-                );
+                    // Priority 1: Exact Mailbox Match
+                    const mailboxMatch = shipperList.find((s: any) => 
+                        (s.referenceCode || s.code || '').trim().toUpperCase() === normalizedMailbox
+                    );
 
-                if (mailboxMatch) {
-                    shipperId = mailboxMatch.id;
-                    shipperName = mailboxMatch.name;
-                    matchMethod = 'MAILBOX';
-                    searchCompleted = true;
-                    break;
-                }
+                    if (mailboxMatch) {
+                        shipperId = mailboxMatch.id;
+                        shipperName = mailboxMatch.name;
+                        matchMethod = 'MAILBOX';
+                        searchCompleted = true;
+                        break;
+                    }
 
-                // Priority 2: Email Match
-                const emailMatch = shipperList.find((s: any) => 
-                    (s.email || '').trim().toLowerCase() === normalizedEmail
-                );
+                    // Priority 2: Email Match
+                    const emailMatch = shipperList.find((s: any) => 
+                        (s.email || '').trim().toLowerCase() === normalizedEmail
+                    );
 
-                if (emailMatch) {
-                    shipperId = emailMatch.id;
-                    shipperName = emailMatch.name;
-                    matchMethod = 'EMAIL';
-                    searchCompleted = true;
-                    break;
-                }
+                    if (emailMatch) {
+                        shipperId = emailMatch.id;
+                        shipperName = emailMatch.name;
+                        matchMethod = 'EMAIL';
+                        searchCompleted = true;
+                        break;
+                    }
 
-                if (shipperList.length < 100) {
-                    searchCompleted = true;
-                    break;
+                    if (shipperList.length < 100) {
+                        searchCompleted = true;
+                        break;
+                    }
                 }
             }
         } catch (shipperErr) {
             console.warn('[PUSH_SHIPMENT] Shipper resolution interrupted:', shipperErr);
         }
 
-        // Safety: If we didn't find the shipper and the search was cut short, do not proceed
-        if (!shipperId && !searchCompleted) {
-            throw new Error('Identity resolution interrupted: Registry search depth reached or API timeout.');
-        }
-
-        // 2. STATUS MAPPING: Precise Hub v2 strings (Title Case)
-        // nana-banana based hubs require exact Title Case strings to transition from Pre-Alert
+        // 2. STATUS MAPPING: Precise Hub v2 Sentence Case Enums
+        // Nana-banana based hubs typically require Sentence Case to trigger state transitions.
         const mapToHubStatus = (s2dStatus: string) => {
             const s = (s2dStatus || '').toLowerCase();
-            if (s.includes('transit')) return 'In Transit';
-            if (s.includes('pickup') || s.includes('ready')) return 'Arrived at Destination';
             if (s.includes('delivered')) return 'Delivered';
-            if (s.includes('received') || s.includes('processing') || s.includes('hold') || s.includes('return')) return 'Received at Warehouse';
-            if (s.includes('pre-alert') || s.includes('pending')) return 'Pre-Alert';
-            return 'Received at Warehouse';
+            if (s.includes('pickup') || s.includes('ready')) return 'Arrived at destination';
+            if (s.includes('transit')) return 'In transit';
+            if (s.includes('received') || s.includes('processing') || s.includes('processed') || s.includes('hold') || s.includes('return')) return 'Received at warehouse';
+            if (s.includes('pre-alert') || s.includes('pending')) return 'Pre-alert';
+            return 'Received at warehouse';
         };
 
         const hubStatus = mapToHubStatus(local.status);
@@ -160,7 +159,7 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        // 5. PERSIST HUB ID LOCALLY
+        // 5. PERSIST HUB ID LOCALLY (Corrected: No .catch() on query builder)
         if (logicwareId && logicwareId !== local.logicware_id) {
             const { error: persistError } = await adminClient
                 .from(table)
