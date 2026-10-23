@@ -236,15 +236,18 @@ export async function POST(request: Request) {
         });
 
         if (!statusUpdated && targetHubStatus.toLowerCase() !== initialHubStatusAtStart.toLowerCase()) {
-            return NextResponse.json({ 
-                success: false, 
-                message: statusUpdateError || 'Status verification failed.',
+            return NextResponse.json({
+                success: true,
+                statusApplied: false,
+                message: 'Package data synced. Logicware did not apply the status change; the Hub controls package status.',
+                hubMessage: statusUpdateError || 'Status verification failed.',
+                logicwareId,
                 initialHubStatus: initialHubStatusAtStart,
                 targetHubStatus,
                 finalVerifiedStatus,
                 transitionSteps,
                 verificationAudit
-            }, { status: 422 });
+            });
         }
 
         return NextResponse.json({ 
