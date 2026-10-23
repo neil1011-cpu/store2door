@@ -4,7 +4,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Implements exhaustive paginated identity resolution and Hub v2 (Nana Banana) status mapping.
+ * Implements exhaustive paginated identity resolution and explicit Hub v2 status transitions.
  */
 
 export async function POST(request: Request) {
@@ -66,10 +66,8 @@ export async function POST(request: Request) {
             const normalizedMailbox = (local as any).profiles?.mailbox_number?.trim().toUpperCase();
             const normalizedEmail = (local as any).profiles?.email?.trim().toLowerCase();
 
-            if (!normalizedMailbox && !normalizedEmail) {
-                console.warn('[PUSH_SHIPMENT] No identifying customer metadata found.');
-            } else {
-                // Scan up to 50 pages (5,000 shippers) to find a mailbox match
+            if (normalizedMailbox || normalizedEmail) {
+                // Scan up to 50 pages (5,000 shippers) to find a match
                 for (let page = 1; page <= 50; page++) {
                     const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
                     const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
@@ -115,8 +113,8 @@ export async function POST(request: Request) {
             console.warn('[PUSH_SHIPMENT] Shipper resolution interrupted:', shipperErr);
         }
 
-        // 2. STATUS MAPPING: Precise Hub v2 Sentence Case Enums
-        // Nana-banana based hubs typically require Sentence Case to trigger state transitions.
+        // 2. STATUS MAPPING: Logicware Hub v2 Sentence Case Enumerations
+        // Status must be updated via explicit updateStatus call for Nana Banana hubs.
         const mapToHubStatus = (s2dStatus: string) => {
             const s = (s2dStatus || '').toLowerCase();
             if (s.includes('delivered')) return 'Delivered';
@@ -124,7 +122,7 @@ export async function POST(request: Request) {
             if (s.includes('transit')) return 'In transit';
             if (s.includes('received') || s.includes('processing') || s.includes('processed') || s.includes('hold') || s.includes('return')) return 'Received at warehouse';
             if (s.includes('pre-alert') || s.includes('pending')) return 'Pre-alert';
-            return 'Received at warehouse';
+            return 'Pre-alert';
         };
 
         const hubStatus = mapToHubStatus(local.status);
@@ -135,8 +133,7 @@ export async function POST(request: Request) {
             contents: local.contents || 'Package',
             description: local.contents || '',
             referenceCode: (local as any).profiles?.mailbox_number,
-            shipperId: shipperId,
-            status: hubStatus
+            shipperId: shipperId
         };
 
         // 3. EXHAUSTIVE DEDUPLICATION SEARCH
@@ -148,7 +145,7 @@ export async function POST(request: Request) {
             if (match) logicwareId = match.id;
         }
 
-        // 4. EXECUTE HUB OPERATION
+        // 4. EXECUTE HUB OPERATION & EXPLICIT STATUS TRANSITION
         let op: 'create' | 'update';
         if (logicwareId) {
             op = 'update';
@@ -159,22 +156,29 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        // 5. PERSIST HUB ID LOCALLY (Corrected: No .catch() on query builder)
+        // Apply explicit status transition
+        let statusUpdated = false;
+        if (logicwareId) {
+            try {
+                await client.packages.updateStatus(logicwareId, hubStatus);
+                statusUpdated = true;
+            } catch (statusErr: any) {
+                console.warn('[PUSH_SHIPMENT] Status transition failed:', statusErr.message);
+            }
+        }
+
+        // 5. PERSIST HUB ID LOCALLY
         if (logicwareId && logicwareId !== local.logicware_id) {
-            const { error: persistError } = await adminClient
+            await adminClient
                 .from(table)
                 .update({ logicware_id: logicwareId })
                 .eq('id', local.id);
-
-            if (persistError) {
-                console.warn('[PUSH_SHIPMENT] Local ID persistence failed:', persistError.message);
-            }
         }
 
         // 6. ENHANCED AUDIT LOG
         await adminClient.from('system_logs').insert({
             log_type: `logicware_${op}_success`,
-            description: `Shipment ${tracking} synced with Hub. Identity: ${shipperName || 'Unknown'} (${matchMethod}). Status: ${hubStatus}`,
+            description: `Shipment ${tracking} synced with Hub. Identity: ${shipperName || 'Unknown'} (${matchMethod}). Hub Status: ${hubStatus} (${statusUpdated ? 'Applied' : 'Pending'})`,
             actor_id: caller.id,
             metadata: { 
                 tracking, 
@@ -185,6 +189,7 @@ export async function POST(request: Request) {
                 matchMethod,
                 searchCompleted,
                 hubStatus,
+                statusUpdated,
                 mailbox: (local as any).profiles?.mailbox_number
             }
         });
@@ -194,6 +199,7 @@ export async function POST(request: Request) {
             logicwareId, 
             operation: op, 
             hubStatus, 
+            statusUpdated,
             shipperResolved: !!shipperId,
             shipperName,
             matchMethod 
