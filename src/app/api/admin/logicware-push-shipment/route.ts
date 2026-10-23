@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { PackageStatus } from '@logicware.app/connect-sdk';
 
 /**
  * @fileOverview Hardened Logicware Shipment Sync API.
  * Implements strict sequential transitions and registry verification.
- * Aligned with Logicware Connect SDK v0.2.0.
+ * Aligned with Logicware Connect SDK v0.2.0 and PackageStatus typing.
  */
 
 export async function POST(request: Request) {
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
         const tracking = local.tracking_number.toUpperCase().trim();
         
         // 1. Status sequence and normalization
-        const statusSequence = [
+        const statusSequence: PackageStatus[] = [
             'PreAlert',
             'ReceivedAtWarehouse',
             'InTransit',
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
         const initialHubStatusAtStart = currentHubStatusName;
 
         // 3. Status Mapping
-        const mapToHubStatus = (s2dStatus: string): string => {
+        const mapToHubStatus = (s2dStatus: string): PackageStatus => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
             if (s.includes('out for delivery')) return 'OutForDelivery';
@@ -125,14 +126,14 @@ export async function POST(request: Request) {
             for (let i = startIndex + 1; i <= targetIndex; i++) {
                 const stepStatus = statusSequence[i];
                 try {
-                    // SDK 0.2.0: Use packages.update with status string
+                    // SDK 0.2.0: Use packages.update with strictly typed status
                     const updateResult = await client.packages.update(logicwareId, { 
                         status: stepStatus 
                     });
                     
                     let confirmed = getStatusName(updateResult);
                     
-                    // Independent registry lookup for confirmation
+                    // Independent registry lookup for confirmation if response is ambiguous
                     if (normalize(confirmed) !== normalize(stepStatus)) {
                         let registryMatch = null;
                         for (let p = 1; p <= 5; p++) {
