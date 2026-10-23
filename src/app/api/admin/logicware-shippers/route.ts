@@ -15,6 +15,7 @@ export async function POST(request: Request) {
 
         if (!client.shippers) throw new Error('Shippers module not available.');
         
+        // SDK v0.2.0 uses pageSize
         const response = await client.shippers.list({ pageSize: 100 });
         const list = Array.isArray(response) ? response : (response.data || []);
 

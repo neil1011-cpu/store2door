@@ -56,6 +56,7 @@ export async function POST(request: Request) {
         let currentHubStatusName = 'PreAlert';
         let currentHubManifestId = null;
 
+        // SDK v0.2.0 search
         for (let page = 1; page <= 10; page++) {
             const res = await client.packages.list({ pageSize: 100, page } as any);
             const list = Array.isArray(res) ? res : ((res as any).data || []);
@@ -97,7 +98,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 4. Status Sequence Mapping (Hub v2 / Nana Banana)
+        // 4. Status Sequence Mapping
         const statusSequence = [
             'PreAlert',
             'ReceivedAtWarehouse',
@@ -161,13 +162,13 @@ export async function POST(request: Request) {
                 }
 
                 try {
-                    // Trigger Explicit Transition
+                    // Trigger Explicit Transition using authoritative SDK method
                     const updateResult = await client.packages.updateStatus(logicwareId, stepStatus as any);
                     
                     // Verify Persisted State
                     let confirmed = (updateResult?.status?.name || updateResult?.status || '').toString().trim();
                     
-                    // Secondary confirm from Registry if response is vague
+                    // Secondary confirm from Registry lookup
                     if (confirmed.toLowerCase() !== stepStatus.toLowerCase()) {
                         let registryMatch = null;
                         for (let p = 1; p <= 5; p++) {
