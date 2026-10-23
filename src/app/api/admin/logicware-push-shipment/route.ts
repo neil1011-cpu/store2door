@@ -3,9 +3,9 @@ import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Finalized Hardened Logicware Shipment Sync API.
- * Implements strict sequential transitions and active state verification for Hub v2 compliance.
- * Uses authoritative client.packages.updateStatus method.
+ * @fileOverview Manifest-Aware Logicware Shipment Sync API.
+ * Implements strict sequential transitions and active manifest association verification.
+ * Aligned with Logicware Connect SDK v0.2.0.
  */
 
 export async function POST(request: Request) {
@@ -27,56 +27,34 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const { shipmentId, type = 'shipment' } = body;
 
-    if (!shipmentId) return NextResponse.json({ message: 'Shipment ID or Tracking Number required' }, { status: 400 });
+    if (!shipmentId) return NextResponse.json({ message: 'Shipment ID required' }, { status: 400 });
 
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
+        // 1. Fetch Local Record and its Manifest Context
         let { data: local, error: localErr } = await adminClient
             .from(table)
-            .select('*, profiles:profile_id(full_name, email, mailbox_number)')
+            .select(`
+                *,
+                profiles:profile_id(full_name, email, mailbox_number),
+                manifests:manifest_id(flight_number, manifest_date, status)
+            `)
             .eq('id', shipmentId)
             .maybeSingle();
 
-        if (!local && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shipmentId)) {
-            const { data: fallback } = await adminClient
-                .from(table)
-                .select('*, profiles:profile_id(full_name, email, mailbox_number)')
-                .eq('tracking_number', shipmentId.toUpperCase().trim())
-                .maybeSingle();
-            local = fallback;
-        }
-
         if (localErr) throw new Error(`Registry query failed: ${localErr.message}`);
-        if (!local) throw new Error(`Local record ${shipmentId} not found in registry.`);
+        if (!local) throw new Error(`Local record ${shipmentId} not found.`);
 
         const client = await getLogicwareClient();
         if (!client) throw new Error('Logicware Hub configuration missing.');
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 1. Resolve Shipper ID
-        let shipperId = null;
-        try {
-            const normalizedMailbox = (local as any).profiles?.mailbox_number?.trim().toUpperCase();
-            if (normalizedMailbox) {
-                for (let page = 1; page <= 10; page++) {
-                    const res = await client.shippers.list({ pageSize: 100, page } as any);
-                    const list = Array.isArray(res) ? res : ((res as any).data || []);
-                    if (list.length === 0) break;
-                    const match = list.find((s: any) => (s.referenceCode || s.code || '').trim().toUpperCase() === normalizedMailbox);
-                    if (match) {
-                        shipperId = match.id;
-                        break;
-                    }
-                    if (list.length < 100) break;
-                }
-            }
-        } catch (e) { console.warn('[PUSH_SHIPMENT] Shipper resolution warning.'); }
-
-        // 2. Identify Hub Package and Current Status
+        // 2. Identify Hub Package and Current State
         let logicwareId = local.logicware_id;
         let currentHubStatusName = 'PreAlert';
+        let currentHubManifestId = null;
 
         for (let page = 1; page <= 10; page++) {
             const res = await client.packages.list({ pageSize: 100, page } as any);
@@ -86,6 +64,7 @@ export async function POST(request: Request) {
             if (match) {
                 logicwareId = match.id;
                 currentHubStatusName = match.status?.name || match.status || 'PreAlert';
+                currentHubManifestId = match.manifestId;
                 break;
             }
             if (list.length < 100) break;
@@ -93,7 +72,41 @@ export async function POST(request: Request) {
 
         const initialHubStatusAtStart = currentHubStatusName;
 
-        // 3. Status Mapping (Sentence Case for Hub v2)
+        // 3. Resolve Target Manifest (Logicware ID)
+        let resolvedHubManifestId = currentHubManifestId;
+        const localManifest = (local as any).manifests;
+
+        if (localManifest && !resolvedHubManifestId) {
+            const flightId = localManifest.flight_number.toUpperCase().trim();
+            // Search Hub Manifests for a match
+            for (let page = 1; page <= 5; page++) {
+                const mRes = await client.manifests.list({ pageSize: 100, page } as any);
+                const mList = Array.isArray(mRes) ? mRes : ((mRes as any).data || []);
+                if (mList.length === 0) break;
+
+                const match = mList.find((m: any) => 
+                    (m.code || m.manifestNumber || '').toUpperCase().trim() === flightId &&
+                    (m.open !== false) // Only associate with OPEN manifests
+                );
+
+                if (match) {
+                    resolvedHubManifestId = match.id;
+                    break;
+                }
+                if (mList.length < 100) break;
+            }
+        }
+
+        // 4. Status Sequence Mapping (Hub v2 / Nana Banana)
+        const statusSequence = [
+            'PreAlert',
+            'ReceivedAtWarehouse',
+            'InTransit',
+            'ReadyForPickup',
+            'OutForDelivery',
+            'Delivered'
+        ];
+
         const mapToHubStatus = (s2dStatus: string): string => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
@@ -105,159 +118,109 @@ export async function POST(request: Request) {
         };
 
         const targetHubStatus = mapToHubStatus(local.status);
-        const payload: any = {
-            trackingNumber: tracking,
-            weightLbs: parseFloat(local.weight_lbs) || 0,
-            description: local.contents || '',
-            shipperId: shipperId || undefined,
-            shipperAddressCode: shipperId ? undefined : (local as any).profiles?.mailbox_number
+        const findIndex = (status: string) => {
+            const s = status.toLowerCase();
+            return statusSequence.findIndex(item => item.toLowerCase() === s);
         };
 
-        // 4. Create/Update Base Data
-        let op: 'create' | 'update';
-        if (logicwareId) {
-            op = 'update';
-            const { shipperId: _sid, shipperAddressCode: _sac, ...updatePayload } = payload;
-            await client.packages.update(logicwareId, updatePayload);
-        } else {
-            op = 'create';
-            const result = await client.packages.create(payload);
-            logicwareId = result?.id;
-        }
+        const startIndex = findIndex(currentHubStatusName);
+        const targetIndex = findIndex(targetHubStatus);
 
-        // 5. Sequential Status Transitions (Workflow Compliance)
-        const statusSequence = [
-            'PreAlert',
-            'ReceivedAtWarehouse',
-            'InTransit',
-            'ReadyForPickup',
-            'OutForDelivery',
-            'Delivered'
-        ];
-
-        let statusUpdated = false;
-        let statusUpdateError: string | null = null;
+        // 5. Execution Loop with Manifest-Aware Logic
         let finalVerifiedStatus = initialHubStatusAtStart;
+        let manifestAssigned = false;
         const transitionSteps: string[] = [];
         const verificationAudit: any[] = [];
 
-        const getStatusName = (obj: any) => {
-            const val = obj?.status?.name || obj?.status || '';
-            return String(val).trim();
-        };
-
-        const findIndexInsensitive = (arr: string[], val: string) => {
-            const target = val.toLowerCase().trim();
-            return arr.findIndex(item => item.toLowerCase().trim() === target);
-        };
-
-        if (logicwareId && targetHubStatus) {
-            const startIndex = findIndexInsensitive(statusSequence, currentHubStatusName);
-            const targetIndex = findIndexInsensitive(statusSequence, targetHubStatus);
-
-            if (targetIndex !== -1 && targetIndex !== startIndex) {
-                for (let i = targetIndex; i <= targetIndex; i++) {
-                    const stepStatus = statusSequence[i];
-                    try {
-                        // Use authoritative transition method
-                        const updateResult = await client.packages.update(logicwareId, { status: stepStatus as any });
-                        
-                        let confirmedStatus = getStatusName(updateResult);
-                        let verificationSource = 'RESPONSE';
-
-                        // Verify against Hub Registry if response is stale or inconclusive
-                        if (confirmedStatus.toLowerCase() !== stepStatus.toLowerCase()) {
-                            let verifiedMatch = null;
-                            for (let page = 1; page <= 10; page++) {
-                                const verifyRes = await client.packages.list({ pageSize: 100, page } as any);
-                                const list = Array.isArray(verifyRes) ? verifyRes : ((verifyRes as any).data || []);
-                                if (list.length === 0) break;
-                                
-                                verifiedMatch = list.find((m: any) => 
-                                    m.id === logicwareId || 
-                                    (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking
-                                );
-                                
-                                if (verifiedMatch) break;
-                                if (list.length < 100) break;
-                            }
-                            
-                            if (verifiedMatch) {
-                                confirmedStatus = getStatusName(verifiedMatch);
-                                verificationSource = 'REGISTRY';
-                            }
-                        }
-
-                        verificationAudit.push({ 
-                            step: stepStatus, 
-                            source: verificationSource, 
-                            confirmed: confirmedStatus
-                        });
-
-                        if (confirmedStatus.toLowerCase() !== stepStatus.toLowerCase()) {
-                            throw new Error(`Verification mismatch: Hub reports "${confirmedStatus}".`);
-                        }
-
-                        transitionSteps.push(stepStatus);
-                        finalVerifiedStatus = stepStatus;
-                        statusUpdated = true;
-                    } catch (err: any) {
-                        statusUpdateError = err?.message || String(err);
-                        break;
-                    }
-                }
-            } else if (targetHubStatus.toLowerCase() === currentHubStatusName.toLowerCase()) {
-                statusUpdated = true;
-                finalVerifiedStatus = targetHubStatus;
-            }
+        // A. Ensure Base Data & Logicware Link
+        if (!logicwareId) {
+            const result = await client.packages.create({
+                trackingNumber: tracking,
+                weightLbs: parseFloat(local.weight_lbs) || 0,
+                description: local.contents || '',
+                shipperAddressCode: (local as any).profiles?.mailbox_number
+            });
+            logicwareId = result?.id;
         }
 
-        // 6. Update local ID if it was missing
+        // B. Sequential Transitions
+        if (logicwareId && targetIndex !== -1 && targetIndex > startIndex) {
+            for (let i = startIndex + 1; i <= targetIndex; i++) {
+                const stepStatus = statusSequence[i];
+                
+                // CRITICAL: Manifest Dependency for InTransit
+                if (stepStatus === 'InTransit' && !currentHubManifestId) {
+                    if (!resolvedHubManifestId) {
+                        throw new Error(`InTransit requires manifest association. No matching Open manifest found for ${localManifest?.flight_number || 'this package'}.`);
+                    }
+                    
+                    // Assign Manifest before entering InTransit
+                    await client.packages.update(logicwareId, { manifestId: resolvedHubManifestId });
+                    currentHubManifestId = resolvedHubManifestId;
+                    manifestAssigned = true;
+                }
+
+                try {
+                    // Trigger Explicit Transition
+                    const updateResult = await client.packages.updateStatus(logicwareId, stepStatus as any);
+                    
+                    // Verify Persisted State
+                    let confirmed = (updateResult?.status?.name || updateResult?.status || '').toString().trim();
+                    
+                    // Secondary confirm from Registry if response is vague
+                    if (confirmed.toLowerCase() !== stepStatus.toLowerCase()) {
+                        let registryMatch = null;
+                        for (let p = 1; p <= 5; p++) {
+                            const vRes = await client.packages.list({ pageSize: 100, page: p } as any);
+                            const vList = Array.isArray(vRes) ? vRes : ((vRes as any).data || []);
+                            registryMatch = vList.find((m: any) => m.id === logicwareId);
+                            if (registryMatch) break;
+                        }
+                        confirmed = (registryMatch?.status?.name || registryMatch?.status || confirmed).toString().trim();
+                    }
+
+                    verificationAudit.push({ step: stepStatus, confirmed });
+
+                    if (confirmed.toLowerCase() !== stepStatus.toLowerCase()) {
+                        throw new Error(`Hub rejected transition to ${stepStatus}. Currently: ${confirmed}`);
+                    }
+
+                    transitionSteps.push(stepStatus);
+                    finalVerifiedStatus = stepStatus;
+                } catch (err: any) {
+                    throw new Error(`Transition at step ${stepStatus} failed: ${err.message}`);
+                }
+            }
+        } else {
+            finalVerifiedStatus = currentHubStatusName;
+        }
+
+        // 6. Update local registry with Hub IDs
         if (logicwareId && logicwareId !== local.logicware_id) {
             await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', local.id);
         }
 
         // 7. Audit Log
         await adminClient.from('system_logs').insert({
-            log_type: `logicware_${op}_verification`,
-            description: `Shipment ${tracking} sync attempt. Result: ${finalVerifiedStatus}.`,
+            log_type: 'logicware_manifest_aware_sync',
+            description: `Shipment ${tracking} sync successful. Result: ${finalVerifiedStatus}.`,
             actor_id: caller.id,
             metadata: { 
                 tracking, 
                 logicwareId, 
                 targetHubStatus, 
-                initialHubStatus: initialHubStatusAtStart,
-                finalVerifiedStatus,
-                statusUpdated, 
-                statusUpdateError,
+                finalVerifiedStatus, 
+                manifestAssigned,
                 transitionSteps,
                 verificationAudit
             }
         });
 
-        if (!statusUpdated && targetHubStatus.toLowerCase() !== initialHubStatusAtStart.toLowerCase()) {
-            return NextResponse.json({
-                success: true,
-                statusApplied: false,
-                message: 'Package data synced. Logicware did not apply the status change; the Hub controls package status.',
-                hubMessage: statusUpdateError || 'Status verification failed.',
-                logicwareId,
-                initialHubStatus: initialHubStatusAtStart,
-                targetHubStatus,
-                finalVerifiedStatus,
-                transitionSteps,
-                verificationAudit
-            });
-        }
-
         return NextResponse.json({ 
             success: true, 
             logicwareId, 
-            operation: op, 
-            initialHubStatus: initialHubStatusAtStart,
-            targetHubStatus,
             finalVerifiedStatus,
-            statusUpdated,
+            manifestAssigned,
             transitionSteps,
             verificationAudit
         });
