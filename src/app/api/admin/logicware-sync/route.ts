@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Authorized Individual Shipper Sync API.
- * Standardized for SDK v0.2.0 (TRN is immutable in update).
+ * Standardized for SDK v0.2.0 (TRN removed from UpdateShipperInput).
  */
 
 export async function POST(request: Request) {
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         const normalizedEmail = profile.email?.trim().toLowerCase();
 
         for (let page = 1; page <= 50; page++) {
-            const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
+            const shippersResponse = await client.shippers.list({ pageSize: 100, page });
             const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
             
             if (shipperList.length === 0) break;
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
         if (logicwareId) {
             operation = 'update';
-            // SDK v0.2.0 UpdateShipperInput does not include TRN
+            // SDK v0.2.0: trn is not present in UpdateShipperInput
             await client.shippers.update(logicwareId, {
                 name: profile.full_name,
                 phone: profile.phone || ''

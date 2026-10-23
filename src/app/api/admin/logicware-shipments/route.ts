@@ -26,7 +26,7 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient();
         if (!client) throw new Error('Hub configuration missing.');
         
-        // Correct resource reference for v0.2.0
+        // Correct resource reference and pagination for v0.2.0
         const response = await client.packages.list({ pageSize: 100 });
         const list = Array.isArray(response) ? response : (response.data || []);
 

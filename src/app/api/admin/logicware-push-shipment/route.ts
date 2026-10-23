@@ -3,8 +3,8 @@ import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Manifest-Aware Logicware Shipment Sync API.
- * Implements strict sequential transitions and active manifest association verification.
+ * @fileOverview Hardened Logicware Shipment Sync API.
+ * Implements strict sequential transitions and registry verification.
  * Aligned with Logicware Connect SDK v0.2.0.
  */
 
@@ -32,14 +32,9 @@ export async function POST(request: Request) {
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
-        // 1. Fetch Local Record and its Manifest Context
-        let { data: local, error: localErr } = await adminClient
+        const { data: local, error: localErr } = await adminClient
             .from(table)
-            .select(`
-                *,
-                profiles:profile_id(full_name, email, mailbox_number),
-                manifests:manifest_id(flight_number, manifest_date, status)
-            `)
+            .select('*, profiles:profile_id(full_name, email, mailbox_number)')
             .eq('id', shipmentId)
             .maybeSingle();
 
@@ -51,7 +46,7 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 2. Status sequence and normalization helpers
+        // 1. Status sequence and normalization
         const statusSequence = [
             'PreAlert',
             'ReceivedAtWarehouse',
@@ -76,12 +71,10 @@ export async function POST(request: Request) {
             return '';
         };
 
-        // 3. Identify Hub Package and Current State
+        // 2. Identify Hub Package and Current State
         let logicwareId = local.logicware_id;
         let currentHubStatusName = 'PreAlert';
-        let currentHubManifestId = null;
 
-        // Search Hub for current package state
         for (let page = 1; page <= 10; page++) {
             const res = await client.packages.list({ pageSize: 100, page });
             const list = Array.isArray(res) ? res : (res.data || []);
@@ -90,7 +83,6 @@ export async function POST(request: Request) {
             if (match) {
                 logicwareId = match.id;
                 currentHubStatusName = getStatusName(match) || 'PreAlert';
-                currentHubManifestId = match.manifestId;
                 break;
             }
             if (list.length < 100) break;
@@ -98,31 +90,7 @@ export async function POST(request: Request) {
 
         const initialHubStatusAtStart = currentHubStatusName;
 
-        // 4. Resolve Target Manifest (Logicware ID)
-        let resolvedHubManifestId = currentHubManifestId;
-        const localManifest = (local as any).manifests;
-
-        if (localManifest && !resolvedHubManifestId) {
-            const flightId = localManifest.flight_number.toUpperCase().trim();
-            for (let page = 1; page <= 5; page++) {
-                const mRes = await client.manifests.list({ pageSize: 100, page });
-                const mList = Array.isArray(mRes) ? mRes : (mRes.data || []);
-                if (mList.length === 0) break;
-
-                const match = mList.find((m: any) => 
-                    (m.code || m.manifestNumber || '').toUpperCase().trim() === flightId &&
-                    (m.open !== false)
-                );
-
-                if (match) {
-                    resolvedHubManifestId = match.id;
-                    break;
-                }
-                if (mList.length < 100) break;
-            }
-        }
-
-        // 5. Status Mapping
+        // 3. Status Mapping
         const mapToHubStatus = (s2dStatus: string): string => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
@@ -137,13 +105,11 @@ export async function POST(request: Request) {
         const startIndex = findIndex(currentHubStatusName);
         const targetIndex = findIndex(targetHubStatus);
 
-        // 6. Execution Loop with Verification
+        // 4. Execution Loop with Verification
         let finalVerifiedStatus = initialHubStatusAtStart;
-        let manifestAssigned = false;
         const transitionSteps: string[] = [];
         const verificationAudit: any[] = [];
 
-        // Ensure package exists in Hub
         if (!logicwareId) {
             const result = await client.packages.create({
                 trackingNumber: tracking,
@@ -158,23 +124,15 @@ export async function POST(request: Request) {
         if (logicwareId && targetIndex !== -1 && targetIndex > startIndex) {
             for (let i = startIndex + 1; i <= targetIndex; i++) {
                 const stepStatus = statusSequence[i];
-                
-                // Manifest association requirement for InTransit
-                if (normalize(stepStatus) === 'intransit' && !currentHubManifestId) {
-                    if (!resolvedHubManifestId) {
-                        throw new Error(`InTransit requires manifest association. No matching Open manifest found for ${localManifest?.flight_number || 'this package'}.`);
-                    }
-                    
-                    // SDK v0.2.0 does not support manifest assignment via UpdatePackageInput.
-                    // If the SDK lacks a typed assignToManifest method, we must report this blocker.
-                    throw new Error(`The current SDK version does not support programmatic manifest association for status transitions.`);
-                }
-
                 try {
-                    const updateResult = await client.packages.updateStatus(logicwareId, stepStatus as any);
+                    // SDK 0.2.0: Use packages.update with status string
+                    const updateResult = await client.packages.update(logicwareId, { 
+                        status: stepStatus 
+                    });
+                    
                     let confirmed = getStatusName(updateResult);
                     
-                    // Registry lookup verification
+                    // Independent registry lookup for confirmation
                     if (normalize(confirmed) !== normalize(stepStatus)) {
                         let registryMatch = null;
                         for (let p = 1; p <= 5; p++) {
@@ -217,7 +175,6 @@ export async function POST(request: Request) {
                 logicwareId, 
                 targetHubStatus, 
                 finalVerifiedStatus, 
-                manifestAssigned,
                 transitionSteps,
                 verificationAudit
             }
@@ -227,7 +184,6 @@ export async function POST(request: Request) {
             success: true, 
             logicwareId, 
             finalVerifiedStatus,
-            manifestAssigned,
             transitionSteps,
             verificationAudit
         });

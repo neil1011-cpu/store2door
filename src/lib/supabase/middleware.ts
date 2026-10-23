@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 /**
  * @fileOverview Supabase Middleware for FromStore2Door OS.
- * Fixed compilation errors by adding explicit types to cookie methods.
+ * Fixed compilation errors by adding explicit types to cookie methods for Next.js 15.
  */
 export async function updateSession(request: any) {
   let supabaseResponse = NextResponse.next({
@@ -27,7 +27,6 @@ export async function updateSession(request: any) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          // NEXT15_FIX: Added explicit types to resolve implicit any errors
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({
             request,

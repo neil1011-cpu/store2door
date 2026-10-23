@@ -7,6 +7,7 @@ export type LogicwareConfig = {
 
 /**
  * @fileOverview Server-side Logicware Service.
+ * Standardized for SDK v0.2.0.
  */
 
 export function getLogicwareInstance(config: LogicwareConfig) {
@@ -21,7 +22,7 @@ export function getLogicwareInstance(config: LogicwareConfig) {
 export async function testLogicwareConnection(config: LogicwareConfig) {
     try {
         const client = getLogicwareInstance(config);
-        // Correct resource reference for v0.2.0
+        // Correct resource reference and pagination for v0.2.0
         const hub = client.packages || client.shippers;
         if (!hub) throw new Error('No accessible modules found.');
         
