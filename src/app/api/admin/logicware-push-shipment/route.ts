@@ -116,15 +116,16 @@ export async function POST(request: Request) {
             throw new Error('Identity resolution interrupted: Registry search depth reached or API timeout.');
         }
 
-        // 2. STATUS MAPPING: Precise Hub v2 strings (Sentence Case)
+        // 2. STATUS MAPPING: Precise Hub v2 strings (Title Case)
+        // nana-banana based hubs require exact Title Case strings to transition from Pre-Alert
         const mapToHubStatus = (s2dStatus: string) => {
             const s = (s2dStatus || '').toLowerCase();
-            if (s.includes('transit')) return 'In transit';
-            if (s.includes('pickup') || s.includes('ready')) return 'Arrived at destination';
+            if (s.includes('transit')) return 'In Transit';
+            if (s.includes('pickup') || s.includes('ready')) return 'Arrived at Destination';
             if (s.includes('delivered')) return 'Delivered';
-            if (s.includes('received') || s.includes('processing') || s.includes('hold') || s.includes('return')) return 'Received at warehouse';
+            if (s.includes('received') || s.includes('processing') || s.includes('hold') || s.includes('return')) return 'Received at Warehouse';
             if (s.includes('pre-alert') || s.includes('pending')) return 'Pre-Alert';
-            return 'Received at warehouse';
+            return 'Received at Warehouse';
         };
 
         const hubStatus = mapToHubStatus(local.status);
@@ -163,7 +164,7 @@ export async function POST(request: Request) {
         if (logicwareId && logicwareId !== local.logicware_id) {
             const { error: persistError } = await adminClient
                 .from(table)
-                .update({ logicware_id: logicwareId } as any)
+                .update({ logicware_id: logicwareId })
                 .eq('id', local.id);
 
             if (persistError) {
