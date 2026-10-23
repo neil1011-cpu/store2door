@@ -83,8 +83,8 @@ export async function POST(request: Request) {
 
         // Search Hub for current package state
         for (let page = 1; page <= 10; page++) {
-            const res = await client.packages.list({ pageSize: 100, page } as any);
-            const list = Array.isArray(res) ? res : ((res as any).data || []);
+            const res = await client.packages.list({ pageSize: 100, page });
+            const list = Array.isArray(res) ? res : (res.data || []);
             if (list.length === 0) break;
             const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
             if (match) {
@@ -105,8 +105,8 @@ export async function POST(request: Request) {
         if (localManifest && !resolvedHubManifestId) {
             const flightId = localManifest.flight_number.toUpperCase().trim();
             for (let page = 1; page <= 5; page++) {
-                const mRes = await client.manifests.list({ pageSize: 100, page } as any);
-                const mList = Array.isArray(mRes) ? mRes : ((mRes as any).data || []);
+                const mRes = await client.manifests.list({ pageSize: 100, page });
+                const mList = Array.isArray(mRes) ? mRes : (mRes.data || []);
                 if (mList.length === 0) break;
 
                 const match = mList.find((m: any) => 
@@ -164,9 +164,10 @@ export async function POST(request: Request) {
                     if (!resolvedHubManifestId) {
                         throw new Error(`InTransit requires manifest association. No matching Open manifest found for ${localManifest?.flight_number || 'this package'}.`);
                     }
-                    await client.packages.update(logicwareId, { manifestId: resolvedHubManifestId });
-                    currentHubManifestId = resolvedHubManifestId;
-                    manifestAssigned = true;
+                    
+                    // SDK v0.2.0 does not support manifest assignment via UpdatePackageInput.
+                    // If the SDK lacks a typed assignToManifest method, we must report this blocker.
+                    throw new Error(`The current SDK version does not support programmatic manifest association for status transitions.`);
                 }
 
                 try {
@@ -177,8 +178,8 @@ export async function POST(request: Request) {
                     if (normalize(confirmed) !== normalize(stepStatus)) {
                         let registryMatch = null;
                         for (let p = 1; p <= 5; p++) {
-                            const vRes = await client.packages.list({ pageSize: 100, page: p } as any);
-                            const vList = Array.isArray(vRes) ? vRes : ((vRes as any).data || []);
+                            const vRes = await client.packages.list({ pageSize: 100, page: p });
+                            const vList = Array.isArray(vRes) ? vRes : (vRes.data || []);
                             registryMatch = vList.find((m: any) => m.id === logicwareId);
                             if (registryMatch) break;
                         }
