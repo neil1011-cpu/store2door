@@ -120,11 +120,14 @@ export async function POST(request: Request) {
 
         // 6. PERSIST HUB ID LOCALLY (if logicware_id column exists on shipments/pre_alerts)
         if (logicwareId && logicwareId !== local.logicware_id) {
-            await adminClient
+            const { error: persistError } = await adminClient
                 .from(table)
                 .update({ logicware_id: logicwareId } as any)
-                .eq('id', local.id)
-                .catch(() => console.warn('[PUSH_SHIPMENT] Could not persist logicware_id locally.'));
+                .eq('id', local.id);
+
+            if (persistError) {
+                console.warn('[PUSH_SHIPMENT] Could not persist logicware_id locally:', persistError.message);
+            }
         }
 
         await adminClient.from('system_logs').insert({
