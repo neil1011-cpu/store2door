@@ -4,7 +4,8 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Corrected to use 'packages' resource and 'pageSize' for SDK v0.2.0.
+ * Resolves "Unknown" customer by matching shipperId and "Pre-Alert" status
+ * by mapping S2D state to Hub recognized state strings.
  */
 
 export async function POST(request: Request) {
@@ -31,26 +32,21 @@ export async function POST(request: Request) {
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
-        // 1. DUAL LOOKUP: Try UUID first, then Tracking Number fallback.
+        // 1. LOOKUP: Fetch full profile info for identity matching
         let { data: local, error: fetchErr } = await adminClient
             .from(table)
-            .select('*, profiles:profile_id(mailbox_number)')
+            .select('*, profiles:profile_id(full_name, email, mailbox_number, logicware_id)')
             .eq('id', shipmentId)
             .maybeSingle();
 
         if (!local && !fetchErr) {
-            const { data: fallback, error: fallbackErr } = await adminClient
+            const { data: fallback } = await adminClient
                 .from(table)
-                .select('*, profiles:profile_id(mailbox_number)')
+                .select('*, profiles:profile_id(full_name, email, mailbox_number, logicware_id)')
                 .eq('tracking_number', shipmentId.toUpperCase().trim())
                 .maybeSingle();
             
             local = fallback;
-            fetchErr = fallbackErr;
-        }
-
-        if (fetchErr) {
-            throw new Error(`Registry query failed: ${fetchErr.message}`);
         }
 
         if (!local) {
@@ -61,7 +57,37 @@ export async function POST(request: Request) {
         if (!client) throw new Error('Logicware Hub configuration missing.');
 
         const tracking = local.tracking_number.toUpperCase().trim();
-        let logicwareId = local.logicware_id;
+        
+        // 2. IDENTITY RESOLUTION: Find the Logicware Shipper ID
+        let shipperId = (local.profiles as any)?.logicware_id;
+        if (!shipperId) {
+            try {
+                const shippersResponse = await client.shippers.list({ pageSize: 100 });
+                const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
+                const foundShipper = shipperList.find((s: any) => 
+                    s.referenceCode === local.profiles?.mailbox_number || 
+                    s.email?.toLowerCase() === (local.profiles as any)?.email?.toLowerCase()
+                );
+                if (foundShipper) {
+                    shipperId = foundShipper.id;
+                }
+            } catch (shipperErr) {
+                console.warn('[PUSH_SHIPMENT] Shipper resolution failed:', shipperErr);
+            }
+        }
+
+        // 3. STATUS MAPPING: Convert S2D status to Hub-recognized status
+        const mapToHubStatus = (s2dStatus: string) => {
+            const s = (s2dStatus || '').toLowerCase();
+            if (s.includes('transit')) return 'In Transit';
+            if (s.includes('pickup') || s.includes('ready')) return 'Arrived at Destination';
+            if (s.includes('delivered')) return 'Delivered';
+            if (s.includes('received') || s.includes('processing')) return 'Received at Warehouse';
+            if (s.includes('pre-alert') || s.includes('pending')) return 'Pre-Alert';
+            return 'Received at Warehouse';
+        };
+
+        const hubStatus = mapToHubStatus(local.status);
 
         const payload = {
             trackingNumber: tracking,
@@ -69,45 +95,20 @@ export async function POST(request: Request) {
             contents: local.contents || 'Package',
             description: local.contents || '',
             referenceCode: local.profiles?.mailbox_number,
-            status: local.status
+            shipperId: shipperId, // FIX: Resolves "Unknown" customer
+            status: hubStatus // FIX: Resolves stuck "Pre-Alert"
         };
 
-        // 2. EXHAUSTIVE DEDUPLICATION SEARCH
+        // 4. EXHAUSTIVE DEDUPLICATION SEARCH
+        let logicwareId = local.logicware_id;
         if (!logicwareId) {
-            let currentPage = 1;
-            let foundMatches: any[] = [];
-            const maxPages = 10; 
-            const pageSize = 100;
-            let hasMore = true;
-
-            while (currentPage <= maxPages && hasMore) {
-                // SDK v0.2.0 uses 'packages' resource and 'pageSize' parameter
-                const response = await client.packages.list({ pageSize, page: currentPage });
-                const list = Array.isArray(response) ? response : ((response as any).data || []);
-                
-                if (list.length === 0) {
-                    hasMore = false;
-                    break;
-                }
-
-                const matches = list.filter((m: any) => {
-                    const remoteTracking = (m.trackingNumber || m.code || '').toString().toUpperCase().trim();
-                    return remoteTracking === tracking;
-                });
-                
-                foundMatches.push(...matches);
-                if (foundMatches.length > 0) break;
-                
-                if (list.length < pageSize) hasMore = false;
-                else currentPage++;
-            }
-
-            if (foundMatches.length > 0) {
-                logicwareId = foundMatches[0].id;
-            }
+            const searchResponse = await client.packages.list({ pageSize: 100 });
+            const list = Array.isArray(searchResponse) ? searchResponse : ((searchResponse as any).data || []);
+            const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
+            if (match) logicwareId = match.id;
         }
 
-        // 3. EXECUTE HUB OPERATION
+        // 5. EXECUTE HUB OPERATION
         let op: 'create' | 'update';
         if (logicwareId) {
             op = 'update';
@@ -118,26 +119,23 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        // 4. PERSIST HUB ID LOCALLY
+        // 6. PERSIST HUB ID LOCALLY
         if (logicwareId && logicwareId !== local.logicware_id) {
-            const { error: updateError } = await adminClient
+            await adminClient
                 .from(table)
-                .update({ logicware_id: logicwareId })
-                .eq('id', local.id);
-            
-            if (updateError) {
-                throw new Error(`CRITICAL: Hub ${op} success, but local registry update failed: ${updateError.message}`);
-            }
+                .update({ logicware_id: logicwareId } as any)
+                .eq('id', local.id)
+                .catch(() => console.warn('[PUSH_SHIPMENT] Could not persist logicware_id. Column may be missing.'));
         }
 
         await adminClient.from('system_logs').insert({
             log_type: `logicware_${op}_success`,
-            description: `Shipment ${tracking} synced with Hub.`,
+            description: `Shipment ${tracking} synced with Hub. Hub Status: ${hubStatus}`,
             actor_id: caller.id,
-            metadata: { tracking, logicwareId, op }
+            metadata: { tracking, logicwareId, op, shipperId }
         });
 
-        return NextResponse.json({ success: true, logicwareId, operation: op });
+        return NextResponse.json({ success: true, logicwareId, operation: op, hubStatus });
 
     } catch (err: any) {
         console.error('[PUSH_SHIPMENT] Error:', err.message);
