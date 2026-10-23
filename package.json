@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf .next .next-dev"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.0.12",
@@ -61,7 +62,8 @@
     "recharts": "^2.15.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "rimraf": "^5.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

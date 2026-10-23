@@ -15,8 +15,8 @@ export function AppContent({
   const pathname = usePathname();
   
   // Administrative routes (starts with /admin or /admin-login)
-  // NEXT15_FIX: Added null check for pathname to prevent SSR crashes
-  const isAdminPage = pathname?.startsWith('/admin') || false;
+  // NEXT15_FIX: Added null check for pathname to prevent SSR crashes in development mode.
+  const isAdminPage = pathname?.startsWith('/admin') || pathname?.startsWith('/admin-login') || false;
   
   // Logged-in user dashboard routes
   const isAccountPage = pathname?.startsWith('/account') || false;
