@@ -15,6 +15,7 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient(apiKey);
         if (!client) throw new Error('Client initialization failed.');
         
+        // Correct resource reference for v0.2.0
         const testResource = client.packages || client.shippers;
         if (testResource) {
             await testResource.list({ pageSize: 1 });

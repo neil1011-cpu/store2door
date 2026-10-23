@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Authorized Individual Shipper Sync API.
- * Hardened with exhaustive paginated search to ensure reliable mailbox resolution.
+ * Standardized for SDK v0.2.0 (TRN is immutable in update).
  */
 
 export async function POST(request: Request) {
@@ -26,10 +26,8 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient();
         if (!client) throw new Error('Hub not configured.');
 
-        // 1. EXHAUSTIVE IDENTITY RESOLUTION: Paginated scan for matching shipper
         let logicwareId = null;
         let matchMethod = 'NONE';
-        let searchCompleted = false;
 
         const normalizedMailbox = profile.mailbox_number?.trim().toUpperCase();
         const normalizedEmail = profile.email?.trim().toLowerCase();
@@ -38,10 +36,7 @@ export async function POST(request: Request) {
             const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
             const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
             
-            if (shipperList.length === 0) {
-                searchCompleted = true;
-                break;
-            }
+            if (shipperList.length === 0) break;
 
             const match = shipperList.find((s: any) => {
                 const hubMailbox = (s.referenceCode || s.code || '').trim().toUpperCase();
@@ -60,21 +55,17 @@ export async function POST(request: Request) {
 
             if (match) {
                 logicwareId = match.id;
-                searchCompleted = true;
                 break;
             }
 
-            if (shipperList.length < 100) {
-                searchCompleted = true;
-                break;
-            }
+            if (shipperList.length < 100) break;
         }
 
         let operation;
 
         if (logicwareId) {
             operation = 'update';
-            // SDK v0.2.0: UpdateShipperInput does not allow TRN update to prevent identity collision.
+            // SDK v0.2.0 UpdateShipperInput does not include TRN
             await client.shippers.update(logicwareId, {
                 name: profile.full_name,
                 phone: profile.phone || ''
@@ -100,8 +91,7 @@ export async function POST(request: Request) {
                 mailbox: profile.mailbox_number, 
                 operation, 
                 logicwareId,
-                matchMethod,
-                searchCompleted 
+                matchMethod
             }
         });
 

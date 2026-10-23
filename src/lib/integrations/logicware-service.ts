@@ -21,6 +21,7 @@ export function getLogicwareInstance(config: LogicwareConfig) {
 export async function testLogicwareConnection(config: LogicwareConfig) {
     try {
         const client = getLogicwareInstance(config);
+        // Correct resource reference for v0.2.0
         const hub = client.packages || client.shippers;
         if (!hub) throw new Error('No accessible modules found.');
         

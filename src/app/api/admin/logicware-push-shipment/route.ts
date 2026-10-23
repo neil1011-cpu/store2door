@@ -3,9 +3,9 @@ import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
- * @fileOverview Hardened Universal Shipment Sync API with Strict Sequential Verification.
- * Implements linear transitions and active state verification for Hub v2 compliance.
- * Uses client.packages.updateStatus for authoritative state changes.
+ * @fileOverview Finalized Hardened Logicware Shipment Sync API.
+ * Implements strict sequential transitions and active state verification for Hub v2 compliance.
+ * Uses authoritative client.packages.updateStatus method.
  */
 
 export async function POST(request: Request) {
@@ -55,6 +55,7 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
+        // 1. Resolve Shipper ID
         let shipperId = null;
         try {
             const normalizedMailbox = (local as any).profiles?.mailbox_number?.trim().toUpperCase();
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
             }
         } catch (e) { console.warn('[PUSH_SHIPMENT] Shipper resolution warning.'); }
 
+        // 2. Identify Hub Package and Current Status
         let logicwareId = local.logicware_id;
         let currentHubStatusName = 'Pre-alert';
 
@@ -91,6 +93,7 @@ export async function POST(request: Request) {
 
         const initialHubStatusAtStart = currentHubStatusName;
 
+        // 3. Status Mapping (Sentence Case for Hub v2)
         const mapToHubStatus = (s2dStatus: string): string => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
@@ -111,6 +114,7 @@ export async function POST(request: Request) {
             shipperId: shipperId
         };
 
+        // 4. Create/Update Base Data
         let op: 'create' | 'update';
         if (logicwareId) {
             op = 'update';
@@ -121,6 +125,7 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
+        // 5. Sequential Status Transitions (Workflow Compliance)
         const statusSequence = [
             'Pre-alert',
             'Received at warehouse',
@@ -154,12 +159,13 @@ export async function POST(request: Request) {
                 for (let i = startIndex + 1; i <= targetIndex; i++) {
                     const stepStatus = statusSequence[i];
                     try {
-                        // Use explicit status transition method for Hub v2
+                        // Use authoritative transition method
                         const updateResult = await (client.packages as any).updateStatus(logicwareId, stepStatus);
                         
                         let confirmedStatus = getStatusName(updateResult);
                         let verificationSource = 'RESPONSE';
 
+                        // Verify against Hub Registry if response is stale or inconclusive
                         if (confirmedStatus.toLowerCase() !== stepStatus.toLowerCase()) {
                             let verifiedMatch = null;
                             for (let page = 1; page <= 10; page++) {
@@ -206,10 +212,12 @@ export async function POST(request: Request) {
             }
         }
 
+        // 6. Update local ID if it was missing
         if (logicwareId && logicwareId !== local.logicware_id) {
             await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', local.id);
         }
 
+        // 7. Audit Log
         await adminClient.from('system_logs').insert({
             log_type: `logicware_${op}_verification`,
             description: `Shipment ${tracking} sync attempt. Result: ${finalVerifiedStatus}.`,

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * @fileOverview Authorized Hub Package Fetcher.
- * Correctly references 'packages' resource and 'pageSize' for SDK v0.2.0.
+ * Standardized to use 'packages' resource and 'pageSize' for SDK v0.2.0.
  */
 
 export async function POST(request: Request) {
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient();
         if (!client) throw new Error('Hub configuration missing.');
         
+        // Correct resource reference for v0.2.0
         const response = await client.packages.list({ pageSize: 100 });
         const list = Array.isArray(response) ? response : (response.data || []);
 
