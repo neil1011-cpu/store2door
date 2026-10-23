@@ -4,8 +4,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Hardened Universal Shipment Sync API.
- * Resolves "Unknown" customer by iterating through shipper pages and maps
- * statuses to Hub-compliant standard strings.
+ * Implements exhaustive paginated identity resolution and Hub v2 status mapping.
  */
 
 export async function POST(request: Request) {
@@ -32,7 +31,6 @@ export async function POST(request: Request) {
     try {
         const table = type === 'pre-alert' ? 'pre_alerts' : 'shipments';
         
-        // 1. LOOKUP: Fetch local record. Supports UUID lookup then fallback to tracking number.
         let { data: local, error: localErr } = await adminClient
             .from(table)
             .select('*, profiles:profile_id(full_name, email, mailbox_number)')
@@ -50,7 +48,7 @@ export async function POST(request: Request) {
         }
 
         if (!local) {
-            throw new Error(`Local record ${shipmentId} not found in registry. Error: ${localErr?.message || 'No rows'}`);
+            throw new Error(`Local record ${shipmentId} not found in registry.`);
         }
 
         const client = await getLogicwareClient();
@@ -58,39 +56,75 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 2. IDENTITY RESOLUTION: Paginated scan for Shipper ID
+        // 1. EXHAUSTIVE IDENTITY RESOLUTION: Paginated scan for Shipper ID
         let shipperId = null;
+        let shipperName = null;
+        let matchMethod = 'NONE';
+        let searchCompleted = false;
+
         try {
-            // Scan up to 5 pages (500 shippers) to ensure high-numbered mailboxes are found
-            for (let page = 1; page <= 5; page++) {
+            const normalizedMailbox = (local as any).profiles?.mailbox_number?.trim().toUpperCase();
+            const normalizedEmail = (local as any).profiles?.email?.trim().toLowerCase();
+
+            // Scan up to 50 pages (5,000 shippers) to find a mailbox match
+            for (let page = 1; page <= 50; page++) {
                 const shippersResponse = await client.shippers.list({ pageSize: 100, page } as any);
                 const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
                 
-                if (shipperList.length === 0) break;
+                if (shipperList.length === 0) {
+                    searchCompleted = true;
+                    break;
+                }
 
-                const foundShipper = shipperList.find((s: any) => 
-                    s.referenceCode === (local as any).profiles?.mailbox_number || 
-                    s.email?.toLowerCase() === (local as any).profiles?.email?.toLowerCase()
+                // Priority 1: Exact Mailbox Match
+                const mailboxMatch = shipperList.find((s: any) => 
+                    (s.referenceCode || s.code || '').trim().toUpperCase() === normalizedMailbox
                 );
 
-                if (foundShipper) {
-                    shipperId = foundShipper.id;
+                if (mailboxMatch) {
+                    shipperId = mailboxMatch.id;
+                    shipperName = mailboxMatch.name;
+                    matchMethod = 'MAILBOX';
+                    searchCompleted = true;
+                    break;
+                }
+
+                // Priority 2: Email Match
+                const emailMatch = shipperList.find((s: any) => 
+                    (s.email || '').trim().toLowerCase() === normalizedEmail
+                );
+
+                if (emailMatch) {
+                    shipperId = emailMatch.id;
+                    shipperName = emailMatch.name;
+                    matchMethod = 'EMAIL';
+                    searchCompleted = true;
+                    break;
+                }
+
+                if (shipperList.length < 100) {
+                    searchCompleted = true;
                     break;
                 }
             }
         } catch (shipperErr) {
-            console.warn('[PUSH_SHIPMENT] Shipper resolution failed:', shipperErr);
+            console.warn('[PUSH_SHIPMENT] Shipper resolution interrupted:', shipperErr);
         }
 
-        // 3. STATUS MAPPING: Precise Hub state strings
+        // Safety: If we didn't find the shipper and the search was cut short, do not proceed
+        if (!shipperId && !searchCompleted) {
+            throw new Error('Identity resolution interrupted: Registry search depth reached or API timeout.');
+        }
+
+        // 2. STATUS MAPPING: Precise Hub v2 strings (Sentence Case)
         const mapToHubStatus = (s2dStatus: string) => {
             const s = (s2dStatus || '').toLowerCase();
-            if (s.includes('transit')) return 'In Transit';
-            if (s.includes('pickup') || s.includes('ready')) return 'Arrived at Destination';
+            if (s.includes('transit')) return 'In transit';
+            if (s.includes('pickup') || s.includes('ready')) return 'Arrived at destination';
             if (s.includes('delivered')) return 'Delivered';
-            if (s.includes('received') || s.includes('processing')) return 'Received at Warehouse';
+            if (s.includes('received') || s.includes('processing') || s.includes('hold') || s.includes('return')) return 'Received at warehouse';
             if (s.includes('pre-alert') || s.includes('pending')) return 'Pre-Alert';
-            return 'Received at Warehouse';
+            return 'Received at warehouse';
         };
 
         const hubStatus = mapToHubStatus(local.status);
@@ -105,7 +139,7 @@ export async function POST(request: Request) {
             status: hubStatus
         };
 
-        // 4. EXHAUSTIVE DEDUPLICATION SEARCH
+        // 3. EXHAUSTIVE DEDUPLICATION SEARCH
         let logicwareId = local.logicware_id;
         if (!logicwareId) {
             const searchResponse = await client.packages.list({ pageSize: 100 });
@@ -114,7 +148,7 @@ export async function POST(request: Request) {
             if (match) logicwareId = match.id;
         }
 
-        // 5. EXECUTE HUB OPERATION
+        // 4. EXECUTE HUB OPERATION
         let op: 'create' | 'update';
         if (logicwareId) {
             op = 'update';
@@ -125,7 +159,7 @@ export async function POST(request: Request) {
             logicwareId = result?.id;
         }
 
-        // 6. PERSIST HUB ID LOCALLY
+        // 5. PERSIST HUB ID LOCALLY
         if (logicwareId && logicwareId !== local.logicware_id) {
             const { error: persistError } = await adminClient
                 .from(table)
@@ -133,26 +167,37 @@ export async function POST(request: Request) {
                 .eq('id', local.id);
 
             if (persistError) {
-                console.warn('[PUSH_SHIPMENT] Local persistence warning:', persistError.message);
+                console.warn('[PUSH_SHIPMENT] Local ID persistence failed:', persistError.message);
             }
         }
 
-        // 7. ENHANCED AUDIT LOG
+        // 6. ENHANCED AUDIT LOG
         await adminClient.from('system_logs').insert({
             log_type: `logicware_${op}_success`,
-            description: `Shipment ${tracking} synced with Hub. Hub Status: ${hubStatus}`,
+            description: `Shipment ${tracking} synced with Hub. Identity: ${shipperName || 'Unknown'} (${matchMethod}). Status: ${hubStatus}`,
             actor_id: caller.id,
             metadata: { 
                 tracking, 
                 logicwareId, 
                 op, 
                 shipperId: shipperId || 'NOT_RESOLVED', 
+                shipperName,
+                matchMethod,
+                searchCompleted,
                 hubStatus,
                 mailbox: (local as any).profiles?.mailbox_number
             }
         });
 
-        return NextResponse.json({ success: true, logicwareId, operation: op, hubStatus, shipperResolved: !!shipperId });
+        return NextResponse.json({ 
+            success: true, 
+            logicwareId, 
+            operation: op, 
+            hubStatus, 
+            shipperResolved: !!shipperId,
+            shipperName,
+            matchMethod 
+        });
 
     } catch (err: any) {
         console.error('[PUSH_SHIPMENT] Error:', err.message);
