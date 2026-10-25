@@ -2,7 +2,21 @@
 
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger, SidebarFooter } from '@/components/ui/sidebar';
 import Link from 'next/link';
-import { LayoutDashboard, Users, Package, Settings, LogOut, Loader2, Inbox, Truck, DollarSign, Mail, Plane, Tag, Calculator, Bell, ShoppingCart, History, Database, BarChart3, HeadphonesIcon } from 'lucide-react';
+import { 
+    LayoutDashboard, 
+    Users, 
+    Package, 
+    Settings, 
+    LogOut, 
+    Loader2, 
+    Inbox, 
+    Truck, 
+    DollarSign, 
+    Mail, 
+    Plane, 
+    ShoppingCart, 
+    History 
+} from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -74,21 +88,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   };
 
   const sidebarLinks = [
-    { href: "/admin", icon: <LayoutDashboard />, label: "Operations Hub" },
-    { href: "/admin/sales", icon: <BarChart3 />, label: "Sales & Growth" },
-    { href: "/admin/customer-service", icon: <HeadphonesIcon />, label: "Customer Service" },
-    { href: "/admin/pos", icon: <ShoppingCart />, label: "POS System" },
-    { href: "/admin/pre-alerts", icon: <Inbox />, label: "Pre-Alerts" },
-    { href: "/admin/shipping", icon: <Truck />, label: "Shipping" },
-    { href: "/admin/users", icon: <Users />, label: "Users" },
-    { href: "/admin/finance", icon: <DollarSign />, label: "Finance" },
-    { href: "/admin/communications", icon: <Mail />, label: "Communications" },
-    { href: "/admin/manifests", icon: <Plane />, label: "Manifests" },
-    { href: "/admin/migration", icon: <Database />, label: "Migration" },
-    { href: "/admin/rates", icon: <Tag />, label: "Rates" },
-    { href: "/admin/customs-calculator", icon: <Calculator />, label: "Calculator" },
-    { href: "/admin/logs", icon: <History />, label: "Activity Logs" },
-    { href: "/admin/settings", icon: <Settings />, label: "Settings" },
+    { href: "/admin", icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard" },
+    { href: "/admin/pre-alerts", icon: <Inbox className="h-4 w-4" />, label: "Pre-Alerts" },
+    { href: "/admin/shipping", icon: <Truck className="h-4 w-4" />, label: "Shipping" },
+    { href: "/admin/pos", icon: <ShoppingCart className="h-4 w-4" />, label: "POS Terminal" },
+    { href: "/admin/finance", icon: <DollarSign className="h-4 w-4" />, label: "Finance" },
+    { href: "/admin/users", icon: <Users className="h-4 w-4" />, label: "Users" },
+    { href: "/admin/manifests", icon: <Plane className="h-4 w-4" />, label: "Manifests" },
+    { href: "/admin/communications", icon: <Mail className="h-4 w-4" />, label: "Communications" },
+    { href: "/admin/logs", icon: <History className="h-4 w-4" />, label: "Activity Logs" },
+    { href: "/admin/settings", icon: <Settings className="h-4 w-4" />, label: "Settings" },
   ];
 
   return (
@@ -132,7 +141,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <SidebarInset>
           <header className="flex h-16 items-center gap-4 border-b bg-background px-6 sticky top-0 z-30 shadow-sm">
             <SidebarTrigger />
-            <div className="text-xs font-black tracking-[0.2em] uppercase text-muted-foreground hidden md:block">FSTD Global OS</div>
+            <div className="text-xs font-black tracking-[0.2em] uppercase text-muted-foreground hidden md:block">Store2Door OS</div>
             <div className="flex-1" />
             <div className="flex items-center gap-4">
               <ThemeToggle />

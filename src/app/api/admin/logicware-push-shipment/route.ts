@@ -5,8 +5,8 @@ import { PackageStatus } from '@logicware.app/connect-sdk';
 
 /**
  * @fileOverview Hardened Logicware Shipment Sync API.
- * Implements strict sequential transitions and registry verification.
- * Aligned with Logicware Connect SDK v0.2.0 and PackageStatus typing.
+ * Aligned with Logicware Connect SDK v0.2.0 and official Hub v2 state machine.
+ * Status Sequence: PreAlert -> ReadyToShip -> AtCustoms -> AtHeadOffice -> Delivered
  */
 
 export async function POST(request: Request) {
@@ -47,13 +47,12 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 1. Status sequence and normalization
+        // 1. Status sequence and normalization (Aligned with Hub v2 actual labels)
         const statusSequence: PackageStatus[] = [
             'PreAlert',
-            'ReceivedAtWarehouse',
-            'InTransit',
-            'ReadyForPickup',
-            'OutForDelivery',
+            'ReadyToShip',
+            'AtCustoms',
+            'AtHeadOffice',
             'Delivered'
         ];
 
@@ -68,7 +67,6 @@ export async function POST(request: Request) {
             if (!res) return '';
             if (typeof res.status === 'string') return res.status;
             if (res.status?.name) return res.status.name;
-            if (typeof res === 'string') return res;
             return '';
         };
 
@@ -76,7 +74,7 @@ export async function POST(request: Request) {
         let logicwareId = local.logicware_id;
         let currentHubStatusName = 'PreAlert';
 
-        for (let page = 1; page <= 10; page++) {
+        for (let page = 1; page <= 5; page++) {
             const res = await client.packages.list({ pageSize: 100, page });
             const list = Array.isArray(res) ? res : (res.data || []);
             if (list.length === 0) break;
@@ -86,19 +84,16 @@ export async function POST(request: Request) {
                 currentHubStatusName = getStatusName(match) || 'PreAlert';
                 break;
             }
-            if (list.length < 100) break;
         }
 
-        const initialHubStatusAtStart = currentHubStatusName;
-
-        // 3. Status Mapping
+        // 3. Target Mapping (Store2Door -> Logicware Hub v2)
         const mapToHubStatus = (s2dStatus: string): PackageStatus => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
-            if (s.includes('out for delivery')) return 'OutForDelivery';
-            if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'ReadyForPickup';
-            if (s.includes('in transit') || s.includes('transit')) return 'InTransit';
-            if (s.includes('processing') || s.includes('processed') || s.includes('received')) return 'ReceivedAtWarehouse';
+            if (s.includes('out for delivery')) return 'AtHeadOffice';
+            if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'AtHeadOffice';
+            if (s.includes('in transit') || s.includes('transit')) return 'AtCustoms';
+            if (s.includes('received') || s.includes('processing') || s.includes('processed')) return 'ReadyToShip';
             return 'PreAlert';
         };
 
@@ -106,91 +101,66 @@ export async function POST(request: Request) {
         const startIndex = findIndex(currentHubStatusName);
         const targetIndex = findIndex(targetHubStatus);
 
-        // 4. Execution Loop with Verification
-        let finalVerifiedStatus = initialHubStatusAtStart;
-        const transitionSteps: string[] = [];
-        const verificationAudit: any[] = [];
-
+        // 4. Creation / Sync Loop
         if (!logicwareId) {
             const result = await client.packages.create({
                 trackingNumber: tracking,
                 weightLbs: parseFloat(local.weight_lbs) || 0,
                 description: local.contents || '',
-                shipperAddressCode: (local as any).profiles?.mailbox_number
+                shipperAddressCode: local.profiles?.mailbox_number
             });
             logicwareId = result?.id;
         }
 
-        // Sequential Transitions
+        const transitionAudit: any[] = [];
+        let finalStatus = currentHubStatusName;
+
+        // Execute sequential transitions if target is further down the chain
         if (logicwareId && targetIndex !== -1 && targetIndex > startIndex) {
             for (let i = startIndex + 1; i <= targetIndex; i++) {
                 const stepStatus = statusSequence[i];
-                try {
-                    // SDK 0.2.0: Use packages.update with strictly typed status
-                    const updateResult = await client.packages.update(logicwareId, { 
-                        status: stepStatus 
-                    });
-                    
-                    let confirmed = getStatusName(updateResult);
-                    
-                    // Independent registry lookup for confirmation if response is ambiguous
-                    if (normalize(confirmed) !== normalize(stepStatus)) {
-                        let registryMatch = null;
-                        for (let p = 1; p <= 5; p++) {
-                            const vRes = await client.packages.list({ pageSize: 100, page: p });
-                            const vList = Array.isArray(vRes) ? vRes : (vRes.data || []);
-                            registryMatch = vList.find((m: any) => m.id === logicwareId);
-                            if (registryMatch) break;
-                        }
-                        confirmed = getStatusName(registryMatch) || confirmed;
-                    }
+                
+                // IMPORTANT: Use generic update with status property for SDK v0.2.0 compatibility
+                const updateRes = await client.packages.update(logicwareId, { 
+                    status: stepStatus,
+                    weightLbs: parseFloat(local.weight_lbs) || 0, // Ensure weight is passed for intake steps
+                    description: local.contents || ''
+                });
 
-                    verificationAudit.push({ step: stepStatus, confirmed });
+                // Post-update verification
+                let confirmed = getStatusName(updateRes);
+                
+                // Registry re-check to confirm persistence (handles Hub async delays)
+                const verifyRes = await client.packages.list({ pageSize: 100 });
+                const verifyList = Array.isArray(verifyRes) ? verifyRes : (verifyRes.data || []);
+                const verifyMatch = verifyList.find((m: any) => m.id === logicwareId);
+                confirmed = getStatusName(verifyMatch) || confirmed;
 
-                    if (normalize(confirmed) !== normalize(stepStatus)) {
-                        throw new Error(`Hub rejected transition to ${stepStatus}. Currently: ${confirmed}`);
-                    }
+                transitionAudit.push({ step: stepStatus, result: confirmed });
 
-                    transitionSteps.push(stepStatus);
-                    finalVerifiedStatus = stepStatus;
-                } catch (err: any) {
-                    throw new Error(`Transition at step ${stepStatus} failed: ${err.message}`);
+                if (normalize(confirmed) !== normalize(stepStatus)) {
+                    throw new Error(`Transition at step ${stepStatus} failed: Hub rejected change. Currently: ${confirmed}`);
                 }
+                finalStatus = stepStatus;
             }
-        } else {
-            finalVerifiedStatus = currentHubStatusName;
         }
 
-        // Update local registry with Hub IDs
+        // Persist Hub ID locally
         if (logicwareId && logicwareId !== local.logicware_id) {
             await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', local.id);
         }
 
-        // Audit Log
         await adminClient.from('system_logs').insert({
-            log_type: 'logicware_hardened_sync',
-            description: `Shipment ${tracking} sync complete. Confirmed: ${finalVerifiedStatus}.`,
+            log_type: 'logicware_sync_v2',
+            description: `Shipment ${tracking} synced. Final Status: ${finalStatus}`,
             actor_id: caller.id,
-            metadata: { 
-                tracking, 
-                logicwareId, 
-                targetHubStatus, 
-                finalVerifiedStatus, 
-                transitionSteps,
-                verificationAudit
-            }
+            metadata: { tracking, logicwareId, targetHubStatus, finalStatus, audit: transitionAudit }
         });
 
-        return NextResponse.json({ 
-            success: true, 
-            logicwareId, 
-            finalVerifiedStatus,
-            transitionSteps,
-            verificationAudit
-        });
+        return NextResponse.json({ success: true, logicwareId, finalStatus, audit: transitionAudit });
 
     } catch (err: any) {
-        console.error('[PUSH_SHIPMENT] FATAL:', err.message);
-        return NextResponse.json({ message: err.message }, { status: 500 });
+        console.error('[LOGICWARE_PUSH] FATAL:', err.message);
+        return NextResponse.json({ message: err.message, status: 'error' }, { status: 500 });
     }
 }

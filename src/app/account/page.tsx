@@ -2,17 +2,25 @@
 
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { LayoutGrid, BellRing, Package, LifeBuoy, User, LogOut, Calculator, Wallet, TrendingDown, TrendingUp, AlertCircle, CheckCircle2, Loader2, ArrowRight, ShieldCheck, MapPin } from 'lucide-react';
+import { 
+    LayoutGrid, 
+    BellRing, 
+    Package, 
+    LifeBuoy, 
+    User, 
+    Calculator, 
+    ShieldCheck, 
+    MapPin,
+    Loader2,
+    ArrowRight
+} from 'lucide-react';
 import { DashboardTab, WarehouseAddressCard } from './dashboard-components';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAccountProfile } from './layout';
 import { useState, useEffect } from 'react';
-import { useSupabase } from '@/components/supabase-provider';
-import { Separator } from '@/components/ui/separator';
 
 const featureCards = [
     {
@@ -41,18 +49,16 @@ const featureCards = [
         title: 'My Profile',
         description: 'Manage details & addresses.',
         icon: <User className="h-5 w-5" />,
-        color: 'bg-red-500 text-white',
+        color: 'bg-red-50 text-red-500',
     },
 ];
 
 export default function AccountPage() {
     const { profile: userProfile, totalToBePaid } = useAccountProfile();
     const [mounted, setMounted] = useState(false);
-    const [year, setYear] = useState<number | null>(null);
 
     useEffect(() => {
         setMounted(true);
-        setYear(new Date().getFullYear());
     }, []);
 
     if (!userProfile || !mounted) return (
@@ -68,49 +74,31 @@ export default function AccountPage() {
         <div className="container mx-auto px-4 md:px-6 pb-20 space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b pb-8">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter">Welcome, {userProfile.full_name?.split(' ')[0] || 'User'}!</h1>
+                    <h1 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter text-foreground">Welcome, {userProfile.full_name?.split(' ')[0] || 'User'}!</h1>
                     <div className="flex items-center gap-4 mt-2">
                         <Badge variant="outline" className="h-8 px-4 font-black italic tracking-widest border-2">MAILBOX: {userProfile.mailbox_number}</Badge>
-                        <Badge className="bg-primary text-primary-foreground font-black italic text-[9px] uppercase h-8 px-4">Status: Verified</Badge>
-                    </div>
-                </div>
-                <div className="hidden lg:flex items-center gap-4 text-right">
-                    <div>
-                        <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest italic">Registry Balance</p>
-                        <p className={cn("text-xl font-black italic tracking-tighter leading-none mt-1", hasDues ? "text-red-600" : "text-primary")}>
-                            JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </p>
+                        <Badge className="bg-primary text-primary-foreground font-black italic text-[9px] uppercase h-8 px-4">Verified Client</Badge>
                     </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-8 space-y-8">
-                    {/* Authorized Standing Card (Small) */}
-                    <Card className={cn(
-                        "border shadow-sm",
-                        hasDues ? "bg-red-50 border-red-100" : "bg-muted/10 border-muted/50"
-                    )}>
+                    {/* Authorized Standing Card (Original Compact Design) */}
+                    <Card className="border shadow-sm max-w-sm">
                         <CardContent className="p-4 flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <ShieldCheck className={cn("h-4 w-4", hasDues ? "text-red-600" : "text-primary/40")} />
                                 <div>
-                                    <p className={cn("text-[7px] font-black uppercase tracking-[0.3em] italic", hasDues ? "text-red-700" : "text-muted-foreground")}>Authorized Standing</p>
-                                    <p className="text-[10px] font-bold opacity-60 uppercase">
-                                        {hasDues ? "Settlement required for collection." : "Your account registry is clear."}
+                                    <p className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Authorized Standing</p>
+                                    <p className={cn("text-lg font-black italic tracking-tighter leading-none mt-1", hasDues ? "text-red-600" : "text-primary")}>
+                                        JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </p>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <p className={cn("text-sm font-black italic tracking-tighter", hasDues ? "text-red-600" : "text-foreground")}>
-                                    JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                </p>
-                                <Button variant={hasDues ? "destructive" : "outline"} size="sm" className="h-6 text-[8px] font-black uppercase mt-1 px-3" asChild>
-                                    <Link href="/account/packages">
-                                        {hasDues ? "Settle Now" : "Manage"}
-                                    </Link>
-                                </Button>
-                            </div>
+                            <Button variant={hasDues ? "destructive" : "outline"} size="sm" className="h-7 text-[8px] font-black uppercase px-3" asChild>
+                                <Link href="/account/packages">{hasDues ? "Settle Dues" : "Registry"}</Link>
+                            </Button>
                         </CardContent>
                     </Card>
 
@@ -118,14 +106,13 @@ export default function AccountPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {featureCards.map(card => (
                             <Link href={card.href} key={card.href}>
-                                <Card className="h-full cursor-pointer hover:shadow-xl transition-all group overflow-hidden border-2 rounded-[2rem] hover:border-primary/20">
+                                <Card className="h-full cursor-pointer hover:shadow-lg transition-all border-2 rounded-2xl overflow-hidden group">
                                     <CardContent className="p-6 flex flex-col items-center text-center gap-3">
-                                        <div className={cn("p-4 rounded-2xl transition-transform group-hover:scale-110 shadow-lg", card.color)}>
+                                        <div className={cn("p-4 rounded-xl shadow-sm transition-transform group-hover:scale-110", card.color)}>
                                             {card.icon}
                                         </div>
                                         <div>
-                                            <CardTitle className="text-xs font-black uppercase italic tracking-widest">{card.title}</CardTitle>
-                                            <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mt-1 opacity-60">{card.description}</p>
+                                            <CardTitle className="text-[10px] font-black uppercase tracking-widest">{card.title}</CardTitle>
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -134,8 +121,8 @@ export default function AccountPage() {
                     </div>
 
                     <div className="space-y-4 pt-4">
-                        <h2 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3">
-                            <LayoutGrid className="h-5 w-5 text-primary" /> Active Registry Feed
+                        <h2 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3 text-foreground">
+                            <LayoutGrid className="h-5 w-5 text-primary" /> Recent Activity
                         </h2>
                         <DashboardTab details={userProfile} />
                     </div>
@@ -144,41 +131,42 @@ export default function AccountPage() {
                 <div className="lg:col-span-4 space-y-6">
                     <WarehouseAddressCard details={userProfile} />
 
-                    <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden bg-zinc-950 text-white">
-                        <CardHeader className="bg-white/5 border-b p-8 pb-6">
-                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3 text-zinc-400">
-                                <LifeBuoy className="h-4 w-4 text-primary" /> Logistics Support
+                    {/* Logistics Support Card (Fixed Button Contrast) */}
+                    <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-zinc-950 text-white">
+                        <CardHeader className="bg-white/5 border-b p-6">
+                            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-3 text-zinc-400">
+                                <LifeBuoy className="h-4 w-4 text-primary" /> Support Hub
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="p-8 space-y-6">
+                        <CardContent className="p-6 space-y-6">
                             <p className="text-xs font-medium leading-relaxed opacity-60 italic">
-                                Need assistance with tracking, customs, or delivery scheduling? Our worldwide helpdesk is standing by.
+                                Need assistance with tracking, customs, or delivery? Our worldwide helpdesk is standing by.
                             </p>
                             <div className="grid gap-3">
-                                <Button className="w-full h-14 bg-indigo-600 hover:bg-indigo-500 font-black uppercase italic shadow-xl rounded-xl text-white" asChild>
-                                    <Link href="https://wa.me/18765069727" target="_blank">WhatsApp Hub</Link>
+                                <Button className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 font-black uppercase italic shadow-xl text-white border-none" asChild>
+                                    <Link href="https://wa.me/18765069727" target="_blank">WhatsApp Command</Link>
                                 </Button>
-                                <Button variant="outline" className="w-full h-14 border-white/20 hover:bg-white/10 font-black uppercase italic text-[10px] rounded-xl text-white border-2" asChild>
+                                <Button variant="outline" className="w-full h-12 border-white/40 hover:bg-white/10 font-black uppercase italic text-white rounded-xl shadow-lg" asChild>
                                     <Link href="/account/support">Email Helpdesk</Link>
                                 </Button>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <div className="p-8 rounded-[2rem] border-4 border-dashed bg-muted/20 flex flex-col items-center text-center gap-4 group hover:bg-muted/30 transition-all">
-                        <div className="bg-primary/10 p-4 rounded-2xl group-hover:scale-110 transition-transform">
-                            <MapPin className="h-8 w-8 text-primary" />
+                    <div className="p-6 rounded-2xl border-2 border-dashed bg-muted/20 flex items-center gap-4 group hover:bg-muted/30 transition-all">
+                        <div className="bg-primary/10 p-3 rounded-xl">
+                            <MapPin className="h-6 w-6 text-primary" />
                         </div>
                         <div>
-                            <h4 className="font-black uppercase italic tracking-tighter text-lg">Collection Station</h4>
-                            <p className="text-[10px] font-bold uppercase text-muted-foreground mt-1">Portmore, St. Catherine, Jamaica</p>
+                            <h4 className="font-black uppercase italic tracking-tighter text-sm">Collection Hub</h4>
+                            <p className="text-[9px] font-bold uppercase text-muted-foreground mt-0.5">Portmore, St. Catherine, JA</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="mt-16 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-8 opacity-40">
-                <p>&copy; {year} FromStore2Door Global Logistics. All Rights Reserved.</p>
+            <div className="mt-16 text-center text-[9px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-8 opacity-40">
+                <p>&copy; {new Date().getFullYear()} FromStore2Door Global Logistics. SECURE REGISTRY.</p>
             </div>
         </div>
     );

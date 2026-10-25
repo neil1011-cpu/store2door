@@ -27,7 +27,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function UserDetailsPage() {
     const params = useParams();
@@ -238,7 +237,7 @@ export default function UserDetailsPage() {
                                 </Dialog>
                             </div>
                         </CardHeader>
-                        <CardContent className="text-sm space-y-4 pt-6">
+                        <CardContent className="text-sm space-y-4 pt-6 text-foreground">
                              <div className="flex items-center gap-3">
                                 <Mail className="h-4 w-4 text-muted-foreground" />
                                 <p className="font-medium truncate">{profile?.email || 'N/A'}</p>
@@ -254,11 +253,12 @@ export default function UserDetailsPage() {
                         </CardContent>
                     </Card>
 
+                    {/* Authorized Standing Card (Compact Restoration) */}
                     <Card className="border shadow-sm">
                         <CardContent className="p-4 space-y-4">
-                            <div className={cn("p-4 rounded-xl border border-dashed text-center", Number(profile?.wallet_balance) < 0 ? "bg-red-50 border-red-200" : "bg-muted/20 border-muted")}>
+                            <div className={cn("p-4 rounded-xl border border-dashed text-center", Number(profile?.wallet_balance) < 0 ? "bg-red-50 border-red-200" : "bg-muted/10 border-muted")}>
                                 <p className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1 italic">Authorized Standing</p>
-                                <p className={cn("text-xl font-black italic tracking-tighter", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
+                                <p className={cn("text-lg font-black italic tracking-tighter leading-none", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
                                     JMD ${Math.abs(Number(profile?.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </p>
                             </div>
@@ -332,7 +332,7 @@ export default function UserDetailsPage() {
                                         <div><p className="text-[8px] font-black uppercase opacity-40">Line 1</p><p className="text-sm font-bold uppercase">3507 NW 19th ST</p></div>
                                         <div><p className="text-[8px] font-black uppercase opacity-40">Line 2 (Mailbox)</p><p className="text-lg font-black text-primary uppercase italic">{profile?.mailbox_number || 'TBD'}</p></div>
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 text-foreground">
                                         <div><p className="text-[8px] font-black uppercase opacity-40">City / State</p><p className="text-sm font-bold uppercase">Lauderdale Lake, FL</p></div>
                                         <div><p className="text-[8px] font-black uppercase opacity-40">Zip Code</p><p className="text-sm font-bold uppercase">33311-4224</p></div>
                                         <Button variant="outline" size="sm" className="w-full h-8 mt-2 font-bold uppercase text-[9px] border-2" onClick={() => copyToClipboard(`${profile?.full_name}\n3507 NW 19th ST\n${profile?.mailbox_number}\nLauderdale Lake, FL 33311-4224`)}>
@@ -396,7 +396,7 @@ export default function UserDetailsPage() {
                                                 <p className="font-mono font-black text-primary uppercase text-xs">{s.tracking_number}</p>
                                                 <p className="text-[8px] font-bold opacity-40 uppercase">{new Date(s.created_at).toLocaleDateString()}</p>
                                             </TableCell>
-                                            <TableCell className="text-[10px] uppercase font-bold opacity-70 italic truncate max-w-[150px]">
+                                            <TableCell className="text-[10px] uppercase font-bold opacity-70 italic truncate max-w-[150px] text-foreground">
                                                 {s.contents || 'General Parcel'}
                                             </TableCell>
                                             <TableCell><Badge variant="outline" className="font-black italic uppercase text-[8px] border-2 py-0 h-5 px-2">{s.status || 'Updated'}</Badge></TableCell>
