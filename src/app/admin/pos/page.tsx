@@ -390,7 +390,7 @@ export default function POSPage() {
                                         <p className="font-bold opacity-70 uppercase tracking-[0.3em] text-xs mt-6">{selectedUser.email}</p>
                                     </div>
                                     <div className="relative z-10 text-center md:text-right bg-black/20 p-8 rounded-3xl border-2 border-white/10 backdrop-blur-xl min-w-[300px]">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60 mb-3 italic">Authorized Standing</p>
+                                        <p className="text-[8px] font-black uppercase tracking-[0.3em] opacity-60 mb-3 italic">Authorized Standing</p>
                                         <div className="flex items-center justify-center md:justify-end gap-4">
                                             {Number(selectedUser.wallet_balance) < 0 ? <TrendingDown className="h-8 w-8 text-red-200" /> : <TrendingUp className="h-8 w-8 text-green-200" />}
                                             <span className="text-5xl font-black italic tracking-tighter">

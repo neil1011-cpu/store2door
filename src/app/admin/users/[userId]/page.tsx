@@ -275,7 +275,7 @@ export default function UserDetailsPage() {
                         </CardHeader>
                         <CardContent className="pt-8 space-y-8">
                             <div className={cn("text-center p-8 rounded-[2rem] border-4 border-dashed transition-all", Number(profile?.wallet_balance) < 0 ? "bg-red-50/50 border-red-200" : "bg-muted/30 border-muted")}>
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2 italic">AUTHORIZED STANDING</p>
+                                <p className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2 italic">AUTHORIZED STANDING</p>
                                 <p className={cn("text-xl font-black italic tracking-tighter", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
                                     JMD ${Math.abs(Number(profile?.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </p>

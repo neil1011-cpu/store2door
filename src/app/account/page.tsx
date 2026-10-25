@@ -76,7 +76,7 @@ export default function AccountPage() {
                 </div>
                 <div className="hidden lg:flex items-center gap-4 text-right">
                     <div>
-                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest italic">Registry Balance</p>
+                        <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest italic">Registry Balance</p>
                         <p className={cn("text-xl font-black italic tracking-tighter leading-none mt-1", hasDues ? "text-red-600" : "text-primary")}>
                             JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </p>
@@ -99,7 +99,7 @@ export default function AccountPage() {
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
                                         <ShieldCheck className={cn("h-4 w-4", hasDues ? "text-red-600" : "text-primary")} />
-                                        <p className={cn("text-[10px] font-black uppercase tracking-[0.2em] italic", hasDues ? "text-red-700" : "text-primary")}>Authorized Standing</p>
+                                        <p className={cn("text-[8px] font-black uppercase tracking-[0.2em] italic", hasDues ? "text-red-700" : "text-primary")}>Authorized Standing</p>
                                     </div>
                                     <p className="text-xs font-medium leading-relaxed opacity-70 max-w-md text-foreground">
                                         {hasDues 
@@ -108,7 +108,7 @@ export default function AccountPage() {
                                     </p>
                                     <div className="pt-2">
                                         <h3 className={cn("text-xl font-black italic tracking-tighter", hasDues ? "text-red-600" : "text-primary")}>JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-1">Dues for collection</p>
+                                        <p className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">Dues for collection</p>
                                     </div>
                                 </div>
                                 <div className="shrink-0">
@@ -166,7 +166,7 @@ export default function AccountPage() {
                                 <Button className="w-full h-14 bg-indigo-600 hover:bg-indigo-500 font-black uppercase italic shadow-xl rounded-xl" asChild>
                                     <Link href="https://wa.me/18765069727" target="_blank">WhatsApp Hub</Link>
                                 </Button>
-                                <Button variant="outline" className="w-full h-14 border-white/10 hover:bg-white/5 font-black uppercase italic text-xs rounded-xl" asChild>
+                                <Button variant="outline" className="w-full h-14 border-white/20 hover:bg-white/10 font-black uppercase italic text-xs rounded-xl text-white" asChild>
                                     <Link href="/account/support">Email Helpdesk</Link>
                                 </Button>
                             </div>
