@@ -46,7 +46,7 @@ export async function createClient() {
  */
 export async function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_SECRET_KEY || process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
     const errorMsg = '[Supabase Admin] SUPABASE_SECRET_KEY is missing.';

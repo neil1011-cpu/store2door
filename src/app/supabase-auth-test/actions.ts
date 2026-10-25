@@ -4,7 +4,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Server Actions for Hardened Auth/RBAC Testing.
- * Fixed compilation errors by simplifying upsert logic.
+ * Fixed compilation errors by ensuring valid upsert options.
  */
 
 const IS_DEV = process.env.NODE_ENV === 'development';
@@ -16,7 +16,7 @@ export async function promoteToAdmin(userId: string) {
   
   const { error } = await supabaseAdmin
     .from('app_roles')
-    .upsert({ user_id: userId, role: 'admin' });
+    .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id, role' });
 
   if (error) return { error: error.message };
   return { success: true };
