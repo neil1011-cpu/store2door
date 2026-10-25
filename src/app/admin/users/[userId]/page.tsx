@@ -274,12 +274,12 @@ export default function UserDetailsPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-8 space-y-8">
-                            <div className={cn("text-center p-8 rounded-[2rem] border-4 border-dashed transition-all", Number(profile?.wallet_balance) < 0 ? "bg-red-50/50 border-red-200" : "bg-muted/30 border-muted")}>
-                                <p className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2 italic">AUTHORIZED STANDING</p>
-                                <p className={cn("text-xl font-black italic tracking-tighter", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
+                            <div className={cn("text-center p-6 rounded-[2rem] border-4 border-dashed transition-all", Number(profile?.wallet_balance) < 0 ? "bg-red-50/50 border-red-200" : "bg-muted/30 border-muted")}>
+                                <p className="text-[7px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-1.5 italic">AUTHORIZED STANDING</p>
+                                <p className={cn("text-lg font-black italic tracking-tighter", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
                                     JMD ${Math.abs(Number(profile?.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </p>
-                                <Badge variant="outline" className={cn("mt-4 uppercase text-[9px] font-black tracking-widest border-2", Number(profile?.wallet_balance) < 0 ? "text-red-600 border-red-200" : "text-primary border-primary/20")}>
+                                <Badge variant="outline" className={cn("mt-3 uppercase text-[8px] font-black tracking-widest border-2", Number(profile?.wallet_balance) < 0 ? "text-red-600 border-red-200" : "text-primary border-primary/20")}>
                                     {Number(profile?.wallet_balance) < 0 ? 'LEDGER DEBT' : 'CREDIT STANDING'}
                                 </Badge>
                             </div>
