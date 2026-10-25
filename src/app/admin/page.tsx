@@ -114,7 +114,7 @@ export default function AdminDashboardPage() {
                 <Card className="border shadow-md rounded-2xl overflow-hidden">
                     <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
                         <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                            <Activity className="h-4 w-4 text-orange-500" /> Awaiting Intake
+                            <Activity className="h-4 w-4 text-orange-500" /> Intake Queue
                         </CardTitle>
                         <Button variant="ghost" size="sm" className="h-7 text-[9px] font-bold uppercase" asChild>
                             <Link href="/admin/pre-alerts">View Queue <ArrowRight className="ml-1 h-3 w-3" /></Link>

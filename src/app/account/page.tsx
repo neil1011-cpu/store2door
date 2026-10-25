@@ -84,7 +84,7 @@ export default function AccountPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-8 space-y-8">
-                    {/* Authorized Standing Card (Full Width Compact Design) */}
+                    {/* Authorized Standing Card (Full Width Compact Restoration) */}
                     <Card className="border shadow-sm w-full">
                         <CardContent className="p-4 flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
@@ -131,7 +131,7 @@ export default function AccountPage() {
                 <div className="lg:col-span-4 space-y-6">
                     <WarehouseAddressCard details={userProfile} />
 
-                    {/* Logistics Support Card (Fixed Button Contrast) */}
+                    {/* Logistics Support Card (Verified Contrast Restoration) */}
                     <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-zinc-950 text-white">
                         <CardHeader className="bg-white/5 border-b p-6">
                             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-3 text-zinc-400">
@@ -146,7 +146,7 @@ export default function AccountPage() {
                                 <Button className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 font-black uppercase italic shadow-xl text-white border-none" asChild>
                                     <Link href="https://wa.me/18765069727" target="_blank">WhatsApp Command</Link>
                                 </Button>
-                                <Button variant="outline" className="w-full h-12 border-white/40 hover:bg-white/10 font-black uppercase italic text-white rounded-xl shadow-lg" asChild>
+                                <Button variant="outline" className="w-full h-12 border-white/20 hover:bg-white/10 font-black uppercase italic text-white rounded-xl shadow-lg" asChild>
                                     <Link href="/account/support">Email Helpdesk</Link>
                                 </Button>
                             </div>

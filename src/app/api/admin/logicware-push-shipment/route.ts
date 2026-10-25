@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
         const tracking = local.tracking_number.toUpperCase().trim();
         
-        // 1. Status sequence and normalization (Aligned with Hub v2 actual labels)
+        // 1. Status sequence and normalization
         const statusSequence: PackageStatus[] = [
             'PreAlert',
             'ReadyToShip',
@@ -74,19 +74,17 @@ export async function POST(request: Request) {
         let logicwareId = local.logicware_id;
         let currentHubStatusName = 'PreAlert';
 
-        for (let page = 1; page <= 5; page++) {
-            const res = await client.packages.list({ pageSize: 100, page });
-            const list = Array.isArray(res) ? res : (res.data || []);
-            if (list.length === 0) break;
-            const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
-            if (match) {
-                logicwareId = match.id;
-                currentHubStatusName = getStatusName(match) || 'PreAlert';
-                break;
-            }
+        // Scan multiple pages if needed (Hub v2 supports pageSize for v0.2.0 SDK)
+        const res = await client.packages.list({ pageSize: 100 });
+        const list = Array.isArray(res) ? res : (res.data || []);
+        const match = list.find((m: any) => (m.trackingNumber || m.code || '').toString().toUpperCase().trim() === tracking);
+        
+        if (match) {
+            logicwareId = match.id;
+            currentHubStatusName = getStatusName(match) || 'PreAlert';
         }
 
-        // 3. Target Mapping (Store2Door -> Logicware Hub v2)
+        // 3. Target Mapping
         const mapToHubStatus = (s2dStatus: string): PackageStatus => {
             const s = (s2dStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
@@ -115,26 +113,23 @@ export async function POST(request: Request) {
         const transitionAudit: any[] = [];
         let finalStatus = currentHubStatusName;
 
-        // Execute sequential transitions if target is further down the chain
+        // Sequential Transitions
         if (logicwareId && targetIndex !== -1 && targetIndex > startIndex) {
             for (let i = startIndex + 1; i <= targetIndex; i++) {
                 const stepStatus = statusSequence[i];
                 
-                // IMPORTANT: Use generic update with status property for SDK v0.2.0 compatibility
+                // Update call compatible with SDK v0.2.0
                 const updateRes = await client.packages.update(logicwareId, { 
                     status: stepStatus,
-                    weightLbs: parseFloat(local.weight_lbs) || 0, // Ensure weight is passed for intake steps
+                    weightLbs: parseFloat(local.weight_lbs) || 0,
                     description: local.contents || ''
                 });
 
-                // Post-update verification
-                let confirmed = getStatusName(updateRes);
-                
-                // Registry re-check to confirm persistence (handles Hub async delays)
+                // Post-update verification against live registry
                 const verifyRes = await client.packages.list({ pageSize: 100 });
                 const verifyList = Array.isArray(verifyRes) ? verifyRes : (verifyRes.data || []);
                 const verifyMatch = verifyList.find((m: any) => m.id === logicwareId);
-                confirmed = getStatusName(verifyMatch) || confirmed;
+                const confirmed = getStatusName(verifyMatch) || getStatusName(updateRes);
 
                 transitionAudit.push({ step: stepStatus, result: confirmed });
 
@@ -145,7 +140,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // Persist Hub ID locally
+        // Final Persistence
         if (logicwareId && logicwareId !== local.logicware_id) {
             await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', local.id);
         }
