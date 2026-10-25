@@ -68,7 +68,7 @@ export default function AccountPage() {
         <div className="container mx-auto px-4 md:px-6 pb-20 space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b pb-8">
                 <div>
-                    <h1 className="text-3xl sm:text-5xl font-black italic uppercase tracking-tighter">Welcome, {userProfile.full_name?.split(' ')[0] || 'User'}!</h1>
+                    <h1 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter">Welcome, {userProfile.full_name?.split(' ')[0] || 'User'}!</h1>
                     <div className="flex items-center gap-4 mt-2">
                         <Badge variant="outline" className="h-8 px-4 font-black italic tracking-widest border-2">MAILBOX: {userProfile.mailbox_number}</Badge>
                         <Badge className="bg-primary text-primary-foreground font-black italic text-[9px] uppercase h-8 px-4">Status: Verified</Badge>
@@ -77,7 +77,7 @@ export default function AccountPage() {
                 <div className="hidden lg:flex items-center gap-4 text-right">
                     <div>
                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest italic">Registry Balance</p>
-                        <p className={cn("text-2xl font-black italic tracking-tighter leading-none mt-1", hasDues ? "text-red-600" : "text-primary")}>
+                        <p className={cn("text-xl font-black italic tracking-tighter leading-none mt-1", hasDues ? "text-red-600" : "text-primary")}>
                             JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </p>
                     </div>
@@ -88,33 +88,33 @@ export default function AccountPage() {
                 <div className="lg:col-span-8 space-y-8">
                     {/* Settlement Banner */}
                     <Card className={cn(
-                        "border-none shadow-2xl rounded-[2.5rem] overflow-hidden transition-all relative group",
-                        hasDues ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
+                        "border-2 shadow-xl rounded-[2rem] overflow-hidden transition-all relative group",
+                        hasDues ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/20"
                     )}>
-                        <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:scale-110 transition-transform">
-                            <Wallet size={160} />
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
+                            <Wallet size={120} />
                         </div>
-                        <CardContent className="p-8 md:p-12 relative z-10">
+                        <CardContent className="p-8 md:p-10 relative z-10">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
-                                        <ShieldCheck className="h-6 w-6" />
-                                        <h2 className="text-3xl font-black uppercase italic tracking-tighter">Authorized Standing</h2>
+                                        <ShieldCheck className={cn("h-5 w-5", hasDues ? "text-red-600" : "text-primary")} />
+                                        <h2 className={cn("text-xl font-black uppercase italic tracking-tighter", hasDues ? "text-red-700" : "text-primary")}>Authorized Standing</h2>
                                     </div>
-                                    <p className="text-sm font-medium leading-relaxed opacity-80 max-w-md">
+                                    <p className="text-sm font-medium leading-relaxed opacity-70 max-w-md text-foreground">
                                         {hasDues 
                                             ? "Immediate settlement is required for packages currently waiting at our local collection hub." 
                                             : "Your registry is clear. We'll notify you as soon as new items arrive at our warehouse."}
                                     </p>
-                                    <div className="pt-4">
-                                        <h3 className="text-5xl font-black italic tracking-tighter">JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-2">Dues for collection</p>
+                                    <div className="pt-2">
+                                        <h3 className={cn("text-3xl font-black italic tracking-tighter", hasDues ? "text-red-600" : "text-primary")}>JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-1">Dues for collection</p>
                                     </div>
                                 </div>
                                 <div className="shrink-0">
-                                    <Button variant={hasDues ? "secondary" : "outline"} className={cn("h-16 px-10 rounded-2xl font-black uppercase italic text-lg shadow-2xl transition-all", hasDues ? "text-red-600 hover:scale-105" : "text-white border-white/20 hover:bg-white/10")} asChild>
+                                    <Button variant={hasDues ? "destructive" : "default"} className="h-14 px-8 rounded-xl font-black uppercase italic shadow-lg" asChild>
                                         <Link href="/account/packages">
-                                            {hasDues ? "Settle Now" : "Manage Registry"} <ArrowRight className="ml-2 h-6 w-6" />
+                                            {hasDues ? "Settle Now" : "Manage Registry"} <ArrowRight className="ml-2 h-5 w-5" />
                                         </Link>
                                     </Button>
                                 </div>
@@ -142,8 +142,8 @@ export default function AccountPage() {
                     </div>
 
                     <div className="space-y-4 pt-4">
-                        <h2 className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3">
-                            <LayoutGrid className="h-6 w-6 text-primary" /> Active Registry Feed
+                        <h2 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3">
+                            <LayoutGrid className="h-5 w-5 text-primary" /> Active Registry Feed
                         </h2>
                         <DashboardTab details={userProfile} />
                     </div>

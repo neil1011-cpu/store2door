@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2, MapPin, Copy, Building2, Edit2, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2, MapPin, Copy, Building2, Edit2, AlertCircle, TrendingDown, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -267,19 +267,19 @@ export default function UserDetailsPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden bg-zinc-950 text-white">
-                        <CardHeader className="bg-white/5 pb-6 pt-8">
-                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3 text-zinc-400">
-                                <Wallet className="h-4 w-4 text-indigo-400" /> FINANCIAL STATUS
+                    <Card className="border-2 shadow-xl rounded-[2rem] overflow-hidden bg-card">
+                        <CardHeader className="bg-muted/10 pb-6 pt-8">
+                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3 text-muted-foreground">
+                                <Wallet className="h-4 w-4 text-primary" /> FINANCIAL STATUS
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-8 space-y-8">
-                            <div className={cn("text-center p-8 rounded-[2rem] border-4 border-dashed transition-all", Number(profile?.wallet_balance) < 0 ? "bg-red-500/10 border-red-500/30" : "bg-indigo-500/10 border-indigo-500/30")}>
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-2 italic">UNIVERSAL BALANCE</p>
-                                <p className={cn("text-5xl font-black italic tracking-tighter drop-shadow-2xl", Number(profile?.wallet_balance) < 0 ? "text-red-500" : "text-indigo-400")}>
-                                    ${Math.abs(Number(profile?.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            <div className={cn("text-center p-8 rounded-[2rem] border-4 border-dashed transition-all", Number(profile?.wallet_balance) < 0 ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/20")}>
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2 italic">AUTHORIZED STANDING</p>
+                                <p className={cn("text-3xl font-black italic tracking-tighter", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
+                                    JMD ${Math.abs(Number(profile?.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </p>
-                                <Badge variant="outline" className={cn("mt-4 uppercase text-[9px] font-black tracking-widest border-2", Number(profile?.wallet_balance) < 0 ? "text-red-500 border-red-500/20" : "text-indigo-400 border-indigo-400/20")}>
+                                <Badge variant="outline" className={cn("mt-4 uppercase text-[9px] font-black tracking-widest border-2", Number(profile?.wallet_balance) < 0 ? "text-red-600 border-red-200" : "text-primary border-primary/20")}>
                                     {Number(profile?.wallet_balance) < 0 ? 'LEDGER DEBT' : 'CREDIT STANDING'}
                                 </Badge>
                             </div>
@@ -606,7 +606,7 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
                 <div className="space-y-8 py-6">
                     <div className="p-8 rounded-[2rem] bg-indigo-500/5 border-4 border-dashed border-indigo-500/20 text-center">
                         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500 mb-2 italic">CURRENT STANDING</p>
-                        <p className="text-3xl font-black italic tracking-tighter text-indigo-600">JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="text-2xl font-black italic tracking-tighter text-indigo-600">JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                         <p className="text-[9px] font-bold uppercase opacity-40 mt-1">{currentBalance < 0 ? 'USER OWES' : 'USER HAS CREDIT'}</p>
                     </div>
                     <div className="space-y-3">
