@@ -84,8 +84,8 @@ export default function AccountPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-8 space-y-8">
-                    {/* Authorized Standing Card (Original Compact Design) */}
-                    <Card className="border shadow-sm max-w-sm">
+                    {/* Authorized Standing Card (Full Width Compact Design) */}
+                    <Card className="border shadow-sm w-full">
                         <CardContent className="p-4 flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <ShieldCheck className={cn("h-4 w-4", hasDues ? "text-red-600" : "text-primary/40")} />
