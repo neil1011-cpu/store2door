@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { 
     LayoutDashboard, 
     Users, 
-    Package, 
     Settings, 
     LogOut, 
     Loader2, 
@@ -15,7 +14,12 @@ import {
     Mail, 
     Plane, 
     ShoppingCart, 
-    History 
+    History,
+    TrendingUp,
+    Headphones,
+    Database,
+    Tag,
+    Calculator
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
@@ -88,16 +92,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   };
 
   const sidebarLinks = [
-    { href: "/admin", icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard" },
-    { href: "/admin/pre-alerts", icon: <Inbox className="h-4 w-4" />, label: "Pre-Alerts" },
-    { href: "/admin/shipping", icon: <Truck className="h-4 w-4" />, label: "Shipping" },
-    { href: "/admin/pos", icon: <ShoppingCart className="h-4 w-4" />, label: "POS Terminal" },
-    { href: "/admin/finance", icon: <DollarSign className="h-4 w-4" />, label: "Finance" },
-    { href: "/admin/users", icon: <Users className="h-4 w-4" />, label: "Users" },
-    { href: "/admin/manifests", icon: <Plane className="h-4 w-4" />, label: "Manifests" },
-    { href: "/admin/communications", icon: <Mail className="h-4 w-4" />, label: "Communications" },
-    { href: "/admin/logs", icon: <History className="h-4 w-4" />, label: "Activity Logs" },
-    { href: "/admin/settings", icon: <Settings className="h-4 w-4" />, label: "Settings" },
+    { href: "/admin", icon: <LayoutDashboard className="h-4 w-4" />, label: "OPERATIONS HUB" },
+    { href: "/admin/sales", icon: <TrendingUp className="h-4 w-4" />, label: "SALES & GROWTH" },
+    { href: "/admin/customer-service", icon: <Headphones className="h-4 w-4" />, label: "CUSTOMER SERVICE" },
+    { href: "/admin/pos", icon: <ShoppingCart className="h-4 w-4" />, label: "POS SYSTEM" },
+    { href: "/admin/pre-alerts", icon: <Inbox className="h-4 w-4" />, label: "PRE-ALERTS" },
+    { href: "/admin/shipping", icon: <Truck className="h-4 w-4" />, label: "SHIPPING" },
+    { href: "/admin/users", icon: <Users className="h-4 w-4" />, label: "USERS" },
+    { href: "/admin/finance", icon: <DollarSign className="h-4 w-4" />, label: "FINANCE" },
+    { href: "/admin/communications", icon: <Mail className="h-4 w-4" />, label: "COMMUNICATIONS" },
+    { href: "/admin/manifests", icon: <Plane className="h-4 w-4" />, label: "MANIFESTS" },
+    { href: "/admin/migration", icon: <Database className="h-4 w-4" />, label: "MIGRATION" },
+    { href: "/admin/rates", icon: <Tag className="h-4 w-4" />, label: "RATES" },
+    { href: "/admin/customs-calculator", icon: <Calculator className="h-4 w-4" />, label: "CALCULATOR" },
+    { href: "/admin/logs", icon: <History className="h-4 w-4" />, label: "ACTIVITY LOGS" },
+    { href: "/admin/settings", icon: <Settings className="h-4 w-4" />, label: "SETTINGS" },
   ];
 
   return (
@@ -134,7 +143,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </SidebarContent>
           <SidebarFooter className="p-4 border-t">
             <Button variant="ghost" onClick={handleSignOut} className="w-full justify-start text-destructive hover:bg-destructive/5 font-black uppercase italic text-xs">
-                <LogOut className="mr-2 h-4 w-4" /> Sign Out
+                <LogOut className="mr-2 h-4 w-4" /> SIGN OUT
             </Button>
           </SidebarFooter>
         </Sidebar>
