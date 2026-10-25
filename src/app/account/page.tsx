@@ -89,7 +89,7 @@ export default function AccountPage() {
                     {/* Settlement Banner */}
                     <Card className={cn(
                         "border-2 shadow-xl rounded-[2rem] overflow-hidden transition-all relative group",
-                        hasDues ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/20"
+                        hasDues ? "bg-red-50/50 border-red-200" : "bg-muted/30 border-muted"
                     )}>
                         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
                             <Wallet size={120} />
@@ -98,23 +98,23 @@ export default function AccountPage() {
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
-                                        <ShieldCheck className={cn("h-5 w-5", hasDues ? "text-red-600" : "text-primary")} />
-                                        <h2 className={cn("text-xl font-black uppercase italic tracking-tighter", hasDues ? "text-red-700" : "text-primary")}>Authorized Standing</h2>
+                                        <ShieldCheck className={cn("h-4 w-4", hasDues ? "text-red-600" : "text-primary")} />
+                                        <p className={cn("text-[10px] font-black uppercase tracking-[0.2em] italic", hasDues ? "text-red-700" : "text-primary")}>Authorized Standing</p>
                                     </div>
-                                    <p className="text-sm font-medium leading-relaxed opacity-70 max-w-md text-foreground">
+                                    <p className="text-xs font-medium leading-relaxed opacity-70 max-w-md text-foreground">
                                         {hasDues 
                                             ? "Immediate settlement is required for packages currently waiting at our local collection hub." 
                                             : "Your registry is clear. We'll notify you as soon as new items arrive at our warehouse."}
                                     </p>
                                     <div className="pt-2">
-                                        <h3 className={cn("text-3xl font-black italic tracking-tighter", hasDues ? "text-red-600" : "text-primary")}>JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-1">Dues for collection</p>
+                                        <h3 className={cn("text-xl font-black italic tracking-tighter", hasDues ? "text-red-600" : "text-primary")}>JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-1">Dues for collection</p>
                                     </div>
                                 </div>
                                 <div className="shrink-0">
-                                    <Button variant={hasDues ? "destructive" : "default"} className="h-14 px-8 rounded-xl font-black uppercase italic shadow-lg" asChild>
+                                    <Button variant={hasDues ? "destructive" : "default"} className="h-12 px-6 rounded-xl font-black uppercase italic shadow-lg" asChild>
                                         <Link href="/account/packages">
-                                            {hasDues ? "Settle Now" : "Manage Registry"} <ArrowRight className="ml-2 h-5 w-5" />
+                                            {hasDues ? "Settle Now" : "Manage Registry"} <ArrowRight className="ml-2 h-4 w-4" />
                                         </Link>
                                     </Button>
                                 </div>

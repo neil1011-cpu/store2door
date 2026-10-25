@@ -274,9 +274,9 @@ export default function UserDetailsPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-8 space-y-8">
-                            <div className={cn("text-center p-8 rounded-[2rem] border-4 border-dashed transition-all", Number(profile?.wallet_balance) < 0 ? "bg-red-50 border-red-200" : "bg-primary/5 border-primary/20")}>
+                            <div className={cn("text-center p-8 rounded-[2rem] border-4 border-dashed transition-all", Number(profile?.wallet_balance) < 0 ? "bg-red-50/50 border-red-200" : "bg-muted/30 border-muted")}>
                                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2 italic">AUTHORIZED STANDING</p>
-                                <p className={cn("text-3xl font-black italic tracking-tighter", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
+                                <p className={cn("text-xl font-black italic tracking-tighter", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
                                     JMD ${Math.abs(Number(profile?.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </p>
                                 <Badge variant="outline" className={cn("mt-4 uppercase text-[9px] font-black tracking-widest border-2", Number(profile?.wallet_balance) < 0 ? "text-red-600 border-red-200" : "text-primary border-primary/20")}>
@@ -606,7 +606,7 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
                 <div className="space-y-8 py-6">
                     <div className="p-8 rounded-[2rem] bg-indigo-500/5 border-4 border-dashed border-indigo-500/20 text-center">
                         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500 mb-2 italic">CURRENT STANDING</p>
-                        <p className="text-2xl font-black italic tracking-tighter text-indigo-600">JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="text-xl font-black italic tracking-tighter text-indigo-600">JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                         <p className="text-[9px] font-bold uppercase opacity-40 mt-1">{currentBalance < 0 ? 'USER OWES' : 'USER HAS CREDIT'}</p>
                     </div>
                     <div className="space-y-3">
