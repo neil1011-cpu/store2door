@@ -204,131 +204,109 @@ export default function UserDetailsPage() {
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-6">
-                    <Card className="overflow-hidden border-none shadow-lg rounded-3xl">
-                        <CardHeader className="items-center bg-primary/5 pb-8 pt-10 relative">
-                            <Avatar className="h-28 w-28 border-4 border-background shadow-2xl">
-                                <AvatarFallback className="text-4xl font-black">{profile?.full_name?.charAt(0) || '?'}</AvatarFallback>
+                    <Card className="overflow-hidden border shadow-sm">
+                        <CardHeader className="items-center bg-muted/20 pb-6 pt-8">
+                            <Avatar className="h-20 w-20 border-2 border-background shadow-sm">
+                                <AvatarFallback className="text-2xl font-black">{profile?.full_name?.charAt(0) || '?'}</AvatarFallback>
                             </Avatar>
-                            <CardTitle className="text-2xl pt-6 font-black italic uppercase tracking-tighter text-center">{profile?.full_name || 'Legacy Account'}</CardTitle>
-                            <div className="flex items-center gap-2 mt-3">
-                                <Badge className="font-mono font-black italic tracking-tighter uppercase px-4 py-1.5 text-sm shadow-sm">{profile?.mailbox_number || 'TBD'}</Badge>
+                            <CardTitle className="text-lg pt-4 font-black italic uppercase tracking-tighter text-center">{profile?.full_name || 'Legacy Account'}</CardTitle>
+                            <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="outline" className="font-mono font-bold uppercase border-2">{profile?.mailbox_number || 'TBD'}</Badge>
                                 <Dialog open={isEditMailboxOpen} onOpenChange={setIsEditMailboxOpen}>
                                     <DialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-primary/10 transition-colors">
-                                            <Edit2 className="h-4 w-4 text-primary" />
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full">
+                                            <Edit2 className="h-3.5 w-3.5 text-primary" />
                                         </Button>
                                     </DialogTrigger>
-                                    <DialogContent className="sm:max-w-md rounded-[2rem] border-4">
+                                    <DialogContent className="sm:max-w-md">
                                         <DialogHeader>
-                                            <DialogTitle className="uppercase italic tracking-tighter text-3xl text-center font-black">Update Global Code</DialogTitle>
-                                            <DialogDescription className="text-center font-bold text-[10px] uppercase tracking-widest">Crucial for Logicware Hub linking.</DialogDescription>
+                                            <DialogTitle className="uppercase italic font-black">Update Global Code</DialogTitle>
                                         </DialogHeader>
-                                        <div className="py-8 space-y-6">
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-bold uppercase opacity-60 tracking-widest ml-1">Mailbox Reference (e.g. FSTD101)</Label>
-                                                <Input value={newMailbox} onChange={e => setNewMailbox(e.target.value.toUpperCase())} className="h-16 text-3xl font-black border-4 rounded-2xl text-center font-mono shadow-inner" />
+                                        <div className="py-4 space-y-4">
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] font-bold uppercase opacity-60">Mailbox Reference</Label>
+                                                <Input value={newMailbox} onChange={e => setNewMailbox(e.target.value.toUpperCase())} className="h-12 text-xl font-bold border-2 font-mono" />
                                             </div>
-                                            <Alert className="bg-orange-50 border-orange-200 rounded-xl">
-                                                <AlertCircle className="h-4 w-4 text-orange-600" />
-                                                <AlertDescription className="text-[10px] font-bold uppercase text-orange-800 leading-relaxed italic">
-                                                    CAUTION: Changing this will trigger a Hub update synchronization.
-                                                </AlertDescription>
-                                            </Alert>
                                         </div>
-                                        <DialogFooter className="gap-3">
-                                            <DialogClose asChild><Button variant="outline" className="h-14 font-black uppercase w-full border-2 rounded-xl">Cancel</Button></DialogClose>
-                                            <Button onClick={handleUpdateMailbox} disabled={isUpdatingMailbox} className="flex-1 h-14 font-black uppercase italic shadow-xl rounded-xl">
-                                                {isUpdatingMailbox ? <Loader2 className="animate-spin" /> : "Authorize Change"}
+                                        <DialogFooter>
+                                            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                                            <Button onClick={handleUpdateMailbox} disabled={isUpdatingMailbox}>
+                                                {isUpdatingMailbox ? <Loader2 className="animate-spin" /> : "Save Code"}
                                             </Button>
                                         </DialogFooter>
                                     </DialogContent>
                                 </Dialog>
                             </div>
                         </CardHeader>
-                        <CardContent className="text-sm space-y-5 pt-8">
-                             <div className="flex items-center gap-4 group">
-                                <div className="bg-muted p-2.5 rounded-xl group-hover:bg-primary/10 transition-colors"><Mail className="h-5 w-5 text-muted-foreground group-hover:text-primary" /></div>
-                                <div className="flex-1 overflow-hidden">
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Verified Email</p>
-                                    <div className="flex items-center justify-between gap-2">
-                                        <p className="font-bold truncate text-sm">{profile?.email || 'N/A'}</p>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => copyToClipboard(profile?.email)}><Copy className="h-3.5 w-3.5" /></Button>
-                                    </div>
-                                </div>
+                        <CardContent className="text-sm space-y-4 pt-6">
+                             <div className="flex items-center gap-3">
+                                <Mail className="h-4 w-4 text-muted-foreground" />
+                                <p className="font-medium truncate">{profile?.email || 'N/A'}</p>
                             </div>
-                             <div className="flex items-center gap-4">
-                                <div className="bg-muted p-2.5 rounded-xl"><Phone className="h-5 w-5 text-muted-foreground" /></div>
-                                <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Direct Phone</p><p className="font-bold text-sm">{profile?.phone || 'NOT REGISTERED'}</p></div>
+                             <div className="flex items-center gap-3">
+                                <Phone className="h-4 w-4 text-muted-foreground" />
+                                <p className="font-medium">{profile?.phone || 'NOT REGISTERED'}</p>
                             </div>
-                             <div className="flex items-center gap-4">
-                                <div className="bg-muted p-2.5 rounded-xl"><Home className="h-5 w-5 text-muted-foreground" /></div>
-                                <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Tax ID (TRN)</p><p className="font-mono font-black text-sm">{profile?.trn || 'NOT REGISTERED'}</p></div>
+                             <div className="flex items-center gap-3">
+                                <Home className="h-4 w-4 text-muted-foreground" />
+                                <p className="font-mono font-bold">{profile?.trn || 'NOT REGISTERED'}</p>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="border-2 shadow-xl rounded-[2rem] overflow-hidden bg-card">
-                        <CardHeader className="bg-muted/10 pb-6 pt-8">
-                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3 text-muted-foreground">
-                                <Wallet className="h-4 w-4 text-primary" /> FINANCIAL STATUS
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-8 space-y-8">
-                            <div className={cn("text-center p-6 rounded-[2rem] border-4 border-dashed transition-all", Number(profile?.wallet_balance) < 0 ? "bg-red-50/50 border-red-200" : "bg-muted/30 border-muted")}>
-                                <p className="text-[7px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-1.5 italic">AUTHORIZED STANDING</p>
-                                <p className={cn("text-lg font-black italic tracking-tighter", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
+                    <Card className="border shadow-sm">
+                        <CardContent className="p-4 space-y-4">
+                            <div className={cn("p-4 rounded-xl border border-dashed text-center", Number(profile?.wallet_balance) < 0 ? "bg-red-50 border-red-200" : "bg-muted/20 border-muted")}>
+                                <p className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1 italic">Authorized Standing</p>
+                                <p className={cn("text-xl font-black italic tracking-tighter", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
                                     JMD ${Math.abs(Number(profile?.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </p>
-                                <Badge variant="outline" className={cn("mt-3 uppercase text-[8px] font-black tracking-widest border-2", Number(profile?.wallet_balance) < 0 ? "text-red-600 border-red-200" : "text-primary border-primary/20")}>
-                                    {Number(profile?.wallet_balance) < 0 ? 'LEDGER DEBT' : 'CREDIT STANDING'}
-                                </Badge>
                             </div>
                             <AdjustBalanceDialog userId={profile?.id} userName={profile?.full_name} currentBalance={Number(profile?.wallet_balance || 0)} onSuccess={fetchData} />
                         </CardContent>
                     </Card>
 
-                    <Card className={cn("border-4 rounded-[2rem] overflow-hidden transition-all", isAdmin ? "border-primary/20 bg-primary/5" : "border-dashed opacity-70")}>
-                        <CardHeader className="pb-4">
-                            <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                                <ShieldCheck className="h-6 w-6 text-primary" /> Authority Context
+                    <Card className={cn("border shadow-sm", isAdmin ? "bg-primary/5" : "border-dashed opacity-70")}>
+                        <CardHeader className="pb-3 pt-4">
+                            <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                <ShieldCheck className="h-4 w-4 text-primary" /> Authority Context
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent>
                             <Button 
                                 onClick={toggleAdminStatus} 
                                 disabled={isUpdatingRole || profile?.email === 'admin@neilussolutions.com'} 
                                 variant={isAdmin ? "destructive" : "default"}
-                                className="w-full font-black uppercase italic text-xs h-12 shadow-xl rounded-xl"
+                                className="w-full font-black uppercase italic text-[10px] h-10"
                             >
-                                {isUpdatingRole ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : (isAdmin ? <ShieldAlert className="h-4 w-4 mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />)}
+                                {isUpdatingRole ? <Loader2 className="animate-spin h-3 w-3 mr-2" /> : (isAdmin ? <ShieldAlert className="h-3 w-3 mr-2" /> : <ShieldCheck className="h-3 w-3 mr-2" />)}
                                 {isAdmin ? "Revoke Admin Access" : "Authorize Administrator"}
                             </Button>
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-[2rem] overflow-hidden border-2 shadow-md">
-                        <CardHeader className="bg-muted/10 py-4">
-                            <CardTitle className="text-[10px] font-black uppercase opacity-40 text-center tracking-[0.2em]">Safety & Restoration</CardTitle>
+                    <Card className="shadow-sm border">
+                        <CardHeader className="py-3 bg-muted/20">
+                            <CardTitle className="text-[9px] font-black uppercase opacity-40 text-center tracking-widest">Management</CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-6 flex flex-col gap-3">
+                        <CardContent className="pt-4 flex flex-col gap-2">
                             <ResetPasswordDialog userId={profile?.id} userName={profile?.full_name} />
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" className="w-full justify-start text-destructive hover:bg-destructive/5 font-black uppercase italic text-[10px] h-11" disabled={profile?.email === 'admin@neilussolutions.com'}>
-                                        {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                        Purge Identity Record
+                                    <Button variant="ghost" className="w-full justify-start text-destructive hover:bg-destructive/5 font-black uppercase italic text-[9px] h-9" disabled={profile?.email === 'admin@neilussolutions.com'}>
+                                        <Trash2 className="mr-2 h-3.5 w-3.5" /> Purge Identity
                                     </Button>
                                 </AlertDialogTrigger>
-                                <AlertDialogContent className="rounded-[2rem] border-8 border-destructive/10">
+                                <AlertDialogContent>
                                     <AlertDialogHeader>
-                                        <AlertDialogTitle className="text-3xl font-black uppercase tracking-tighter italic text-center">Confirm Deep Purge?</AlertDialogTitle>
-                                        <AlertDialogDescription className="text-[10px] font-bold uppercase tracking-widest text-center py-4">
-                                            This will permanently remove <strong>{profile?.full_name}</strong> from Auth and all registry tables. This action is irreversible.
+                                        <AlertDialogTitle className="font-black uppercase italic">Confirm Identity Purge?</AlertDialogTitle>
+                                        <AlertDialogDescription className="text-xs">
+                                            This will permanently remove <strong>{profile?.full_name}</strong> from the registry. This action is irreversible.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
-                                    <AlertDialogFooter className="gap-3">
-                                        <AlertDialogCancel className="font-black uppercase h-14 rounded-xl border-2">Abort Purge</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-14 rounded-xl shadow-2xl">Confirm Deletion</AlertDialogAction>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel className="font-bold uppercase">Abort</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleDelete} className="bg-destructive font-black uppercase">Confirm Purge</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -337,137 +315,101 @@ export default function UserDetailsPage() {
                 </div>
 
                 <div className="lg:col-span-2 space-y-6">
-                    <Card className="shadow-2xl border-none rounded-[2.5rem] overflow-hidden">
-                        <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between p-8">
-                            <CardTitle className="text-sm font-black uppercase tracking-[0.2em] italic flex items-center gap-3">
-                                <MapPin className="h-5 w-5 text-primary" /> COORDINATE REGISTRY
+                    <Card className="shadow-sm border rounded-2xl overflow-hidden">
+                        <CardHeader className="bg-muted/10 border-b p-6">
+                            <CardTitle className="text-xs font-black uppercase tracking-widest italic flex items-center gap-3">
+                                <MapPin className="h-4 w-4 text-primary" /> COORDINATE REGISTRY
                             </CardTitle>
-                            <Badge variant="outline" className="font-black text-[9px] uppercase tracking-widest bg-white border-2">Master Logistics ID</Badge>
                         </CardHeader>
-                        <CardContent className="p-10 space-y-10">
-                            <div className="space-y-6">
-                                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary flex items-center gap-3 italic">
-                                    <Building2 className="h-4 w-4" /> Assigned US Intake Hub
+                        <CardContent className="p-8 space-y-8">
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                                    <Building2 className="h-3.5 w-3.5" /> Assigned US Intake Hub
                                 </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 rounded-[2rem] border-4 border-dashed bg-primary/5 relative group">
-                                    <div className="space-y-4">
-                                        <div className="space-y-1">
-                                            <p className="text-[9px] font-black uppercase opacity-40 tracking-widest">Recipient Authority</p>
-                                            <p className="text-lg font-black uppercase italic tracking-tighter">{profile?.full_name || 'Loading...'}</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[9px] font-black uppercase opacity-40 tracking-widest">Address Line 1</p>
-                                            <p className="text-lg font-black uppercase italic tracking-tighter text-zinc-600">3507 NW 19th ST</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[9px] font-black uppercase opacity-40 tracking-widest">Address Line 2 (Unit)</p>
-                                            <p className="text-2xl font-black text-primary uppercase italic tracking-tighter">{profile?.mailbox_number || 'TBD'}</p>
-                                        </div>
+                                <div className="p-6 rounded-xl border-2 border-dashed bg-primary/5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <div><p className="text-[8px] font-black uppercase opacity-40">Recipient Authority</p><p className="text-sm font-bold uppercase">{profile?.full_name}</p></div>
+                                        <div><p className="text-[8px] font-black uppercase opacity-40">Line 1</p><p className="text-sm font-bold uppercase">3507 NW 19th ST</p></div>
+                                        <div><p className="text-[8px] font-black uppercase opacity-40">Line 2 (Mailbox)</p><p className="text-lg font-black text-primary uppercase italic">{profile?.mailbox_number || 'TBD'}</p></div>
                                     </div>
-                                    <div className="space-y-4">
-                                        <div className="space-y-1">
-                                            <p className="text-[9px] font-black uppercase opacity-40 tracking-widest">City / State</p>
-                                            <p className="text-lg font-black uppercase italic tracking-tighter text-zinc-600">Lauderdale Lake, FL</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[9px] font-black uppercase opacity-40 tracking-widest">Zip Code</p>
-                                            <p className="text-lg font-black uppercase italic tracking-tighter text-zinc-600">33311-4224</p>
-                                        </div>
-                                        <Button variant="outline" className="w-full h-12 mt-4 font-black uppercase italic text-[10px] border-2 shadow-sm" onClick={() => copyToClipboard(`${profile?.full_name}\n3507 NW 19th ST\n${profile?.mailbox_number}\nLauderdale Lake, FL 33311-4224`)}>
-                                            <Copy className="h-4 w-4 mr-2" /> Copy Full Coordination
+                                    <div className="space-y-2">
+                                        <div><p className="text-[8px] font-black uppercase opacity-40">City / State</p><p className="text-sm font-bold uppercase">Lauderdale Lake, FL</p></div>
+                                        <div><p className="text-[8px] font-black uppercase opacity-40">Zip Code</p><p className="text-sm font-bold uppercase">33311-4224</p></div>
+                                        <Button variant="outline" size="sm" className="w-full h-8 mt-2 font-bold uppercase text-[9px] border-2" onClick={() => copyToClipboard(`${profile?.full_name}\n3507 NW 19th ST\n${profile?.mailbox_number}\nLauderdale Lake, FL 33311-4224`)}>
+                                            <Copy className="h-3 w-3 mr-2" /> Copy Full Address
                                         </Button>
-                                    </div>
-                                    <div className="absolute top-4 right-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                        <MapPin size={120} />
                                     </div>
                                 </div>
                             </div>
 
-                            <Separator className="h-1 bg-muted/50" />
+                            <Separator />
 
-                            <div className="space-y-6">
+                            <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary flex items-center gap-3 italic">
-                                        <Home className="h-4 w-4" /> LOCAL DELIVERY TARGETS
+                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                                        <Home className="h-3.5 w-3.5" /> LOCAL DELIVERY TARGETS
                                     </h3>
-                                    <Badge className="bg-primary/10 text-primary text-[9px] font-black uppercase border-2 border-primary/20 italic tracking-widest h-8 px-6">Jamaica Registry</Badge>
                                 </div>
                                 
                                 {addresses.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {addresses.map((addr) => (
-                                            <div key={addr.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/30 relative group hover:border-primary/20 transition-all">
+                                            <div key={addr.id} className="p-4 rounded-xl border bg-muted/20 relative">
                                                 {addr.is_default && (
-                                                    <div className="absolute top-0 right-0 bg-primary text-white text-[8px] font-black uppercase px-4 py-1.5 rounded-bl-xl shadow-lg italic">Primary Target</div>
+                                                    <div className="absolute top-0 right-0 bg-primary text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-bl-lg">Primary</div>
                                                 )}
-                                                <p className="text-sm font-black uppercase italic tracking-tight">{addr.address_line_1}</p>
-                                                {addr.address_line_2 && <p className="text-[10px] font-bold opacity-60 uppercase mt-1 tracking-widest">{addr.address_line_2}</p>}
-                                                <p className="text-xs font-black uppercase opacity-80 mt-3 text-primary">{addr.city}, {addr.state_parish}</p>
-                                                <div className="mt-6 flex items-center justify-between border-t pt-4 border-muted">
-                                                    <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-2">{addr.address_type || 'STANDARD'}</Badge>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-40 hover:opacity-100 transition-all" onClick={() => copyToClipboard(`${addr.address_line_1}\n${addr.address_line_2 || ''}\n${addr.city}, ${addr.state_parish}`)}>
-                                                        <Copy className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
+                                                <p className="text-xs font-black uppercase italic">{addr.address_line_1}</p>
+                                                <p className="text-[10px] font-bold opacity-60 uppercase">{addr.city}, {addr.state_parish}</p>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="h-40 flex flex-col items-center justify-center border-4 border-dashed rounded-[2rem] bg-muted/20 opacity-30">
-                                        <MapPin className="h-10 w-10 mb-2" />
-                                        <p className="text-[10px] uppercase font-black tracking-[0.2em]">No local coordinates established.</p>
+                                    <div className="h-24 flex flex-col items-center justify-center border-2 border-dashed rounded-xl bg-muted/10 opacity-30">
+                                        <p className="text-[8px] uppercase font-black tracking-widest">No local coordinates found.</p>
                                     </div>
                                 )}
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="shadow-2xl border-none rounded-[2.5rem] overflow-hidden">
-                        <CardHeader className="bg-muted/10 border-b p-8">
-                            <CardTitle className="text-sm font-black uppercase tracking-[0.2em] italic flex items-center gap-3">
-                                <Building2 className="h-5 w-5 text-primary" /> TRANSIT HISTORY AUDIT
+                    <Card className="shadow-sm border rounded-2xl overflow-hidden">
+                        <CardHeader className="bg-muted/10 border-b p-6">
+                            <CardTitle className="text-xs font-black uppercase tracking-widest italic flex items-center gap-3">
+                                <Building2 className="h-4 w-4 text-primary" /> TRANSIT HISTORY AUDIT
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             <Table>
-                                <TableHeader className="bg-muted/50 h-16">
+                                <TableHeader className="bg-muted/30">
                                     <TableRow>
-                                        <TableHead className="pl-10 text-[10px] font-black uppercase tracking-widest">Document ID</TableHead>
-                                        <TableHead className="text-[10px] font-black uppercase tracking-widest">Manifest Contents</TableHead>
-                                        <TableHead className="text-[10px] font-black uppercase tracking-widest">Logistics State</TableHead>
-                                        <TableHead className="text-right pr-10 text-[10px] font-black uppercase tracking-widest">Line Total (JMD)</TableHead>
+                                        <TableHead className="pl-6 text-[9px] font-black uppercase tracking-widest">Parcel ID</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Description</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Status</TableHead>
+                                        <TableHead className="text-right pr-6 text-[9px] font-black uppercase tracking-widest">Total (JMD)</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {shipments.length > 0 ? (
                                         shipments.map((s) => (
-                                        <TableRow key={s.id} className="h-24 hover:bg-primary/5 transition-colors border-b last:border-0">
-                                            <TableCell className="pl-10">
-                                                <p className="font-mono font-black text-primary uppercase text-lg italic tracking-tighter">{s.tracking_number}</p>
-                                                <p className="text-[8px] font-bold opacity-40 uppercase tracking-widest">{new Date(s.created_at).toLocaleDateString()}</p>
+                                        <TableRow key={s.id} className="h-16 hover:bg-primary/5 transition-colors border-b last:border-0">
+                                            <TableCell className="pl-6">
+                                                <p className="font-mono font-black text-primary uppercase text-xs">{s.tracking_number}</p>
+                                                <p className="text-[8px] font-bold opacity-40 uppercase">{new Date(s.created_at).toLocaleDateString()}</p>
                                             </TableCell>
-                                            <TableCell className="text-[11px] uppercase font-bold opacity-70 italic truncate max-w-[200px] leading-tight">
-                                                {s.contents || 'Hub Synchronized Parcel'}
+                                            <TableCell className="text-[10px] uppercase font-bold opacity-70 italic truncate max-w-[150px]">
+                                                {s.contents || 'General Parcel'}
                                             </TableCell>
-                                            <TableCell><Badge variant="outline" className="font-black italic uppercase text-[9px] border-2 py-1 px-4">{s.status || 'Updated'}</Badge></TableCell>
-                                            <TableCell className="text-right pr-10">
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-2xl font-black italic tracking-tighter text-primary">
-                                                        ${Number(s.total_cost_jmd || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                    </span>
-                                                    <span className="text-[8px] font-black opacity-20 italic">JMD</span>
-                                                </div>
+                                            <TableCell><Badge variant="outline" className="font-black italic uppercase text-[8px] border-2 py-0 h-5 px-2">{s.status || 'Updated'}</Badge></TableCell>
+                                            <TableCell className="text-right pr-6">
+                                                <span className="text-sm font-black italic tracking-tighter text-primary">
+                                                    ${Number(s.total_cost_jmd || 0).toLocaleString()}
+                                                </span>
                                             </TableCell>
                                         </TableRow>
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="h-64">
-                                                <div className="flex flex-col items-center justify-center opacity-10 space-y-4">
-                                                    <ShieldAlert size={80} />
-                                                    <p className="text-2xl font-black uppercase italic tracking-[0.5em]">Universal Empty</p>
-                                                </div>
-                                            </TableCell>
+                                            <TableCell colSpan={4} className="h-32 text-center text-muted-foreground opacity-20 italic text-xs uppercase font-black tracking-widest">No transit activity logged.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
@@ -518,24 +460,23 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="ghost" className="w-full justify-start text-primary hover:bg-primary/5 font-black uppercase italic text-[10px] h-11">
-                    <KeyRound className="mr-3 h-4 w-4" /> Reset Access Key
+                <Button variant="ghost" className="w-full justify-start text-primary hover:bg-primary/5 font-black uppercase italic text-[9px] h-9">
+                    <KeyRound className="mr-2 h-3.5 w-3.5" /> Reset Access Key
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md rounded-[2.5rem] border-4">
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic tracking-tighter text-3xl text-center font-black">Restore Access Key</DialogTitle>
+                    <DialogTitle className="uppercase italic font-black text-center">Restore Access Key</DialogTitle>
                 </DialogHeader>
-                <div className="py-10 text-center space-y-6 px-4">
-                    <div className="bg-primary/10 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-4 transform rotate-6"><Send className="h-12 w-12 text-primary" /></div>
-                    <p className="text-sm font-bold uppercase tracking-tight text-zinc-500 leading-relaxed">
+                <div className="py-6 text-center space-y-4">
+                    <p className="text-sm font-bold uppercase tracking-tight text-zinc-500">
                         Dispatch a secure restoration link to <br/>
-                        <strong className="text-primary text-lg italic">{userName || 'the client'}</strong>?
+                        <strong className="text-primary">{userName}</strong>?
                     </p>
                 </div>
                 <DialogFooter>
-                    <Button onClick={handleSendResetLink} disabled={isResetting} className="w-full h-16 font-black uppercase italic text-xl shadow-2xl rounded-2xl">
-                        {isResetting ? <Loader2 className="mr-3 h-6 w-6 animate-spin" /> : <Send className="mr-3 h-6 w-6" />}
+                    <Button onClick={handleSendResetLink} disabled={isResetting} className="w-full font-black uppercase italic">
+                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                         Authorize Dispatch
                     </Button>
                 </DialogFooter>
@@ -574,17 +515,13 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
                 profile_id: userId,
                 amount: diff,
                 transaction_type: 'adjustment',
-                description: `Manual Ledger Adjustment [Admin: ${actor?.email?.split('@')[0]}]`,
+                description: `Manual Ledger Adjustment`,
                 created_by: actor?.id
             });
 
             if (error) throw error;
 
-            toast({ 
-                title: "Registry Adjusted", 
-                description: `${diff > 0 ? 'Added credit of' : 'Added debt of'} JMD $${Math.abs(diff).toLocaleString()} in audit ledger.` 
-            });
-            
+            toast({ title: "Registry Adjusted" });
             setOpen(false);
             onSuccess();
         } catch (error: any) {
@@ -597,34 +534,23 @@ function AdjustBalanceDialog({ userId, userName, currentBalance, onSuccess }: { 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" className="w-full h-14 font-black uppercase italic text-[11px] border-4 rounded-2xl shadow-lg hover:bg-white/5 transition-all">
-                    <PlusCircle className="mr-3 h-4 w-4 text-indigo-400" /> Adjust Manual Balance
+                <Button variant="outline" className="w-full h-10 font-black uppercase italic text-[9px] border-2">
+                    <PlusCircle className="mr-2 h-3.5 w-3.5 text-indigo-400" /> Adjust Balance
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md rounded-[2.5rem] border-8 border-indigo-500/10">
-                <DialogHeader><DialogTitle className="uppercase italic tracking-tighter text-3xl text-center font-black">Financial Standing</DialogTitle></DialogHeader>
-                <div className="space-y-8 py-6">
-                    <div className="p-8 rounded-[2rem] bg-indigo-500/5 border-4 border-dashed border-indigo-500/20 text-center">
-                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500 mb-2 italic">CURRENT STANDING</p>
-                        <p className="text-xl font-black italic tracking-tighter text-indigo-600">JMD ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[9px] font-bold uppercase opacity-40 mt-1">{currentBalance < 0 ? 'USER OWES' : 'USER HAS CREDIT'}</p>
-                    </div>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader><DialogTitle className="uppercase italic font-black text-center">Financial Standing</DialogTitle></DialogHeader>
+                <div className="space-y-6 py-4">
                     <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 ml-1 italic">Define New Registry Total (JMD $)</Label>
-                        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-20 text-5xl font-black border-4 rounded-2xl text-center shadow-inner" placeholder="0.00" />
-                        <p className="text-[9px] text-center font-bold text-muted-foreground uppercase">Use negative numbers for DEBT (e.g. -1950.00)</p>
-                    </div>
-                    <div className="p-5 bg-amber-500/10 border-2 border-dashed border-amber-500/30 rounded-2xl flex gap-4">
-                        <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0" />
-                        <p className="text-[9px] font-black text-amber-700 uppercase leading-relaxed tracking-tight italic">
-                            THIS OPERATION CREATES AN IMMUTABLE AUDIT RECORD. THE DELTA WILL BE LOGGED AS A MANUAL ADJUSTMENT IN THE PERMANENT REGISTRY.
-                        </p>
+                        <Label className="text-[10px] font-black uppercase opacity-60">Define New Registry Total (JMD $)</Label>
+                        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-12 text-2xl font-black border-2 text-center" />
+                        <p className="text-[8px] text-center font-bold text-muted-foreground uppercase">Current: ${currentBalance.toLocaleString()}</p>
                     </div>
                 </div>
-                <DialogFooter className="gap-3">
-                    <DialogClose asChild><Button variant="outline" className="h-14 font-black uppercase w-full border-2 rounded-xl">Abort</Button></DialogClose>
-                    <Button onClick={handleAdjustBalance} disabled={isUpdating} className="flex-1 h-14 font-black uppercase italic shadow-2xl rounded-xl bg-indigo-600 hover:bg-indigo-500">
-                        {isUpdating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5" />} Authorize Adjustment
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleAdjustBalance} disabled={isUpdating}>
+                        {isUpdating ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Authorize
                     </Button>
                 </DialogFooter>
             </DialogContent>

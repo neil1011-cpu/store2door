@@ -86,38 +86,30 @@ export default function AccountPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-8 space-y-8">
-                    {/* Settlement Banner */}
+                    {/* Authorized Standing Card (Small) */}
                     <Card className={cn(
-                        "border-2 shadow-xl rounded-[2rem] overflow-hidden transition-all relative group",
-                        hasDues ? "bg-red-50/50 border-red-200" : "bg-muted/30 border-muted"
+                        "border shadow-sm",
+                        hasDues ? "bg-red-50 border-red-100" : "bg-muted/10 border-muted/50"
                     )}>
-                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
-                            <Wallet size={120} />
-                        </div>
-                        <CardContent className="p-8 md:p-10 relative z-10">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <ShieldCheck className={cn("h-4 w-4", hasDues ? "text-red-600" : "text-primary")} />
-                                        <p className={cn("text-[7px] font-black uppercase tracking-[0.3em] italic", hasDues ? "text-red-700" : "text-primary")}>Authorized Standing</p>
-                                    </div>
-                                    <p className="text-xs font-medium leading-relaxed opacity-70 max-w-md text-foreground">
-                                        {hasDues 
-                                            ? "Immediate settlement is required for packages currently waiting at our local collection hub." 
-                                            : "Your registry is clear. We'll notify you as soon as new items arrive at our warehouse."}
+                        <CardContent className="p-4 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <ShieldCheck className={cn("h-4 w-4", hasDues ? "text-red-600" : "text-primary/40")} />
+                                <div>
+                                    <p className={cn("text-[7px] font-black uppercase tracking-[0.3em] italic", hasDues ? "text-red-700" : "text-muted-foreground")}>Authorized Standing</p>
+                                    <p className="text-[10px] font-bold opacity-60 uppercase">
+                                        {hasDues ? "Settlement required for collection." : "Your account registry is clear."}
                                     </p>
-                                    <div className="pt-1">
-                                        <h3 className={cn("text-lg font-black italic tracking-tighter", hasDues ? "text-red-600" : "text-primary")}>JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                                        <p className="text-[7px] font-black uppercase tracking-widest opacity-40 mt-0.5">Dues for collection</p>
-                                    </div>
                                 </div>
-                                <div className="shrink-0">
-                                    <Button variant={hasDues ? "destructive" : "default"} className="h-12 px-6 rounded-xl font-black uppercase italic shadow-lg" asChild>
-                                        <Link href="/account/packages">
-                                            {hasDues ? "Settle Now" : "Manage Registry"} <ArrowRight className="ml-2 h-4 w-4" />
-                                        </Link>
-                                    </Button>
-                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className={cn("text-sm font-black italic tracking-tighter", hasDues ? "text-red-600" : "text-foreground")}>
+                                    JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </p>
+                                <Button variant={hasDues ? "destructive" : "outline"} size="sm" className="h-6 text-[8px] font-black uppercase mt-1 px-3" asChild>
+                                    <Link href="/account/packages">
+                                        {hasDues ? "Settle Now" : "Manage"}
+                                    </Link>
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>
@@ -166,7 +158,7 @@ export default function AccountPage() {
                                 <Button className="w-full h-14 bg-indigo-600 hover:bg-indigo-500 font-black uppercase italic shadow-xl rounded-xl text-white" asChild>
                                     <Link href="https://wa.me/18765069727" target="_blank">WhatsApp Hub</Link>
                                 </Button>
-                                <Button className="w-full h-14 bg-white/5 border-2 border-white/20 hover:bg-white/10 font-black uppercase italic text-[10px] rounded-xl text-white" asChild>
+                                <Button variant="outline" className="w-full h-14 border-white/20 hover:bg-white/10 font-black uppercase italic text-[10px] rounded-xl text-white border-2" asChild>
                                     <Link href="/account/support">Email Helpdesk</Link>
                                 </Button>
                             </div>
