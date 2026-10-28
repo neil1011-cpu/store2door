@@ -1,10 +1,10 @@
-import type { CookieOptions } from '@supabase/ssr';
-import { createServerClient } from '@supabase/ssr';
+
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 /**
  * @fileOverview Standardized Server-side Supabase factory for Next.js 15.
- * Fixed compilation errors by adding explicit types to cookie operations.
+ * Hardened with explicit CookieOptions typing to resolve build-blocking errors.
  */
 export async function createClient() {
   const cookieStore = await cookies();

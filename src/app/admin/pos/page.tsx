@@ -112,13 +112,18 @@ export default function POSPage() {
     const refreshUserData = async (userId: string) => {
         setIsLoadingInvoices(true);
         try {
-            const [profileRes, invoicesRes] = await Promise.all([
+            // Fetch profile and all unpaid shipments (the billable entities)
+            const [profileRes, shipmentsRes] = await Promise.all([
                 supabase.from('profiles').select('*').eq('id', userId).single(),
-                supabase.from('invoices').select('*').eq('profile_id', userId).eq('status', 'Unpaid')
+                supabase.from('shipments')
+                    .select('*')
+                    .eq('profile_id', userId)
+                    .eq('payment_status', 'Unpaid')
+                    .order('created_at', { ascending: false })
             ]);
 
             if (profileRes.data) setSelectedUser(profileRes.data);
-            setUserInvoices(invoicesRes.data || []);
+            setUserInvoices(shipmentsRes.data || []);
         } catch (error) {
             console.error("POS DATA FETCH ERROR", error);
         } finally {
@@ -133,17 +138,17 @@ export default function POSPage() {
         refreshUserData(user.id);
     };
 
-    const toggleInvoice = (invoiceId: string) => {
+    const toggleInvoice = (id: string) => {
         const next = new Set(selectedInvoices);
-        if (next.has(invoiceId)) next.delete(invoiceId);
-        else next.add(invoiceId);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
         setSelectedInvoices(next);
     };
 
     const calculatedSelectedTotal = useMemo(() => {
         return userInvoices
             .filter(inv => selectedInvoices.has(inv.id))
-            .reduce((sum, inv) => sum + Number(inv.amount), 0);
+            .reduce((sum, inv) => sum + Number(inv.total_cost_jmd || 0), 0);
     }, [userInvoices, selectedInvoices]);
 
     const changeDue = useMemo(() => {
@@ -159,35 +164,36 @@ export default function POSPage() {
         try {
             const itemsToSnap = userInvoices.filter(inv => selectedInvoices.has(inv.id));
             const totalToSettle = calculatedSelectedTotal;
+            const trackingNumbers = itemsToSnap.map(s => s.tracking_number).filter(Boolean);
 
-            // 1. Update Invoices
-            await supabase
-                .from('invoices')
-                .update({ status: 'Paid' })
+            // 1. Update Shipments directly
+            const { error: shipError } = await supabase
+                .from('shipments')
+                .update({ 
+                    status: 'Delivered', 
+                    payment_status: 'Paid'
+                })
                 .in('id', Array.from(selectedInvoices));
 
-            // 2. Record in Financial Ledger
+            if (shipError) throw shipError;
+
+            // 2. Update associated invoices if they exist
+            if (trackingNumbers.length > 0) {
+                await supabase
+                    .from('invoices')
+                    .update({ status: 'Paid' })
+                    .in('tracking_number', trackingNumbers);
+            }
+
+            // 3. Record in Financial Ledger
             const { error: ledgerError } = await supabase.from('financial_ledger').insert({
                 profile_id: selectedUser.id,
                 amount: totalToSettle, 
                 transaction_type: 'payment',
-                description: `POS Payment via ${paymentMethod}`
+                description: `POS Payment via ${paymentMethod} for ${itemsToSnap.length} parcels`
             });
 
             if (ledgerError) throw ledgerError;
-
-            // 3. Update associated shipments to 'Delivered' (Picked up) and 'Paid'
-            const trackingNumbers = itemsToSnap.map(inv => inv.tracking_number).filter(Boolean);
-            if (trackingNumbers.length > 0) {
-                // FIX: Removed 'updated_at' to resolve schema mismatch errors on shipments table
-                await supabase
-                    .from('shipments')
-                    .update({ 
-                        status: 'Delivered', 
-                        payment_status: 'Paid'
-                    })
-                    .in('tracking_number', trackingNumbers);
-            }
 
             // 4. System Log
             await supabase.from('system_logs').insert({
@@ -276,10 +282,10 @@ export default function POSPage() {
                             {receiptData.items.map((item: any) => (
                                 <div key={item.id} className="flex justify-between py-1">
                                     <div className="flex flex-col">
-                                        <span className="uppercase font-bold">{item.invoice_number}</span>
-                                        {item.tracking_number && <span className="text-[8px] opacity-60 font-mono">ID: {item.tracking_number}</span>}
+                                        <span className="uppercase font-bold">{item.tracking_number}</span>
+                                        {item.contents && <span className="text-[8px] opacity-60 font-mono">{item.contents}</span>}
                                     </div>
-                                    <span className="font-black">${Number(item.amount).toLocaleString()}</span>
+                                    <span className="font-black">${Number(item.total_cost_jmd).toLocaleString()}</span>
                                 </div>
                             ))}
                         </div>
@@ -406,11 +412,11 @@ export default function POSPage() {
                         </CardContent>
                     </Card>
 
-                    {/* Step 2: Invoices */}
+                    {/* Step 2: Unpaid Parcels */}
                     <Card className="border-none shadow-2xl overflow-hidden rounded-[2rem] min-h-[500px] relative z-10">
                         <CardHeader className="bg-muted/30 pb-4 border-b">
                             <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2 text-muted-foreground">
-                                <Package className="h-4 w-4" /> 02. SELECT SETTLEMENT ITEMS
+                                <Package className="h-4 w-4" /> 02. SELECT UNPAID PARCELS
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
@@ -431,7 +437,7 @@ export default function POSPage() {
                                     </div>
                                     <div>
                                         <p className="text-5xl font-black italic uppercase tracking-tighter text-primary">Registry Settled</p>
-                                        <p className="text-muted-foreground text-sm font-bold uppercase tracking-[0.3em] mt-4 opacity-40">Zero Unpaid entries detected for this mailbox.</p>
+                                        <p className="text-muted-foreground text-sm font-bold uppercase tracking-[0.3em] mt-4 opacity-40">Zero Unpaid parcels detected for this mailbox.</p>
                                     </div>
                                 </div>
                             ) : (
@@ -439,8 +445,8 @@ export default function POSPage() {
                                     <TableHeader className="bg-muted/50 h-20">
                                         <TableRow>
                                             <TableHead className="w-[100px] pl-10"></TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Document ID / Tracking</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Authorized Date</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Tracking / Reference</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Intake Date</TableHead>
                                             <TableHead className="text-right pr-14 text-[10px] font-black uppercase tracking-[0.3em]">Line Total (JMD)</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -462,17 +468,17 @@ export default function POSPage() {
                                                     />
                                                 </TableCell>
                                                 <TableCell>
-                                                    <p className="font-mono font-black text-primary uppercase text-2xl italic tracking-tighter leading-none">{inv.invoice_number}</p>
-                                                    {inv.tracking_number && (
+                                                    <p className="font-mono font-black text-primary uppercase text-2xl italic tracking-tighter leading-none">{inv.tracking_number}</p>
+                                                    {inv.contents && (
                                                         <Badge variant="outline" className="mt-2 bg-background/50 text-[9px] font-black uppercase border-2 py-0 h-5">
-                                                            ID: {inv.tracking_number}
+                                                            {inv.contents}
                                                         </Badge>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-xs font-black opacity-40 uppercase tracking-widest">{new Date(inv.created_at).toLocaleDateString(undefined, { dateStyle: 'full' })}</TableCell>
                                                 <TableCell className="text-right pr-14 font-black text-4xl italic tracking-tighter text-primary">
                                                     <span className="text-lg opacity-20 mr-2 font-black italic">JMD</span>
-                                                    ${Number(inv.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                    ${Number(inv.total_cost_jmd || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -502,7 +508,7 @@ export default function POSPage() {
                                 </div>
                                 <div className="flex justify-center gap-3">
                                     <Badge className="bg-white/10 text-white uppercase text-[9px] font-black italic tracking-[0.2em] border-white/10 px-6 h-8">
-                                        {selectedInvoices.size} Documents Selected
+                                        {selectedInvoices.size} Parcels Selected
                                     </Badge>
                                 </div>
                             </div>

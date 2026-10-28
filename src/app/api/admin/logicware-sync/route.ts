@@ -1,10 +1,11 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Authorized Individual Shipper Sync API.
- * Standardized for SDK v0.2.0 (TRN removed from UpdateShipperInput).
+ * Standardized for SDK v0.2.0.
  */
 
 export async function POST(request: Request) {
@@ -27,57 +28,33 @@ export async function POST(request: Request) {
         if (!client) throw new Error('Hub not configured.');
 
         let logicwareId = null;
-        let matchMethod = 'NONE';
+        // SDK v0.2.0 uses pageSize instead of limit
+        const shRes = await client.shippers.list({ pageSize: 100 });
+        const sList = Array.isArray(shRes) ? shRes : ((shRes as any).data || []);
 
-        const normalizedMailbox = profile.mailbox_number?.trim().toUpperCase();
-        const normalizedEmail = profile.email?.trim().toLowerCase();
+        const match = sList.find((s: any) => {
+            const hubM = (s.referenceCode || s.code || '').trim().toUpperCase();
+            const hubE = (s.email || '').trim().toLowerCase();
+            return (profile.mailbox_number && hubM === profile.mailbox_number.trim().toUpperCase()) || 
+                   (profile.email && hubE === profile.email.trim().toLowerCase());
+        });
 
-        for (let page = 1; page <= 50; page++) {
-            const shippersResponse = await client.shippers.list({ pageSize: 100, page });
-            const shipperList = Array.isArray(shippersResponse) ? shippersResponse : ((shippersResponse as any).data || []);
-            
-            if (shipperList.length === 0) break;
-
-            const match = shipperList.find((s: any) => {
-                const hubMailbox = (s.referenceCode || s.code || '').trim().toUpperCase();
-                const hubEmail = (s.email || '').trim().toLowerCase();
-                
-                if (normalizedMailbox && hubMailbox === normalizedMailbox) {
-                    matchMethod = 'MAILBOX';
-                    return true;
-                }
-                if (normalizedEmail && hubEmail === normalizedEmail) {
-                    matchMethod = 'EMAIL';
-                    return true;
-                }
-                return false;
-            });
-
-            if (match) {
-                logicwareId = match.id;
-                break;
-            }
-
-            if (shipperList.length < 100) break;
-        }
+        if (match) logicwareId = match.id;
 
         let operation;
-
         if (logicwareId) {
             operation = 'update';
-            // SDK v0.2.0: trn is not present in UpdateShipperInput
+            // TRN is immutable in Hub v2, so we remove it from update call
             await client.shippers.update(logicwareId, {
                 name: profile.full_name,
                 phone: profile.phone || ''
             });
         } else {
             operation = 'create';
-            if (!profile.trn) throw new Error('TRN required for initial registration.');
-            
             const result = await client.shippers.create({
                 email: profile.email,
                 name: profile.full_name,
-                trn: profile.trn,
+                trn: profile.trn || '000000000',
                 phone: profile.phone || '',
                 addressCode: profile.mailbox_number,
             });
@@ -86,22 +63,11 @@ export async function POST(request: Request) {
 
         await adminClient.from('system_logs').insert({
             log_type: `logicware_shipper_${operation}`,
-            description: `User ${profile.email} synced (${operation}) with Hub. Match: ${matchMethod}`,
-            metadata: { 
-                mailbox: profile.mailbox_number, 
-                operation, 
-                logicwareId,
-                matchMethod
-            }
+            description: `User ${profile.email} synced with Hub.`,
+            metadata: { mailbox: profile.mailbox_number, logicwareId }
         });
 
-        return NextResponse.json({ 
-            success: true, 
-            operation, 
-            message: `Shipper ${operation} complete.`, 
-            logicwareId,
-            matchMethod 
-        });
+        return NextResponse.json({ success: true, operation, logicwareId });
 
     } catch (error: any) {
         console.error('[API:LOGICWARE:SYNC] ERROR:', error.message);

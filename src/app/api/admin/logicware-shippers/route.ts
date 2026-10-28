@@ -1,9 +1,10 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 
 /**
  * @fileOverview Authorized Hub Shippers Fetcher.
- * Standardized for SDK v0.2.0 using 'pageSize'.
+ * Standardized for SDK v0.2.0.
  */
 
 export async function POST(request: Request) {
@@ -15,9 +16,9 @@ export async function POST(request: Request) {
 
         if (!client.shippers) throw new Error('Shippers module not available.');
         
-        // SDK v0.2.0 uses pageSize
+        // SDK v0.2.0 uses pageSize instead of limit
         const response = await client.shippers.list({ pageSize: 100 });
-        const list = Array.isArray(response) ? response : (response.data || []);
+        const list = Array.isArray(response) ? response : ((response as any).data || []);
 
         return NextResponse.json({ success: true, shippers: list });
 

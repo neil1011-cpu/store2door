@@ -1,3 +1,4 @@
+
 import { LogicwareConnect } from '@logicware.app/connect-sdk';
 
 export type LogicwareConfig = {
@@ -22,11 +23,12 @@ export function getLogicwareInstance(config: LogicwareConfig) {
 export async function testLogicwareConnection(config: LogicwareConfig) {
     try {
         const client = getLogicwareInstance(config);
-        // Correct resource reference and pagination for v0.2.0
-        const hub = client.packages || client.shippers;
-        if (!hub) throw new Error('No accessible modules found.');
-        
-        await hub.list({ pageSize: 1 });
+        // SDK v0.2.0 uses pageSize instead of limit and packages/shippers resources
+        if (client.packages) {
+            await client.packages.list({ pageSize: 1 });
+        } else if (client.shippers) {
+            await client.shippers.list({ pageSize: 1 });
+        }
         
         return { success: true, message: 'Logistics Hub Synchronized.' };
     } catch (error: any) {

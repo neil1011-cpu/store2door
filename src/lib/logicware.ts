@@ -1,9 +1,10 @@
+
 import { LogicwareConnect } from '@logicware.app/connect-sdk';
 import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Logicware Connect SDK utility.
- * Standardized client factory aligned with SDK v0.2.0 (packages resource, pageSize param).
+ * Standard client factory aligned with SDK v0.2.0.
  */
 
 export async function getLogicwareClient(apiKeyOverride?: string) {
@@ -41,6 +42,7 @@ export async function fetchLogicwareShippers(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
     if (!client?.shippers) return [];
+    // SDK v0.2.0 uses pageSize instead of limit
     const response = await client.shippers.list({ pageSize: 100 });
     return Array.isArray(response) ? response : ((response as any).data || []);
   } catch (error: any) {
@@ -53,6 +55,7 @@ export async function fetchLogicwarePackages(apiKey?: string) {
   try {
     const client = await getLogicwareClient(apiKey);
     if (!client?.packages) return [];
+    // SDK v0.2.0 uses packages resource and pageSize parameter
     const response = await client.packages.list({ pageSize: 100 });
     return Array.isArray(response) ? response : ((response as any).data || []);
   } catch (error: any) {
@@ -65,6 +68,7 @@ export async function fetchLogicwareManifests(apiKey?: string) {
     try {
         const client = await getLogicwareClient(apiKey);
         if (!client?.manifests) return [];
+        // SDK v0.2.0 uses pageSize instead of limit
         const response = await client.manifests.list({ pageSize: 100 });
         return Array.isArray(response) ? response : ((response as any).data || []);
     } catch (error: any) {

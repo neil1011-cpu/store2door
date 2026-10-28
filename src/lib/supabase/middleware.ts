@@ -1,12 +1,12 @@
-import type { CookieOptions } from '@supabase/ssr';
-import { createServerClient } from '@supabase/ssr';
-import { NextResponse } from 'next/server';
+
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * @fileOverview Supabase Middleware for FromStore2Door OS.
- * Fixed compilation errors by adding explicit types to cookie methods for Next.js 15.
+ * Fixed compilation errors by adding explicit CookieOptions types for Next.js 15.
  */
-export async function updateSession(request: any) {
+export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });

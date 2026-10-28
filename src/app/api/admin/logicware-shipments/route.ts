@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createClient } from '@/lib/supabase/server';
@@ -6,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * @fileOverview Authorized Hub Package Fetcher.
- * Standardized to use 'packages' resource and 'pageSize' for SDK v0.2.0.
+ * Standardized for SDK v0.2.0.
  */
 
 export async function POST(request: Request) {
@@ -26,11 +27,16 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient();
         if (!client) throw new Error('Hub configuration missing.');
         
-        // Correct resource reference and pagination for v0.2.0
+        // SDK v0.2.0 uses packages resource and pageSize parameter
         const response = await client.packages.list({ pageSize: 100 });
-        const list = Array.isArray(response) ? response : (response.data || []);
+        const list = Array.isArray(response) ? response : ((response as any).data || []);
 
-        return NextResponse.json({ success: true, shipments: list });
+        const shipments = list.map((pkg: any) => ({
+            ...pkg,
+            shipperName: pkg.shipper?.name || pkg.shipper?.referenceCode || pkg.shipper?.code || 'Unknown'
+        }));
+
+        return NextResponse.json({ success: true, shipments });
 
     } catch (err: any) {
         console.error('[API:SHIPMENTS] Error:', err.message);

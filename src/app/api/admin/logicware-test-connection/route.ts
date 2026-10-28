@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 
@@ -16,9 +17,10 @@ export async function POST(request: Request) {
         if (!client) throw new Error('Client initialization failed.');
         
         // Standard resource reference and pagination for v0.2.0
-        const testResource = client.packages || client.shippers;
-        if (testResource) {
-            await testResource.list({ pageSize: 1 });
+        if (client.packages) {
+            await client.packages.list({ pageSize: 1 });
+        } else if (client.shippers) {
+            await client.shippers.list({ pageSize: 1 });
         }
 
         return NextResponse.json({ success: true, message: 'Connection verified.' });
