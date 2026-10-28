@@ -39,11 +39,12 @@ import {
   UserCheck,
   Receipt,
   AlertCircle,
-  Coins
+  Coins,
+  Weight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
-import { cn } from '@/lib/utils';
+import { cn, calculateShippingCost } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { 
@@ -148,7 +149,11 @@ export default function POSPage() {
     const calculatedSelectedTotal = useMemo(() => {
         return userInvoices
             .filter(inv => selectedInvoices.has(inv.id))
-            .reduce((sum, inv) => sum + Number(inv.total_cost_jmd || 0), 0);
+            .reduce((sum, inv) => {
+                // Use stored total if available, otherwise calculate from weight
+                const cost = Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0);
+                return sum + cost;
+            }, 0);
     }, [userInvoices, selectedInvoices]);
 
     const changeDue = useMemo(() => {
@@ -285,7 +290,7 @@ export default function POSPage() {
                                         <span className="uppercase font-bold">{item.tracking_number}</span>
                                         {item.contents && <span className="text-[8px] opacity-60 font-mono">{item.contents}</span>}
                                     </div>
-                                    <span className="font-black">${Number(item.total_cost_jmd).toLocaleString()}</span>
+                                    <span className="font-black">${Number(item.total_cost_jmd || calculateShippingCost(item.weight_lbs)).toLocaleString()}</span>
                                 </div>
                             ))}
                         </div>
@@ -444,44 +449,62 @@ export default function POSPage() {
                                 <Table>
                                     <TableHeader className="bg-muted/50 h-20">
                                         <TableRow>
-                                            <TableHead className="w-[100px] pl-10"></TableHead>
+                                            <TableHead className="w-[80px] pl-10"></TableHead>
                                             <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Tracking / Reference</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Intake Date</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Weight (LBS)</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase tracking-[0.3em]">Est. Rate/LB</TableHead>
                                             <TableHead className="text-right pr-14 text-[10px] font-black uppercase tracking-[0.3em]">Line Total (JMD)</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {userInvoices.map((inv) => (
-                                            <TableRow 
-                                                key={inv.id} 
-                                                className={cn(
-                                                    "hover:bg-primary/5 cursor-pointer transition-all border-b-4 h-32", 
-                                                    selectedInvoices.has(inv.id) && "bg-primary/10"
-                                                )} 
-                                                onClick={() => toggleInvoice(inv.id)}
-                                            >
-                                                <TableCell className="pl-10">
-                                                    <Checkbox 
-                                                        checked={selectedInvoices.has(inv.id)} 
-                                                        onCheckedChange={() => toggleInvoice(inv.id)} 
-                                                        className="h-10 w-10 border-4 rounded-xl data-[state=checked]:bg-primary shadow-lg" 
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <p className="font-mono font-black text-primary uppercase text-2xl italic tracking-tighter leading-none">{inv.tracking_number}</p>
-                                                    {inv.contents && (
-                                                        <Badge variant="outline" className="mt-2 bg-background/50 text-[9px] font-black uppercase border-2 py-0 h-5">
-                                                            {inv.contents}
-                                                        </Badge>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-xs font-black opacity-40 uppercase tracking-widest">{new Date(inv.created_at).toLocaleDateString(undefined, { dateStyle: 'full' })}</TableCell>
-                                                <TableCell className="text-right pr-14 font-black text-4xl italic tracking-tighter text-primary">
-                                                    <span className="text-lg opacity-20 mr-2 font-black italic">JMD</span>
-                                                    ${Number(inv.total_cost_jmd || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
+                                        {userInvoices.map((inv) => {
+                                            const weight = Number(inv.weight_lbs) || 0;
+                                            const totalCost = Number(inv.total_cost_jmd) || calculateShippingCost(weight);
+                                            const effectiveRate = weight > 0 ? totalCost / weight : 0;
+
+                                            return (
+                                                <TableRow 
+                                                    key={inv.id} 
+                                                    className={cn(
+                                                        "hover:bg-primary/5 cursor-pointer transition-all border-b-4 h-32", 
+                                                        selectedInvoices.has(inv.id) && "bg-primary/10"
+                                                    )} 
+                                                    onClick={() => toggleInvoice(inv.id)}
+                                                >
+                                                    <TableCell className="pl-10">
+                                                        <Checkbox 
+                                                            checked={selectedInvoices.has(inv.id)} 
+                                                            onCheckedChange={() => toggleInvoice(inv.id)} 
+                                                            className="h-10 w-10 border-4 rounded-xl data-[state=checked]:bg-primary shadow-lg" 
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <p className="font-mono font-black text-primary uppercase text-2xl italic tracking-tighter leading-none">{inv.tracking_number}</p>
+                                                        {inv.contents && (
+                                                            <Badge variant="outline" className="mt-2 bg-background/50 text-[9px] font-black uppercase border-2 py-0 h-5">
+                                                                {inv.contents}
+                                                            </Badge>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-2">
+                                                            <Weight className="h-4 w-4 opacity-20" />
+                                                            <span className="text-lg font-black italic">{weight.toFixed(2)}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[9px] font-black opacity-40 uppercase">Effective Rate</span>
+                                                            <span className="text-sm font-bold">${effectiveRate.toLocaleString(undefined, { maximumFractionDigits: 2 })} / LB</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right pr-14 font-black text-4xl italic tracking-tighter text-primary">
+                                                        <span className="text-lg opacity-20 mr-2 font-black italic">JMD</span>
+                                                        ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
                                     </TableBody>
                                 </Table>
                             )}
