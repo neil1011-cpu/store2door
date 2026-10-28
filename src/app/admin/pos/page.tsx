@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -58,6 +58,10 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
+/**
+ * @fileOverview High-Performance POS Terminal for FromStore2Door.
+ * Corrected to ensure customer-specific pricing and account standing updates.
+ */
 export default function POSPage() {
     const { toast } = useToast();
     const { supabase } = useSupabase();
@@ -67,6 +71,7 @@ export default function POSPage() {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [selectedUser, setSelectedUser] = useState<any | null>(null);
     const [userInvoices, setUserInvoices] = useState<any[]>([]);
+    const [accountStanding, setAccountStanding] = useState<number>(0);
     const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     
@@ -80,6 +85,7 @@ export default function POSPage() {
     const [cashReceived, setCashReceived] = useState<string>('');
     const [receiptData, setReceiptData] = useState<any | null>(null);
 
+    // Dynamic Search for Customers
     useEffect(() => {
         if (!searchTerm || searchTerm.trim().length < 2) {
             setSearchResults([]);
@@ -108,31 +114,46 @@ export default function POSPage() {
         return () => clearTimeout(timer);
     }, [searchTerm, supabase]);
 
-    const refreshUserData = async (userId: string) => {
+    const refreshUserData = useCallback(async (userId: string) => {
         setIsLoadingInvoices(true);
         try {
-            const [profileRes, shipmentsRes] = await Promise.all([
+            const [profileRes, shipmentsRes, ledgerRes] = await Promise.all([
                 supabase.from('profiles').select('*').eq('id', userId).single(),
                 supabase.from('shipments')
                     .select('*')
                     .eq('profile_id', userId)
                     .eq('payment_status', 'Unpaid')
-                    .order('created_at', { ascending: false })
+                    .order('created_at', { ascending: false }),
+                supabase.from('financial_ledger')
+                    .select('amount')
+                    .eq('profile_id', userId)
             ]);
 
-            if (profileRes.data) setSelectedUser(profileRes.data);
+            if (profileRes.error) throw profileRes.error;
+
+            // Update user and invoices
+            setSelectedUser(profileRes.data);
             setUserInvoices(shipmentsRes.data || []);
-        } catch (error) {
-            console.error("POS DATA FETCH ERROR", error);
+
+            // Calculate Accounting Truth for Standing (Credit - Debit)
+            const balance = (ledgerRes.data || []).reduce((sum, item) => sum + Number(item.amount), 0);
+            setAccountStanding(balance);
+
+        } catch (error: any) {
+            console.error("POS DATA FETCH ERROR", error.message);
+            toast({ title: "Fetch Error", description: "Could not retrieve latest registry data.", variant: "destructive" });
         } finally {
             setIsLoadingInvoices(false);
         }
-    };
+    }, [supabase, toast]);
 
     const handleSelectUser = (user: any) => {
         setSearchTerm('');
         setSearchResults([]);
         setSelectedInvoices(new Set());
+        // Transition state immediately to prevent "Kemoy" ghosting if previous state existed
+        setSelectedUser(user);
+        setAccountStanding(Number(user.wallet_balance || 0));
         refreshUserData(user.id);
     };
 
@@ -177,6 +198,7 @@ export default function POSPage() {
 
             if (shipError) throw shipError;
 
+            // Sync legacy invoices table
             if (trackingNumbers.length > 0) {
                 await supabase
                     .from('invoices')
@@ -184,6 +206,7 @@ export default function POSPage() {
                     .in('tracking_number', trackingNumbers);
             }
 
+            // Ledger mutation (Triggers profile wallet sync)
             const { error: ledgerError } = await supabase.from('financial_ledger').insert({
                 profile_id: selectedUser.id,
                 amount: totalToSettle, 
@@ -193,6 +216,7 @@ export default function POSPage() {
 
             if (ledgerError) throw ledgerError;
 
+            // System Log
             await supabase.from('system_logs').insert({
                 log_type: 'pos_transaction',
                 description: `POS Checkout Complete: ${selectedUser.full_name}. JMD $${totalToSettle.toLocaleString()}`,
@@ -253,10 +277,11 @@ export default function POSPage() {
         setReceiptData(null);
         setSearchTerm('');
         setCashReceived('');
+        setAccountStanding(0);
     };
 
     return (
-        <div className="flex flex-col gap-6 max-w-full mx-auto pb-10">
+        <div className="flex flex-col gap-6 max-w-full mx-auto pb-10 h-[calc(100vh-80px)]">
             {/* Hidden Receipt Template */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
@@ -313,7 +338,7 @@ export default function POSPage() {
                 )}
             </div>
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4 shrink-0">
                 <div>
                     <h1 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Station POS</h1>
                     <p className="text-muted-foreground font-bold uppercase tracking-widest text-[9px] flex items-center gap-2">
@@ -325,8 +350,8 @@ export default function POSPage() {
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start overflow-hidden">
-                <div className="lg:col-span-8 space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1 overflow-hidden">
+                <div className="lg:col-span-8 space-y-6 overflow-y-auto h-full pr-2">
                     {/* Customer Selection */}
                     <Card className="border shadow-md rounded-2xl">
                         <CardHeader className="bg-muted/30 py-3 border-b rounded-t-2xl">
@@ -370,7 +395,7 @@ export default function POSPage() {
                             ) : (
                                 <div className={cn(
                                     "p-6 rounded-xl shadow-lg flex items-center justify-between gap-6 transition-all relative overflow-hidden",
-                                    Number(selectedUser.wallet_balance) < 0 ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
+                                    accountStanding < 0 ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
                                 )}>
                                     <div className="relative z-10 flex-1 min-w-0">
                                         <div className="flex items-center gap-4">
@@ -385,7 +410,7 @@ export default function POSPage() {
                                         <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1 italic">Account Standing</p>
                                         <div className="flex items-center justify-end gap-2">
                                             <span className="text-2xl font-black italic tracking-tighter">
-                                                ${Math.abs(Number(selectedUser.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                ${Math.abs(accountStanding).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </div>
@@ -432,31 +457,31 @@ export default function POSPage() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {userInvoices.map((inv) => {
-                                                const weight = Number(inv.weight_lbs) || 0;
-                                                const totalCost = Number(inv.total_cost_jmd) || calculateShippingCost(weight);
+                                            {userInvoices.map((ship) => {
+                                                const weight = Number(ship.weight_lbs) || 0;
+                                                const totalCost = Number(ship.total_cost_jmd) || calculateShippingCost(weight);
                                                 const effectiveRate = weight > 0 ? totalCost / weight : 0;
 
                                                 return (
                                                     <TableRow 
-                                                        key={inv.id} 
+                                                        key={ship.id} 
                                                         className={cn(
                                                             "hover:bg-accent cursor-pointer transition-all border-b h-20", 
-                                                            selectedInvoices.has(inv.id) && "bg-primary/5"
+                                                            selectedInvoices.has(ship.id) && "bg-primary/5"
                                                         )} 
-                                                        onClick={() => toggleInvoice(inv.id)}
+                                                        onClick={() => toggleInvoice(ship.id)}
                                                     >
                                                         <TableCell className="pl-6">
                                                             <Checkbox 
-                                                                checked={selectedInvoices.has(inv.id)} 
-                                                                onCheckedChange={() => toggleInvoice(inv.id)} 
+                                                                checked={selectedInvoices.has(ship.id)} 
+                                                                onCheckedChange={() => toggleInvoice(ship.id)} 
                                                                 className="h-6 w-6 border-2 rounded-md" 
                                                             />
                                                         </TableCell>
                                                         <TableCell>
-                                                            <p className="font-mono font-black text-primary uppercase text-sm italic tracking-tighter leading-none truncate max-w-[140px]">{inv.tracking_number}</p>
-                                                            {inv.contents && (
-                                                                <p className="text-[8px] font-bold text-muted-foreground uppercase truncate max-w-[140px] mt-1">{inv.contents}</p>
+                                                            <p className="font-mono font-black text-primary uppercase text-sm italic tracking-tighter leading-none truncate max-w-[140px]">{ship.tracking_number}</p>
+                                                            {ship.contents && (
+                                                                <p className="text-[8px] font-bold text-muted-foreground uppercase truncate max-w-[140px] mt-1">{ship.contents}</p>
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right font-black italic text-sm">{weight.toFixed(2)}</TableCell>
@@ -477,7 +502,7 @@ export default function POSPage() {
                     </Card>
                 </div>
 
-                <div className="lg:col-span-4 lg:sticky lg:top-20">
+                <div className="lg:col-span-4 sticky top-0">
                     {/* Checkout Summary */}
                     <Card className="border-none shadow-2xl bg-zinc-950 text-zinc-100 rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
                         <CardHeader className="bg-white/5 pb-6 pt-8 px-8 border-b border-white/5">
