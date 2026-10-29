@@ -296,7 +296,7 @@ export default function POSPage() {
     };
 
     return (
-        <div className="flex flex-col gap-6 max-w-full mx-auto pb-10 h-[calc(100vh-80px)]">
+        <div className="flex flex-col gap-6 max-w-full mx-auto pb-20">
             {/* Hidden Receipt Template */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
@@ -365,8 +365,8 @@ export default function POSPage() {
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1 overflow-hidden">
-                <div className="lg:col-span-8 space-y-6 overflow-y-auto h-full pr-2">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                <div className="lg:col-span-8 space-y-6">
                     {/* Customer Selection */}
                     <Card className="border shadow-md rounded-2xl">
                         <CardHeader className="bg-muted/30 py-3 border-b rounded-t-2xl">
@@ -517,7 +517,7 @@ export default function POSPage() {
                     </Card>
                 </div>
 
-                <div className="lg:col-span-4 sticky top-0">
+                <div className="lg:col-span-4 sticky top-24">
                     {/* Settlement Authority Terminal */}
                     <Card className="border-none shadow-2xl bg-indigo-50/30 dark:bg-zinc-950 text-foreground dark:text-zinc-100 rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
                         <CardHeader className="bg-background/40 dark:bg-white/5 pb-6 pt-8 px-8 border-b border-indigo-100 dark:border-white/5">
