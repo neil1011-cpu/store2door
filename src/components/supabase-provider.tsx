@@ -16,6 +16,11 @@ type SupabaseContext = {
 
 const Context = createContext<SupabaseContext | undefined>(undefined);
 
+/**
+ * @fileOverview Universal Supabase Provider for FromStore2Door OS.
+ * Hardened to ensure 'children' are always rendered during initial hydration 
+ * to prevent blank preview flashes.
+ */
 export default function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const [supabase] = useState(() => createClient());
   const [user, setUser] = useState<User | null>(null);
@@ -52,21 +57,20 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       }
     });
 
-    const timer = setTimeout(() => setIsLoading(false), 5000);
-
     return () => {
       subscription.unsubscribe();
-      clearTimeout(timer);
     };
   }, [supabase, router]);
 
+  // CRITICAL: We render the children immediately to prevent a blank preview.
+  // The 'isConfigMissing' state will only block interaction if the keys are actually missing.
   if (mounted && isConfigMissing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
         <Card className="max-w-md w-full shadow-2xl border-orange-200">
           <CardHeader className="text-center pb-2">
             <div className="mx-auto bg-orange-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4">
-              <Database className="h-8 v-8 text-orange-600" />
+              <Database className="h-8 w-8 text-orange-600" />
             </div>
             <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Database Link Required</CardTitle>
             <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">

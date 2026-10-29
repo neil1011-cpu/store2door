@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * @fileOverview Authorized Hub Package Fetcher.
- * Standardized for SDK v0.2.0.
+ * Standardized for SDK v0.2.0 (using packages resource and pageSize param).
  */
 
 export async function POST(request: Request) {

@@ -66,6 +66,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
         if (data === true && !error) {
           setIsAdmin(true);
         } else {
+          // Hardcoded fallback for master domain admin
           if (user.email === 'admin@neilussolutions.com') {
             setIsAdmin(true);
           } else {

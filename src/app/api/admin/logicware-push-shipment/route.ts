@@ -7,7 +7,7 @@ import type { PackageStatus } from '@logicware.app/connect-sdk';
 /**
  * @fileOverview Hardened Logicware Package Synchronization API.
  * Ensures packages are successfully created in Logicware Hub with correct shipper linkage.
- * Aligned with SDK v0.2.0.
+ * Aligned with SDK v0.2.0 (packages resource).
  */
 
 export async function POST(request: Request) {
