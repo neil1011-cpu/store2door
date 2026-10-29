@@ -49,7 +49,7 @@ export async function POST(request: Request) {
         let logicwareId = local.logicware_id;
         let operation = 'verified_existing';
 
-        // 1. SHIPPER RESOLUTION (Ensure named identity exists in Hub)
+        // 1. SHIPPER RESOLUTION
         let shipperId = null;
         if (local.profiles) {
             const shRes = await client.shippers.list({ pageSize: 100 });
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 2. PACKAGE HUB VERIFICATION (Prevent Duplicates)
+        // 2. PACKAGE HUB VERIFICATION
         if (!logicwareId) {
             const res = await client.packages.list({ pageSize: 100 });
             const list = Array.isArray(res) ? res : ((res as any).data || []);

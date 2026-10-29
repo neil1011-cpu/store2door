@@ -28,7 +28,6 @@ export async function POST(request: Request) {
         if (!client) throw new Error('Hub not configured.');
 
         let logicwareId = null;
-        // SDK v0.2.0 uses pageSize instead of limit
         const shRes = await client.shippers.list({ pageSize: 100 });
         const sList = Array.isArray(shRes) ? shRes : ((shRes as any).data || []);
 
@@ -44,7 +43,6 @@ export async function POST(request: Request) {
         let operation;
         if (logicwareId) {
             operation = 'update';
-            // TRN is immutable in Hub v2, so we remove it from update call
             await client.shippers.update(logicwareId, {
                 name: profile.full_name,
                 phone: profile.phone || ''

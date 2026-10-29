@@ -16,7 +16,6 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient(apiKey);
         if (!client) throw new Error('Client initialization failed.');
         
-        // Standard resource reference and pagination for v0.2.0
         if (client.packages) {
             await client.packages.list({ pageSize: 1 });
         } else if (client.shippers) {

@@ -23,7 +23,6 @@ export function getLogicwareInstance(config: LogicwareConfig) {
 export async function testLogicwareConnection(config: LogicwareConfig) {
     try {
         const client = getLogicwareInstance(config);
-        // SDK v0.2.0 uses pageSize instead of limit and packages/shippers resources
         if (client.packages) {
             await client.packages.list({ pageSize: 1 });
         } else if (client.shippers) {

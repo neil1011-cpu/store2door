@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createClient, createAdminClient } from '@/lib/supabase/server';
@@ -16,7 +17,7 @@ export async function promoteToAdmin(userId: string) {
   
   const { error } = await supabaseAdmin
     .from('app_roles')
-    .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id, role' });
+    .upsert({ user_id: userId, role: 'admin' });
 
   if (error) return { error: error.message };
   return { success: true };

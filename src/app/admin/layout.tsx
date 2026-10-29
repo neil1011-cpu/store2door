@@ -1,3 +1,4 @@
+
 'use client';
 
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger, SidebarFooter } from '@/components/ui/sidebar';
@@ -42,22 +43,18 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
   const checkInProgress = useRef(false);
 
   useEffect(() => {
-    // If the authentication session is still being established, keep waiting.
     if (isLoading) return;
 
-    // Handle unauthorized guest state immediately.
     if (!user) {
-      setIsVerifying(false); // Terminal state
+      setIsVerifying(false);
       router.replace('/admin-login');
       return;
     }
 
-    // Prevent duplicate or overlapping RPC calls.
     if (checkInProgress.current) return;
     checkInProgress.current = true;
 
     const checkRole = async () => {
-      // Add a 10s safety timeout to prevent indefinite hangs on latent connections.
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Auth Timeout')), 10000)
       );
@@ -69,7 +66,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
         if (data === true && !error) {
           setIsAdmin(true);
         } else {
-          // Security Fallback: Direct master administrator verification.
           if (user.email === 'admin@neilussolutions.com') {
             setIsAdmin(true);
           } else {
@@ -77,7 +73,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
           }
         }
       } catch (e) {
-        // Fallback for schema errors or connectivity issues.
         if (user.email === 'admin@neilussolutions.com') {
           setIsAdmin(true);
         } else {
@@ -85,7 +80,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
           router.replace('/admin-login');
         }
       } finally {
-        setIsVerifying(false); // terminal state
+        setIsVerifying(false);
         checkInProgress.current = false;
       }
     };
@@ -93,7 +88,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     checkRole();
   }, [user, isLoading, supabase, router]);
 
-  // Loader display during session resolution or role verification.
   if (isLoading || isVerifying) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
@@ -103,7 +97,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     );
   }
   
-  // Prevent rendering unauthorized content during redirect.
   if (!isAdmin) return null;
 
   return <>{children}</>;

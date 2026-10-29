@@ -1,8 +1,9 @@
+
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * @fileOverview Standardized Supabase Middleware for Next.js 15.
+ * @fileOverview Standard Supabase Middleware for Next.js 15.
  * Hardened with explicit typing for cookie methods.
  */
 export async function middleware(request: NextRequest) {
