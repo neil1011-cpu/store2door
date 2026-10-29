@@ -1,11 +1,10 @@
-
 'use server';
 
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Server Actions for Hardened Auth/RBAC Testing.
- * Fixed compilation errors by ensuring valid upsert parameters and constraints.
+ * Fixed PostgREST upsert syntax to resolve typing errors.
  */
 
 const IS_DEV = process.env.NODE_ENV === 'development';

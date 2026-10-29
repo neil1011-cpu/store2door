@@ -1,4 +1,3 @@
-
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -9,7 +8,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. PUBLIC ROUTE EXCLUSION: Webhooks are server-to-server and do not have sessions.
   if (pathname.startsWith('/api/webhooks/')) {
     return NextResponse.next();
   }
@@ -46,7 +44,6 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh the session if it exists. 
   try {
     await supabase.auth.getUser();
   } catch (e) {

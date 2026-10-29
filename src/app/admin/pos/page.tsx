@@ -61,6 +61,7 @@ import html2canvas from 'html2canvas';
 /**
  * @fileOverview High-Performance POS Terminal for FromStore2Door.
  * Corrected to ensure customer-specific pricing and account standing updates.
+ * Added Logicware status synchronization on checkout.
  */
 export default function POSPage() {
     const { toast } = useToast();
@@ -228,6 +229,15 @@ export default function POSPage() {
             });
 
             if (ledgerError) throw ledgerError;
+
+            // Sync status to Logicware Hub
+            for (const id of Array.from(selectedInvoices)) {
+                fetch('/api/admin/logicware-push-shipment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shipmentId: id })
+                }).catch(lwErr => console.warn('[POS:LOGICWARE_SYNC_FAIL]', lwErr));
+            }
 
             // System Log
             await supabase.from('system_logs').insert({
@@ -617,7 +627,7 @@ export default function POSPage() {
             </div>
 
             <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-                <DialogContent className="sm:max-w-xl p-0 overflow-hidden rounded-[2rem] border-4">
+                <DialogContent className="sm:max-w-xl p-0 rounded-[2rem] border-4">
                     {!checkoutComplete ? (
                         <div className="flex flex-col">
                             <div className="p-8 bg-muted/30 border-b-2">
