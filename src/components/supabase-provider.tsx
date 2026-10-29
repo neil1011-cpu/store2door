@@ -30,8 +30,10 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
 
     const isMissing = !url || 
                       url === 'https://placeholder-project.supabase.co' ||
+                      url === '' ||
                       !key || 
-                      key === 'placeholder-key';
+                      key === 'placeholder-key' ||
+                      key === '';
 
     if (isMissing) {
       setIsConfigMissing(true);
@@ -58,7 +60,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     };
   }, [supabase, router]);
 
-  // Prevent hydration mismatch by only showing conditional UI after client mount
+  // Handle missing configuration on the client after mount
   if (mounted && isConfigMissing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
@@ -99,15 +101,8 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     );
   }
 
-  // Preserve structural consistency during hydration
-  if (!mounted || (isLoading && !user)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary opacity-60" />
-      </div>
-    );
-  }
-
+  // To fix blank preview issues, we must ensure children are rendered during SSR and initial hydration.
+  // We use the Context.Provider immediately and allow children to handle their own loading states.
   return (
     <Context.Provider value={{ supabase, user, isLoading }}>
       {children}
