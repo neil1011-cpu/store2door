@@ -23,31 +23,52 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode, useRef } from 'react';
 import { useSupabase } from '@/components/supabase-provider';
 import { Notifications } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 
+/**
+ * @fileOverview Hardened Admin Authentication Guard.
+ * Ensures the session is valid and authorized before rendering administrative routes.
+ */
 function AdminAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { supabase, user, isLoading } = useSupabase();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
+  const checkInProgress = useRef(false);
 
   useEffect(() => {
+    // If the authentication session is still being established, keep waiting.
     if (isLoading) return;
+
+    // Handle unauthorized guest state immediately.
     if (!user) {
+      setIsVerifying(false);
       router.replace('/admin-login');
       return;
     }
 
+    // Prevent duplicate or overlapping RPC calls.
+    if (checkInProgress.current) return;
+    checkInProgress.current = true;
+
     const checkRole = async () => {
+      // Add a 10s safety timeout to prevent indefinite hangs on latent connections.
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Auth Timeout')), 10000)
+      );
+
       try {
-        const { data, error } = await supabase.rpc('is_admin');
-        if (data && !error) {
+        const rpcPromise = supabase.rpc('is_admin');
+        const { data, error } = await Promise.race([rpcPromise, timeoutPromise]) as any;
+        
+        if (data === true && !error) {
           setIsAdmin(true);
         } else {
+          // Security Fallback: Direct master administrator verification.
           if (user.email === 'admin@neilussolutions.com') {
             setIsAdmin(true);
           } else {
@@ -55,18 +76,23 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
           }
         }
       } catch (e) {
+        // Fallback for schema errors or connectivity issues.
         if (user.email === 'admin@neilussolutions.com') {
           setIsAdmin(true);
         } else {
+          console.error('[AUTH_GUARD_FAIL]', e);
           router.replace('/admin-login');
         }
       } finally {
         setIsVerifying(false);
+        checkInProgress.current = false;
       }
     };
+
     checkRole();
   }, [user, isLoading, supabase, router]);
 
+  // Loader display during session resolution or role verification.
   if (isLoading || isVerifying) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
@@ -76,6 +102,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     );
   }
   
+  // Prevent rendering unauthorized content during redirect.
   if (!isAdmin) return null;
 
   return <>{children}</>;
