@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 /**
  * @fileOverview Hardened Admin Authentication Guard.
  * Ensures the session is valid and authorized before rendering administrative routes.
+ * Implements strict timeout and terminal state management to prevent loading hangs.
  */
 function AdminAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -46,7 +47,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
 
     // Handle unauthorized guest state immediately.
     if (!user) {
-      setIsVerifying(false);
+      setIsVerifying(false); // Terminal state
       router.replace('/admin-login');
       return;
     }
@@ -84,7 +85,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
           router.replace('/admin-login');
         }
       } finally {
-        setIsVerifying(false);
+        setIsVerifying(false); // terminal state
         checkInProgress.current = false;
       }
     };

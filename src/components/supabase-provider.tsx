@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Database, AlertTriangle, Key, Loader2 } from 'lucide-react';
+import { Database, AlertTriangle, Key } from 'lucide-react';
 
 type SupabaseContext = {
   supabase: SupabaseClient;
