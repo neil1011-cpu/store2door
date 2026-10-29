@@ -1,11 +1,10 @@
-
 'use server';
 
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
  * @fileOverview Server Actions for Hardened Auth/RBAC Testing.
- * Fixed PostgREST upsert syntax to resolve typing errors.
+ * Fixed PostgREST upsert syntax to resolve build-blocking typing errors.
  */
 
 const IS_DEV = process.env.NODE_ENV === 'development';
@@ -15,6 +14,7 @@ export async function promoteToAdmin(userId: string) {
 
   const supabaseAdmin = await createAdminClient();
   
+  // FIX: app_roles requires user_id and role for upsert logic
   const { error } = await supabaseAdmin
     .from('app_roles')
     .upsert({ user_id: userId, role: 'admin' });

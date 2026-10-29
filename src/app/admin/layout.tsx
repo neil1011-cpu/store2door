@@ -1,4 +1,3 @@
-
 'use client';
 
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger, SidebarFooter } from '@/components/ui/sidebar';
@@ -55,6 +54,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     checkInProgress.current = true;
 
     const checkRole = async () => {
+      // 10s Timeout protection for DB calls
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Auth Timeout')), 10000)
       );
@@ -66,6 +66,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
         if (data === true && !error) {
           setIsAdmin(true);
         } else {
+          // Fallback for Master Admin email to prevent lockout during schema issues
           if (user.email === 'admin@neilussolutions.com') {
             setIsAdmin(true);
           } else {

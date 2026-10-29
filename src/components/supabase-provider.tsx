@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
@@ -66,7 +65,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
         <Card className="max-w-md w-full shadow-2xl border-orange-200">
           <CardHeader className="text-center pb-2">
             <div className="mx-auto bg-orange-100 w-16 h-16 rounded-2xl flex items-center justify-center mb-4">
-              <Database className="h-8 v-8 text-orange-600" />
+              <Database className="h-8 w-8 text-orange-600" />
             </div>
             <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Database Link Required</CardTitle>
             <CardDescription className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -97,6 +96,8 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     );
   }
 
+  // RECOVERY FIX: Render children immediately to prevent blank hydration screens.
+  // Specialized layouts (Admin/Account) handle their own loading states internally.
   return (
     <Context.Provider value={{ supabase, user, isLoading }}>
       {children}
