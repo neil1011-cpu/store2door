@@ -1,3 +1,4 @@
+
 import { LogicwareConnect } from '@logicware.app/connect-sdk';
 import { createAdminClient } from '@/lib/supabase/server';
 
