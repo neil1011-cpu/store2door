@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createClient, createAdminClient } from '@/lib/supabase/server';
@@ -18,7 +17,7 @@ export async function promoteToAdmin(userId: string) {
   // FIX: app_roles requires user_id and role for upsert logic
   const { error } = await supabaseAdmin
     .from('app_roles')
-    .upsert({ user_id: userId, role: 'admin' });
+    .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id, role' });
 
   if (error) return { error: error.message };
   return { success: true };

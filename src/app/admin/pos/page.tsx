@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -765,7 +764,11 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
                 <DialogFooter className="gap-2">
                     <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
                     <Button 
-                        onClick={() => { onApply(calculatedDuty); setOpen(false); }} 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onApply(calculatedDuty); 
+                            setOpen(false); 
+                        }} 
                         className="flex-1 h-12 font-black uppercase italic shadow-xl bg-indigo-600 hover:bg-indigo-500"
                     >
                         <ShieldCheck className="h-4 w-4 mr-2" />

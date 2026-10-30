@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 
@@ -16,7 +15,7 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient(apiKey);
         if (!client) throw new Error('Client initialization failed.');
         
-        // Use modernpageSize and check modules existence
+        // Use modern pageSize and check modules existence
         if (client.packages) {
             await client.packages.list({ pageSize: 1 });
         } else if (client.shippers) {
