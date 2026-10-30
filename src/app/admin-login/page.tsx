@@ -51,12 +51,18 @@ export default function AdminLoginPage() {
 
       if (error) throw error;
 
-      // Verify Admin Status via RBAC RPC
-      const { data: isAdmin, error: rpcError } = await supabase.rpc('is_admin');
+      // Verify Admin Status via RBAC RPC with safe fallback
+      let isAdminResult = false;
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('is_admin');
+        if (!rpcError) isAdminResult = rpcData === true;
+      } catch (e) {
+        console.warn('[LOGIN_RPC_FAIL] Database function is_admin() may be missing.');
+      }
       
       const isDomainAdmin = values.email === 'admin@neilussolutions.com';
       
-      if (isAdmin || isDomainAdmin) {
+      if (isAdminResult || isDomainAdmin) {
         setShowWelcome(true);
       } else {
         await supabase.auth.signOut();
