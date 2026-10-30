@@ -166,7 +166,7 @@ export default function AdminDashboardPage() {
                                         </TableCell>
                                         <TableCell><Badge variant="outline" className="text-[8px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
                                         <TableCell className="text-right pr-6 font-black italic text-sm text-primary">
-                                            ${Number(s.total_cost_jmd || 0).toLocaleString()}
+                                            JMD ${Number(s.total_cost_jmd || 0).toLocaleString()}
                                         </TableCell>
                                     </TableRow>
                                 )) : (

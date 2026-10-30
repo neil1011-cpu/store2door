@@ -127,7 +127,11 @@ export default function POSPage() {
                     .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mailbox_number.ilike.%${searchTerm}%`)
                     .limit(8);
                 
-                if (error) throw error;
+                if (error) {
+                    console.warn("Table not found or schema mismatch. Is the SQL ran?", error.message);
+                    setSearchResults([]);
+                    return;
+                }
                 setSearchResults(data || []);
             } catch (err) {
                 console.error("SEARCH ERROR:", err);
@@ -461,7 +465,7 @@ export default function POSPage() {
                                         <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1 italic">Account Standing</p>
                                         <div className="flex items-center justify-end gap-2">
                                             <span className="text-2xl font-black italic tracking-tighter">
-                                                ${Math.abs(accountStanding).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                JMD ${Math.abs(accountStanding).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </div>
@@ -538,7 +542,7 @@ export default function POSPage() {
                                                                 <Badge variant="outline" className="h-4 text-[7px] px-1 font-mono uppercase">{weight} LBS</Badge>
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="text-right font-black italic text-sm">${freight.toLocaleString()}</TableCell>
+                                                        <TableCell className="text-right font-black italic text-sm">JMD ${freight.toLocaleString()}</TableCell>
                                                         <TableCell className="text-right">
                                                             <div className="flex flex-col items-end gap-1">
                                                                 {duty > 0 ? (
@@ -555,7 +559,7 @@ export default function POSPage() {
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="text-right pr-8 font-black text-xl italic tracking-tighter text-primary">
-                                                            ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                            JMD ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -580,7 +584,7 @@ export default function POSPage() {
                                 <div className="flex justify-between items-center px-1">
                                     <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Freight Total</p>
                                     <span className="text-sm font-black italic text-indigo-600 dark:text-zinc-400">
-                                        ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        JMD ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                                 <Separator className="bg-indigo-100 dark:bg-white/10" />
@@ -588,7 +592,7 @@ export default function POSPage() {
                                     <p className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground italic">Transaction Subtotal</p>
                                     <div className="flex flex-col items-center justify-center">
                                         <span className="text-5xl font-black italic tracking-tighter text-foreground dark:text-white">
-                                            ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            JMD ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </span>
                                         <Badge variant="outline" className="mt-4 bg-background dark:bg-white/5 text-[8px] font-black uppercase tracking-widest border-indigo-200 dark:border-white/10 px-4 h-6">
                                             {selectedInvoices.size} Parcels Selected
@@ -646,7 +650,7 @@ export default function POSPage() {
                                             "text-xl font-black italic tracking-tighter",
                                             changeDue > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground/30"
                                         )}>
-                                            ${changeDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            JMD ${changeDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </span>
                                     </div>
                                 </div>
@@ -683,7 +687,7 @@ export default function POSPage() {
                                     <div>
                                         <p className="text-[8px] font-black uppercase tracking-[0.3em] opacity-40 mb-2 italic">Verify Registry Impact</p>
                                         <p className="text-6xl font-black italic tracking-tighter text-primary">
-                                            ${(paymentMethod === 'Cash' ? parseFloat(cashReceived) : calculatedSelectedTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            JMD ${(paymentMethod === 'Cash' ? parseFloat(cashReceived) : calculatedSelectedTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </p>
                                         <div className="flex items-center justify-center gap-3 mt-6">
                                             <Badge variant="outline" className="text-[9px] font-black uppercase px-4 h-7 border-2 bg-background">
@@ -691,7 +695,7 @@ export default function POSPage() {
                                             </Badge>
                                             {paymentMethod === 'Cash' && (
                                                 <Badge className="bg-green-600 text-white text-[9px] font-black uppercase px-4 h-7">
-                                                    RETURN ${changeDue.toLocaleString()}
+                                                    RETURN JMD ${changeDue.toLocaleString()}
                                                 </Badge>
                                             )}
                                         </div>
@@ -728,6 +732,12 @@ export default function POSPage() {
                     )}
                 </DialogContent>
             </Dialog>
+            
+            <div className="mt-auto pt-10 text-center opacity-40">
+                <Link href="https://neilussolutions.com" target="_blank" className="text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors">
+                    Developed by NEILUS SOLUTIONS
+                </Link>
+            </div>
         </div>
     );
 }
@@ -830,7 +840,7 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
                     <div className="p-6 rounded-2xl bg-indigo-50 border-2 border-dashed border-indigo-200 text-center">
                         <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-2">Landed Duty Estimate (JMD)</p>
                         <p className="text-4xl font-black italic tracking-tighter text-indigo-700">
-                            $ {calculatedDuty.toLocaleString()}
+                            JMD $ {calculatedDuty.toLocaleString()}
                         </p>
                         {parseFloat(itemValue) <= 100 && parseFloat(itemValue) > 0 && (
                             <Badge className="mt-3 bg-green-500 text-white font-black italic uppercase text-[8px]">De Minimis Duty Free</Badge>
