@@ -192,6 +192,18 @@ export default function AdminDashboardPage() {
                     <Link href="/admin/settings"><Activity className="h-6 w-6 text-muted-foreground" /> System Console</Link>
                 </Button>
             </div>
+
+            <div className="mt-12 text-center opacity-30 flex flex-col items-center gap-2 grayscale hover:grayscale-0 transition-all">
+              <p className="text-[8px] font-bold uppercase tracking-[0.4em]">FSTD OS v5.4.1</p>
+              <div className="flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10 20C10 14.4772 14.4772 10 20 10H80C85.5228 10 90 14.4772 90 20V50H10V20Z" fill="#F97316" />
+                  <path d="M10 50H90V80C90 85.5228 85.5228 90 80 90H20C14.4772 90 10 85.5228 10 80V50Z" fill="#4B5563" />
+                  <path d="M35 70V30L65 70V30" stroke="white" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="text-[10px] font-black uppercase tracking-tighter">Developed by Neilus Solutions</span>
+              </div>
+            </div>
         </div>
     );
 }

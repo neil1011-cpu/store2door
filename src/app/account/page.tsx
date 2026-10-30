@@ -165,8 +165,11 @@ export default function AccountPage() {
                 </div>
             </div>
 
-            <div className="mt-16 text-center text-[9px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-8 opacity-40">
+            <div className="mt-16 text-center text-[9px] font-bold uppercase tracking-widest text-muted-foreground border-t pt-8 opacity-40 space-y-2">
                 <p>&copy; {new Date().getFullYear()} FromStore2Door Global Logistics. SECURE REGISTRY.</p>
+                <p className="flex items-center justify-center gap-1">
+                    Developed by <span className="font-black text-foreground">NEILUS SOLUTIONS</span>
+                </p>
             </div>
         </div>
     );

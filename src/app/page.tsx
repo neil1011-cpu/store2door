@@ -152,7 +152,20 @@ export default function HomePage() {
               </ul>
             </div>
           </div>
-          <p className={styles.copy}>&copy; {new Date().getFullYear()} From Store 2 Door Shipping Services | All Rights Reserved</p>
+          <div className={styles.copy}>
+            <p>&copy; {new Date().getFullYear()} From Store 2 Door Shipping Services | All Rights Reserved</p>
+            <div className="mt-8 pt-8 border-t border-white/5 flex flex-col items-center gap-2">
+              <p className="text-[10px] uppercase font-bold tracking-[0.3em] opacity-40">System Architecture & Design</p>
+              <div className="flex items-center gap-3">
+                <svg width="24" height="24" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10 20C10 14.4772 14.4772 10 20 10H80C85.5228 10 90 14.4772 90 20V50H10V20Z" fill="#F97316" />
+                  <path d="M10 50H90V80C90 85.5228 85.5228 90 80 90H20C14.4772 90 10 85.5228 10 80V50Z" fill="#4B5563" />
+                  <path d="M35 70V30L65 70V30" stroke="white" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="text-sm font-black uppercase italic tracking-tighter text-white">Developed by Neilus Solutions</span>
+              </div>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
