@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -38,7 +37,8 @@ import {
   Gavel,
   ShieldCheck,
   UserCheck,
-  DollarSign
+  DollarSign,
+  Weight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
@@ -544,7 +544,7 @@ export default function POSPage() {
                 </DialogContent>
             </Dialog>
             
-            <div className="mt-auto pt-6 md:pt-10 text-center opacity-40">
+            <div className="mt-auto pt-10 text-center opacity-40">
                 <Link href="https://neilussolutions.com" target="_blank" className="text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors">
                     Developed by NEILUS SOLUTIONS
                 </Link>

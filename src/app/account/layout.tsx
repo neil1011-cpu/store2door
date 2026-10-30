@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, type ReactNode, useState, useCallback, useRef } from 'react';
@@ -13,7 +12,7 @@ import { Wallet, Menu, TrendingDown, Loader2, LogOut, AlertTriangle } from 'luci
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
+import { cn, calculateShippingCost } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 
 const UserProfileContext = createContext<{ profile: UserProfile | null; balance: number; totalToBePaid: number }>({ profile: null, balance: 0, totalToBePaid: 0 });
@@ -58,7 +57,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
                 // Fetch All Financial & Logistics Context
                 const { data: shipmentsData, error: shipError } = await supabase.from('shipments')
-                    .select('tracking_number, status, total_cost_jmd, payment_status')
+                    .select('tracking_number, status, total_cost_jmd, payment_status, weight_lbs')
                     .eq('profile_id', user.id);
 
                 if (shipError) throw shipError;
@@ -66,7 +65,10 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 // 1. Calculate Account Standing (Only Ready for Pickup + Unpaid)
                 const totalReady = (shipmentsData || [])
                     .filter(s => s.status?.toLowerCase() === 'ready for pick up' && s.payment_status === 'Unpaid')
-                    .reduce((acc, curr) => acc + Number(curr.total_cost_jmd || 0), 0);
+                    .reduce((acc, curr) => {
+                        const cost = Number(curr.total_cost_jmd) || calculateShippingCost(Number(curr.weight_lbs) || 0);
+                        return acc + cost;
+                    }, 0);
 
                 setTotalToBePaid(totalReady);
                 setBalance(totalReady);

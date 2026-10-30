@@ -233,38 +233,42 @@ export function PackagesTab({ profileId }: { profileId: string }) {
           <TableBody>
             {isLoading ? (
               <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
-            ) : packages.map((pkg) => (
-              <TableRow key={pkg.id} className="h-20 hover:bg-primary/5 transition-colors">
-                <TableCell className="pl-6">
-                  <div className="flex flex-col">
-                    <p className="font-mono font-black text-primary text-sm tracking-tighter">{pkg.tracking_number}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-[10px] uppercase font-bold opacity-60 truncate max-w-[150px]">{pkg.contents || 'No Description'}</p>
-                      {pkg.weight_lbs > 0 && <span className="text-[9px] font-bold text-muted-foreground bg-muted px-1.5 rounded">{pkg.weight_lbs} LBS</span>}
+            ) : packages.map((pkg) => {
+              const displayCost = pkg.total_cost_jmd || (pkg.weight_lbs > 0 ? calculateShippingCost(pkg.weight_lbs) : null);
+              
+              return (
+                <TableRow key={pkg.id} className="h-20 hover:bg-primary/5 transition-colors">
+                  <TableCell className="pl-6">
+                    <div className="flex flex-col">
+                      <p className="font-mono font-black text-primary text-sm tracking-tighter">{pkg.tracking_number}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] uppercase font-bold opacity-60 truncate max-w-[150px]">{pkg.contents || 'No Description'}</p>
+                        {pkg.weight_lbs > 0 && <span className="text-[9px] font-bold text-muted-foreground bg-muted px-1.5 rounded">{pkg.weight_lbs} LBS</span>}
+                      </div>
                     </div>
-                  </div>
-                </TableCell>
-                <TableCell><Badge variant={getStatusVariant(pkg.status)} className="text-[8px] font-black uppercase italic tracking-widest border-2">{pkg.status}</Badge></TableCell>
-                <TableCell className="text-right">
-                    {pkg.invoice_url ? (
-                        <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[9px] border border-primary/10">
-                            <Link href={`/api/storage/view?key=${encodeURIComponent(pkg.invoice_url)}`} target="_blank">
-                                <FileText className="h-3.5 w-3.5 mr-1" /> View
-                            </Link>
-                        </Button>
+                  </TableCell>
+                  <TableCell><Badge variant={getStatusVariant(pkg.status)} className="text-[8px] font-black uppercase italic tracking-widest border-2">{pkg.status}</Badge></TableCell>
+                  <TableCell className="text-right">
+                      {pkg.invoice_url ? (
+                          <Button variant="ghost" size="sm" asChild className="h-8 text-primary font-bold uppercase text-[9px] border border-primary/10">
+                              <Link href={`/api/storage/view?key=${encodeURIComponent(pkg.invoice_url)}`} target="_blank">
+                                  <FileText className="h-3.5 w-3.5 mr-1" /> View
+                              </Link>
+                          </Button>
+                      ) : (
+                          <span className="text-[9px] opacity-20 italic">No File</span>
+                      )}
+                  </TableCell>
+                  <TableCell className="text-right pr-6 font-black italic tracking-tighter text-lg">
+                    {shouldShowPrice(pkg.status) ? (
+                      displayCost ? `JMD $${displayCost.toLocaleString()}` : 'TBD'
                     ) : (
-                        <span className="text-[9px] opacity-20 italic">No File</span>
+                      <span className="text-[8px] opacity-40 uppercase tracking-widest font-black">Updating...</span>
                     )}
-                </TableCell>
-                <TableCell className="text-right pr-6 font-black italic tracking-tighter text-lg">
-                  {shouldShowPrice(pkg.status) ? (
-                    pkg.total_cost_jmd ? `JMD $${pkg.total_cost_jmd.toLocaleString()}` : 'TBD'
-                  ) : (
-                    <span className="text-[8px] opacity-40 uppercase tracking-widest font-black">Updating...</span>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {packages.length === 0 && !isLoading && (
                 <TableRow><TableCell colSpan={4} className="text-center py-20 opacity-30 italic">No package history found.</TableCell></TableRow>
             )}

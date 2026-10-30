@@ -44,7 +44,9 @@ export function calculateShippingCost(weight: number): number {
  */
 export function shouldShowPrice(status: string | undefined): boolean {
     const s = (status || '').toLowerCase();
-    return s.includes('ready for pick up') || s.includes('delivered');
+    // Don't show price for pre-alert stages where weight/cost isn't confirmed
+    if (s === 'pending' || s === 'pre-alert' || s === 'cancelled') return false;
+    return true;
 }
 
 /**
@@ -59,7 +61,7 @@ export function getSiteOrigin(request?: Request): string {
     }
     if (request) {
         const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-        const proto = request.headers.get('x-forwarded-proto') || 'https';
+        const protocol = request.headers.get('x-forwarded-proto') || 'https';
         if (host) return `${proto}://${host}`;
     }
     return 'http://localhost:3000';
