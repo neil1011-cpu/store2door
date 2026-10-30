@@ -40,7 +40,10 @@ import {
   Receipt,
   AlertCircle,
   Coins,
-  Weight
+  Weight,
+  Calculator,
+  Gavel,
+  ShieldCheck
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
@@ -52,17 +55,36 @@ import {
     DialogContent, 
     DialogHeader, 
     DialogTitle, 
-    DialogFooter 
+    DialogFooter,
+    DialogClose,
+    DialogDescription
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-/**
- * @fileOverview High-Performance POS Terminal for FromStore2Door.
- * Corrected to ensure customer-specific pricing and account standing updates.
- * Added Logicware status synchronization on checkout.
- */
+// Official JCA Constants for POS Integration
+const CUSTOMS_RATES = {
+  GENERAL: { duty: 0.20 },
+  LAPTOPS_TABLETS: { duty: 0 },
+  COMPUTERS: { duty: 0 },
+  CELL_PHONES: { duty: 0.20 },
+  CLOTHING: { duty: 0.20 },
+  SHOES: { duty: 0.20 },
+  AUTO_PARTS: { duty: 0.30 },
+  COSMETICS: { duty: 0.20 },
+  BOOKS: { duty: 0 },
+  ELECTRONICS_OTHER: { duty: 0.20 },
+};
+
+const USD_TO_JMD_RATE = 156; 
+const DE_MINIMIS_THRESHOLD = 100;
+const INSURANCE_RATE = 0.015;
+const SCF_RATE = 0.003;
+
+type Category = keyof typeof CUSTOMS_RATES;
+
 export default function POSPage() {
     const { toast } = useToast();
     const { supabase } = useSupabase();
@@ -77,6 +99,8 @@ export default function POSPage() {
     const [isSearching, setIsSearching] = useState(false);
     
     const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
+    const [manualDuties, setManualDuties] = useState<Record<string, number>>({});
+    
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Transfer'>('Cash');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -133,11 +157,8 @@ export default function POSPage() {
 
             if (profileRes.error) throw profileRes.error;
 
-            // Update user and invoices
             setSelectedUser(profileRes.data);
             setUserInvoices(shipmentsRes.data || []);
-
-            // Calculate Accounting Truth for Standing (Credit - Debit)
             const balance = (ledgerRes.data || []).reduce((sum, item) => sum + Number(item.amount), 0);
             setAccountStanding(balance);
 
@@ -152,8 +173,8 @@ export default function POSPage() {
     const handleSelectUser = (user: any) => {
         setSearchTerm('');
         setSearchResults([]);
-        // POS FIX: Explicitly clear selection when changing customers
         setSelectedInvoices(new Set());
+        setManualDuties({});
         setCheckoutComplete(false);
         setCashReceived('');
         
@@ -169,17 +190,17 @@ export default function POSPage() {
         setSelectedInvoices(next);
     };
 
-    // Current checkout total based on selection
+    // Current checkout total based on selection + duties
     const calculatedSelectedTotal = useMemo(() => {
         return userInvoices
             .filter(inv => selectedInvoices.has(inv.id))
             .reduce((sum, inv) => {
-                const cost = Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0);
-                return sum + cost;
+                const shipping = Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0);
+                const duty = manualDuties[inv.id] || 0;
+                return sum + shipping + duty;
             }, 0);
-    }, [userInvoices, selectedInvoices]);
+    }, [userInvoices, selectedInvoices, manualDuties]);
 
-    // Account Standing Total: Sum of ALL "Ready for Pickup" charges
     const totalReadyToPickUpCharges = useMemo(() => {
         return userInvoices.reduce((sum, inv) => {
             const cost = Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0);
@@ -220,7 +241,7 @@ export default function POSPage() {
                     .in('tracking_number', trackingNumbers);
             }
 
-            // Ledger mutation (Triggers profile wallet sync)
+            // Ledger mutation
             const { error: ledgerError } = await supabase.from('financial_ledger').insert({
                 profile_id: selectedUser.id,
                 amount: totalToSettle, 
@@ -250,13 +271,17 @@ export default function POSPage() {
                     amount: totalToSettle,
                     cashReceived: paymentMethod === 'Cash' ? parseFloat(cashReceived) : null,
                     changeGiven: paymentMethod === 'Cash' ? changeDue : null,
-                    packagesCleared: trackingNumbers
+                    packagesCleared: trackingNumbers,
+                    manualDutiesApplied: manualDuties
                 }
             });
 
             setReceiptData({
                 customer: selectedUser,
-                items: itemsToSnap,
+                items: itemsToSnap.map(it => ({
+                    ...it,
+                    duty_applied: manualDuties[it.id] || 0
+                })),
                 total: totalToSettle,
                 method: paymentMethod,
                 cashReceived: paymentMethod === 'Cash' ? parseFloat(cashReceived) : null,
@@ -267,8 +292,8 @@ export default function POSPage() {
             setCheckoutComplete(true);
             toast({ title: "Payment Secured", description: "Registry items marked as paid and packages released." });
             
-            // Clean up and refresh
             setSelectedInvoices(new Set());
+            setManualDuties({});
             refreshUserData(selectedUser.id);
         } catch (error: any) {
             toast({ title: "Checkout Error", description: error.message, variant: "destructive" });
@@ -297,6 +322,7 @@ export default function POSPage() {
     const resetPOS = () => {
         setSelectedUser(null);
         setSelectedInvoices(new Set());
+        setManualDuties({});
         setCheckoutComplete(false);
         setIsCheckoutOpen(false);
         setReceiptData(null);
@@ -307,7 +333,6 @@ export default function POSPage() {
 
     return (
         <div className="flex flex-col gap-6 max-w-full mx-auto pb-20">
-            {/* Hidden Receipt Template */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
                     <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
@@ -327,12 +352,20 @@ export default function POSPage() {
                                 <span>Total (JMD)</span>
                             </div>
                             {receiptData.items.map((item: any) => (
-                                <div key={item.id} className="flex justify-between py-1">
-                                    <div className="flex flex-col">
-                                        <span className="uppercase font-bold">{item.tracking_number}</span>
-                                        {item.contents && <span className="text-[8px] opacity-60 font-mono">{item.contents}</span>}
+                                <div key={item.id} className="flex flex-col py-2 border-b border-black/5">
+                                    <div className="flex justify-between">
+                                        <div className="flex flex-col">
+                                            <span className="uppercase font-bold">{item.tracking_number}</span>
+                                            {item.contents && <span className="text-[8px] opacity-60 font-mono">{item.contents}</span>}
+                                        </div>
+                                        <span className="font-black">${Number(item.total_cost_jmd || calculateShippingCost(item.weight_lbs)).toLocaleString()}</span>
                                     </div>
-                                    <span className="font-black">${Number(item.total_cost_jmd || calculateShippingCost(item.weight_lbs)).toLocaleString()}</span>
+                                    {item.duty_applied > 0 && (
+                                        <div className="flex justify-between text-[9px] italic opacity-60">
+                                            <span>+ Customs Duty Adjustment</span>
+                                            <span>$ {item.duty_applied.toLocaleString()}</span>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -377,7 +410,6 @@ export default function POSPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 <div className="lg:col-span-8 space-y-6">
-                    {/* Customer Selection */}
                     <Card className="border shadow-md rounded-2xl">
                         <CardHeader className="bg-muted/30 py-3 border-b rounded-t-2xl">
                             <CardTitle className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-muted-foreground">
@@ -447,7 +479,6 @@ export default function POSPage() {
                         </CardContent>
                     </Card>
 
-                    {/* Ready for Pickup Parcels */}
                     <Card className="border shadow-md overflow-hidden rounded-2xl min-h-[400px]">
                         <CardHeader className="bg-muted/30 py-3 border-b">
                             <CardTitle className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-muted-foreground">
@@ -476,22 +507,23 @@ export default function POSPage() {
                                             <TableRow>
                                                 <TableHead className="w-[50px] pl-6"></TableHead>
                                                 <TableHead className="text-[9px] font-black uppercase tracking-widest min-w-[150px]">Tracking ID</TableHead>
-                                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-right">Weight (LBS)</TableHead>
-                                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-right">Price/LB</TableHead>
-                                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-right pr-8">Line Total (JMD)</TableHead>
+                                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-right">Freight (JMD)</TableHead>
+                                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-right">Duty/Fees (JMD)</TableHead>
+                                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-right pr-8">Total (JMD)</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {userInvoices.map((ship) => {
                                                 const weight = Number(ship.weight_lbs) || 0;
-                                                const totalCost = Number(ship.total_cost_jmd) || calculateShippingCost(weight);
-                                                const effectiveRate = weight > 0 ? totalCost / weight : 0;
+                                                const freight = Number(ship.total_cost_jmd) || calculateShippingCost(weight);
+                                                const duty = manualDuties[ship.id] || 0;
+                                                const total = freight + duty;
 
                                                 return (
                                                     <TableRow 
                                                         key={ship.id} 
                                                         className={cn(
-                                                            "hover:bg-accent cursor-pointer transition-all border-b h-20", 
+                                                            "hover:bg-accent cursor-pointer transition-all border-b h-24", 
                                                             selectedInvoices.has(ship.id) && "bg-primary/5"
                                                         )} 
                                                         onClick={() => toggleInvoice(ship.id)}
@@ -505,16 +537,31 @@ export default function POSPage() {
                                                         </TableCell>
                                                         <TableCell>
                                                             <p className="font-mono font-black text-primary uppercase text-sm italic tracking-tighter leading-none truncate max-w-[140px]">{ship.tracking_number}</p>
-                                                            {ship.contents && (
-                                                                <p className="text-[8px] font-bold text-muted-foreground uppercase truncate max-w-[140px] mt-1">{ship.contents}</p>
-                                                            )}
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                {ship.contents && (
+                                                                    <p className="text-[8px] font-bold text-muted-foreground uppercase truncate max-w-[100px]">{ship.contents}</p>
+                                                                )}
+                                                                <Badge variant="outline" className="h-4 text-[7px] px-1 font-mono uppercase">{weight} LBS</Badge>
+                                                            </div>
                                                         </TableCell>
-                                                        <TableCell className="text-right font-black italic text-sm">{weight.toFixed(2)}</TableCell>
-                                                        <TableCell className="text-right text-[10px] font-bold opacity-60 italic">
-                                                            ${effectiveRate.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                        <TableCell className="text-right font-black italic text-sm">${freight.toLocaleString()}</TableCell>
+                                                        <TableCell className="text-right">
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                {duty > 0 ? (
+                                                                    <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 text-[8px] font-black h-5 border-2 border-indigo-100">
+                                                                        + ${duty.toLocaleString()} JMD
+                                                                    </Badge>
+                                                                ) : null}
+                                                                <POSCustomsDialog 
+                                                                    shipment={ship} 
+                                                                    onApply={(amt) => setManualDuties(prev => ({ ...prev, [ship.id]: amt }))} 
+                                                                    currentDuty={duty}
+                                                                    disabled={!selectedInvoices.has(ship.id)}
+                                                                />
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell className="text-right pr-8 font-black text-xl italic tracking-tighter text-primary">
-                                                            ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                            ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -528,7 +575,6 @@ export default function POSPage() {
                 </div>
 
                 <div className="lg:col-span-4 sticky top-24">
-                    {/* Settlement Authority Terminal */}
                     <Card className="border-none shadow-2xl bg-indigo-50/30 dark:bg-zinc-950 text-foreground dark:text-zinc-100 rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
                         <CardHeader className="bg-background/40 dark:bg-white/5 pb-6 pt-8 px-8 border-b border-indigo-100 dark:border-white/5">
                             <CardTitle className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-600 dark:text-zinc-500 flex items-center gap-3 italic">
@@ -538,9 +584,9 @@ export default function POSPage() {
                         <CardContent className="space-y-8 px-8 py-8">
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center px-1">
-                                    <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Ready for Pickup Total</p>
-                                    <span className="text-sm font-black italic text-indigo-600 dark:text-indigo-400">
-                                        ${totalReadyToPickUpCharges.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Freight Total</p>
+                                    <span className="text-sm font-black italic text-indigo-600 dark:text-zinc-400">
+                                        ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                                 <Separator className="bg-indigo-100 dark:bg-white/10" />
@@ -689,5 +735,125 @@ export default function POSPage() {
                 </DialogContent>
             </Dialog>
         </div>
+    );
+}
+
+function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipment: any, onApply: (amt: number) => void, currentDuty: number, disabled: boolean }) {
+    const [open, setOpen] = useState(false);
+    const [itemValue, setItemValue] = useState('');
+    const [category, setCategory] = useState<Category>('GENERAL');
+    const [calculatedDuty, setCalculatedDuty] = useState(0);
+
+    const handleCalculate = useCallback(() => {
+        const val = parseFloat(itemValue) || 0;
+        if (val <= DE_MINIMIS_THRESHOLD) {
+            setCalculatedDuty(0);
+            return;
+        }
+
+        const insurance = val * INSURANCE_RATE;
+        const shippingUsd = (Number(shipment.total_cost_jmd) || calculateShippingCost(shipment.weight_lbs)) / USD_TO_JMD_RATE;
+        const cif = val + insurance + shippingUsd;
+        
+        const rates = CUSTOMS_RATES[category];
+        const importDuty = cif * rates.duty;
+        const scf = cif * SCF_RATE;
+        
+        const getCAF = (v: number) => {
+            if (v <= 500) return 2500;
+            if (v <= 1000) return 5000;
+            if (v <= 2500) return 10000;
+            if (v <= 5000) return 20000;
+            return 40000;
+        };
+
+        const cafJmd = getCAF(val);
+        const totalDutyJmd = (importDuty + scf) * USD_TO_JMD_RATE + cafJmd;
+        setCalculatedDuty(Math.ceil(totalDutyJmd));
+    }, [itemValue, category, shipment]);
+
+    useEffect(() => {
+        if (open) handleCalculate();
+    }, [itemValue, category, open, handleCalculate]);
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={disabled}
+                    className={cn(
+                        "h-7 text-[8px] font-black uppercase italic border-2 transition-all",
+                        currentDuty > 0 ? "border-indigo-500 text-indigo-600 bg-indigo-50" : "opacity-40 hover:opacity-100"
+                    )}
+                >
+                    <Calculator className="h-3 w-3 mr-1" />
+                    {currentDuty > 0 ? "Adjust Duty" : "Customs Authority"}
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md rounded-3xl border-4">
+                <DialogHeader>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3">
+                        <Gavel className="h-6 w-6 text-indigo-500" /> JCA DUTY CALCULATOR
+                    </DialogTitle>
+                    <DialogDescription className="text-[10px] font-bold uppercase tracking-widest">
+                        Official JCA Logic for Parcel: {shipment.tracking_number}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-6">
+                    <div className="space-y-4">
+                        <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase opacity-60">Item Market Value (USD)</Label>
+                            <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500" />
+                                <Input 
+                                    type="number" 
+                                    value={itemValue} 
+                                    onChange={e => setItemValue(e.target.value)} 
+                                    className="h-12 pl-10 text-lg font-black border-2 rounded-xl"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase opacity-60">JCA Tariff Category</Label>
+                            <Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}>
+                                <SelectTrigger className="h-12 border-2 rounded-xl">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="GENERAL">General Goods (20%)</SelectItem>
+                                    <SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem>
+                                    <SelectItem value="CELL_PHONES">Cell Phones (20%)</SelectItem>
+                                    <SelectItem value="AUTO_PARTS">Auto Parts (30%)</SelectItem>
+                                    <SelectItem value="COSMETICS">Cosmetics (20%)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="p-6 rounded-2xl bg-indigo-50 border-2 border-dashed border-indigo-200 text-center">
+                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-2">Landed Duty Estimate (JMD)</p>
+                        <p className="text-4xl font-black italic tracking-tighter text-indigo-700">
+                            $ {calculatedDuty.toLocaleString()}
+                        </p>
+                        {parseFloat(itemValue) <= 100 && parseFloat(itemValue) > 0 && (
+                            <Badge className="mt-3 bg-green-500 text-white font-black italic uppercase text-[8px]">De Minimis Duty Free</Badge>
+                        )}
+                    </div>
+                </div>
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+                    <Button 
+                        onClick={() => { onApply(calculatedDuty); setOpen(false); }} 
+                        className="flex-1 h-12 font-black uppercase italic shadow-xl bg-indigo-600 hover:bg-indigo-500"
+                    >
+                        <ShieldCheck className="h-4 w-4 mr-2" />
+                        Authorize Adjustment
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
