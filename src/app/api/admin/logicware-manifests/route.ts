@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createClient } from '@/lib/supabase/server';
