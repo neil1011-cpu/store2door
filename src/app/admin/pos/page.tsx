@@ -44,16 +44,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
 import { cn, calculateShippingCost } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Separator } from '@/components/ui/separator';
 import { 
     Dialog, 
     DialogContent, 
     DialogHeader, 
     DialogTitle, 
     DialogFooter,
-    DialogClose,
-    DialogDescription,
-    DialogTrigger
+    DialogClose
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -138,21 +135,23 @@ export default function POSPage() {
     const refreshUserData = useCallback(async (userId: string) => {
         setIsLoadingInvoices(true);
         try {
-            const [shipmentsRes, ledgerRes] = await Promise.all([
-                supabase.from('shipments')
+            const { data: shipmentsData, error } = await supabase.from('shipments')
                     .select('*')
                     .eq('profile_id', userId)
                     .eq('status', 'Ready for pick up')
                     .eq('payment_status', 'Unpaid')
-                    .order('created_at', { ascending: false }),
-                supabase.from('financial_ledger')
-                    .select('amount')
-                    .eq('profile_id', userId)
-            ]);
+                    .order('created_at', { ascending: false });
 
-            setUserInvoices(shipmentsRes.data || []);
-            const balance = (ledgerRes.data || []).reduce((sum, item) => sum + Number(item.amount), 0);
-            setAccountStanding(balance);
+            if (error) throw error;
+            
+            setUserInvoices(shipmentsData || []);
+            
+            // Calculate standing based ONLY on items ready for pickup
+            const totalReady = (shipmentsData || []).reduce((sum, inv) => {
+                return sum + (Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0));
+            }, 0);
+            
+            setAccountStanding(totalReady);
 
         } catch (error: any) {
             toast({ title: "Fetch Error", description: error.message, variant: "destructive" });
@@ -170,11 +169,11 @@ export default function POSPage() {
         setCashReceived('');
         
         setSelectedUser(user);
-        setAccountStanding(Number(user.wallet_balance || 0));
         refreshUserData(user.id);
     };
 
-    const toggleInvoice = (id: string) => {
+    const toggleInvoice = (id: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
         const next = new Set(selectedInvoices);
         if (next.has(id)) next.delete(id);
         else next.add(id);
@@ -206,6 +205,7 @@ export default function POSPage() {
             const totalToSettle = calculatedSelectedTotal;
             const trackingNumbers = itemsToSnap.map(s => s.tracking_number).filter(Boolean);
 
+            // 1. Update Shipment Status
             const { error: shipError } = await supabase
                 .from('shipments')
                 .update({ 
@@ -216,6 +216,7 @@ export default function POSPage() {
 
             if (shipError) throw shipError;
 
+            // 2. Record Transaction
             const { error: ledgerError } = await supabase.from('financial_ledger').insert({
                 profile_id: selectedUser.id,
                 amount: totalToSettle, 
@@ -225,6 +226,7 @@ export default function POSPage() {
 
             if (ledgerError) throw ledgerError;
 
+            // 3. Hub Sync (Parallel)
             for (const id of Array.from(selectedInvoices)) {
                 fetch('/api/admin/logicware-push-shipment', {
                     method: 'POST',
@@ -287,6 +289,7 @@ export default function POSPage() {
 
     return (
         <div className="flex flex-col gap-6 max-w-full mx-auto pb-20">
+            {/* Hidden Receipt for PDF Generation */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
                     <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
@@ -370,16 +373,16 @@ export default function POSPage() {
                                     )}
                                 </div>
                             ) : (
-                                <div className={cn("p-6 rounded-xl shadow-lg flex items-center justify-between gap-6", accountStanding < 0 ? "bg-destructive text-white" : "bg-primary text-white")}>
+                                <div className={cn("p-6 rounded-xl shadow-lg flex items-center justify-between gap-6", accountStanding > 0 ? "bg-primary text-white" : "bg-muted text-muted-foreground")}>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-4">
                                             <p className="text-3xl font-black italic uppercase tracking-tighter truncate">{selectedUser.full_name}</p>
                                             <Badge variant="secondary" className="uppercase text-xs font-black italic h-7">{selectedUser.mailbox_number}</Badge>
                                         </div>
                                     </div>
-                                    <div className="text-right bg-black/10 p-4 rounded-xl border border-white/10 min-w-[180px]">
-                                        <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Account Standing</p>
-                                        <span className="text-2xl font-black italic tracking-tighter">JMD ${Math.abs(accountStanding).toLocaleString()}</span>
+                                    <div className="text-right bg-black/10 p-4 rounded-xl border border-white/10 min-w-[200px]">
+                                        <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Account Standing (Ready)</p>
+                                        <span className="text-2xl font-black italic tracking-tighter">JMD ${accountStanding.toLocaleString()}</span>
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)} className="text-white hover:bg-white/10"><X className="h-5 w-5" /></Button>
                                 </div>
@@ -420,7 +423,7 @@ export default function POSPage() {
 
                                             return (
                                                 <TableRow key={ship.id} className={cn("hover:bg-accent cursor-pointer border-b h-24", selectedInvoices.has(ship.id) && "bg-primary/5")} onClick={() => toggleInvoice(ship.id)}>
-                                                    <TableCell className="pl-6" onClick={(e) => e.stopPropagation()}>
+                                                    <TableCell className="pl-6">
                                                         <Checkbox checked={selectedInvoices.has(ship.id)} onCheckedChange={() => toggleInvoice(ship.id)} className="h-6 w-6 border-2" />
                                                     </TableCell>
                                                     <TableCell>
@@ -557,19 +560,35 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="outline" size="sm" disabled={disabled} className={cn("h-7 text-[8px] font-black uppercase italic border-2", currentDuty > 0 && "border-indigo-500 text-indigo-600")}><Calculator className="h-3 w-3 mr-1" />{currentDuty > 0 ? "Adjust Duty" : "Customs Authority"}</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md rounded-3xl border-4" onClick={(e) => e.stopPropagation()}>
+            <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={disabled} 
+                className={cn("h-7 text-[8px] font-black uppercase italic border-2", currentDuty > 0 && "border-indigo-500 text-indigo-600")}
+                onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+            >
+                <Calculator className="h-3 w-3 mr-1" />
+                {currentDuty > 0 ? "Adjust Duty" : "Customs Authority"}
+            </Button>
+            <DialogContent className="sm:max-w-md rounded-3xl border-4" onPointerDownOutside={(e) => e.preventDefault()}>
                 <DialogHeader><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3"><Gavel className="h-6 w-6 text-indigo-500" /> JCA DUTY CALCULATOR</DialogTitle></DialogHeader>
                 <div className="space-y-6 py-6">
                     <div className="space-y-4">
-                        <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-60">Item Market Value (USD)</Label><div className="relative"><DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500" /><Input type="number" value={itemValue} onChange={e => setItemValue(e.target.value)} className="h-12 pl-10 text-lg font-black border-2" placeholder="0.00" /></div></div>
+                        <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase opacity-60">Item Market Value (USD)</Label>
+                            <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500" />
+                                <Input type="number" value={itemValue} onChange={e => setItemValue(e.target.value)} className="h-12 pl-10 text-lg font-black border-2" placeholder="0.00" />
+                            </div>
+                        </div>
                         <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-60">JCA Tariff Category</Label><Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}><SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="GENERAL">General Goods (20%)</SelectItem><SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem><SelectItem value="CELL_PHONES">Cell Phones (20%)</SelectItem><SelectItem value="AUTO_PARTS">Auto Parts (30%)</SelectItem><SelectItem value="COSMETICS">Cosmetics (20%)</SelectItem></SelectContent></Select></div>
                     </div>
                     <div className="p-6 rounded-2xl bg-indigo-50 border-2 border-dashed border-indigo-200 text-center"><p className="text-[8px] font-black uppercase opacity-40 mb-2">Landed Duty Estimate (JMD)</p><p className="text-4xl font-black italic tracking-tighter text-indigo-700">JMD $ {calculatedDuty.toLocaleString()}</p></div>
                 </div>
-                <DialogFooter className="gap-2"><DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose><Button onClick={(e) => { e.stopPropagation(); onApply(calculatedDuty); setOpen(false); }} className="flex-1 h-12 font-black uppercase italic shadow-xl bg-indigo-600 hover:bg-indigo-500 text-white"><ShieldCheck className="h-4 w-4 mr-2" />Authorize Adjustment</Button></DialogFooter>
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" className="h-12 font-bold uppercase w-full" onClick={() => setOpen(false)}>Cancel</Button>
+                    <Button onClick={(e) => { e.stopPropagation(); onApply(calculatedDuty); setOpen(false); }} className="flex-1 h-12 font-black uppercase italic shadow-xl bg-indigo-600 hover:bg-indigo-500 text-white"><ShieldCheck className="h-4 w-4 mr-2" />Authorize Adjustment</Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

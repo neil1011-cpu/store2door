@@ -56,24 +56,19 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 setProfile(profileData);
 
                 // Fetch All Financial & Logistics Context
-                const [ledgerRes, shipmentsRes] = await Promise.all([
-                    supabase.from('financial_ledger').select('*').eq('profile_id', user.id),
-                    supabase.from('shipments').select('tracking_number, status, total_cost_jmd, payment_status').eq('profile_id', user.id)
-                ]);
+                const { data: shipmentsData, error: shipError } = await supabase.from('shipments')
+                    .select('tracking_number, status, total_cost_jmd, payment_status')
+                    .eq('profile_id', user.id);
 
-                const ledgerData = ledgerRes.data || [];
-                const shipmentsData = shipmentsRes.data || [];
+                if (shipError) throw shipError;
 
-                // 1. Calculate Absolute Net Balance (Accounting Truth - for internal profile state)
-                const netBalance = ledgerData.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-                setBalance(netBalance);
-
-                // 2. Calculate "Total to be Paid" (Pure Addition of Ready items)
-                const totalReady = shipmentsData
+                // 1. Calculate Absolute Net Standing (Only Ready for Pickup + Unpaid)
+                const totalReady = (shipmentsData || [])
                     .filter(s => s.status?.toLowerCase() === 'ready for pick up' && s.payment_status === 'Unpaid')
                     .reduce((acc, curr) => acc + Number(curr.total_cost_jmd || 0), 0);
 
                 setTotalToBePaid(totalReady);
+                setBalance(totalReady); // User wants standing to show ready for pickup amount
                 setError(null);
                 
                 if (retryTimerRef.current) {
@@ -116,12 +111,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
         const channel = supabase
             .channel(`user-account-realtime-${user.id}`)
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
-                table: 'financial_ledger', 
-                filter: `profile_id=eq.${user.id}` 
-            }, () => fetchData())
             .on('postgres_changes', { 
                 event: '*', 
                 schema: 'public', 
@@ -235,7 +224,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                                     }
                                     <div className="flex flex-col min-w-0">
                                         <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest leading-none text-muted-foreground">
-                                            {hasDues ? 'Total to be paid' : 'Account Registry'}
+                                            {hasDues ? 'Ready for Pickup' : 'Account Standing'}
                                         </span>
                                         <span className={cn(
                                             "text-xs sm:text-sm font-black italic tracking-tighter leading-tight truncate",
