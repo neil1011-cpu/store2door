@@ -88,7 +88,7 @@ export default function HomePage() {
               </article>
               <article className={styles.svc}>
                 <Image src="/images/credit-card-service.jpg" alt="Credit Card Service" width={500} height={300} loading="lazy" />
-                <div><small>Shop online anywhere</small><h3>Credit card service</h3><p>No credit card? Use ours to make your online purchases with ease.</p>
+                <div><small>Shop online anywhere</small><h3>Credit card service</h3><p>No personal credit card needed? Use ours to make your online purchases with ease.</p>
                   <ul><li>No personal credit card needed</li><li>Shop at any online store</li><li>Secure payment handling</li></ul></div>
               </article>
               <article className={styles.svc}>
