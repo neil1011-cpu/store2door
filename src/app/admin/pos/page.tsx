@@ -57,7 +57,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import Link from 'next/link';
 
 const CUSTOMS_RATES = {
   GENERAL: { duty: 0.20 },
@@ -545,9 +544,9 @@ export default function POSPage() {
             </Dialog>
             
             <div className="mt-auto pt-10 text-center opacity-40">
-                <Link href="https://neilussolutions.com" target="_blank" className="text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors">
+                <a href="https://neilussolutions.com" target="_blank" rel="noopener noreferrer" className="text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors">
                     Developed by NEILUS SOLUTIONS
-                </Link>
+                </a>
             </div>
         </div>
     );

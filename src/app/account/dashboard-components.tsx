@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import { useAccountProfile } from './layout';
 
 const getStatusVariant = (status: string | undefined) => {
   const safeStatus = (status || 'Pending').toLowerCase();
@@ -234,7 +235,7 @@ export function PackagesTab({ profileId }: { profileId: string }) {
             {isLoading ? (
               <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
             ) : packages.map((pkg) => {
-              const displayCost = pkg.total_cost_jmd || (pkg.weight_lbs > 0 ? calculateShippingCost(pkg.weight_lbs) : null);
+              const displayCost = Number(pkg.total_cost_jmd) || (Number(pkg.weight_lbs) > 0 ? calculateShippingCost(Number(pkg.weight_lbs)) : calculateShippingCost(0));
               
               return (
                 <TableRow key={pkg.id} className="h-20 hover:bg-primary/5 transition-colors">
@@ -261,7 +262,7 @@ export function PackagesTab({ profileId }: { profileId: string }) {
                   </TableCell>
                   <TableCell className="text-right pr-6 font-black italic tracking-tighter text-lg">
                     {shouldShowPrice(pkg.status) ? (
-                      displayCost ? `JMD $${displayCost.toLocaleString()}` : 'TBD'
+                      `JMD $${displayCost.toLocaleString()}`
                     ) : (
                       <span className="text-[8px] opacity-40 uppercase tracking-widest font-black">Updating...</span>
                     )}
@@ -375,6 +376,7 @@ export function PreAlertTab({ profileId, mailbox, onSuccess }: { profileId: stri
 
 export function AccountTab({ details }: { details: UserProfile }) {
     const { supabase } = useSupabase();
+    const { totalToBePaid } = useAccountProfile();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const [phone, setPhone] = useState(details.phone || '');
@@ -395,7 +397,19 @@ export function AccountTab({ details }: { details: UserProfile }) {
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <WarehouseAddressCard details={details} />
+            <div className="space-y-6">
+                <WarehouseAddressCard details={details} />
+                
+                <Card className="border-2 shadow-md rounded-2xl overflow-hidden">
+                    <CardHeader className="bg-red-50 dark:bg-red-950/20 pb-4">
+                        <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-red-700">Account Standing</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6 text-center">
+                        <p className="text-4xl font-black italic tracking-tighter text-red-600">JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[9px] font-bold uppercase text-muted-foreground mt-2 italic">Total strictly for items 'Ready for pick up'.</p>
+                    </CardContent>
+                </Card>
+            </div>
 
             <Card className="border-2 shadow-md rounded-2xl">
                 <CardHeader><CardTitle className="text-xl font-black uppercase tracking-tighter italic">Personal Details</CardTitle></CardHeader>
