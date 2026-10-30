@@ -51,6 +51,7 @@ export async function POST(request: Request) {
         // 1. SHIPPER RESOLUTION
         let shipperId = null;
         if (local.profiles) {
+            // SDK v0.2.0 uses pageSize instead of limit
             const shRes = await client.shippers.list({ pageSize: 100 });
             const sList = Array.isArray(shRes) ? shRes : ((shRes as any).data || []);
             
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
 
         // 2. PACKAGE HUB VERIFICATION
         if (!logicwareId) {
+            // SDK v0.2.0 uses packages instead of shipments
             const res = await client.packages.list({ pageSize: 100 });
             const list = Array.isArray(res) ? res : ((res as any).data || []);
             const hubPackage = list.find((m: any) => 

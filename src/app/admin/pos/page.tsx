@@ -64,6 +64,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import Link from 'next/link';
 
 // Official JCA Constants for POS Integration
 const CUSTOMS_RATES = {
@@ -121,10 +122,12 @@ export default function POSPage() {
         const findUsers = async () => {
             setIsSearching(true);
             try {
+                // Sanitize search term to prevent Parse Error in filter string
+                const cleanTerm = searchTerm.replace(/[,()]/g, '');
                 const { data, error } = await supabase
                     .from('profiles')
                     .select('*')
-                    .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mailbox_number.ilike.%${searchTerm}%`)
+                    .or(`full_name.ilike.%${cleanTerm}%,email.ilike.%${cleanTerm}%,mailbox_number.ilike.%${cleanTerm}%`)
                     .limit(8);
                 
                 if (error) {

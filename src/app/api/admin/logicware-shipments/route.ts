@@ -27,6 +27,7 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient();
         if (!client) throw new Error('Hub configuration missing.');
         
+        // SDK v0.2.0 uses packages instead of shipments
         const response = await client.packages.list({ pageSize: 100 });
         const list = Array.isArray(response) ? response : ((response as any).data || []);
 
