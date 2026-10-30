@@ -360,18 +360,28 @@ export default function POSPage() {
                                     )}
                                 </div>
                             ) : (
-                                <div className={cn("p-6 rounded-xl shadow-lg flex items-center justify-between gap-6", accountStanding > 0 ? "bg-primary text-white" : "bg-muted text-muted-foreground")}>
+                                <div className={cn(
+                                    "p-6 rounded-xl shadow-lg flex items-center justify-between gap-6 transition-colors duration-300", 
+                                    accountStanding > 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                                )}>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-4">
                                             <p className="text-3xl font-black italic uppercase tracking-tighter truncate">{selectedUser.full_name}</p>
                                             <Badge variant="secondary" className="uppercase text-xs font-black italic h-7">{selectedUser.mailbox_number}</Badge>
                                         </div>
                                     </div>
-                                    <div className="text-right bg-black/10 p-4 rounded-xl border border-white/10 min-w-[200px]">
+                                    <div className="text-right bg-primary-foreground/10 dark:bg-black/20 p-4 rounded-xl border border-primary-foreground/10 dark:border-white/5 min-w-[200px]">
                                         <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Current Ready Total</p>
                                         <span className="text-2xl font-black italic tracking-tighter">JMD ${accountStanding.toLocaleString()}</span>
                                     </div>
-                                    <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)} className="text-white hover:bg-white/10"><X className="h-5 w-5" /></Button>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        onClick={() => setSelectedUser(null)} 
+                                        className="text-primary-foreground hover:bg-primary-foreground/10 transition-colors"
+                                    >
+                                        <X className="h-5 w-5" />
+                                    </Button>
                                 </div>
                             )}
                         </CardContent>
@@ -562,7 +572,7 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
                     variant="outline" 
                     size="sm" 
                     disabled={disabled} 
-                    className={cn("h-7 text-[8px] font-black uppercase italic border-2", currentDuty > 0 && "border-indigo-500 text-indigo-600")}
+                    className={cn("h-7 text-[8px] font-black uppercase italic border-2 transition-colors", currentDuty > 0 && "border-indigo-500 text-indigo-600 bg-indigo-50/50")}
                     onClick={(e) => { e.stopPropagation(); setOpen(true); }}
                 >
                     <Calculator className="h-3 w-3 mr-1" />
@@ -582,7 +592,7 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
                         </div>
                         <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-60">JCA Tariff Category</Label><Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}><SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="GENERAL">General Goods (20%)</SelectItem><SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem><SelectItem value="CELL_PHONES">Cell Phones (20%)</SelectItem><SelectItem value="AUTO_PARTS">Auto Parts (30%)</SelectItem><SelectItem value="COSMETICS">Cosmetics (20%)</SelectItem></SelectContent></Select></div>
                     </div>
-                    <div className="p-6 rounded-2xl bg-indigo-50 border-2 border-dashed border-indigo-200 text-center"><p className="text-[8px] font-black uppercase opacity-40 mb-2">Landed Duty Estimate (JMD)</p><p className="text-4xl font-black italic tracking-tighter text-indigo-700">JMD $ {calculatedDuty.toLocaleString()}</p></div>
+                    <div className="p-6 rounded-2xl bg-indigo-50 dark:bg-indigo-950/20 border-2 border-dashed border-indigo-200 dark:border-indigo-900 text-center"><p className="text-[8px] font-black uppercase opacity-40 mb-2">Landed Duty Estimate (JMD)</p><p className="text-4xl font-black italic tracking-tighter text-indigo-700 dark:text-indigo-400">JMD $ {calculatedDuty.toLocaleString()}</p></div>
                 </div>
                 <DialogFooter className="gap-2">
                     <Button variant="outline" className="h-12 font-bold uppercase w-full" onClick={() => setOpen(false)}>Cancel</Button>
