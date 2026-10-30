@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -49,7 +50,8 @@ import {
     DialogHeader, 
     DialogTitle, 
     DialogFooter,
-    DialogClose
+    DialogClose,
+    DialogTrigger
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -144,7 +146,6 @@ export default function POSPage() {
             
             setUserInvoices(shipmentsData || []);
             
-            // Logic: Account Standing strictly reflects items "Ready for Pickup" and "Unpaid"
             const totalReady = (shipmentsData || []).reduce((sum, inv) => {
                 return sum + (Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0));
             }, 0);

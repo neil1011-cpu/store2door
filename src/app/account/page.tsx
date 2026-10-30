@@ -85,13 +85,13 @@ export default function AccountPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-8 space-y-8">
-                    {/* Authorized Standing Card (Full Width Compact Restoration) */}
+                    {/* Authorized Standing Card (Strictly 'Ready for Pickup') */}
                     <Card className="border shadow-sm w-full">
                         <CardContent className="p-4 flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <ShieldCheck className={cn("h-4 w-4", hasDues ? "text-red-600" : "text-primary/40")} />
                                 <div>
-                                    <p className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Authorized Standing</p>
+                                    <p className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Ready for Pickup</p>
                                     <p className={cn("text-lg font-black italic tracking-tighter leading-none mt-1", hasDues ? "text-red-600" : "text-primary")}>
                                         JMD ${totalToBePaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </p>
@@ -132,7 +132,7 @@ export default function AccountPage() {
                 <div className="lg:col-span-4 space-y-6">
                     <WarehouseAddressCard details={userProfile} />
 
-                    {/* Logistics Support Card (Verified Contrast Restoration) */}
+                    {/* Logistics Support Card */}
                     <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-zinc-950 text-white">
                         <CardHeader className="bg-white/5 border-b p-6">
                             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-3 text-zinc-400">
