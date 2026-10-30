@@ -162,7 +162,14 @@ export default function HomePage() {
                   <path d="M10 50H90V80C90 85.5228 85.5228 90 80 90H20C14.4772 90 10 85.5228 10 80V50Z" fill="#4B5563" />
                   <path d="M35 70V30L65 70V30" stroke="white" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <span className="text-sm font-black uppercase italic tracking-tighter text-white">Developed by Neilus Solutions</span>
+                <Link 
+                    href="https://neilussolutions.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm font-black uppercase italic tracking-tighter text-white hover:text-orange-500 transition-colors"
+                >
+                    Developed by Neilus Solutions
+                </Link>
               </div>
             </div>
           </div>
