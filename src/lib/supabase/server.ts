@@ -12,12 +12,6 @@ export async function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (!url || !key) {
-    if (process.env.NODE_ENV === 'production') {
-       console.warn('[Supabase Server] Credentials missing during build/prerender.');
-    }
-  }
-
   return createServerClient(
     url || 'https://placeholder-project.supabase.co',
     key || 'placeholder-key',
