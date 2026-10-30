@@ -1,12 +1,8 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import type { PackageStatus } from '@logicware.app/connect-sdk';
-
-/**
- * @fileOverview Hardened Logicware Package Synchronization API.
- * Aligned with SDK v0.2.0 using 'packages' and 'shippers' modules.
- */
 
 export async function POST(request: Request) {
     const supabase = await createClient();
@@ -47,7 +43,6 @@ export async function POST(request: Request) {
         let logicwareId = local.logicware_id;
         let operation = 'verified_existing';
 
-        // 1. SHIPPER RESOLUTION
         let shipperId = null;
         if (local.profiles) {
             const shRes = await client.shippers.list({ pageSize: 100 });
@@ -79,7 +74,6 @@ export async function POST(request: Request) {
             }
         }
 
-        // 2. PACKAGE HUB VERIFICATION
         if (!logicwareId) {
             const res = await client.packages.list({ pageSize: 100 });
             const list = Array.isArray(res) ? res : ((res as any).data || []);
@@ -91,7 +85,6 @@ export async function POST(request: Request) {
             }
         }
 
-        // 3. PACKAGE CREATION OR UPDATE
         if (!logicwareId) {
             const result = await client.packages.create({
                 trackingNumber: tracking,
@@ -110,7 +103,6 @@ export async function POST(request: Request) {
             await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', local.id);
         }
 
-        // 4. STATUS SYNCHRONIZATION
         const mapToHubStatus = (localStatus: string): PackageStatus => {
             const s = (localStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';

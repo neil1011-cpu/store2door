@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, type ReactNode, useState, useCallback, useRef } from 'react';
@@ -62,13 +63,13 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
                 if (shipError) throw shipError;
 
-                // 1. Calculate Absolute Net Standing (Only Ready for Pickup + Unpaid)
+                // 1. Calculate Account Standing (Only Ready for Pickup + Unpaid)
                 const totalReady = (shipmentsData || [])
                     .filter(s => s.status?.toLowerCase() === 'ready for pick up' && s.payment_status === 'Unpaid')
                     .reduce((acc, curr) => acc + Number(curr.total_cost_jmd || 0), 0);
 
                 setTotalToBePaid(totalReady);
-                setBalance(totalReady); // User wants standing to show ready for pickup amount
+                setBalance(totalReady);
                 setError(null);
                 
                 if (retryTimerRef.current) {
@@ -98,14 +99,12 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         }
     }, [user, isAuthLoading, router]);
 
-    // Initial Fetch
     useEffect(() => {
         if (user) {
             fetchData();
         }
     }, [user, fetchData]);
 
-    // Stable Real-time Subscription
     useEffect(() => {
         if (!user) return;
 

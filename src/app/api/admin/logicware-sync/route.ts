@@ -1,11 +1,7 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient } from '@/lib/supabase/server';
-
-/**
- * @fileOverview Authorized Individual Shipper Sync API.
- * Standardized for SDK v0.2.0.
- */
 
 export async function POST(request: Request) {
     const adminClient = await createAdminClient();
@@ -27,7 +23,6 @@ export async function POST(request: Request) {
         if (!client) throw new Error('Hub not configured.');
 
         let logicwareId = null;
-        // SDK v0.2.0 uses pageSize instead of limit
         const shRes = await client.shippers.list({ pageSize: 100 });
         const sList = Array.isArray(shRes) ? shRes : ((shRes as any).data || []);
 
@@ -43,7 +38,6 @@ export async function POST(request: Request) {
         let operation;
         if (logicwareId) {
             operation = 'update';
-            // SDK UpdateShipperInput does not allow 'trn'
             await client.shippers.update(logicwareId, {
                 name: profile.full_name,
                 phone: profile.phone || ''

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -23,7 +24,6 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Search, 
   ShoppingCart, 
-  User, 
   Package, 
   CheckCircle2, 
   Loader2, 
@@ -112,11 +112,10 @@ export default function POSPage() {
         const findUsers = async () => {
             setIsSearching(true);
             try {
-                const cleanTerm = searchTerm.replace(/[,()]/g, '');
                 const { data, error } = await supabase
                     .from('profiles')
                     .select('*')
-                    .or(`full_name.ilike.%${cleanTerm}%,email.ilike.%${cleanTerm}%,mailbox_number.ilike.%${cleanTerm}%`)
+                    .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,mailbox_number.ilike.%${searchTerm}%`)
                     .limit(8);
                 
                 if (error) throw error;
@@ -146,7 +145,7 @@ export default function POSPage() {
             
             setUserInvoices(shipmentsData || []);
             
-            // Calculate standing based ONLY on items ready for pickup
+            // Logic: Account Standing strictly reflects items "Ready for Pickup" and "Unpaid"
             const totalReady = (shipmentsData || []).reduce((sum, inv) => {
                 return sum + (Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0));
             }, 0);
@@ -205,7 +204,6 @@ export default function POSPage() {
             const totalToSettle = calculatedSelectedTotal;
             const trackingNumbers = itemsToSnap.map(s => s.tracking_number).filter(Boolean);
 
-            // 1. Update Shipment Status
             const { error: shipError } = await supabase
                 .from('shipments')
                 .update({ 
@@ -216,7 +214,6 @@ export default function POSPage() {
 
             if (shipError) throw shipError;
 
-            // 2. Record Transaction
             const { error: ledgerError } = await supabase.from('financial_ledger').insert({
                 profile_id: selectedUser.id,
                 amount: totalToSettle, 
@@ -225,15 +222,6 @@ export default function POSPage() {
             });
 
             if (ledgerError) throw ledgerError;
-
-            // 3. Hub Sync (Parallel)
-            for (const id of Array.from(selectedInvoices)) {
-                fetch('/api/admin/logicware-push-shipment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ shipmentId: id })
-                }).catch(lwErr => console.warn('[LOGICWARE_PUSH_FAIL]', lwErr));
-            }
 
             setReceiptData({
                 customer: selectedUser,
@@ -289,7 +277,6 @@ export default function POSPage() {
 
     return (
         <div className="flex flex-col gap-6 max-w-full mx-auto pb-20">
-            {/* Hidden Receipt for PDF Generation */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
                     <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
@@ -381,7 +368,7 @@ export default function POSPage() {
                                         </div>
                                     </div>
                                     <div className="text-right bg-black/10 p-4 rounded-xl border border-white/10 min-w-[200px]">
-                                        <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Account Standing (Ready)</p>
+                                        <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Current Ready Total</p>
                                         <span className="text-2xl font-black italic tracking-tighter">JMD ${accountStanding.toLocaleString()}</span>
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)} className="text-white hover:bg-white/10"><X className="h-5 w-5" /></Button>
@@ -424,7 +411,12 @@ export default function POSPage() {
                                             return (
                                                 <TableRow key={ship.id} className={cn("hover:bg-accent cursor-pointer border-b h-24", selectedInvoices.has(ship.id) && "bg-primary/5")} onClick={() => toggleInvoice(ship.id)}>
                                                     <TableCell className="pl-6">
-                                                        <Checkbox checked={selectedInvoices.has(ship.id)} onCheckedChange={() => toggleInvoice(ship.id)} className="h-6 w-6 border-2" />
+                                                        <Checkbox 
+                                                            checked={selectedInvoices.has(ship.id)} 
+                                                            onCheckedChange={() => toggleInvoice(ship.id)} 
+                                                            className="h-6 w-6 border-2" 
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
                                                     </TableCell>
                                                     <TableCell>
                                                         <p className="font-mono font-black text-primary uppercase text-sm italic">{ship.tracking_number}</p>
@@ -437,7 +429,12 @@ export default function POSPage() {
                                                     <TableCell className="text-right">
                                                         <div className="flex flex-col items-end gap-1">
                                                             {duty > 0 && <Badge className="bg-indigo-100 text-indigo-700 text-[8px] font-black border-2 border-indigo-200">+ ${duty.toLocaleString()}</Badge>}
-                                                            <POSCustomsDialog shipment={ship} onApply={(amt) => setManualDuties(prev => ({ ...prev, [ship.id]: amt }))} currentDuty={duty} disabled={!selectedInvoices.has(ship.id)} />
+                                                            <POSCustomsDialog 
+                                                                shipment={ship} 
+                                                                onApply={(amt) => setManualDuties(prev => ({ ...prev, [ship.id]: amt }))} 
+                                                                currentDuty={duty} 
+                                                                disabled={!selectedInvoices.has(ship.id)} 
+                                                            />
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-right pr-8 font-black text-xl italic text-primary">JMD ${total.toLocaleString()}</TableCell>
@@ -458,7 +455,7 @@ export default function POSPage() {
                         </CardHeader>
                         <CardContent className="space-y-8 px-8 py-8">
                             <div className="text-center space-y-2">
-                                <p className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground italic">Transaction Subtotal</p>
+                                <p className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground italic">Selected Total</p>
                                 <span className="text-5xl font-black italic tracking-tighter">JMD ${calculatedSelectedTotal.toLocaleString()}</span>
                             </div>
 
@@ -560,16 +557,18 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <Button 
-                variant="outline" 
-                size="sm" 
-                disabled={disabled} 
-                className={cn("h-7 text-[8px] font-black uppercase italic border-2", currentDuty > 0 && "border-indigo-500 text-indigo-600")}
-                onClick={(e) => { e.stopPropagation(); setOpen(true); }}
-            >
-                <Calculator className="h-3 w-3 mr-1" />
-                {currentDuty > 0 ? "Adjust Duty" : "Customs Authority"}
-            </Button>
+            <DialogTrigger asChild>
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={disabled} 
+                    className={cn("h-7 text-[8px] font-black uppercase italic border-2", currentDuty > 0 && "border-indigo-500 text-indigo-600")}
+                    onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+                >
+                    <Calculator className="h-3 w-3 mr-1" />
+                    {currentDuty > 0 ? "Adjust Duty" : "Customs Authority"}
+                </Button>
+            </DialogTrigger>
             <DialogContent className="sm:max-w-md rounded-3xl border-4" onPointerDownOutside={(e) => e.preventDefault()}>
                 <DialogHeader><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3"><Gavel className="h-6 w-6 text-indigo-500" /> JCA DUTY CALCULATOR</DialogTitle></DialogHeader>
                 <div className="space-y-6 py-6">

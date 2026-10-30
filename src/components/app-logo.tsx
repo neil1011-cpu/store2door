@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -20,7 +21,6 @@ export function AppLogo({ className, isLink = true, onClick }: AppLogoProps) {
         xmlns="http://www.w3.org/2000/svg"
         className="shrink-0"
       >
-        {/* Modernized Logistics Globe */}
         <circle cx="50" cy="50" r="45" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4" className="text-primary/20" />
         <path
           d="M20 50C20 33.4315 33.4315 20 50 20C66.5685 20 80 33.4315 80 50"
@@ -43,14 +43,13 @@ export function AppLogo({ className, isLink = true, onClick }: AppLogoProps) {
           strokeDasharray="2 4"
           className="text-primary/40"
         />
-        {/* Fast-Track Arrow */}
         <path
           d="M65 35L85 50L65 65"
           fill="currentColor"
           className="text-orange-500"
         />
       </svg>
-      <span className="hidden sm:inline-block italic uppercase tracking-tighter">FromStore2Door</span>
+      <span className="inline-block italic uppercase tracking-tighter">FromStore2Door</span>
     </div>
   );
 

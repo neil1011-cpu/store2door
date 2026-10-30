@@ -1,9 +1,6 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
-
-/**
- * @fileOverview Connection tester aligned with SDK v0.2.0.
- */
 
 export async function POST(request: Request) {
     try {
@@ -15,7 +12,6 @@ export async function POST(request: Request) {
         const client = await getLogicwareClient(apiKey);
         if (!client) throw new Error('Client initialization failed.');
         
-        // Use modern pageSize and check modules existence
         if (client.packages) {
             await client.packages.list({ pageSize: 1 });
         } else if (client.shippers) {

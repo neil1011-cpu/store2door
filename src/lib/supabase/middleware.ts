@@ -1,10 +1,7 @@
+
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-/**
- * @fileOverview Supabase Middleware for FromStore2Door OS.
- * Fixed compilation errors by adding explicit types for Next.js 15.
- */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -38,7 +35,6 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Refresh the session if it exists
   await supabase.auth.getUser();
 
   return supabaseResponse;

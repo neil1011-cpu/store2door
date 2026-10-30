@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createClient } from '@/lib/supabase/server';
@@ -23,7 +24,6 @@ export async function POST() {
              return NextResponse.json({ success: true, manifests: [] });
         }
         
-        // SDK v0.2.0 uses pageSize instead of limit
         const response = await client.manifests.list({ pageSize: 100 });
         const list = Array.isArray(response) ? response : ((response as any).data || []);
 

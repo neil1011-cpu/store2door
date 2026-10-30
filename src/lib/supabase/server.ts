@@ -1,10 +1,7 @@
+
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-/**
- * @fileOverview Standardized Server-side Supabase factory for Next.js 15.
- * Hardened with explicit types to resolve build-blocking errors.
- */
 export async function createClient() {
   const cookieStore = await cookies();
   
@@ -33,9 +30,6 @@ export async function createClient() {
   );
 }
 
-/**
- * Creates a privileged administrative Supabase client using the Secret Key.
- */
 export async function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_SECRET_KEY || process.env.SUPABASE_SECRET_KEY;
