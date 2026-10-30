@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -200,13 +201,6 @@ export default function POSPage() {
                 return sum + shipping + duty;
             }, 0);
     }, [userInvoices, selectedInvoices, manualDuties]);
-
-    const totalReadyToPickUpCharges = useMemo(() => {
-        return userInvoices.reduce((sum, inv) => {
-            const cost = Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0);
-            return sum + cost;
-        }, 0);
-    }, [userInvoices]);
 
     const changeDue = useMemo(() => {
         if (paymentMethod !== 'Cash' || !cashReceived) return 0;
