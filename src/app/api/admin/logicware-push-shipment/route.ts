@@ -94,7 +94,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // 3. PACKAGE CREATION
+        // 3. PACKAGE CREATION OR UPDATE
         if (!logicwareId) {
             const result = await client.packages.create({
                 trackingNumber: tracking,
@@ -132,13 +132,6 @@ export async function POST(request: Request) {
                 weightLbs: parseFloat(local.weight_lbs) || 0
             });
         }
-
-        await adminClient.from('system_logs').insert({
-            log_type: 'logicware_sync_operation',
-            description: `Sync for ${tracking}. Hub ID: ${logicwareId}. Status: ${targetHubStatus}`,
-            actor_id: caller.id,
-            metadata: { tracking, logicwareId, operation, status: targetHubStatus }
-        });
 
         return NextResponse.json({ 
             success: true, 

@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * @fileOverview Standard Supabase Middleware for Next.js 15.
- * Hardened with explicit typing for cookie methods.
+ * Hardened with explicit typing for cookie methods to fix build errors.
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

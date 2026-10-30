@@ -34,17 +34,12 @@ import {
   Building2,
   Trash2,
   FileDown,
-  TrendingDown,
-  TrendingUp,
-  DollarSign,
-  UserCheck,
   Receipt,
-  AlertCircle,
   Coins,
-  Weight,
   Calculator,
   Gavel,
-  ShieldCheck
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
@@ -58,7 +53,8 @@ import {
     DialogTitle, 
     DialogFooter,
     DialogClose,
-    DialogDescription
+    DialogDescription,
+    DialogTrigger
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -112,7 +108,6 @@ export default function POSPage() {
     const [cashReceived, setCashReceived] = useState<string>('');
     const [receiptData, setReceiptData] = useState<any | null>(null);
 
-    // Dynamic Search for Customers
     useEffect(() => {
         if (!searchTerm || searchTerm.trim().length < 2) {
             setSearchResults([]);
@@ -122,7 +117,6 @@ export default function POSPage() {
         const findUsers = async () => {
             setIsSearching(true);
             try {
-                // Sanitize search term to prevent Parse Error in filter string
                 const cleanTerm = searchTerm.replace(/[,()]/g, '');
                 const { data, error } = await supabase
                     .from('profiles')
@@ -130,14 +124,10 @@ export default function POSPage() {
                     .or(`full_name.ilike.%${cleanTerm}%,email.ilike.%${cleanTerm}%,mailbox_number.ilike.%${cleanTerm}%`)
                     .limit(8);
                 
-                if (error) {
-                    console.warn("Table not found or schema mismatch. Is the SQL ran?", error.message);
-                    setSearchResults([]);
-                    return;
-                }
+                if (error) throw error;
                 setSearchResults(data || []);
-            } catch (err) {
-                console.error("SEARCH ERROR:", err);
+            } catch (err: any) {
+                console.warn("Search Error:", err.message);
             } finally {
                 setIsSearching(false);
             }
@@ -150,8 +140,7 @@ export default function POSPage() {
     const refreshUserData = useCallback(async (userId: string) => {
         setIsLoadingInvoices(true);
         try {
-            const [profileRes, shipmentsRes, ledgerRes] = await Promise.all([
-                supabase.from('profiles').select('*').eq('id', userId).single(),
+            const [shipmentsRes, ledgerRes] = await Promise.all([
                 supabase.from('shipments')
                     .select('*')
                     .eq('profile_id', userId)
@@ -163,16 +152,12 @@ export default function POSPage() {
                     .eq('profile_id', userId)
             ]);
 
-            if (profileRes.error) throw profileRes.error;
-
-            setSelectedUser(profileRes.data);
             setUserInvoices(shipmentsRes.data || []);
             const balance = (ledgerRes.data || []).reduce((sum, item) => sum + Number(item.amount), 0);
             setAccountStanding(balance);
 
         } catch (error: any) {
-            console.error("POS DATA FETCH ERROR", error.message);
-            toast({ title: "Fetch Error", description: "Could not retrieve latest registry data.", variant: "destructive" });
+            toast({ title: "Fetch Error", description: error.message, variant: "destructive" });
         } finally {
             setIsLoadingInvoices(false);
         }
@@ -198,7 +183,6 @@ export default function POSPage() {
         setSelectedInvoices(next);
     };
 
-    // Current checkout total based on selection + duties
     const calculatedSelectedTotal = useMemo(() => {
         return userInvoices
             .filter(inv => selectedInvoices.has(inv.id))
@@ -234,14 +218,6 @@ export default function POSPage() {
 
             if (shipError) throw shipError;
 
-            // Sync legacy invoices table
-            if (trackingNumbers.length > 0) {
-                await supabase
-                    .from('invoices')
-                    .update({ status: 'Paid' })
-                    .in('tracking_number', trackingNumbers);
-            }
-
             // Ledger mutation
             const { error: ledgerError } = await supabase.from('financial_ledger').insert({
                 profile_id: selectedUser.id,
@@ -252,30 +228,14 @@ export default function POSPage() {
 
             if (ledgerError) throw ledgerError;
 
-            // Sync status to Logicware Hub
+            // Hub Sync
             for (const id of Array.from(selectedInvoices)) {
                 fetch('/api/admin/logicware-push-shipment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ shipmentId: id })
-                }).catch(lwErr => console.warn('[POS:LOGICWARE_SYNC_FAIL]', lwErr));
+                }).catch(lwErr => console.warn('[LOGICWARE_PUSH_FAIL]', lwErr));
             }
-
-            // System Log
-            await supabase.from('system_logs').insert({
-                log_type: 'pos_transaction',
-                description: `POS Checkout Complete: ${selectedUser.full_name}. JMD $${totalToSettle.toLocaleString()}`,
-                actor_id: (await supabase.auth.getUser()).data.user?.id,
-                metadata: { 
-                    customerId: selectedUser.id, 
-                    method: paymentMethod, 
-                    amount: totalToSettle,
-                    cashReceived: paymentMethod === 'Cash' ? parseFloat(cashReceived) : null,
-                    changeGiven: paymentMethod === 'Cash' ? changeDue : null,
-                    packagesCleared: trackingNumbers,
-                    manualDutiesApplied: manualDuties
-                }
-            });
 
             setReceiptData({
                 customer: selectedUser,
@@ -291,10 +251,7 @@ export default function POSPage() {
             });
 
             setCheckoutComplete(true);
-            toast({ title: "Payment Secured", description: "Registry items marked as paid and packages released." });
-            
-            setSelectedInvoices(new Set());
-            setManualDuties({});
+            toast({ title: "Payment Secured" });
             refreshUserData(selectedUser.id);
         } catch (error: any) {
             toast({ title: "Checkout Error", description: error.message, variant: "destructive" });
@@ -363,7 +320,7 @@ export default function POSPage() {
                                     </div>
                                     {item.duty_applied > 0 && (
                                         <div className="flex justify-between text-[9px] italic opacity-60">
-                                            <span>+ Customs Duty Adjustment</span>
+                                            <span>+ Customs Duty</span>
                                             <span>$ {item.duty_applied.toLocaleString()}</span>
                                         </div>
                                     )}
@@ -376,36 +333,21 @@ export default function POSPage() {
                                 <span>TOTAL:</span>
                                 <span>$ {receiptData.total.toLocaleString()}</span>
                             </div>
-                            {receiptData.method === 'Cash' && (
-                                <>
-                                    <div className="flex justify-between text-sm font-bold opacity-60">
-                                        <span>CASH TENDERED:</span>
-                                        <span>$ {Number(receiptData.cashReceived).toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm font-bold">
-                                        <span>CHANGE:</span>
-                                        <span>$ {Number(receiptData.changeDue).toLocaleString()}</span>
-                                    </div>
-                                </>
-                            )}
                         </div>
-                        <div className="text-center mt-10 space-y-1">
+                        <div className="text-center mt-10">
                             <p className="text-[9px] font-black uppercase">Thank you for choosing FromStore2Door</p>
-                            <p className="text-[8px] opacity-60">Portmore, St. Catherine, Jamaica</p>
                         </div>
                     </div>
                 )}
             </div>
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4 shrink-0">
+            <div className="flex items-center justify-between border-b pb-4 shrink-0">
                 <div>
                     <h1 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Station POS</h1>
-                    <p className="text-muted-foreground font-bold uppercase tracking-widest text-[9px] flex items-center gap-2">
-                        <Building2 className="h-3 w-3" /> Branch Terminal • Secure Checkout
-                    </p>
+                    <p className="text-muted-foreground font-bold uppercase tracking-widest text-[9px]">Branch Terminal • Secure Checkout</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={resetPOS} className="font-black uppercase italic border-2 h-9">
-                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Clear Transaction
+                <Button variant="outline" size="sm" onClick={resetPOS} className="font-black uppercase italic border-2">
+                    <Trash2 className="mr-2 h-4 w-4" /> Clear Transaction
                 </Button>
             </div>
 
@@ -423,28 +365,27 @@ export default function POSPage() {
                                     <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-all", isSearching && "animate-pulse text-primary")} />
                                     <Input 
                                         placeholder="SEARCH NAME, EMAIL, OR MAILBOX #..." 
-                                        className="h-14 pl-12 text-xl font-bold uppercase border-2 focus:border-primary rounded-xl shadow-inner placeholder:text-muted-foreground/30"
+                                        className="h-14 pl-12 text-xl font-bold uppercase border-2 focus:border-primary rounded-xl"
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
                                         autoComplete="off"
                                     />
-                                    {isSearching && (
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-[8px] font-black uppercase text-primary">
-                                            <Loader2 className="h-3 w-3 animate-spin" /> Scanning...
-                                        </div>
-                                    )}
-                                    
                                     {searchResults.length > 0 && (
                                         <div className="absolute w-full mt-2 bg-popover border-2 rounded-xl shadow-2xl z-[100] overflow-hidden divide-y">
                                             {searchResults.map(u => (
-                                                <div key={u.id} onClick={() => handleSelectUser(u)} className="p-4 hover:bg-accent cursor-pointer flex items-center justify-between transition-colors group">
+                                                <div 
+                                                    key={u.id} 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleSelectUser(u);
+                                                    }} 
+                                                    className="p-4 hover:bg-accent cursor-pointer flex items-center justify-between"
+                                                >
                                                     <div>
-                                                        <p className="font-black text-lg text-primary uppercase italic tracking-tighter leading-none">{u.full_name}</p>
-                                                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">{u.email}</p>
+                                                        <p className="font-black text-lg text-primary uppercase italic tracking-tighter">{u.full_name}</p>
+                                                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{u.email}</p>
                                                     </div>
-                                                    <Badge className="font-mono font-bold uppercase rounded-lg border-2">
-                                                        {u.mailbox_number}
-                                                    </Badge>
+                                                    <Badge className="font-mono font-bold">{u.mailbox_number}</Badge>
                                                 </div>
                                             ))}
                                         </div>
@@ -458,7 +399,7 @@ export default function POSPage() {
                                     <div className="relative z-10 flex-1 min-w-0">
                                         <div className="flex items-center gap-4">
                                             <p className="text-3xl font-black italic uppercase tracking-tighter truncate">{selectedUser.full_name}</p>
-                                            <Badge variant="secondary" className="uppercase text-xs font-black italic border-white/20 h-7 shrink-0">
+                                            <Badge variant="secondary" className="uppercase text-xs font-black italic h-7 shrink-0">
                                                 {selectedUser.mailbox_number}
                                             </Badge>
                                         </div>
@@ -466,13 +407,11 @@ export default function POSPage() {
                                     </div>
                                     <div className="relative z-10 text-right bg-black/10 p-4 rounded-xl border border-white/10 backdrop-blur-md min-w-[180px]">
                                         <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1 italic">Account Standing</p>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <span className="text-2xl font-black italic tracking-tighter">
-                                                JMD ${Math.abs(accountStanding).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                            </span>
-                                        </div>
+                                        <span className="text-2xl font-black italic tracking-tighter">
+                                            JMD ${Math.abs(accountStanding).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </span>
                                     </div>
-                                    <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)} className="absolute top-2 right-2 text-current hover:bg-current/10 h-7 w-7 rounded-full">
+                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setSelectedUser(null); }} className="absolute top-2 right-2 text-current hover:bg-current/10 h-7 w-7 rounded-full">
                                         <X className="h-4 w-4" />
                                     </Button>
                                 </div>
@@ -490,7 +429,6 @@ export default function POSPage() {
                             {isLoadingInvoices ? (
                                 <div className="h-64 flex flex-col items-center justify-center gap-4">
                                     <Loader2 className="h-10 w-10 animate-spin text-primary opacity-20" />
-                                    <p className="text-[8px] font-black uppercase tracking-[0.4em] opacity-40">Syncing Registry...</p>
                                 </div>
                             ) : !selectedUser ? (
                                 <div className="h-64 flex flex-col items-center justify-center text-muted-foreground/10 italic">
@@ -502,109 +440,99 @@ export default function POSPage() {
                                     <p className="text-xl font-black italic uppercase tracking-tighter opacity-40">No Parcels Awaiting Pickup</p>
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto">
-                                    <Table>
-                                        <TableHeader className="bg-muted/50 h-14">
-                                            <TableRow>
-                                                <TableHead className="w-[50px] pl-6"></TableHead>
-                                                <TableHead className="text-[9px] font-black uppercase tracking-widest min-w-[150px]">Tracking ID</TableHead>
-                                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-right">Freight (JMD)</TableHead>
-                                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-right">Duty/Fees (JMD)</TableHead>
-                                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-right pr-8">Total (JMD)</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {userInvoices.map((ship) => {
-                                                const weight = Number(ship.weight_lbs) || 0;
-                                                const freight = Number(ship.total_cost_jmd) || calculateShippingCost(weight);
-                                                const duty = manualDuties[ship.id] || 0;
-                                                const total = freight + duty;
+                                <Table>
+                                    <TableHeader className="bg-muted/50 h-14">
+                                        <TableRow>
+                                            <TableHead className="w-[50px] pl-6"></TableHead>
+                                            <TableHead className="text-[9px] font-black uppercase tracking-widest">Tracking ID</TableHead>
+                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-right">Freight (JMD)</TableHead>
+                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-right">Duty (JMD)</TableHead>
+                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-right pr-8">Total (JMD)</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {userInvoices.map((ship) => {
+                                            const weight = Number(ship.weight_lbs) || 0;
+                                            const freight = Number(ship.total_cost_jmd) || calculateShippingCost(weight);
+                                            const duty = manualDuties[ship.id] || 0;
+                                            const total = freight + duty;
 
-                                                return (
-                                                    <TableRow 
-                                                        key={ship.id} 
-                                                        className={cn(
-                                                            "hover:bg-accent cursor-pointer transition-all border-b h-24", 
-                                                            selectedInvoices.has(ship.id) && "bg-primary/5"
-                                                        )} 
-                                                        onClick={() => toggleInvoice(ship.id)}
-                                                    >
-                                                        <TableCell className="pl-6">
-                                                            <Checkbox 
-                                                                checked={selectedInvoices.has(ship.id)} 
-                                                                onCheckedChange={() => toggleInvoice(ship.id)} 
-                                                                className="h-6 w-6 border-2 rounded-md" 
+                                            return (
+                                                <TableRow 
+                                                    key={ship.id} 
+                                                    className={cn(
+                                                        "hover:bg-accent cursor-pointer transition-all border-b h-24", 
+                                                        selectedInvoices.has(ship.id) && "bg-primary/5"
+                                                    )} 
+                                                    onClick={() => toggleInvoice(ship.id)}
+                                                >
+                                                    <TableCell className="pl-6">
+                                                        <Checkbox 
+                                                            checked={selectedInvoices.has(ship.id)} 
+                                                            onCheckedChange={(val) => {
+                                                                toggleInvoice(ship.id);
+                                                            }} 
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="h-6 w-6 border-2 rounded-md" 
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <p className="font-mono font-black text-primary uppercase text-sm italic leading-none">{ship.tracking_number}</p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <p className="text-[8px] font-bold text-muted-foreground uppercase truncate max-w-[100px]">{ship.contents || 'General Package'}</p>
+                                                            <Badge variant="outline" className="h-4 text-[7px] px-1 font-mono uppercase">{weight} LBS</Badge>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-black italic text-sm">JMD ${freight.toLocaleString()}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="flex flex-col items-end gap-1">
+                                                            {duty > 0 && (
+                                                                <Badge className="bg-indigo-100 text-indigo-700 text-[8px] font-black border-2 border-indigo-200">
+                                                                    + ${duty.toLocaleString()} JMD
+                                                                </Badge>
+                                                            )}
+                                                            <POSCustomsDialog 
+                                                                shipment={ship} 
+                                                                onApply={(amt) => setManualDuties(prev => ({ ...prev, [ship.id]: amt }))} 
+                                                                currentDuty={duty}
+                                                                disabled={!selectedInvoices.has(ship.id)}
                                                             />
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <p className="font-mono font-black text-primary uppercase text-sm italic tracking-tighter leading-none truncate max-w-[140px]">{ship.tracking_number}</p>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                {ship.contents && (
-                                                                    <p className="text-[8px] font-bold text-muted-foreground uppercase truncate max-w-[100px]">{ship.contents}</p>
-                                                                )}
-                                                                <Badge variant="outline" className="h-4 text-[7px] px-1 font-mono uppercase">{weight} LBS</Badge>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-black italic text-sm">JMD ${freight.toLocaleString()}</TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div className="flex flex-col items-end gap-1">
-                                                                {duty > 0 ? (
-                                                                    <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 text-[8px] font-black h-5 border-2 border-indigo-100">
-                                                                        + ${duty.toLocaleString()} JMD
-                                                                    </Badge>
-                                                                ) : null}
-                                                                <POSCustomsDialog 
-                                                                    shipment={ship} 
-                                                                    onApply={(amt) => setManualDuties(prev => ({ ...prev, [ship.id]: amt }))} 
-                                                                    currentDuty={duty}
-                                                                    disabled={!selectedInvoices.has(ship.id)}
-                                                                />
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-right pr-8 font-black text-xl italic tracking-tighter text-primary">
-                                                            JMD ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </div>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right pr-8 font-black text-xl italic tracking-tighter text-primary">
+                                                        JMD ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
                             )}
                         </CardContent>
                     </Card>
                 </div>
 
                 <div className="lg:col-span-4 sticky top-24">
-                    <Card className="border-none shadow-2xl bg-indigo-50/30 dark:bg-zinc-950 text-foreground dark:text-zinc-100 rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
-                        <CardHeader className="bg-background/40 dark:bg-white/5 pb-6 pt-8 px-8 border-b border-indigo-100 dark:border-white/5">
-                            <CardTitle className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-600 dark:text-zinc-500 flex items-center gap-3 italic">
-                                <Receipt className="h-4 w-4 text-indigo-500 dark:text-indigo-400" /> SETTLEMENT AUTHORITY
+                    <Card className="border-none shadow-2xl bg-indigo-50/30 dark:bg-zinc-950 rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
+                        <CardHeader className="bg-background/40 dark:bg-white/5 pb-6 pt-8 px-8 border-b border-indigo-100">
+                            <CardTitle className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-600 flex items-center gap-3 italic">
+                                <Receipt className="h-4 w-4" /> SETTLEMENT AUTHORITY
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-8 px-8 py-8">
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center px-1">
-                                    <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Freight Total</p>
-                                    <span className="text-sm font-black italic text-indigo-600 dark:text-zinc-400">
+                            <div className="text-center space-y-2">
+                                <p className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground italic">Transaction Subtotal</p>
+                                <div className="flex flex-col items-center justify-center">
+                                    <span className="text-5xl font-black italic tracking-tighter">
                                         JMD ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </span>
-                                </div>
-                                <Separator className="bg-indigo-100 dark:bg-white/10" />
-                                <div className="text-center space-y-2">
-                                    <p className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground italic">Transaction Subtotal</p>
-                                    <div className="flex flex-col items-center justify-center">
-                                        <span className="text-5xl font-black italic tracking-tighter text-foreground dark:text-white">
-                                            JMD ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        </span>
-                                        <Badge variant="outline" className="mt-4 bg-background dark:bg-white/5 text-[8px] font-black uppercase tracking-widest border-indigo-200 dark:border-white/10 px-4 h-6">
-                                            {selectedInvoices.size} Parcels Selected
-                                        </Badge>
-                                    </div>
+                                    <Badge variant="outline" className="mt-4 text-[8px] font-black uppercase px-4 h-6">
+                                        {selectedInvoices.size} Parcels Selected
+                                    </Badge>
                                 </div>
                             </div>
 
-                            <Separator className="bg-indigo-100 dark:bg-white/10" />
+                            <Separator className="bg-indigo-100" />
 
                             <div className="space-y-4">
                                 <Label className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1 italic">Payment Method</Label>
@@ -617,12 +545,12 @@ export default function POSPage() {
                                         <Label 
                                             key={m.id} 
                                             className={cn(
-                                                "flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-indigo-100 dark:border-white/5 cursor-pointer hover:bg-background/60 dark:hover:bg-white/5 transition-all active:scale-95",
-                                                paymentMethod === m.id ? "border-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-700 dark:text-white" : "text-muted-foreground"
+                                                "flex flex-col items-center justify-center p-4 rounded-2xl border-2 cursor-pointer transition-all",
+                                                paymentMethod === m.id ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "text-muted-foreground border-transparent"
                                             )}
                                         >
-                                            <div className={cn("mb-2", paymentMethod === m.id && "text-indigo-500 dark:text-indigo-400")}>{m.icon}</div>
-                                            <span className="text-[9px] font-black uppercase italic tracking-tighter">{m.id}</span>
+                                            <div className="mb-2">{m.icon}</div>
+                                            <span className="text-[9px] font-black uppercase italic">{m.id}</span>
                                             <RadioGroupItem value={m.id} className="sr-only" />
                                         </Label>
                                     ))}
@@ -630,29 +558,23 @@ export default function POSPage() {
                             </div>
 
                             {paymentMethod === 'Cash' && selectedInvoices.size > 0 && (
-                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 bg-background/60 dark:bg-white/5 p-6 rounded-2xl border border-indigo-100 dark:border-white/5">
+                                <div className="space-y-4 bg-background/60 p-6 rounded-2xl border border-indigo-100">
                                     <div className="space-y-2">
                                         <Label className="text-[8px] font-black uppercase tracking-[0.3em] text-indigo-500 ml-1 italic">Tendered (JMD)</Label>
                                         <div className="relative">
                                             <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-indigo-500" />
                                             <Input 
                                                 type="number" 
-                                                className="h-14 pl-10 text-2xl font-black bg-background border-2 border-indigo-200 dark:border-white/10 rounded-xl focus:border-indigo-500 transition-all" 
+                                                className="h-14 pl-10 text-2xl font-black rounded-xl border-2" 
                                                 placeholder="0.00"
                                                 value={cashReceived}
                                                 onChange={e => setCashReceived(e.target.value)}
                                             />
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between bg-background/40 dark:bg-black/40 p-4 rounded-xl border border-indigo-100 dark:border-white/5">
-                                        <div className="flex items-center gap-2">
-                                            <Coins className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Change</span>
-                                        </div>
-                                        <span className={cn(
-                                            "text-xl font-black italic tracking-tighter",
-                                            changeDue > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground/30"
-                                        )}>
+                                    <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
+                                        <span className="text-[8px] font-black uppercase italic">Change Due</span>
+                                        <span className="text-xl font-black italic tracking-tighter">
                                             JMD ${changeDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </span>
                                     </div>
@@ -663,7 +585,7 @@ export default function POSPage() {
                             <Button 
                                 onClick={() => setIsCheckoutOpen(true)} 
                                 disabled={selectedInvoices.size === 0 || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < calculatedSelectedTotal))} 
-                                className="w-full h-20 text-2xl font-black italic uppercase tracking-tighter shadow-2xl rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white border-none"
+                                className="w-full h-20 text-2xl font-black italic uppercase shadow-2xl rounded-2xl"
                             >
                                 <ShoppingCart className="h-6 w-6 mr-3" />
                                 Process Checkout
@@ -679,34 +601,21 @@ export default function POSPage() {
                         <div className="flex flex-col">
                             <div className="p-8 bg-muted/30 border-b-2">
                                 <DialogHeader>
-                                    <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter text-center">Confirm Authorization</DialogTitle>
+                                    <DialogTitle className="text-3xl font-black italic uppercase text-center">Confirm Authorization</DialogTitle>
                                 </DialogHeader>
                             </div>
                             <div className="p-10 space-y-6">
                                 <div className="p-8 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 flex flex-col items-center gap-6 text-center">
-                                    <div className="bg-primary h-16 w-16 rounded-2xl flex items-center justify-center shadow-xl transform rotate-3 text-white">
-                                        <DollarSign className="h-8 w-8" />
-                                    </div>
                                     <div>
                                         <p className="text-[8px] font-black uppercase tracking-[0.3em] opacity-40 mb-2 italic">Verify Registry Impact</p>
                                         <p className="text-6xl font-black italic tracking-tighter text-primary">
-                                            JMD ${(paymentMethod === 'Cash' ? parseFloat(cashReceived) : calculatedSelectedTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            JMD ${calculatedSelectedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </p>
-                                        <div className="flex items-center justify-center gap-3 mt-6">
-                                            <Badge variant="outline" className="text-[9px] font-black uppercase px-4 h-7 border-2 bg-background">
-                                                {paymentMethod}
-                                            </Badge>
-                                            {paymentMethod === 'Cash' && (
-                                                <Badge className="bg-green-600 text-white text-[9px] font-black uppercase px-4 h-7">
-                                                    RETURN JMD ${changeDue.toLocaleString()}
-                                                </Badge>
-                                            )}
-                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex gap-4">
                                     <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} className="flex-1 h-16 text-lg font-black uppercase italic border-2 rounded-xl">Cancel</Button>
-                                    <Button onClick={handleProcessPayment} disabled={isProcessing} className="flex-[2] h-16 text-2xl font-black uppercase italic tracking-tighter rounded-xl shadow-xl">
+                                    <Button onClick={handleProcessPayment} disabled={isProcessing} className="flex-[2] h-16 text-2xl font-black uppercase italic rounded-xl shadow-xl">
                                         {isProcessing ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <CheckCircle2 className="mr-3 h-6 w-6" />} 
                                         Clear & Settle
                                     </Button>
@@ -790,6 +699,9 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
                     variant="outline" 
                     size="sm" 
                     disabled={disabled}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                    }}
                     className={cn(
                         "h-7 text-[8px] font-black uppercase italic border-2 transition-all",
                         currentDuty > 0 ? "border-indigo-500 text-indigo-600 bg-indigo-50" : "opacity-40 hover:opacity-100"
@@ -799,7 +711,7 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
                     {currentDuty > 0 ? "Adjust Duty" : "Customs Authority"}
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md rounded-3xl border-4">
+            <DialogContent className="sm:max-w-md rounded-3xl border-4" onClick={(e) => e.stopPropagation()}>
                 <DialogHeader>
                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3">
                         <Gavel className="h-6 w-6 text-indigo-500" /> JCA DUTY CALCULATOR

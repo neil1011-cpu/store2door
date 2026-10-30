@@ -32,7 +32,6 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @fileOverview Hardened Admin Authentication Guard.
- * Ensures the session is valid and authorized before rendering administrative routes.
  * Implements strict timeout and terminal state management to prevent loading hangs.
  */
 function AdminAuthGuard({ children }: { children: ReactNode }) {
@@ -67,7 +66,7 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
         if (data === true && !error) {
           setIsAdmin(true);
         } else {
-          // Fallback for Master Admin email to prevent lockout during schema issues
+          // Fallback for Master Admin email
           if (user.email === 'admin@neilussolutions.com') {
             setIsAdmin(true);
           } else {
@@ -78,7 +77,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
         if (user.email === 'admin@neilussolutions.com') {
           setIsAdmin(true);
         } else {
-          console.error('[AUTH_GUARD_FAIL]', e);
           router.replace('/admin-login');
         }
       } finally {

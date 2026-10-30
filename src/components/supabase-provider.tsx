@@ -52,11 +52,8 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       }
     });
 
-    const timer = setTimeout(() => setIsLoading(false), 5000);
-
     return () => {
       subscription.unsubscribe();
-      clearTimeout(timer);
     };
   }, [supabase, router]);
 
@@ -80,25 +77,13 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
                 To activate the Global Logistics OS, you must define your Supabase Project credentials in the environment settings (.env file).
               </p>
             </div>
-            <div className="space-y-4 font-mono text-[10px]">
-              <div className="p-3 bg-zinc-950 text-zinc-400 rounded-lg border border-white/5 space-y-2 shadow-inner">
-                <div className="flex items-center gap-2">
-                  <Key className="h-3 w-3 text-orange-500" />
-                  <span className="text-zinc-500 italic uppercase font-black">Required Variables:</span>
-                </div>
-                <p>NEXT_PUBLIC_SUPABASE_URL</p>
-                <p>NEXT_PUBLIC_SUPABASE_ANON_KEY</p>
-                <p>SUPABASE_SECRET_KEY</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // RECOVERY FIX: Render children immediately to prevent blank hydration screens.
-  // Specialized layouts (Admin/Account) handle their own loading states internally.
+  // Optimized hydration: Render children immediately to prevent blank white screen in Studio preview.
   return (
     <Context.Provider value={{ supabase, user, isLoading }}>
       {children}
