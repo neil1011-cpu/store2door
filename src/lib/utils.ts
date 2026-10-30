@@ -44,8 +44,8 @@ export function calculateShippingCost(weight: number): number {
  */
 export function shouldShowPrice(status: string | undefined): boolean {
     const s = (status || '').toLowerCase();
-    // Don't show price for pre-alert stages where weight/cost isn't confirmed
-    if (s === 'pending' || s === 'pre-alert' || s === 'cancelled') return false;
+    // Allow visibility for received/processed items so users see estimated costs
+    if (s === 'pending' || s === 'cancelled' || s === 'pre-alert') return false;
     return true;
 }
 
@@ -62,7 +62,7 @@ export function getSiteOrigin(request?: Request): string {
     if (request) {
         const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
         const protocol = request.headers.get('x-forwarded-proto') || 'https';
-        if (host) return `${proto}://${host}`;
+        if (host) return `${protocol}://${host}`;
     }
     return 'http://localhost:3000';
 }
