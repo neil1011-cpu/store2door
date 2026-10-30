@@ -241,7 +241,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                         </div>
                     </div>
                 </div>
-                <div className="py-4 sm:py-8">
+                <div className="py-4 md:py-8">
                     {children}
                 </div>
             </div>

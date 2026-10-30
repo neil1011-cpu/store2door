@@ -276,7 +276,7 @@ export default function POSPage() {
     };
 
     return (
-        <div className="flex flex-col gap-6 max-w-full mx-auto pb-20">
+        <div className="flex flex-col gap-4 md:gap-6 max-w-full mx-auto pb-20">
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
                     <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
@@ -316,17 +316,17 @@ export default function POSPage() {
                 )}
             </div>
 
-            <div className="flex items-center justify-between border-b pb-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
                 <div>
-                    <h1 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Station POS</h1>
+                    <h1 className="text-xl md:text-2xl font-black italic uppercase tracking-tighter text-primary">Station POS</h1>
                     <p className="text-muted-foreground font-bold uppercase tracking-widest text-[9px]">Branch Terminal • Secure Checkout</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={resetPOS} className="font-black uppercase italic border-2">
+                <Button variant="outline" size="sm" onClick={resetPOS} className="font-black uppercase italic border-2 w-full sm:w-auto">
                     <Trash2 className="mr-2 h-4 w-4" /> Clear Transaction
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 <div className="lg:col-span-8 space-y-6">
                     <Card className="border shadow-md rounded-2xl">
                         <CardHeader className="bg-muted/30 py-3 border-b rounded-t-2xl">
@@ -340,7 +340,7 @@ export default function POSPage() {
                                     <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground", isSearching && "animate-pulse")} />
                                     <Input 
                                         placeholder="SEARCH NAME, EMAIL, OR MAILBOX #..." 
-                                        className="h-14 pl-12 text-xl font-bold uppercase border-2 rounded-xl"
+                                        className="h-12 md:h-14 pl-12 text-sm md:text-xl font-bold uppercase border-2 rounded-xl"
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
                                         autoComplete="off"
@@ -348,12 +348,12 @@ export default function POSPage() {
                                     {searchResults.length > 0 && (
                                         <div className="absolute w-full mt-2 bg-popover border-2 rounded-xl shadow-2xl z-[100] overflow-hidden divide-y">
                                             {searchResults.map(u => (
-                                                <div key={u.id} onClick={() => handleSelectUser(u)} className="p-4 hover:bg-accent cursor-pointer flex items-center justify-between">
-                                                    <div>
-                                                        <p className="font-black text-lg text-primary uppercase italic">{u.full_name}</p>
-                                                        <p className="text-[10px] font-bold text-muted-foreground uppercase">{u.email}</p>
+                                                <div key={u.id} onClick={() => handleSelectUser(u)} className="p-3 md:p-4 hover:bg-accent cursor-pointer flex items-center justify-between">
+                                                    <div className="min-w-0 pr-2">
+                                                        <p className="font-black text-sm md:text-lg text-primary uppercase italic truncate">{u.full_name}</p>
+                                                        <p className="text-[9px] md:text-[10px] font-bold text-muted-foreground uppercase truncate">{u.email}</p>
                                                     </div>
-                                                    <Badge className="font-mono font-bold">{u.mailbox_number}</Badge>
+                                                    <Badge className="font-mono font-bold shrink-0">{u.mailbox_number}</Badge>
                                                 </div>
                                             ))}
                                         </div>
@@ -361,33 +361,45 @@ export default function POSPage() {
                                 </div>
                             ) : (
                                 <div className={cn(
-                                    "p-6 rounded-xl shadow-lg flex items-center justify-between gap-6 transition-colors duration-300", 
+                                    "p-4 md:p-6 rounded-xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors duration-300", 
                                     accountStanding > 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                                 )}>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-4">
-                                            <p className="text-3xl font-black italic uppercase tracking-tighter truncate">{selectedUser.full_name}</p>
-                                            <Badge variant="secondary" className="uppercase text-xs font-black italic h-7">{selectedUser.mailbox_number}</Badge>
+                                    <div className="flex-1 min-w-0 w-full">
+                                        <div className="flex items-center justify-between sm:justify-start gap-4">
+                                            <p className="text-xl md:text-3xl font-black italic uppercase tracking-tighter truncate">{selectedUser.full_name}</p>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <Badge variant="secondary" className="uppercase text-[10px] md:text-xs font-black italic h-7">{selectedUser.mailbox_number}</Badge>
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    onClick={() => setSelectedUser(null)} 
+                                                    className="text-primary-foreground hover:bg-primary-foreground/10 transition-colors h-7 w-7 sm:hidden"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="text-right bg-primary-foreground/10 dark:bg-black/20 p-4 rounded-xl border border-primary-foreground/10 dark:border-white/5 min-w-[200px]">
-                                        <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Current Ready Total</p>
-                                        <span className="text-2xl font-black italic tracking-tighter">JMD ${accountStanding.toLocaleString()}</span>
+                                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                                        <div className="text-right bg-primary-foreground/10 dark:bg-black/20 p-3 md:p-4 rounded-xl border border-primary-foreground/10 dark:border-white/5 flex-1 sm:flex-initial sm:min-w-[180px]">
+                                            <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Current Ready Total</p>
+                                            <span className="text-lg md:text-2xl font-black italic tracking-tighter">JMD ${accountStanding.toLocaleString()}</span>
+                                        </div>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            onClick={() => setSelectedUser(null)} 
+                                            className="text-primary-foreground hover:bg-primary-foreground/10 transition-colors hidden sm:flex shrink-0"
+                                        >
+                                            <X className="h-5 w-5" />
+                                        </Button>
                                     </div>
-                                    <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        onClick={() => setSelectedUser(null)} 
-                                        className="text-primary-foreground hover:bg-primary-foreground/10 transition-colors"
-                                    >
-                                        <X className="h-5 w-5" />
-                                    </Button>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
 
-                    <Card className="border shadow-md overflow-hidden rounded-2xl min-h-[400px]">
+                    <Card className="border shadow-md overflow-hidden rounded-2xl min-h-[300px] md:min-h-[400px]">
                         <CardHeader className="bg-muted/30 py-3 border-b">
                             <CardTitle className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-muted-foreground">
                                 <Package className="h-3.5 w-3.5" /> 02. SELECT READY PARCELS
@@ -395,87 +407,89 @@ export default function POSPage() {
                         </CardHeader>
                         <CardContent className="p-0">
                             {isLoadingInvoices ? (
-                                <div className="h-64 flex flex-col items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary opacity-20" /></div>
+                                <div className="h-48 md:h-64 flex flex-col items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary opacity-20" /></div>
                             ) : !selectedUser ? (
-                                <div className="h-64 flex flex-col items-center justify-center opacity-10 italic"><p className="text-lg font-black uppercase tracking-[0.3em]">Awaiting Identity</p></div>
+                                <div className="h-48 md:h-64 flex flex-col items-center justify-center opacity-10 italic"><p className="text-lg font-black uppercase tracking-[0.3em]">Awaiting Identity</p></div>
                             ) : userInvoices.length === 0 ? (
-                                <div className="h-64 flex flex-col items-center justify-center gap-4 text-center p-6"><CheckCircle2 className="h-12 w-12 text-green-500 opacity-20" /><p className="text-xl font-black italic uppercase opacity-40">No Parcels Awaiting Pickup</p></div>
+                                <div className="h-48 md:h-64 flex flex-col items-center justify-center gap-4 text-center p-6"><CheckCircle2 className="h-12 w-12 text-green-500 opacity-20" /><p className="text-lg md:text-xl font-black italic uppercase opacity-40">No Parcels Awaiting Pickup</p></div>
                             ) : (
-                                <Table>
-                                    <TableHeader className="bg-muted/50 h-14">
-                                        <TableRow>
-                                            <TableHead className="w-[50px] pl-6"></TableHead>
-                                            <TableHead className="text-[9px] font-black uppercase">Tracking ID</TableHead>
-                                            <TableHead className="text-[9px] font-black uppercase text-right">Freight (JMD)</TableHead>
-                                            <TableHead className="text-[9px] font-black uppercase text-right">Duty (JMD)</TableHead>
-                                            <TableHead className="text-[9px] font-black uppercase text-right pr-8">Total (JMD)</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {userInvoices.map((ship) => {
-                                            const weight = Number(ship.weight_lbs) || 0;
-                                            const freight = Number(ship.total_cost_jmd) || calculateShippingCost(weight);
-                                            const duty = manualDuties[ship.id] || 0;
-                                            const total = freight + duty;
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader className="bg-muted/50 h-12">
+                                            <TableRow>
+                                                <TableHead className="w-[40px] md:w-[50px] pl-4 md:pl-6"></TableHead>
+                                                <TableHead className="text-[9px] font-black uppercase">Tracking ID</TableHead>
+                                                <TableHead className="text-[9px] font-black uppercase text-right">Freight (JMD)</TableHead>
+                                                <TableHead className="text-[9px] font-black uppercase text-right">Duty (JMD)</TableHead>
+                                                <TableHead className="text-[9px] font-black uppercase text-right pr-4 md:pr-8">Total (JMD)</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {userInvoices.map((ship) => {
+                                                const weight = Number(ship.weight_lbs) || 0;
+                                                const freight = Number(ship.total_cost_jmd) || calculateShippingCost(weight);
+                                                const duty = manualDuties[ship.id] || 0;
+                                                const total = freight + duty;
 
-                                            return (
-                                                <TableRow key={ship.id} className={cn("hover:bg-accent cursor-pointer border-b h-24", selectedInvoices.has(ship.id) && "bg-primary/5")} onClick={() => toggleInvoice(ship.id)}>
-                                                    <TableCell className="pl-6">
-                                                        <Checkbox 
-                                                            checked={selectedInvoices.has(ship.id)} 
-                                                            onCheckedChange={() => toggleInvoice(ship.id)} 
-                                                            className="h-6 w-6 border-2" 
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <p className="font-mono font-black text-primary uppercase text-sm italic">{ship.tracking_number}</p>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <p className="text-[8px] font-bold text-muted-foreground uppercase truncate max-w-[100px]">{ship.contents || 'General Package'}</p>
-                                                            <Badge variant="outline" className="h-4 text-[7px] px-1">{weight} LBS</Badge>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-black italic text-sm">JMD ${freight.toLocaleString()}</TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="flex flex-col items-end gap-1">
-                                                            {duty > 0 && <Badge className="bg-indigo-100 text-indigo-700 text-[8px] font-black border-2 border-indigo-200">+ ${duty.toLocaleString()}</Badge>}
-                                                            <POSCustomsDialog 
-                                                                shipment={ship} 
-                                                                onApply={(amt) => setManualDuties(prev => ({ ...prev, [ship.id]: amt }))} 
-                                                                currentDuty={duty} 
-                                                                disabled={!selectedInvoices.has(ship.id)} 
+                                                return (
+                                                    <TableRow key={ship.id} className={cn("hover:bg-accent cursor-pointer border-b h-20 md:h-24", selectedInvoices.has(ship.id) && "bg-primary/5")} onClick={() => toggleInvoice(ship.id)}>
+                                                        <TableCell className="pl-4 md:pl-6">
+                                                            <Checkbox 
+                                                                checked={selectedInvoices.has(ship.id)} 
+                                                                onCheckedChange={() => toggleInvoice(ship.id)} 
+                                                                className="h-5 w-5 md:h-6 md:w-6 border-2" 
+                                                                onClick={(e) => e.stopPropagation()}
                                                             />
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right pr-8 font-black text-xl italic text-primary">JMD ${total.toLocaleString()}</TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <p className="font-mono font-black text-primary uppercase text-[10px] md:text-sm italic truncate max-w-[80px] md:max-w-none">{ship.tracking_number}</p>
+                                                            <div className="flex items-center gap-1 md:gap-2 mt-1">
+                                                                <p className="text-[7px] md:text-[8px] font-bold text-muted-foreground uppercase truncate max-w-[60px] md:max-w-[100px]">{ship.contents || 'General Package'}</p>
+                                                                <Badge variant="outline" className="h-3 md:h-4 text-[6px] md:text-[7px] px-1">{weight} LBS</Badge>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-black italic text-xs md:text-sm">JMD ${freight.toLocaleString()}</TableCell>
+                                                        <TableCell className="text-right">
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                {duty > 0 && <Badge className="bg-indigo-100 text-indigo-700 text-[6px] md:text-[8px] font-black border md:border-2 border-indigo-200">+ ${duty.toLocaleString()}</Badge>}
+                                                                <POSCustomsDialog 
+                                                                    shipment={ship} 
+                                                                    onApply={(amt) => setManualDuties(prev => ({ ...prev, [ship.id]: amt }))} 
+                                                                    currentDuty={duty} 
+                                                                    disabled={!selectedInvoices.has(ship.id)} 
+                                                                />
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right pr-4 md:pr-8 font-black text-sm md:text-xl italic text-primary">JMD ${total.toLocaleString()}</TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             )}
                         </CardContent>
                     </Card>
                 </div>
 
-                <div className="lg:col-span-4 sticky top-24">
-                    <Card className="border-none shadow-2xl bg-indigo-50/30 rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
-                        <CardHeader className="bg-background/40 pb-6 pt-8 px-8 border-b border-indigo-100">
+                <div className="lg:col-span-4 lg:sticky lg:top-24">
+                    <Card className="border-none shadow-2xl bg-indigo-50/30 rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
+                        <CardHeader className="bg-background/40 pb-4 md:pb-6 pt-6 md:pt-8 px-6 md:px-8 border-b border-indigo-100">
                             <CardTitle className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-600 flex items-center gap-3 italic"><Receipt className="h-4 w-4" /> SETTLEMENT AUTHORITY</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-8 px-8 py-8">
-                            <div className="text-center space-y-2">
+                        <CardContent className="space-y-6 md:space-y-8 px-6 md:px-8 py-6 md:py-8">
+                            <div className="text-center space-y-1">
                                 <p className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground italic">Selected Total</p>
-                                <span className="text-5xl font-black italic tracking-tighter">JMD ${calculatedSelectedTotal.toLocaleString()}</span>
+                                <span className="text-3xl md:text-5xl font-black italic tracking-tighter">JMD ${calculatedSelectedTotal.toLocaleString()}</span>
                             </div>
 
                             <div className="space-y-4">
                                 <Label className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">Payment Method</Label>
                                 <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-3 gap-2">
                                     {['Cash', 'Card', 'Transfer'].map(m => (
-                                        <Label key={m} className={cn("flex flex-col items-center justify-center p-4 rounded-2xl border-2 cursor-pointer transition-all", paymentMethod === m ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "text-muted-foreground border-transparent")}>
-                                            <div className="mb-2">{m === 'Cash' ? <Banknote /> : m === 'Card' ? <CreditCard /> : <Building2 />}</div>
-                                            <span className="text-[9px] font-black uppercase italic">{m}</span>
+                                        <Label key={m} className={cn("flex flex-col items-center justify-center p-3 md:p-4 rounded-xl md:rounded-2xl border-2 cursor-pointer transition-all", paymentMethod === m ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "text-muted-foreground border-transparent")}>
+                                            <div className="mb-1 md:mb-2">{m === 'Cash' ? <Banknote className="h-4 w-4 md:h-6 md:w-6" /> : m === 'Card' ? <CreditCard className="h-4 w-4 md:h-6 md:w-6" /> : <Building2 className="h-4 w-4 md:h-6 md:w-6" />}</div>
+                                            <span className="text-[8px] md:text-[9px] font-black uppercase italic">{m}</span>
                                             <RadioGroupItem value={m} className="sr-only" />
                                         </Label>
                                     ))}
@@ -483,54 +497,54 @@ export default function POSPage() {
                             </div>
 
                             {paymentMethod === 'Cash' && selectedInvoices.size > 0 && (
-                                <div className="space-y-4 bg-background/60 p-6 rounded-2xl border border-indigo-100">
+                                <div className="space-y-4 bg-background/60 p-4 md:p-6 rounded-2xl border border-indigo-100">
                                     <div className="space-y-2">
                                         <Label className="text-[8px] font-black uppercase tracking-[0.3em] text-indigo-500 ml-1">Tendered (JMD)</Label>
-                                        <Input type="number" className="h-14 text-2xl font-black rounded-xl border-2" placeholder="0.00" value={cashReceived} onChange={e => setCashReceived(e.target.value)} />
+                                        <Input type="number" className="h-12 md:h-14 text-xl md:text-2xl font-black rounded-xl border-2" placeholder="0.00" value={cashReceived} onChange={e => setCashReceived(e.target.value)} />
                                     </div>
-                                    <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
+                                    <div className="flex items-center justify-between p-3 md:p-4 bg-muted/30 rounded-xl">
                                         <span className="text-[8px] font-black uppercase">Change Due</span>
-                                        <span className="text-xl font-black italic">JMD ${changeDue.toLocaleString()}</span>
+                                        <span className="text-lg md:text-xl font-black italic">JMD ${changeDue.toLocaleString()}</span>
                                     </div>
                                 </div>
                             )}
                         </CardContent>
-                        <CardFooter className="pb-10 pt-4 px-8">
-                            <Button onClick={() => setIsCheckoutOpen(true)} disabled={selectedInvoices.size === 0 || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < calculatedSelectedTotal))} className="w-full h-20 text-2xl font-black italic uppercase shadow-2xl rounded-2xl"><ShoppingCart className="h-6 w-6 mr-3" /> Process Checkout</Button>
+                        <CardFooter className="pb-8 md:pb-10 pt-4 px-6 md:px-8">
+                            <Button onClick={() => setIsCheckoutOpen(true)} disabled={selectedInvoices.size === 0 || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < calculatedSelectedTotal))} className="w-full h-16 md:h-20 text-lg md:text-2xl font-black italic uppercase shadow-2xl rounded-xl md:rounded-2xl"><ShoppingCart className="h-5 w-5 md:h-6 md:w-6 mr-2 md:mr-3" /> Process Checkout</Button>
                         </CardFooter>
                     </Card>
                 </div>
             </div>
 
             <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-                <DialogContent className="sm:max-w-xl p-0 rounded-[2rem] border-4">
+                <DialogContent className="sm:max-w-xl p-0 rounded-3xl md:rounded-[2rem] border-4">
                     {!checkoutComplete ? (
                         <div className="flex flex-col">
-                            <div className="p-8 bg-muted/30 border-b-2"><DialogHeader><DialogTitle className="text-3xl font-black italic uppercase text-center">Confirm Authorization</DialogTitle></DialogHeader></div>
-                            <div className="p-10 space-y-6">
-                                <div className="p-8 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 flex flex-col items-center gap-6 text-center">
-                                    <div><p className="text-[8px] font-black uppercase tracking-[0.3em] opacity-40 mb-2">Verify Registry Impact</p><p className="text-6xl font-black italic tracking-tighter text-primary">JMD ${calculatedSelectedTotal.toLocaleString()}</p></div>
+                            <div className="p-6 md:p-8 bg-muted/30 border-b-2"><DialogHeader><DialogTitle className="text-2xl md:text-3xl font-black italic uppercase text-center">Confirm Authorization</DialogTitle></DialogHeader></div>
+                            <div className="p-6 md:p-10 space-y-6">
+                                <div className="p-6 md:p-8 rounded-2xl bg-primary/5 border-2 border-dashed border-primary/20 flex flex-col items-center gap-4 md:gap-6 text-center">
+                                    <div><p className="text-[8px] font-black uppercase tracking-[0.3em] opacity-40 mb-2">Verify Registry Impact</p><p className="text-4xl md:text-6xl font-black italic tracking-tighter text-primary">JMD ${calculatedSelectedTotal.toLocaleString()}</p></div>
                                 </div>
-                                <div className="flex gap-4">
-                                    <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} className="flex-1 h-16 text-lg font-black uppercase italic border-2 rounded-xl">Cancel</Button>
-                                    <Button onClick={handleProcessPayment} disabled={isProcessing} className="flex-[2] h-16 text-2xl font-black uppercase italic rounded-xl shadow-xl">{isProcessing ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <CheckCircle2 className="mr-3 h-6 w-6" />} Clear & Settle</Button>
+                                <div className="flex flex-col sm:flex-row gap-4">
+                                    <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} className="flex-1 h-14 md:h-16 text-lg font-black uppercase italic border-2 rounded-xl">Cancel</Button>
+                                    <Button onClick={handleProcessPayment} disabled={isProcessing} className="flex-[2] h-14 md:h-16 text-xl md:text-2xl font-black uppercase italic rounded-xl shadow-xl">{isProcessing ? <Loader2 className="animate-spin mr-3 h-5 w-5 md:h-6 md:w-6" /> : <CheckCircle2 className="mr-3 h-5 w-5 md:h-6 md:w-6" />} Clear & Settle</Button>
                                 </div>
                             </div>
                         </div>
                     ) : (
-                        <div className="p-12 text-center space-y-8 animate-in zoom-in duration-300">
-                            <div className="bg-green-500 h-24 w-24 rounded-[1.5rem] flex items-center justify-center mx-auto shadow-2xl transform rotate-12"><CheckCircle2 className="h-12 w-12 text-white" /></div>
-                            <div><p className="text-5xl font-black italic uppercase text-primary">Payment Secured</p><p className="text-muted-foreground font-black uppercase tracking-[0.4em] text-[10px] mt-4 opacity-60">REGISTRY UPDATED • INVENTORY RELEASED</p></div>
-                            <div className="grid grid-cols-2 gap-4 pt-6">
-                                <Button className="h-16 text-lg font-black uppercase italic rounded-xl shadow-xl" onClick={handlePrintReceipt} disabled={isGeneratingPdf}>{isGeneratingPdf ? <Loader2 className="animate-spin mr-2 h-5 w-5" /> : <FileDown className="mr-2 h-5 w-5" />} Print Receipt</Button>
-                                <Button variant="outline" className="h-16 text-lg font-black border-2 uppercase italic rounded-xl" onClick={resetPOS}>Next Client <UserCheck className="ml-2 h-5 w-5" /></Button>
+                        <div className="p-8 md:p-12 text-center space-y-6 md:space-y-8 animate-in zoom-in duration-300">
+                            <div className="bg-green-500 h-16 w-16 md:h-24 md:w-24 rounded-2xl md:rounded-[1.5rem] flex items-center justify-center mx-auto shadow-2xl transform rotate-12"><CheckCircle2 className="h-8 w-8 md:h-12 md:w-12 text-white" /></div>
+                            <div><p className="text-3xl md:text-5xl font-black italic uppercase text-primary">Payment Secured</p><p className="text-muted-foreground font-black uppercase tracking-[0.4em] text-[8px] md:text-[10px] mt-2 md:mt-4 opacity-60">REGISTRY UPDATED • INVENTORY RELEASED</p></div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 md:pt-6">
+                                <Button className="h-14 md:h-16 text-base md:text-lg font-black uppercase italic rounded-xl shadow-xl" onClick={handlePrintReceipt} disabled={isGeneratingPdf}>{isGeneratingPdf ? <Loader2 className="animate-spin mr-2 h-5 w-5" /> : <FileDown className="mr-2 h-5 w-5" />} Print Receipt</Button>
+                                <Button variant="outline" className="h-14 md:h-16 text-base md:text-lg font-black border-2 uppercase italic rounded-xl" onClick={resetPOS}>Next Client <UserCheck className="ml-2 h-5 w-5" /></Button>
                             </div>
                         </div>
                     )}
                 </DialogContent>
             </Dialog>
             
-            <div className="mt-auto pt-10 text-center opacity-40">
+            <div className="mt-auto pt-6 md:pt-10 text-center opacity-40">
                 <Link href="https://neilussolutions.com" target="_blank" className="text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors">
                     Developed by NEILUS SOLUTIONS
                 </Link>
@@ -576,7 +590,7 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
                     onClick={(e) => { e.stopPropagation(); setOpen(true); }}
                 >
                     <Calculator className="h-3 w-3 mr-1" />
-                    {currentDuty > 0 ? "Adjust Duty" : "Customs Authority"}
+                    {currentDuty > 0 ? "Adjust" : "Duty"}
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md rounded-3xl border-4" onPointerDownOutside={(e) => e.preventDefault()}>
@@ -592,11 +606,11 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
                         </div>
                         <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-60">JCA Tariff Category</Label><Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}><SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="GENERAL">General Goods (20%)</SelectItem><SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem><SelectItem value="CELL_PHONES">Cell Phones (20%)</SelectItem><SelectItem value="AUTO_PARTS">Auto Parts (30%)</SelectItem><SelectItem value="COSMETICS">Cosmetics (20%)</SelectItem></SelectContent></Select></div>
                     </div>
-                    <div className="p-6 rounded-2xl bg-indigo-50 dark:bg-indigo-950/20 border-2 border-dashed border-indigo-200 dark:border-indigo-900 text-center"><p className="text-[8px] font-black uppercase opacity-40 mb-2">Landed Duty Estimate (JMD)</p><p className="text-4xl font-black italic tracking-tighter text-indigo-700 dark:text-indigo-400">JMD $ {calculatedDuty.toLocaleString()}</p></div>
+                    <div className="p-6 rounded-2xl bg-indigo-50 dark:bg-indigo-950/20 border-2 border-dashed border-indigo-200 dark:border-indigo-900 text-center"><p className="text-[8px] font-black uppercase opacity-40 mb-2">Landed Duty Estimate (JMD)</p><p className="text-3xl md:text-4xl font-black italic tracking-tighter text-indigo-700 dark:text-indigo-400">JMD $ {calculatedDuty.toLocaleString()}</p></div>
                 </div>
                 <DialogFooter className="gap-2">
                     <Button variant="outline" className="h-12 font-bold uppercase w-full" onClick={() => setOpen(false)}>Cancel</Button>
-                    <Button onClick={(e) => { e.stopPropagation(); onApply(calculatedDuty); setOpen(false); }} className="flex-1 h-12 font-black uppercase italic shadow-xl bg-indigo-600 hover:bg-indigo-500 text-white"><ShieldCheck className="h-4 w-4 mr-2" />Authorize Adjustment</Button>
+                    <Button onClick={(e) => { e.stopPropagation(); onApply(calculatedDuty); setOpen(false); }} className="flex-1 h-12 font-black uppercase italic shadow-xl bg-indigo-600 hover:bg-indigo-500 text-white"><ShieldCheck className="h-4 w-4 mr-2" />Authorize</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
