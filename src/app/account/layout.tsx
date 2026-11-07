@@ -62,7 +62,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
                 if (shipError) throw shipError;
 
-                // 1. Calculate Account Standing (Only Ready for Pickup + Unpaid)
+                // 1. Calculate Account Standing (Only Unpaid items with status "Ready for pick up")
                 const totalReady = (shipmentsData || [])
                     .filter(s => s.status?.toLowerCase() === 'ready for pick up' && s.payment_status === 'Unpaid')
                     .reduce((acc, curr) => {

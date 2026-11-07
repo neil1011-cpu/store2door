@@ -134,6 +134,7 @@ export default function POSPage() {
     const refreshUserData = useCallback(async (userId: string) => {
         setIsLoadingInvoices(true);
         try {
+            // Strictly fetch unpaid items ready for pickup
             const { data: shipmentsData, error } = await supabase.from('shipments')
                     .select('*')
                     .eq('profile_id', userId)
@@ -145,6 +146,7 @@ export default function POSPage() {
             
             setUserInvoices(shipmentsData || []);
             
+            // Calculate exact account standing for ready items
             const totalReady = (shipmentsData || []).reduce((sum, inv) => {
                 return sum + (Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0));
             }, 0);
@@ -276,6 +278,7 @@ export default function POSPage() {
 
     return (
         <div className="flex flex-col gap-4 md:gap-6 max-w-full mx-auto pb-20">
+            {/* Hidden Receipt for PDF Generation */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
                     <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
@@ -360,12 +363,11 @@ export default function POSPage() {
                                 </div>
                             ) : (
                                 <div className={cn(
-                                    "p-4 md:p-6 rounded-xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors duration-300", 
-                                    accountStanding > 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                                    "p-4 md:p-6 rounded-xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors duration-300 bg-primary", 
                                 )}>
                                     <div className="flex-1 min-w-0 w-full">
                                         <div className="flex items-center justify-between sm:justify-start gap-4">
-                                            <p className="text-xl md:text-3xl font-black italic uppercase tracking-tighter truncate">{selectedUser.full_name}</p>
+                                            <p className="text-xl md:text-3xl font-black italic uppercase tracking-tighter truncate text-primary-foreground">{selectedUser.full_name}</p>
                                             <div className="flex items-center gap-2 shrink-0">
                                                 <Badge variant="secondary" className="uppercase text-[10px] md:text-xs font-black italic h-7">{selectedUser.mailbox_number}</Badge>
                                                 <Button 
@@ -380,9 +382,9 @@ export default function POSPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4 w-full sm:w-auto">
-                                        <div className="text-right bg-primary-foreground/10 dark:bg-black/20 p-3 md:p-4 rounded-xl border border-primary-foreground/10 dark:border-white/5 flex-1 sm:flex-initial sm:min-w-[180px]">
-                                            <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Current Ready Total</p>
-                                            <span className="text-lg md:text-2xl font-black italic tracking-tighter">JMD ${accountStanding.toLocaleString()}</span>
+                                        <div className="text-right bg-primary-foreground/10 p-3 md:p-4 rounded-xl border border-primary-foreground/10 flex-1 sm:flex-initial sm:min-w-[180px]">
+                                            <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1 text-primary-foreground">Current Ready Total</p>
+                                            <span className="text-lg md:text-2xl font-black italic tracking-tighter text-primary-foreground">JMD ${accountStanding.toLocaleString()}</span>
                                         </div>
                                         <Button 
                                             variant="ghost" 
