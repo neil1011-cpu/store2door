@@ -6,7 +6,8 @@ import { getLogicwareClient } from '@/lib/logicware';
 
 /**
  * @fileOverview Hardened User Creation API.
- * Sets a default password, forces a reset, and synchronizes with Logicware Hub.
+ * Sets a default password, forces a reset if requested, and synchronizes with Logicware Hub.
+ * Always ensures email_confirm: true for immediate accessibility.
  */
 
 export async function POST(request: Request) {
@@ -53,10 +54,10 @@ export async function POST(request: Request) {
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password: defaultPassword,
-        email_confirm: true,
+        email_confirm: true, // This allows the user to log in immediately with the default password
         user_metadata: { 
             full_name: `${firstName} ${lastName}`,
-            needs_password_reset: true 
+            needs_password_reset: sendWelcomeEmail ? true : false 
         }
     });
 
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
         console.warn('[ADMIN:CREATE_USER] Logicware mirror failed but Supabase succeeded:', lwErr);
     }
 
-    // 4. Welcome Protocol
+    // 4. Welcome Protocol (Only if magic link reset was specifically requested)
     if (sendWelcomeEmail) {
         const origin = getSiteOrigin(request);
         await adminClient.auth.resetPasswordForEmail(email, {

@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2, MapPin, Copy, Building2, Edit2, AlertCircle, TrendingDown, TrendingUp } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2, MapPin, Copy, Building2, Edit2, AlertCircle, TrendingDown, TrendingUp, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -253,7 +253,6 @@ export default function UserDetailsPage() {
                         </CardContent>
                     </Card>
 
-                    {/* Authorized Standing Card (Compact Restoration) */}
                     <Card className="border shadow-sm">
                         <CardContent className="p-4 space-y-4">
                             <div className={cn("p-4 rounded-xl border border-dashed text-center", Number(profile?.wallet_balance) < 0 ? "bg-red-50 border-red-200" : "bg-muted/10 border-muted")}>
@@ -290,7 +289,7 @@ export default function UserDetailsPage() {
                             <CardTitle className="text-[9px] font-black uppercase opacity-40 text-center tracking-widest">Management</CardTitle>
                         </CardHeader>
                         <CardContent className="pt-4 flex flex-col gap-2">
-                            <ResetPasswordDialog userId={profile?.id} userName={profile?.full_name} />
+                            <DirectUpdatePasswordDialog userId={profile?.id} userName={profile?.full_name} />
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="ghost" className="w-full justify-start text-destructive hover:bg-destructive/5 font-black uppercase italic text-[9px] h-9" disabled={profile?.email === 'admin@neilussolutions.com'}>
@@ -422,38 +421,43 @@ export default function UserDetailsPage() {
     );
 }
 
-function ResetPasswordDialog({ userId, userName }: { userId: string, userName: string }) {
+function DirectUpdatePasswordDialog({ userId, userName }: { userId: string, userName: string }) {
     const [open, setOpen] = useState(false);
-    const [isResetting, setIsResetting] = useState(false);
+    const [password, setPassword] = useState('');
+    const [isUpdating, setIsUpdating] = useState(false);
     const { toast } = useToast();
     const { supabase } = useSupabase();
 
-    const handleSendResetLink = async () => {
-        setIsResetting(true);
+    const handleUpdate = async () => {
+        if (password.length < 8) {
+            toast({ title: "Validation Error", description: "Password must be at least 8 characters.", variant: "destructive" });
+            return;
+        }
+
+        setIsUpdating(true);
         try {
             const sessionRes = await supabase.auth.getSession();
             const token = sessionRes.data.session?.access_token;
 
-            const response = await fetch('/api/reset-password', {
+            const response = await fetch('/api/admin/update-password', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': token ? `Bearer ${token}` : ''
                 },
-                body: JSON.stringify({ userId })
+                body: JSON.stringify({ userId, password })
             });
             
-            if (!response.ok) {
-                const res = await response.json();
-                throw new Error(res.message || "Reset request denied.");
-            }
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || "Update protocol denied.");
 
-            toast({ title: "Link Dispatched", description: `Access key restoration link sent to client.` });
+            toast({ title: "Access Key Updated", description: `New password is now active for ${userName}.` });
+            setPassword('');
             setOpen(false);
         } catch (error: any) {
-            toast({ title: "Reset Error", description: error.message, variant: "destructive" });
+            toast({ title: "Update Failed", description: error.message, variant: "destructive" });
         } finally {
-            setIsResetting(false);
+            setIsUpdating(false);
         }
     };
 
@@ -461,23 +465,29 @@ function ResetPasswordDialog({ userId, userName }: { userId: string, userName: s
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button variant="ghost" className="w-full justify-start text-primary hover:bg-primary/5 font-black uppercase italic text-[9px] h-9">
-                    <KeyRound className="mr-2 h-3.5 w-3.5" /> Reset Access Key
+                    <KeyRound className="mr-2 h-3.5 w-3.5" /> Force Update Password
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="uppercase italic font-black text-center">Restore Access Key</DialogTitle>
+                    <DialogTitle className="uppercase italic font-black text-center">Credential Override</DialogTitle>
+                    <DialogDescription className="text-center text-[10px] font-bold uppercase tracking-widest">Define a new password manually for {userName}</DialogDescription>
                 </DialogHeader>
-                <div className="py-6 text-center space-y-4">
-                    <p className="text-sm font-bold uppercase tracking-tight text-zinc-500">
-                        Dispatch a secure restoration link to <br/>
-                        <strong className="text-primary">{userName}</strong>?
-                    </p>
+                <div className="py-6 space-y-4">
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase opacity-60">Define New Password</Label>
+                        <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input type="text" placeholder="Minimum 8 characters" value={password} onChange={e => setPassword(e.target.value)} className="h-12 pl-10 border-2 font-mono" />
+                        </div>
+                        <p className="text-[9px] text-muted-foreground italic font-medium">This will bypass the email reset flow and set the password instantly.</p>
+                    </div>
                 </div>
-                <DialogFooter>
-                    <Button onClick={handleSendResetLink} disabled={isResetting} className="w-full font-black uppercase italic">
-                        {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                        Authorize Dispatch
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild><Button variant="outline" className="w-full font-bold uppercase h-12">Cancel</Button></DialogClose>
+                    <Button onClick={handleUpdate} disabled={isUpdating || !password} className="flex-1 h-12 font-black uppercase italic shadow-xl">
+                        {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                        Set Password
                     </Button>
                 </DialogFooter>
             </DialogContent>

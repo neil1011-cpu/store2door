@@ -28,10 +28,10 @@ import { useSupabase } from '@/components/supabase-provider';
 import { Notifications } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
+import { AppLogo } from '@/components/app-logo';
 
 /**
  * @fileOverview Hardened Admin Authentication Guard.
- * Implements strict timeout and terminal state management to prevent loading hangs.
  */
 function AdminAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -53,7 +53,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
     checkInProgress.current = true;
 
     const checkRole = async () => {
-      // 10s Timeout protection for DB calls
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Auth Timeout')), 10000)
       );
@@ -65,7 +64,6 @@ function AdminAuthGuard({ children }: { children: ReactNode }) {
         if (data === true && !error) {
           setIsAdmin(true);
         } else {
-          // Fallback for Master Admin email
           if (user.email === 'admin@neilussolutions.com') {
             setIsAdmin(true);
           } else {
@@ -134,6 +132,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <SidebarProvider>
         <Sidebar className="border-r-2">
           <SidebarHeader className="p-4 border-b">
+             <AppLogo className="mb-4" />
              <div className="flex items-center gap-3 p-1">
                   <Avatar className="h-9 w-9 border-2 border-primary/20">
                       <AvatarImage src={user?.user_metadata?.avatar_url} />
