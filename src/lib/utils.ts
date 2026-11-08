@@ -44,7 +44,7 @@ export function calculateShippingCost(weight: number): number {
  */
 export function shouldShowPrice(status: string | undefined): boolean {
     const s = (status || '').toLowerCase();
-    // Allow visibility for received/processed items so users see estimated costs
+    // Allow visibility for all warehouse-stage items so users see estimated costs
     if (s === 'pending' || s === 'cancelled' || s === 'pre-alert') return false;
     return true;
 }
