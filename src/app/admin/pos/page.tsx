@@ -134,7 +134,6 @@ export default function POSPage() {
     const refreshUserData = useCallback(async (userId: string) => {
         setIsLoadingInvoices(true);
         try {
-            // Strictly fetch unpaid items ready for pickup
             const { data: shipmentsData, error } = await supabase.from('shipments')
                     .select('*')
                     .eq('profile_id', userId)
@@ -146,7 +145,6 @@ export default function POSPage() {
             
             setUserInvoices(shipmentsData || []);
             
-            // Calculate exact account standing for ready items
             const totalReady = (shipmentsData || []).reduce((sum, inv) => {
                 return sum + (Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0));
             }, 0);
@@ -278,7 +276,6 @@ export default function POSPage() {
 
     return (
         <div className="flex flex-col gap-4 md:gap-6 max-w-full mx-auto pb-20">
-            {/* Hidden Receipt for PDF Generation */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
                     <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
@@ -362,9 +359,7 @@ export default function POSPage() {
                                     )}
                                 </div>
                             ) : (
-                                <div className={cn(
-                                    "p-4 md:p-6 rounded-xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors duration-300 bg-primary", 
-                                )}>
+                                <div className="p-4 md:p-6 rounded-xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors duration-300 bg-primary">
                                     <div className="flex-1 min-w-0 w-full">
                                         <div className="flex items-center justify-between sm:justify-start gap-4">
                                             <p className="text-xl md:text-3xl font-black italic uppercase tracking-tighter truncate text-primary-foreground">{selectedUser.full_name}</p>

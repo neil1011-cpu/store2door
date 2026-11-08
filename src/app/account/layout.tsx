@@ -55,14 +55,12 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
             if (profileData) {
                 setProfile(profileData);
 
-                // Fetch All Financial & Logistics Context
                 const { data: shipmentsData, error: shipError } = await supabase.from('shipments')
                     .select('tracking_number, status, total_cost_jmd, payment_status, weight_lbs')
                     .eq('profile_id', user.id);
 
                 if (shipError) throw shipError;
 
-                // 1. Calculate Account Standing (Only Unpaid items with status "Ready for pick up")
                 const totalReady = (shipmentsData || [])
                     .filter(s => s.status?.toLowerCase() === 'ready for pick up' && s.payment_status === 'Unpaid')
                     .reduce((acc, curr) => {
