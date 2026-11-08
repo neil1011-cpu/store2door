@@ -145,6 +145,7 @@ export default function POSPage() {
             
             setUserInvoices(shipmentsData || []);
             
+            // STRICT ACCOUNT STANDING: Sum only Ready for Pickup items
             const totalReady = (shipmentsData || []).reduce((sum, inv) => {
                 return sum + (Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0));
             }, 0);
@@ -360,16 +361,16 @@ export default function POSPage() {
                                 </div>
                             ) : (
                                 <div className="p-4 md:p-6 rounded-xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors duration-300 bg-primary">
-                                    <div className="flex-1 min-w-0 w-full">
+                                    <div className="flex-1 min-w-0 w-full text-primary-foreground">
                                         <div className="flex items-center justify-between sm:justify-start gap-4">
-                                            <p className="text-xl md:text-3xl font-black italic uppercase tracking-tighter truncate text-primary-foreground">{selectedUser.full_name}</p>
+                                            <p className="text-xl md:text-3xl font-black italic uppercase tracking-tighter truncate">{selectedUser.full_name}</p>
                                             <div className="flex items-center gap-2 shrink-0">
                                                 <Badge variant="secondary" className="uppercase text-[10px] md:text-xs font-black italic h-7">{selectedUser.mailbox_number}</Badge>
                                                 <Button 
                                                     variant="ghost" 
                                                     size="icon" 
                                                     onClick={() => setSelectedUser(null)} 
-                                                    className="text-primary-foreground hover:bg-primary-foreground/10 transition-colors h-7 w-7 sm:hidden"
+                                                    className="text-primary-foreground hover:bg-white/10 transition-colors h-7 w-7 sm:hidden"
                                                 >
                                                     <X className="h-4 w-4" />
                                                 </Button>
@@ -377,15 +378,15 @@ export default function POSPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4 w-full sm:w-auto">
-                                        <div className="text-right bg-primary-foreground/10 p-3 md:p-4 rounded-xl border border-primary-foreground/10 flex-1 sm:flex-initial sm:min-w-[180px]">
-                                            <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1 text-primary-foreground">Current Ready Total</p>
-                                            <span className="text-lg md:text-2xl font-black italic tracking-tighter text-primary-foreground">JMD ${accountStanding.toLocaleString()}</span>
+                                        <div className="text-right bg-black/10 p-3 md:p-4 rounded-xl border border-white/10 flex-1 sm:flex-initial sm:min-w-[180px] text-primary-foreground">
+                                            <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Current Ready Total</p>
+                                            <span className="text-lg md:text-2xl font-black italic tracking-tighter">JMD ${accountStanding.toLocaleString()}</span>
                                         </div>
                                         <Button 
                                             variant="ghost" 
                                             size="icon" 
                                             onClick={() => setSelectedUser(null)} 
-                                            className="text-primary-foreground hover:bg-primary-foreground/10 transition-colors hidden sm:flex shrink-0"
+                                            className="text-primary-foreground hover:bg-white/10 transition-colors hidden sm:flex shrink-0"
                                         >
                                             <X className="h-5 w-5" />
                                         </Button>
@@ -469,21 +470,21 @@ export default function POSPage() {
                 </div>
 
                 <div className="lg:col-span-4 lg:sticky lg:top-24">
-                    <Card className="border-none shadow-2xl bg-indigo-50/30 rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
-                        <CardHeader className="bg-background/40 pb-4 md:pb-6 pt-6 md:pt-8 px-6 md:px-8 border-b border-indigo-100">
+                    <Card className="border-none shadow-2xl bg-indigo-50/30 dark:bg-indigo-950/10 rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
+                        <CardHeader className="bg-background/40 pb-4 md:pb-6 pt-6 md:pt-8 px-6 md:px-8 border-b border-indigo-100 dark:border-indigo-900/30">
                             <CardTitle className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-600 flex items-center gap-3 italic"><Receipt className="h-4 w-4" /> SETTLEMENT AUTHORITY</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6 md:space-y-8 px-6 md:px-8 py-6 md:py-8">
                             <div className="text-center space-y-1">
                                 <p className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground italic">Selected Total</p>
-                                <span className="text-3xl md:text-5xl font-black italic tracking-tighter">JMD ${calculatedSelectedTotal.toLocaleString()}</span>
+                                <span className="text-3xl md:text-5xl font-black italic tracking-tighter text-indigo-700 dark:text-indigo-400">JMD ${calculatedSelectedTotal.toLocaleString()}</span>
                             </div>
 
                             <div className="space-y-4">
                                 <Label className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">Payment Method</Label>
                                 <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-3 gap-2">
                                     {['Cash', 'Card', 'Transfer'].map(m => (
-                                        <Label key={m} className={cn("flex flex-col items-center justify-center p-3 md:p-4 rounded-xl md:rounded-2xl border-2 cursor-pointer transition-all", paymentMethod === m ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "text-muted-foreground border-transparent")}>
+                                        <Label key={m} className={cn("flex flex-col items-center justify-center p-3 md:p-4 rounded-xl md:rounded-2xl border-2 cursor-pointer transition-all", paymentMethod === m ? "border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30" : "text-muted-foreground border-transparent hover:bg-muted")}>
                                             <div className="mb-1 md:mb-2">{m === 'Cash' ? <Banknote className="h-4 w-4 md:h-6 md:w-6" /> : m === 'Card' ? <CreditCard className="h-4 w-4 md:h-6 md:w-6" /> : <Building2 className="h-4 w-4 md:h-6 md:w-6" />}</div>
                                             <span className="text-[8px] md:text-[9px] font-black uppercase italic">{m}</span>
                                             <RadioGroupItem value={m} className="sr-only" />
@@ -493,7 +494,7 @@ export default function POSPage() {
                             </div>
 
                             {paymentMethod === 'Cash' && selectedInvoices.size > 0 && (
-                                <div className="space-y-4 bg-background/60 p-4 md:p-6 rounded-2xl border border-indigo-100">
+                                <div className="space-y-4 bg-background/60 p-4 md:p-6 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 shadow-inner">
                                     <div className="space-y-2">
                                         <Label className="text-[8px] font-black uppercase tracking-[0.3em] text-indigo-500 ml-1">Tendered (JMD)</Label>
                                         <Input type="number" className="h-12 md:h-14 text-xl md:text-2xl font-black rounded-xl border-2" placeholder="0.00" value={cashReceived} onChange={e => setCashReceived(e.target.value)} />

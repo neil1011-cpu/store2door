@@ -67,12 +67,12 @@ export default function SetupAdminPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Setup failed.');
 
-      toast({ title: "Identity Established", description: "Admin account is now active. You may log in." });
+      toast({ title: "Identity Established", description: "Master Admin account is now active with your chosen password. You may now log in." });
       setRecoveryPassword('');
     } catch (err: any) {
       toast({ title: "Initialization Failed", description: err.message, variant: "destructive" });
     } finally {
-      setIsInitializing(true);
+      setIsInitializing(false);
     }
   };
 
@@ -104,20 +104,20 @@ export default function SetupAdminPage() {
         <Card className="border-none shadow-xl col-span-1">
             <CardHeader className="bg-primary/5">
                 <CardTitle className="text-sm font-black uppercase flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-primary" /> Admin Recovery
+                    <ShieldCheck className="h-4 w-4 text-primary" /> Master Access Setup
                 </CardTitle>
-                <CardDescription className="text-[10px] uppercase font-bold">Establish or reset master admin account.</CardDescription>
+                <CardDescription className="text-[10px] uppercase font-bold text-red-600">This defines the login for admin@neilussolutions.com</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase opacity-60">Master Email Identifier</Label>
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Authorized Admin Email</Label>
                     <Input value="admin@neilussolutions.com" readOnly className="bg-muted font-bold text-xs" />
                 </div>
                 <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase opacity-60">Recovery Password</Label>
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Set Administrative Password</Label>
                     <Input 
                       type="password" 
-                      placeholder="Min 8 characters" 
+                      placeholder="Minimum 8 characters" 
                       value={recoveryPassword} 
                       onChange={e => setRecoveryPassword(e.target.value)} 
                       className="border-2"
@@ -125,9 +125,12 @@ export default function SetupAdminPage() {
                 </div>
                 <Button onClick={handleInitializeAdmin} disabled={isInitializing} className="w-full font-black uppercase italic shadow-lg">
                     {isInitializing ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                    Initialize Master Admin
+                    Authorize Master Login
                 </Button>
             </CardContent>
+            <CardFooter className="bg-muted/30 p-4 border-t">
+                <p className="text-[8px] font-black uppercase leading-relaxed text-muted-foreground">Note: Standard users use default: FSTD-Welcome2025!</p>
+            </CardFooter>
         </Card>
 
         <Card className="border-none shadow-xl col-span-1">
@@ -137,7 +140,7 @@ export default function SetupAdminPage() {
                 </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
-                <p className="text-[10px] font-bold uppercase opacity-60">Keys Check:</p>
+                <p className="text-[10px] font-bold uppercase opacity-60">Secrets Status Check:</p>
                 <div className="space-y-2">
                     {envNames.length > 0 ? envNames.map(name => (
                         <div key={name} className="flex justify-between items-center p-2 rounded bg-green-50 border border-green-100">

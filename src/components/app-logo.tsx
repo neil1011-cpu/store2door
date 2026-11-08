@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -13,6 +12,7 @@ type AppLogoProps = {
 
 /**
  * @fileOverview Authoritative App Logo component using official FromStore2Door branding.
+ * This is the definitive logo for the entire platform.
  */
 export function AppLogo({ className, isLink = true, onClick }: AppLogoProps) {
   const content = (
