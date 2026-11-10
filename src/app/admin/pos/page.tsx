@@ -251,7 +251,7 @@ export default function POSPage() {
         setIsGeneratingPdf(true);
         try {
             const canvas = await html2canvas(receiptRef.current, { scale: 2, backgroundColor: '#ffffff' });
-            const imgData = canvas.toDataURL('image/png');
+            const imgData = canvas.toDataURL('png');
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, 200] });
             pdf.addImage(imgData, 'PNG', 0, 0, 80, (canvas.height * 80) / canvas.width);
             pdf.save(`Receipt-${receiptData.customer.mailbox_number}.pdf`);
@@ -371,7 +371,7 @@ export default function POSPage() {
                                                 <Button 
                                                     variant="ghost" 
                                                     size="icon" 
-                                                    onClick={() => setSelectedUser(null)} 
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedUser(null); }} 
                                                     className="text-primary-foreground hover:bg-white/10 transition-colors h-7 w-7 sm:hidden"
                                                 >
                                                     <X className="h-4 w-4" />
@@ -387,7 +387,7 @@ export default function POSPage() {
                                         <Button 
                                             variant="ghost" 
                                             size="icon" 
-                                            onClick={() => setSelectedUser(null)} 
+                                            onClick={(e) => { e.stopPropagation(); setSelectedUser(null); }} 
                                             className="text-primary-foreground hover:bg-white/10 transition-colors hidden sm:flex shrink-0"
                                         >
                                             <X className="h-5 w-5" />
