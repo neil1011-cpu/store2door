@@ -277,6 +277,7 @@ export default function POSPage() {
 
     return (
         <div className="flex flex-col gap-4 md:gap-6 max-w-full mx-auto pb-20">
+            {/* Hidden Receipt Element for PDF Generation */}
             <div className="fixed -left-[9999px] top-0">
                 {receiptData && (
                     <div ref={receiptRef} className="bg-white p-8 font-mono text-black w-[400px]">
@@ -328,6 +329,7 @@ export default function POSPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 <div className="lg:col-span-8 space-y-6">
+                    {/* Identification Card */}
                     <Card className="border shadow-md rounded-2xl">
                         <CardHeader className="bg-muted/30 py-3 border-b rounded-t-2xl">
                             <CardTitle className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-muted-foreground">
@@ -396,6 +398,7 @@ export default function POSPage() {
                         </CardContent>
                     </Card>
 
+                    {/* Parcel Queue */}
                     <Card className="border shadow-md overflow-hidden rounded-2xl min-h-[300px] md:min-h-[400px]">
                         <CardHeader className="bg-muted/30 py-3 border-b">
                             <CardTitle className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-muted-foreground">
@@ -469,6 +472,7 @@ export default function POSPage() {
                     </Card>
                 </div>
 
+                {/* Settlement Sidebar */}
                 <div className="lg:col-span-4 lg:sticky lg:top-24">
                     <Card className="border-none shadow-2xl bg-indigo-50/30 dark:bg-indigo-950/10 rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border-t-4 border-indigo-500">
                         <CardHeader className="bg-background/40 pb-4 md:pb-6 pt-6 md:pt-8 px-6 md:px-8 border-b border-indigo-100 dark:border-indigo-900/30">
