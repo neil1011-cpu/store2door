@@ -486,7 +486,7 @@ function DirectUpdatePasswordDialog({ userId, userName }: { userId: string, user
                 <DialogFooter className="gap-2">
                     <DialogClose asChild><Button variant="outline" className="w-full font-bold uppercase h-12">Cancel</Button></DialogClose>
                     <Button onClick={handleUpdate} disabled={isUpdating || !password} className="flex-1 h-12 font-black uppercase italic shadow-xl">
-                        {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                        {isUpdating ? <Loader2 className="animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
                         Set Password
                     </Button>
                 </DialogFooter>

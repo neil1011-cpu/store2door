@@ -363,7 +363,7 @@ export default function POSPage() {
                                 <div className="p-4 md:p-6 rounded-xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors duration-300 bg-primary">
                                     <div className="flex-1 min-w-0 w-full text-primary-foreground">
                                         <div className="flex items-center justify-between sm:justify-start gap-4">
-                                            <p className="text-xl md:text-3xl font-black italic uppercase tracking-tighter truncate">{selectedUser.full_name}</p>
+                                            <p className="text-xl md:text-3xl font-black italic uppercase tracking-tighter truncate text-primary-foreground">{selectedUser.full_name}</p>
                                             <div className="flex items-center gap-2 shrink-0">
                                                 <Badge variant="secondary" className="uppercase text-[10px] md:text-xs font-black italic h-7">{selectedUser.mailbox_number}</Badge>
                                                 <Button 
@@ -378,7 +378,7 @@ export default function POSPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4 w-full sm:w-auto">
-                                        <div className="text-right bg-black/10 p-3 md:p-4 rounded-xl border border-white/10 flex-1 sm:flex-initial sm:min-w-[180px] text-primary-foreground">
+                                        <div className="text-right bg-primary-foreground/10 p-3 md:p-4 rounded-xl border border-white/10 flex-1 sm:flex-initial sm:min-w-[180px] text-primary-foreground">
                                             <p className="text-[7px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Current Ready Total</p>
                                             <span className="text-lg md:text-2xl font-black italic tracking-tighter">JMD ${accountStanding.toLocaleString()}</span>
                                         </div>
