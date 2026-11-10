@@ -63,7 +63,11 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
 
                 // STRICT STANDING LOGIC: Unpaid and Ready for Pickup only
                 const totalReady = (shipmentsData || [])
-                    .filter(s => s.status?.toLowerCase() === 'ready for pick up' && s.payment_status === 'Unpaid')
+                    .filter(s => {
+                        const sStatus = (s.status || '').toLowerCase().trim();
+                        // Normalize status checks to match database values exactly
+                        return (sStatus === 'ready for pick up' || sStatus === 'ready for pickup') && s.payment_status === 'Unpaid';
+                    })
                     .reduce((acc, curr) => {
                         const cost = Number(curr.total_cost_jmd) || calculateShippingCost(Number(curr.weight_lbs) || 0);
                         return acc + cost;

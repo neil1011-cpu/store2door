@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Mail, Phone, Home, Trash2, KeyRound, Wallet, PlusCircle, ShieldCheck, ShieldAlert, Send, CheckCircle2, MapPin, Copy, Building2, Edit2, AlertCircle, TrendingDown, TrendingUp, Lock } from 'lucide-react';
@@ -25,7 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
-import { cn } from '@/lib/utils';
+import { cn, calculateShippingCost } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 
 export default function UserDetailsPage() {
@@ -82,6 +82,16 @@ export default function UserDetailsPage() {
     useEffect(() => {
         if (userId) fetchData();
     }, [fetchData, userId]);
+
+    // STRICT ACCOUNT STANDING: Only 'Ready for pick up' and 'Unpaid'
+    const readyTotal = useMemo(() => {
+        return shipments
+            .filter(s => {
+                const sStatus = (s.status || '').toLowerCase().trim();
+                return (sStatus === 'ready for pick up' || sStatus === 'ready for pickup') && s.payment_status === 'Unpaid';
+            })
+            .reduce((sum, s) => sum + (Number(s.total_cost_jmd) || calculateShippingCost(Number(s.weight_lbs) || 0)), 0);
+    }, [shipments]);
 
     const copyToClipboard = (text: string) => {
         if (!text) return;
@@ -255,10 +265,10 @@ export default function UserDetailsPage() {
 
                     <Card className="border shadow-sm">
                         <CardContent className="p-4 space-y-4">
-                            <div className={cn("p-4 rounded-xl border border-dashed text-center", Number(profile?.wallet_balance) < 0 ? "bg-red-50 border-red-200" : "bg-muted/10 border-muted")}>
-                                <p className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1 italic">Authorized Standing</p>
-                                <p className={cn("text-lg font-black italic tracking-tighter leading-none", Number(profile?.wallet_balance) < 0 ? "text-red-600" : "text-primary")}>
-                                    JMD ${Math.abs(Number(profile?.wallet_balance || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            <div className={cn("p-4 rounded-xl border border-dashed text-center", readyTotal > 0 ? "bg-red-50 border-red-200" : "bg-muted/10 border-muted")}>
+                                <p className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1 italic">Authorized Ready Total</p>
+                                <p className={cn("text-lg font-black italic tracking-tighter leading-none", readyTotal > 0 ? "text-red-600" : "text-primary")}>
+                                    JMD ${readyTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </p>
                             </div>
                             <AdjustBalanceDialog userId={profile?.id} userName={profile?.full_name} currentBalance={Number(profile?.wallet_balance || 0)} onSuccess={fetchData} />
@@ -478,7 +488,7 @@ function DirectUpdatePasswordDialog({ userId, userName }: { userId: string, user
                         <Label className="text-[10px] font-bold uppercase opacity-60">Define New Password</Label>
                         <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input type="text" placeholder="Minimum 8 characters" value={password} onChange={e => setPassword(e.target.value)} className="h-12 pl-10 border-2 font-mono" />
+                            <input type="text" placeholder="Minimum 8 characters" value={password} onChange={e => setPassword(e.target.value)} className="flex h-12 w-full rounded-md border border-input bg-background px-10 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono" />
                         </div>
                         <p className="text-[9px] text-muted-foreground italic font-medium">This will bypass the email reset flow and set the password instantly.</p>
                     </div>
