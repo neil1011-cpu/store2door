@@ -86,10 +86,7 @@ export default function UserDetailsPage() {
     // STRICT ACCOUNT STANDING: Only 'Ready for pick up' and 'Unpaid'
     const readyTotal = useMemo(() => {
         return shipments
-            .filter(s => {
-                const sStatus = (s.status || '').toLowerCase().trim();
-                return (sStatus.includes('ready') && sStatus.includes('pick')) && s.payment_status === 'Unpaid';
-            })
+            .filter(s => shouldShowPrice(s.status) && s.payment_status === 'Unpaid')
             .reduce((sum, s) => sum + (Number(s.total_cost_jmd) || calculateShippingCost(Number(s.weight_lbs) || 0)), 0);
     }, [shipments]);
 

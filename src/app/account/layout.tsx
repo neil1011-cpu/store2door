@@ -12,7 +12,7 @@ import { Wallet, Menu, TrendingDown, Loader2, LogOut, AlertTriangle } from 'luci
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Link from 'next/link';
-import { cn, calculateShippingCost } from '@/lib/utils';
+import { cn, calculateShippingCost, shouldShowPrice } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 
 const UserProfileContext = createContext<{ profile: UserProfile | null; balance: number; totalToBePaid: number }>({ profile: null, balance: 0, totalToBePaid: 0 });
@@ -64,9 +64,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 // STRICT STANDING LOGIC: Unpaid and Ready for Pickup only
                 const totalReady = (shipmentsData || [])
                     .filter(s => {
-                        const sStatus = (s.status || '').toLowerCase().trim();
-                        // Extremely robust status check to handle variants like 'Ready for Pickup' or extra spaces
-                        return (sStatus.includes('ready') && sStatus.includes('pick')) && s.payment_status === 'Unpaid';
+                        return shouldShowPrice(s.status) && s.payment_status === 'Unpaid';
                     })
                     .reduce((acc, curr) => {
                         const cost = Number(curr.total_cost_jmd) || calculateShippingCost(Number(curr.weight_lbs) || 0);
