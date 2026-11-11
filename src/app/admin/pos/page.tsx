@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
-import { cn, calculateShippingCost } from '@/lib/utils';
+import { cn, calculateShippingCost, shouldShowPrice } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
     Dialog, 
@@ -134,25 +134,20 @@ export default function POSPage() {
     const refreshUserData = useCallback(async (userId: string) => {
         setIsLoadingInvoices(true);
         try {
+            // STRICT POS FETCH: Only items marked 'Ready for pick up' that are Unpaid
             const { data: shipmentsData, error } = await supabase.from('shipments')
                     .select('*')
                     .eq('profile_id', userId)
-                    .or('status.ilike.%ready%')
+                    .eq('status', 'Ready for pick up')
                     .eq('payment_status', 'Unpaid')
                     .order('created_at', { ascending: false });
 
             if (error) throw error;
             
-            // Final client-side filter for absolute precision
-            const readyItems = (shipmentsData || []).filter(s => {
-                const st = (s.status || '').toLowerCase();
-                return st.includes('ready') && st.includes('pick');
-            });
-
-            setUserInvoices(readyItems);
+            setUserInvoices(shipmentsData || []);
             
-            // STRICT ACCOUNT STANDING: Sum only Ready for Pickup items
-            const totalReady = (readyItems).reduce((sum, inv) => {
+            // STRICT ACCOUNT STANDING
+            const totalReady = (shipmentsData || []).reduce((sum, inv) => {
                 return sum + (Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0));
             }, 0);
             
@@ -210,6 +205,7 @@ export default function POSPage() {
             const totalToSettle = calculatedSelectedTotal;
             const trackingNumbers = itemsToSnap.map(s => s.tracking_number).filter(Boolean);
 
+            // Update status to Delivered and mark as Paid
             const { error: shipError } = await supabase
                 .from('shipments')
                 .update({ 
