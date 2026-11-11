@@ -41,12 +41,12 @@ export function calculateShippingCost(weight: number): number {
 
 /**
  * Determines if a price should be shown based on shipment status.
+ * REFINED: Only show price when strictly in 'Ready for pick up' status.
  */
 export function shouldShowPrice(status: string | undefined): boolean {
-    const s = (status || '').toLowerCase();
-    // Allow visibility for all warehouse-stage items so users see estimated costs
-    if (s === 'pending' || s === 'cancelled' || s === 'pre-alert') return false;
-    return true;
+    const s = (status || '').toLowerCase().trim();
+    // The user strictly wants the price visible ONLY when the item is ready for collection.
+    return s === 'ready for pick up' || s === 'ready for pickup';
 }
 
 /**

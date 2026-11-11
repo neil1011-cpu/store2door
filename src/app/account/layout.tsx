@@ -65,8 +65,8 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 const totalReady = (shipmentsData || [])
                     .filter(s => {
                         const sStatus = (s.status || '').toLowerCase().trim();
-                        // Normalize status checks to match database values exactly
-                        return (sStatus === 'ready for pick up' || sStatus === 'ready for pickup') && s.payment_status === 'Unpaid';
+                        // Extremely robust status check to handle variants like 'Ready for Pickup' or extra spaces
+                        return (sStatus.includes('ready') && sStatus.includes('pick')) && s.payment_status === 'Unpaid';
                     })
                     .reduce((acc, curr) => {
                         const cost = Number(curr.total_cost_jmd) || calculateShippingCost(Number(curr.weight_lbs) || 0);

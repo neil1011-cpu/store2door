@@ -137,16 +137,22 @@ export default function POSPage() {
             const { data: shipmentsData, error } = await supabase.from('shipments')
                     .select('*')
                     .eq('profile_id', userId)
-                    .eq('status', 'Ready for pick up')
+                    .or('status.ilike.%ready%')
                     .eq('payment_status', 'Unpaid')
                     .order('created_at', { ascending: false });
 
             if (error) throw error;
             
-            setUserInvoices(shipmentsData || []);
+            // Final client-side filter for absolute precision
+            const readyItems = (shipmentsData || []).filter(s => {
+                const st = (s.status || '').toLowerCase();
+                return st.includes('ready') && st.includes('pick');
+            });
+
+            setUserInvoices(readyItems);
             
             // STRICT ACCOUNT STANDING: Sum only Ready for Pickup items
-            const totalReady = (shipmentsData || []).reduce((sum, inv) => {
+            const totalReady = (readyItems).reduce((sum, inv) => {
                 return sum + (Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0));
             }, 0);
             
