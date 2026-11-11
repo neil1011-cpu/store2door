@@ -25,7 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
-import { cn, calculateShippingCost } from '@/lib/utils';
+import { cn, calculateShippingCost, shouldShowPrice } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 
 export default function UserDetailsPage() {
@@ -88,7 +88,7 @@ export default function UserDetailsPage() {
         return shipments
             .filter(s => {
                 const sStatus = (s.status || '').toLowerCase().trim();
-                return (sStatus === 'ready for pick up' || sStatus === 'ready for pickup') && s.payment_status === 'Unpaid';
+                return (sStatus.includes('ready') && sStatus.includes('pick')) && s.payment_status === 'Unpaid';
             })
             .reduce((sum, s) => sum + (Number(s.total_cost_jmd) || calculateShippingCost(Number(s.weight_lbs) || 0)), 0);
     }, [shipments]);
@@ -411,7 +411,11 @@ export default function UserDetailsPage() {
                                             <TableCell><Badge variant="outline" className="font-black italic uppercase text-[8px] border-2 py-0 h-5 px-2">{s.status || 'Updated'}</Badge></TableCell>
                                             <TableCell className="text-right pr-6">
                                                 <span className="text-sm font-black italic tracking-tighter text-primary">
-                                                    ${Number(s.total_cost_jmd || 0).toLocaleString()}
+                                                    {shouldShowPrice(s.status) ? (
+                                                        `$${Number(s.total_cost_jmd || 0).toLocaleString()}`
+                                                    ) : (
+                                                        <span className="text-[8px] opacity-40 uppercase font-black">TBD</span>
+                                                    )}
                                                 </span>
                                             </TableCell>
                                         </TableRow>

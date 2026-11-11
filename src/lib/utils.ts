@@ -41,12 +41,12 @@ export function calculateShippingCost(weight: number): number {
 
 /**
  * Determines if a price should be shown based on shipment status.
- * REFINED: Only show price when strictly in 'Ready for pick up' status.
+ * STRICT RULE: Only show price when strictly in 'Ready for pick up' status.
  */
 export function shouldShowPrice(status: string | undefined): boolean {
     const s = (status || '').toLowerCase().trim();
-    // The user strictly wants the price visible ONLY when the item is ready for collection.
-    return s === 'ready for pick up' || s === 'ready for pickup';
+    // Matches "Ready for pick up", "Ready for pickup", "Ready for Pickup" etc.
+    return s.includes('ready') && s.includes('pick');
 }
 
 /**

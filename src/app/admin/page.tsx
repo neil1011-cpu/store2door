@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -20,6 +19,7 @@ import {
     CheckCircle2
 } from 'lucide-react';
 import Link from 'next/link';
+import { shouldShowPrice } from '@/lib/utils';
 
 export default function AdminDashboardPage() {
     const { supabase } = useSupabase();
@@ -166,7 +166,11 @@ export default function AdminDashboardPage() {
                                         </TableCell>
                                         <TableCell><Badge variant="outline" className="text-[8px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
                                         <TableCell className="text-right pr-6 font-black italic text-sm text-primary">
-                                            JMD ${Number(s.total_cost_jmd || 0).toLocaleString()}
+                                            {shouldShowPrice(s.status) ? (
+                                                `JMD $${Number(s.total_cost_jmd || 0).toLocaleString()}`
+                                            ) : (
+                                                <span className="text-[8px] opacity-40 uppercase font-black">TBD</span>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 )) : (
