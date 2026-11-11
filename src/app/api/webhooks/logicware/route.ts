@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { mapLogicwareStatus, STATUS_PRIORITY } from '@/lib/utils';
+import { getLogicwareClient } from '@/lib/logicware';
 
 /**
  * @fileOverview Hardened Logicware Inbound Webhook.
  * Implements strict identity resolution, protection against out-of-order events, 
- * and ownership locking to prevent misassignment of packages.
+ * and data preservation to prevent empty updates from overwriting local records.
  */
 
 export async function POST(request: Request) {
@@ -41,9 +42,9 @@ export async function POST(request: Request) {
 
         const webhookSecret = configDoc?.config_value?.webhookSecret;
 
-        // SIGNATURE VALIDATION: Reject if missing or masked
+        // SIGNATURE VALIDATION: Strictly reject if missing or masked
         if (!webhookSecret || webhookSecret === '' || webhookSecret === '********') {
-            console.error(`[WEBHOOK:${requestId}] Security Failure: Webhook secret not initialized in registry.`);
+            console.error(`[WEBHOOK:${requestId}] Security Failure: Hub security not initialized in registry.`);
             return NextResponse.json({ message: 'Unauthorized: Hub security not initialized' }, { status: 401 });
         }
 
@@ -68,9 +69,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Invalid payload structure' }, { status: 400 });
         }
 
-        // Standardize tracking and mailbox for lookups
+        // Standardize tracking for consistent lookups
         const trackingId = (data.trackingNumber || data.code || '').toString().trim().toUpperCase();
-        const mailboxRaw = (data.shipperAddressCode || data.shipper?.referenceCode || data.referenceCode || '').toString().trim();
         const weight = parseFloat(data.weightLbs ?? data.weight ?? 0);
         const rawStatus = data.status?.name || data.status || 'Updated';
         const status = mapLogicwareStatus(rawStatus);
@@ -81,28 +81,43 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, message: 'Missing tracking' });
         }
 
-        // 1. CONFLICT & OWNERSHIP CHECK: Locate existing local records
+        // 1. OWNER LOCK: Locate existing local records by tracking number
         const [
             { data: existingShipment, error: shipCheckError },
             { data: existingPreAlert, error: alertCheckError }
         ] = await Promise.all([
-            adminClient.from('shipments').select('profile_id, status').eq('tracking_number', trackingId).maybeSingle(),
-            adminClient.from('pre_alerts').select('profile_id, status').eq('tracking_number', trackingId).maybeSingle()
+            adminClient.from('shipments').select('*').eq('tracking_number', trackingId).maybeSingle(),
+            adminClient.from('pre_alerts').select('*').eq('tracking_number', trackingId).maybeSingle()
         ]);
 
         if (shipCheckError || alertCheckError) {
             console.error(`[WEBHOOK:${requestId}] Database lookup error:`, (shipCheckError || alertCheckError));
         }
 
-        // 2. IDENTITY RESOLUTION: Only perform if we don't already have a valid owner
+        // 2. IDENTITY RESOLUTION: Only perform if we don't already have an established owner
         let targetProfileId = existingShipment?.profile_id || existingPreAlert?.profile_id || null;
 
         if (!targetProfileId) {
-            // Normalize incoming mailbox (strip non-alphanumeric, uppercase)
+            let mailboxRaw = (data.shipperAddressCode || data.shipper?.referenceCode || '').toString().trim();
+
+            // Fallback for missing code: Fetch package details from Hub API
+            if (!mailboxRaw && logicwareId) {
+                try {
+                    const lwClient = await getLogicwareClient();
+                    if (lwClient) {
+                        const hubPkg = await lwClient.packages.get(logicwareId);
+                        mailboxRaw = (hubPkg?.shipper?.referenceCode || '').toString().trim();
+                    }
+                } catch (lwErr: any) {
+                    console.error(`[WEBHOOK:${requestId}] Hub API Lookup Failure: ${lwErr.message}`);
+                    return NextResponse.json({ message: 'Dependency Lookup Failed' }, { status: 500 });
+                }
+            }
+
             const normalizedMailbox = mailboxRaw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
             if (!normalizedMailbox) {
-                console.warn(`[WEBHOOK:${requestId}] Identity Resolution Skipped: Empty shipperAddressCode for ${trackingId}.`);
+                console.warn(`[WEBHOOK:${requestId}] Identity Resolution Skipped: No reference code for ${trackingId}.`);
             } else {
                 const { data: profiles, error: profileQueryError } = await adminClient
                     .from('profiles')
@@ -111,77 +126,80 @@ export async function POST(request: Request) {
 
                 if (profileQueryError) {
                     console.error(`[WEBHOOK:${requestId}] Profile query error:`, profileQueryError);
+                    return NextResponse.json({ message: 'Registry Failure' }, { status: 500 });
                 }
 
                 if (profiles && profiles.length === 1) {
                     targetProfileId = profiles[0].id;
-                } else if (profiles && profiles.length > 1) {
-                    console.warn(`[WEBHOOK:${requestId}] Ambiguous Identity: Multiple matches for mailbox ${normalizedMailbox}. Skipping assignment.`);
                 } else {
-                    console.warn(`[WEBHOOK:${requestId}] Identity Mismatch: No customer found matching mailbox ${normalizedMailbox} (Raw: ${mailboxRaw}) for ${trackingId}.`);
+                    console.warn(`[WEBHOOK:${requestId}] Identity Mismatch: No unique profile for mailbox ${normalizedMailbox} (${trackingId}).`);
                 }
             }
         }
 
-        // If we still have no profile ID, we cannot safely record this event
+        // Final owner check
         if (!targetProfileId) {
             return NextResponse.json({ success: true, message: 'Unresolved owner - event ignored' });
         }
 
-        // 3. PRIORITY PROTECTION: Prevent "downgrading" statuses (e.g., InTransit overwriting ReadyForPickup)
+        // 3. PRIORITY PROTECTION: Prevent "downgrading" statuses
         const currentStatus = existingShipment?.status || existingPreAlert?.status || 'Pending';
         const currentPriority = STATUS_PRIORITY[currentStatus] || 0;
         const newPriority = STATUS_PRIORITY[status] || 0;
 
         if (currentPriority > newPriority) {
-            console.log(`[WEBHOOK:${requestId}] Priority Protection: Ignoring ${status} for ${trackingId} (Current: ${currentStatus})`);
+            console.log(`[WEBHOOK:${requestId}] Priority Protection: Ignoring ${status} (Current: ${currentStatus})`);
             return NextResponse.json({ success: true, message: 'Priority protection active' });
         }
 
-        // 4. REGISTRY UPDATE
-        const isPreAlertEvent = (rawStatus.toLowerCase().includes('pre-alert') || rawStatus.toLowerCase().includes('prealert')) || rawStatus.toLowerCase().includes('pending');
+        // 4. DATA PRESERVATION: Never overwrite positive weight or valid descriptions with empty values
+        const finalWeight = weight > 0 ? weight : (existingShipment?.weight_lbs || existingPreAlert?.weight_lbs || 0);
+        const incomingDesc = data.contents || data.description;
+        const finalContents = incomingDesc || (existingShipment?.contents || existingPreAlert?.contents || 'Hub Update');
+
+        // 5. REGISTRY UPDATE
+        const isPreAlertEvent = (rawStatus.toLowerCase().includes('pre-alert') || rawStatus.toLowerCase().includes('pending'));
         
         if (isPreAlertEvent && !existingShipment) {
             const { error: upsertErr } = await adminClient.from('pre_alerts').upsert({
                 profile_id: targetProfileId,
                 tracking_number: trackingId,
-                contents: data.contents || data.description || 'Hub Update',
-                weight_lbs: weight,
+                contents: finalContents,
+                weight_lbs: finalWeight,
                 status: 'Pending',
                 logicware_id: logicwareId
             }, { onConflict: 'tracking_number' });
             
             if (upsertErr) {
                 console.error(`[WEBHOOK:${requestId}] Pre-alert update failure:`, upsertErr);
-                return NextResponse.json({ message: 'Registry update failure' }, { status: 500 });
+                return NextResponse.json({ message: 'Registry write error' }, { status: 500 });
             }
         } else {
             const { error: upsertErr } = await adminClient.from('shipments').upsert({
                 profile_id: targetProfileId,
                 tracking_number: trackingId,
-                contents: data.contents || data.description || 'Hub Update',
-                weight_lbs: weight,
+                contents: finalContents,
+                weight_lbs: finalWeight,
                 status: status,
                 logicware_id: logicwareId
             }, { onConflict: 'tracking_number' });
             
             if (upsertErr) {
                 console.error(`[WEBHOOK:${requestId}] Shipment update failure:`, upsertErr);
-                return NextResponse.json({ message: 'Registry update failure' }, { status: 500 });
+                return NextResponse.json({ message: 'Registry write error' }, { status: 500 });
             }
 
-            // Cleanup associated pre-alert if it exists
             if (existingPreAlert) {
                 await adminClient.from('pre_alerts').update({ status: 'Processed' }).eq('tracking_number', trackingId);
             }
         }
 
-        // 5. AUDIT LOG
+        // 6. AUDIT LOG
         await adminClient.from('system_logs').insert({
             log_type: 'webhook_processed',
-            description: `Synchronized ${event} for ${trackingId}. Status: ${status}`,
+            description: `Sync: ${event} for ${trackingId}. Status: ${status}`,
             actor_id: targetProfileId,
-            metadata: { rawStatus, status, logicwareId, event, mailboxRaw }
+            metadata: { rawStatus, status, logicwareId, event }
         });
 
         return NextResponse.json({ success: true });
