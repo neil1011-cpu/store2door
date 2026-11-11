@@ -69,7 +69,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Invalid payload structure' }, { status: 400 });
         }
 
-        // Standardize tracking for consistent lookups
+        // Standardize tracking for consistent lookups (Case-Insensitive Consistency)
         const trackingId = (data.trackingNumber || data.code || '').toString().trim().toUpperCase();
         const weight = parseFloat(data.weightLbs ?? data.weight ?? 0);
         const rawStatus = data.status?.name || data.status || 'Updated';
@@ -90,50 +90,59 @@ export async function POST(request: Request) {
             adminClient.from('pre_alerts').select('*').eq('tracking_number', trackingId).maybeSingle()
         ]);
 
-        if (shipCheckError || alertCheckError) {
-            console.error(`[WEBHOOK:${requestId}] Database lookup error:`, (shipCheckError || alertCheckError));
-        }
+        if (shipCheckError) console.error(`[WEBHOOK:${requestId}] Shipments lookup error:`, shipCheckError.message, shipCheckError.code);
+        if (alertCheckError) console.error(`[WEBHOOK:${requestId}] Pre-alerts lookup error:`, alertCheckError.message, alertCheckError.code);
 
         // 2. IDENTITY RESOLUTION: Only perform if we don't already have an established owner
         let targetProfileId = existingShipment?.profile_id || existingPreAlert?.profile_id || null;
+        let mailboxRaw = (data.shipperAddressCode || '').toString().trim();
 
-        if (!targetProfileId) {
-            let mailboxRaw = (data.shipperAddressCode || data.shipper?.referenceCode || '').toString().trim();
-
-            // Fallback for missing code: Fetch package details from Hub API
-            if (!mailboxRaw && logicwareId) {
-                try {
-                    const lwClient = await getLogicwareClient();
-                    if (lwClient) {
-                        const hubPkg = await lwClient.packages.get(logicwareId);
-                        mailboxRaw = (hubPkg?.shipper?.referenceCode || '').toString().trim();
-                    }
-                } catch (lwErr: any) {
-                    console.error(`[WEBHOOK:${requestId}] Hub API Lookup Failure: ${lwErr.message}`);
-                    return NextResponse.json({ message: 'Dependency Lookup Failed' }, { status: 500 });
-                }
+        if (!mailboxRaw && !targetProfileId) {
+            const shipperId = data.shipperId;
+            if (!shipperId) {
+                console.warn(`[WEBHOOK:${requestId}] Skipping: Missing shipperId and shipperAddressCode for ${trackingId}`);
+                return NextResponse.json({ success: true, message: 'Unresolved owner - missing identifiers' });
             }
 
-            const normalizedMailbox = mailboxRaw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            try {
+                const lwClient = await getLogicwareClient();
+                if (lwClient) {
+                    const shipper = await lwClient.shippers.get(shipperId);
+                    mailboxRaw = (shipper.referenceCode || '').trim();
+                    
+                    if (!mailboxRaw) {
+                        console.warn(`[WEBHOOK:${requestId}] Skipping: Shipper ${shipperId} has no referenceCode for ${trackingId}`);
+                        return NextResponse.json({ success: true, message: 'Unresolved owner - missing reference code' });
+                    }
+                }
+            } catch (lwErr: any) {
+                const apiStatus = lwErr?.status || lwErr?.response?.status;
+                if (apiStatus === 404) {
+                    console.warn(`[WEBHOOK:${requestId}] Permanent Failure: Shipper ${shipperId} not found for ${trackingId}`);
+                    return NextResponse.json({ success: true, message: 'Unresolved owner - shipper not found' });
+                }
+                console.error(`[WEBHOOK:${requestId}] Hub API Failure: ${lwErr.message}`);
+                return NextResponse.json({ message: 'Dependency Lookup Failed' }, { status: 500 });
+            }
+        }
 
-            if (!normalizedMailbox) {
-                console.warn(`[WEBHOOK:${requestId}] Identity Resolution Skipped: No reference code for ${trackingId}.`);
+        const normalizedMailbox = mailboxRaw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+        if (normalizedMailbox && !targetProfileId) {
+            const { data: profiles, error: profileQueryError } = await adminClient
+                .from('profiles')
+                .select('id')
+                .eq('mailbox_number', normalizedMailbox);
+
+            if (profileQueryError) {
+                console.error(`[WEBHOOK:${requestId}] Profile query error:`, profileQueryError.message);
+                return NextResponse.json({ message: 'Registry Failure' }, { status: 500 });
+            }
+
+            if (profiles && profiles.length === 1) {
+                targetProfileId = profiles[0].id;
             } else {
-                const { data: profiles, error: profileQueryError } = await adminClient
-                    .from('profiles')
-                    .select('id')
-                    .eq('mailbox_number', normalizedMailbox);
-
-                if (profileQueryError) {
-                    console.error(`[WEBHOOK:${requestId}] Profile query error:`, profileQueryError);
-                    return NextResponse.json({ message: 'Registry Failure' }, { status: 500 });
-                }
-
-                if (profiles && profiles.length === 1) {
-                    targetProfileId = profiles[0].id;
-                } else {
-                    console.warn(`[WEBHOOK:${requestId}] Identity Mismatch: No unique profile for mailbox ${normalizedMailbox} (${trackingId}).`);
-                }
+                console.warn(`[WEBHOOK:${requestId}] Identity Mismatch: No unique profile for mailbox ${normalizedMailbox} (${trackingId}). Found: ${profiles?.length || 0}`);
             }
         }
 
@@ -171,7 +180,7 @@ export async function POST(request: Request) {
             }, { onConflict: 'tracking_number' });
             
             if (upsertErr) {
-                console.error(`[WEBHOOK:${requestId}] Pre-alert update failure:`, upsertErr);
+                console.error(`[WEBHOOK:${requestId}] Pre-alert update failure:`, upsertErr.message, upsertErr.code, upsertErr.details);
                 return NextResponse.json({ message: 'Registry write error' }, { status: 500 });
             }
         } else {
@@ -185,7 +194,7 @@ export async function POST(request: Request) {
             }, { onConflict: 'tracking_number' });
             
             if (upsertErr) {
-                console.error(`[WEBHOOK:${requestId}] Shipment update failure:`, upsertErr);
+                console.error(`[WEBHOOK:${requestId}] Shipment update failure:`, upsertErr.message, upsertErr.code, upsertErr.details);
                 return NextResponse.json({ message: 'Registry write error' }, { status: 500 });
             }
 
