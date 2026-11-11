@@ -435,7 +435,7 @@ export function AccountTab({ details }: { details: UserProfile }) {
 
 export function SupportTab() {
     return (
-        <div className="max-w-2xl mx-auto py-10 space-y-8">
+        <div className="max-w-2xl auto py-10 space-y-8">
             <div className="text-center space-y-4">
                 <h2 className="text-4xl font-black italic uppercase tracking-tighter text-foreground">Worldwide Support</h2>
                 <p className="text-muted-foreground font-bold uppercase text-[10px] tracking-[0.2em]">Dedicated logistics lifeline.</p>
@@ -450,4 +450,189 @@ export function SupportTab() {
             </div>
         </div>
     );
+}
+
+const CUSTOMS_RATES = {
+  GENERAL: { duty: 0.20 },
+  LAPTOPS_TABLETS: { duty: 0 },
+  COMPUTERS: { duty: 0 },
+  CELL_PHONES: { duty: 0.20 },
+  CLOTHING: { duty: 0.20 },
+  SHOES: { duty: 0.20 },
+  AUTO_PARTS: { duty: 0.30 },
+  COSMETICS: { duty: 0.20 },
+  BOOKS: { duty: 0 },
+  ELECTRONICS_OTHER: { duty: 0.20 },
+};
+
+const USD_TO_JMD_RATE = 156; 
+const DE_MINIMIS_THRESHOLD = 100;
+const INSURANCE_RATE = 0.015;
+const SCF_RATE = 0.003;
+
+type Category = keyof typeof CUSTOMS_RATES;
+
+export function CustomsCalculatorTab() {
+  const [price, setPrice] = useState('');
+  const [weight, setWeight] = useState('');
+  const [category, setCategory] = useState<Category>('GENERAL');
+  const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'JMD'>('JMD');
+
+  const [calculation, setCalculation] = useState({
+    freight: 0,
+    importDuty: 0,
+    scf: 0,
+    caf: 0,
+    customsTotal: 0,
+    total: 0,
+    isDutyFree: false,
+    calculated: false,
+  });
+
+  const handleCalculate = () => {
+    const itemPrice = parseFloat(price) || 0;
+    const w = parseFloat(weight) || 0;
+    const shippingCostJmd = calculateShippingCost(w);
+    const shippingCostUsd = shippingCostJmd / USD_TO_JMD_RATE;
+    
+    if (itemPrice <= DE_MINIMIS_THRESHOLD) {
+        setCalculation({
+            freight: shippingCostUsd,
+            importDuty: 0,
+            scf: 0,
+            caf: 0,
+            customsTotal: 0,
+            total: shippingCostUsd,
+            isDutyFree: true,
+            calculated: true,
+        });
+        return;
+    }
+
+    const insurance = itemPrice * INSURANCE_RATE;
+    const cif = itemPrice + insurance + shippingCostUsd;
+    const rates = CUSTOMS_RATES[category];
+    const importDuty = cif * rates.duty;
+    const scf = cif * SCF_RATE;
+    const getCAF = (val: number) => val <= 500 ? 2500 : val <= 1000 ? 5000 : val <= 2500 ? 10000 : val <= 5000 ? 20000 : 40000;
+    const cafJmd = getCAF(itemPrice);
+    const cafUsd = cafJmd / USD_TO_JMD_RATE;
+    const customsTotal = importDuty + scf + cafUsd;
+    const total = shippingCostUsd + customsTotal;
+
+    setCalculation({
+      freight: shippingCostUsd,
+      importDuty,
+      scf,
+      caf: cafUsd,
+      customsTotal,
+      total,
+      isDutyFree: false,
+      calculated: true,
+    });
+  };
+
+  const formatCurrency = (value: number) => {
+    const finalValue = displayCurrency === 'JMD' ? value * USD_TO_JMD_RATE : value;
+    return finalValue.toLocaleString('en-US', { 
+        style: 'currency', 
+        currency: displayCurrency,
+        minimumFractionDigits: displayCurrency === 'JMD' ? 0 : 2,
+        maximumFractionDigits: displayCurrency === 'JMD' ? 0 : 2,
+    });
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                    <Calculator className="h-4 w-4" /> 01. Package Details
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-4">
+                <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Item Value (USD)</Label>
+                    <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input type="number" placeholder="0.00" value={price} onChange={(e) => setPrice(e.target.value)} className="pl-10 h-12 border-2" />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Weight (LBS)</Label>
+                    <div className="relative">
+                        <Weight className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input type="number" placeholder="0.00" value={weight} onChange={(e) => setWeight(e.target.value)} className="pl-10 h-12 border-2" />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">JCA Category</Label>
+                    <Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}>
+                        <SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="GENERAL">General Goods (20%)</SelectItem>
+                            <SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem>
+                            <SelectItem value="CELL_PHONES">Cell Phones (20%)</SelectItem>
+                            <SelectItem value="CLOTHING">Clothing (20%)</SelectItem>
+                            <SelectItem value="SHOES">Shoes (20%)</SelectItem>
+                            <SelectItem value="AUTO_PARTS">Auto Parts (30%)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <Button onClick={handleCalculate} className="w-full h-14 font-black uppercase italic shadow-lg">Calculate Estimate</Button>
+            </CardContent>
+        </Card>
+
+        <Card className="shadow-lg border-primary/20 overflow-hidden">
+            <CardHeader className="bg-muted/30">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest opacity-60">02. Landed Cost Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+                {calculation.calculated ? (
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-dashed">
+                            <span className="text-[10px] font-black uppercase opacity-60">Currency Mode</span>
+                            <div className="flex items-center gap-2">
+                                <span className={cn("text-[9px] font-bold uppercase", displayCurrency === 'USD' ? "text-primary" : "opacity-40")}>USD</span>
+                                <Switch checked={displayCurrency === 'JMD'} onCheckedChange={(c) => setDisplayCurrency(checked => c ? 'JMD' : 'USD')} />
+                                <span className={cn("text-[9px] font-bold uppercase", displayCurrency === 'JMD' ? "text-primary" : "opacity-40")}>JMD</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground font-bold flex items-center gap-2"><Truck className="h-4 w-4" /> Freight Fee</span>
+                                <span className="font-black italic">{formatCurrency(calculation.freight)}</span>
+                            </div>
+
+                            <Separator />
+
+                            {calculation.isDutyFree ? (
+                                <Alert className="bg-green-50 border-green-200">
+                                    <Info className="h-4 w-4 text-green-600" />
+                                    <AlertDescription className="text-[10px] font-bold uppercase text-green-700">Duty Free: Value is $100 USD or less.</AlertDescription>
+                                </Alert>
+                            ) : (
+                                <div className="space-y-3 bg-muted/50 p-4 rounded-xl">
+                                    <div className="flex justify-between text-xs"><span>Import Duty</span><span className="font-bold">{formatCurrency(calculation.importDuty)}</span></div>
+                                    <div className="flex justify-between text-xs"><span>Compliance (SCF)</span><span className="font-bold">{formatCurrency(calculation.scf)}</span></div>
+                                    <div className="flex justify-between text-xs"><span>Admin Fee (CAF)</span><span className="font-bold">{formatCurrency(calculation.caf)}</span></div>
+                                    <Separator className="opacity-20" />
+                                    <div className="flex justify-between text-xs font-black uppercase"><span>Customs Total</span><span>{formatCurrency(calculation.customsTotal)}</span></div>
+                                </div>
+                            )}
+
+                            <div className="p-6 rounded-2xl bg-primary text-primary-foreground text-center shadow-xl">
+                                <span className="text-[9px] font-black uppercase tracking-[0.2em] block mb-2 opacity-60">Estimated Total</span>
+                                <span className="text-4xl font-black italic tracking-tighter block">{formatCurrency(calculation.total)}</span>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="h-64 flex flex-col items-center justify-center text-muted-foreground opacity-30 italic"><Calculator className="h-12 w-12 mb-4" /><p>Enter details to estimate cost.</p></div>
+                )}
+            </CardContent>
+        </Card>
+    </div>
+  );
 }
