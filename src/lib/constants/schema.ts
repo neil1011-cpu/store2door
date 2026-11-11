@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     trn text CHECK (trn ~ '^[0-9]{9}$'),
     mailbox_number text UNIQUE,
     wallet_balance numeric(12,2) DEFAULT 0 NOT NULL,
-    logicware_id text UNIQUE,
     created_at timestamptz DEFAULT now() NOT NULL,
     updated_at timestamptz DEFAULT now() NOT NULL
 );
@@ -127,7 +126,6 @@ CREATE TABLE IF NOT EXISTS public.shipments (
     logicware_id text UNIQUE,
     manifest_id uuid REFERENCES public.manifests(id),
     created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz DEFAULT now() NOT NULL,
     legacy_firebase_id text UNIQUE
 );
 
