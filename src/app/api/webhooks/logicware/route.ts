@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { mapLogicwareStatus, STATUS_PRIORITY } from '@/lib/utils';
 import { getLogicwareClient } from '@/lib/logicware';
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
         if (alertCheckError) console.error(`[WEBHOOK:${requestId}] Pre-alerts lookup error:`, alertCheckError.message, alertCheckError.code);
 
         // 2. IDENTITY RESOLUTION: Only perform if we don't already have an established owner
-        let targetProfileId = existingShipment?.profile_id || existingPreAlert?.profile_id || null;
+        let targetProfileId: string | null = existingShipment?.profile_id || existingPreAlert?.profile_id || null;
         let mailboxRaw = (data.shipperAddressCode || '').toString().trim();
 
         if (!mailboxRaw && !targetProfileId) {
@@ -108,16 +108,39 @@ export async function POST(request: Request) {
                 const lwClient = await getLogicwareClient();
                 if (lwClient) {
                     const shipper = await lwClient.shippers.get(shipperId);
-                    mailboxRaw = (shipper.referenceCode || '').trim();
                     
-                    if (!mailboxRaw) {
-                        console.warn(`[WEBHOOK:${requestId}] Skipping: Shipper ${shipperId} has no referenceCode for ${trackingId}`);
-                        return NextResponse.json({ success: true, message: 'Unresolved owner - missing reference code' });
+                    const normalizedCodes = shipper.addresses
+                        .filter(a => a.isActive)
+                        .map(a => a.addressCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())
+                        .filter(c => c !== '');
+
+                    if (normalizedCodes.length === 0) {
+                        console.warn(`[WEBHOOK:${requestId}] Unresolved owner - no address codes for ${trackingId} (Shipper: ${shipperId})`);
+                        return NextResponse.json({ success: true, message: 'Unresolved owner - no address codes' });
+                    }
+
+                    const { data: apiProfiles, error: apiProfileError } = await adminClient
+                        .from('profiles')
+                        .select('id')
+                        .in('mailbox_number', normalizedCodes);
+
+                    if (apiProfileError) {
+                        console.error(`[WEBHOOK:${requestId}] Profile query error:`, apiProfileError.message);
+                        return NextResponse.json({ message: 'Registry Failure' }, { status: 500 });
+                    }
+
+                    const distinctIds = Array.from(new Set((apiProfiles || []).map(p => p.id)));
+
+                    if (distinctIds.length === 1) {
+                        targetProfileId = distinctIds[0];
+                    } else {
+                        console.warn(`[WEBHOOK:${requestId}] Identity Mismatch: Found ${distinctIds.length} distinct profiles for codes [${normalizedCodes.join(',')}] on ${trackingId}`);
+                        return NextResponse.json({ success: true, message: 'Unresolved owner - mismatch' });
                     }
                 }
             } catch (lwErr: any) {
-                const apiStatus = lwErr?.status || lwErr?.response?.status;
-                if (apiStatus === 404) {
+                const status = lwErr?.status || lwErr?.response?.status;
+                if (status === 404) {
                     console.warn(`[WEBHOOK:${requestId}] Permanent Failure: Shipper ${shipperId} not found for ${trackingId}`);
                     return NextResponse.json({ success: true, message: 'Unresolved owner - shipper not found' });
                 }
@@ -133,7 +156,7 @@ export async function POST(request: Request) {
                 .from('profiles')
                 .select('id')
                 .eq('mailbox_number', normalizedMailbox);
-
+            
             if (profileQueryError) {
                 console.error(`[WEBHOOK:${requestId}] Profile query error:`, profileQueryError.message);
                 return NextResponse.json({ message: 'Registry Failure' }, { status: 500 });
