@@ -42,34 +42,59 @@ export async function POST(request: Request) {
         let logicwareId = local.logicware_id;
         let operation = 'verified_existing';
 
-        let shipperId = null;
+        let shipperId: string | null = null;
         if (local.profiles) {
-            const shRes = await client.shippers.list({ pageSize: 100 });
-            const sList = Array.isArray(shRes) ? shRes : ((shRes as any).data || []);
-            
-            const mailbox = local.profiles.mailbox_number?.trim().toUpperCase();
-            const email = local.profiles.email?.trim().toLowerCase();
+            const localMailbox = (local.profiles.mailbox_number || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            const localEmail = (local.profiles.email || '').trim().toLowerCase();
 
-            const existingShipper = sList.find((s: any) => 
-                (mailbox && (s.referenceCode || s.code || '').trim().toUpperCase() === mailbox) ||
-                (email && (s.email || '').trim().toLowerCase() === email)
-            );
+            if (!localMailbox) {
+                throw new Error(`Profile ${local.profiles.email} is missing a mailbox number.`);
+            }
 
-            if (existingShipper) {
-                shipperId = existingShipper.id;
-            } else {
-                try {
-                    const newShipper = await client.shippers.create({
-                        email: local.profiles.email,
-                        name: local.profiles.full_name,
-                        trn: local.profiles.trn || '000000000',
-                        phone: local.profiles.phone || '',
-                        addressCode: local.profiles.mailbox_number
-                    });
-                    shipperId = newShipper?.id;
-                } catch (sErr) {
-                    console.warn('[LOGICWARE_PUSH] Shipper creation warning:', sErr);
+            // 1. Search by exact Email
+            try {
+                const hubShipper = await client.shippers.getByEmail(localEmail);
+                if (hubShipper) {
+                    const hasAddressMatch = hubShipper.addresses.some(a => 
+                        a.isActive && a.addressCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === localMailbox
+                    );
+                    if (hasAddressMatch) {
+                        shipperId = hubShipper.id;
+                    }
                 }
+            } catch (err) {
+                // Email not found or Hub error - move to list iteration
+            }
+
+            // 2. Search by iterating all shippers (Fallback)
+            if (!shipperId) {
+                const foundIds: string[] = [];
+                let itemsProcessed = 0;
+                
+                try {
+                    const shippersGen = client.shippers.listAll({ pageSize: 100 });
+                    for await (const shipperItem of shippersGen) {
+                        const hubMailbox = (shipperItem.addressCode || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                        if (hubMailbox === localMailbox) {
+                            foundIds.push(shipperItem.id);
+                        }
+                        
+                        itemsProcessed++;
+                        if (itemsProcessed >= 5000) break; // Cap at 50 pages * 100
+                    }
+                } catch (iterErr) {
+                    console.warn('[LOGICWARE_PUSH] Hub iteration interrupted:', iterErr);
+                }
+
+                if (foundIds.length === 1) {
+                    shipperId = foundIds[0];
+                } else if (foundIds.length > 1) {
+                    throw new Error(`Ambiguous shipper resolution: multiple Hub profiles match mailbox ${localMailbox}`);
+                }
+            }
+
+            if (!shipperId) {
+                throw new Error(`No matching Logicware shipper for mailbox ${localMailbox} on tracking ${tracking}`);
             }
         }
 
@@ -89,8 +114,7 @@ export async function POST(request: Request) {
                 trackingNumber: tracking,
                 weightLbs: parseFloat(local.weight_lbs) || 0,
                 description: local.contents || '',
-                shipperId: shipperId || undefined,
-                shipperAddressCode: local.profiles?.mailbox_number
+                shipperId: shipperId || undefined
             });
             logicwareId = result?.id;
             operation = 'package_created';
