@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import type { UserProfile, Shipment } from '@/lib/types';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
-import { calculateShippingCost, shouldShowPrice } from '@/lib/utils';
+import { cn, calculateShippingCost, shouldShowPrice } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
