@@ -42,6 +42,7 @@ export async function POST(request: Request) {
         const tracking = local.tracking_number.toUpperCase().trim();
         let logicwareId = local.logicware_id;
         let operation = 'verified_existing';
+        let statusPush = 'Skipped: No update required';
 
         let shipperId: string | null = null;
         if (local.profiles) {
@@ -144,45 +145,56 @@ export async function POST(request: Request) {
         
         if (targetHubStatus) {
             try {
-                // 1. Fetch current status from Hub to check for downgrades
+                // 1. Fetch current status from Hub to check for downgrades and semantic matches
                 const hubPkg = await client.packages.get(logicwareId);
                 const currentHubStatus = hubPkg.status;
                 
-                // Convert Hub status to local terminology for semantic comparison
                 const currentMappedStatus = mapLogicwareStatus(currentHubStatus);
                 const isSemanticallyEqual = currentMappedStatus.toLowerCase() === local.status.toLowerCase();
 
-                const HUB_STATUS_ORDER: PackageStatus[] = [
-                    'PreAlert', 'ReceivedAtWarehouse', 'Processing', 'ReadyToShip', 
-                    'Shipped', 'InTransit', 'AtCustoms', 'AtHeadOffice', 
-                    'AtLocalOffice', 'ReadyForPickup', 'OutForDelivery', 'Delivered'
-                ];
+                if (isSemanticallyEqual) {
+                    statusPush = `Not pushed: Logicware already at ${currentHubStatus}`;
+                } else {
+                    const HUB_STATUS_ORDER: PackageStatus[] = [
+                        'PreAlert', 'ReceivedAtWarehouse', 'Processing', 'ReadyToShip', 
+                        'Shipped', 'InTransit', 'AtCustoms', 'AtHeadOffice', 
+                        'AtLocalOffice', 'ReadyForPickup', 'OutForDelivery', 'Delivered'
+                    ];
 
-                const currentIndex = HUB_STATUS_ORDER.indexOf(currentHubStatus);
-                const targetIndex = HUB_STATUS_ORDER.indexOf(targetHubStatus);
+                    const currentIndex = HUB_STATUS_ORDER.indexOf(currentHubStatus);
+                    const targetIndex = HUB_STATUS_ORDER.indexOf(targetHubStatus);
 
-                const willUpdate = !isSemanticallyEqual && currentIndex !== -1 && targetIndex > currentIndex;
+                    const willUpdate = currentIndex !== -1 && targetIndex > currentIndex;
 
-                // Debug: Verify status transition logic
-                console.log(`[LOGICWARE_STATUS] Check: Tracking=${tracking}, Local=${local.status}, Target=${targetHubStatus}, Hub=${currentHubStatus}, MappedHub=${currentMappedStatus}, WillUpdate=${willUpdate}`);
+                    // Debug: Verify status transition logic
+                    console.log(`[LOGICWARE_STATUS] Check: Tracking=${tracking}, Local=${local.status}, Target=${targetHubStatus}, Hub=${currentHubStatus}, MappedHub=${currentMappedStatus}, WillUpdate=${willUpdate}`);
 
-                // 2. Only update if the target status is higher in the chain and semantically different
-                if (willUpdate) {
-                    await client.packages.update(logicwareId, { 
-                        status: targetHubStatus
-                    });
-                    console.log(`[LOGICWARE_STATUS] status update sent for ${tracking}`);
+                    if (willUpdate) {
+                        await client.packages.update(logicwareId, { 
+                            status: targetHubStatus
+                        });
+                        console.log(`[LOGICWARE_STATUS] status update sent for ${tracking}`);
+                        
+                        const updatedHubPkg = await client.packages.get(logicwareId);
+                        statusPush = `Pushed ${targetHubStatus}; Logicware now shows ${updatedHubPkg.status}`;
+                    } else {
+                        statusPush = `Not pushed: ${targetHubStatus} is not ahead of ${currentHubStatus}`;
+                    }
                 }
             } catch (updateErr: unknown) {
                 const msg = updateErr instanceof Error ? updateErr.message : String(updateErr);
                 console.error(`[LOGICWARE_PUSH] Hub state transition check failed for ${tracking}: ${msg}`);
+                statusPush = `Failed: ${msg}`;
             }
+        } else {
+            statusPush = `Not pushed: '${local.status}' has no Logicware equivalent`;
         }
 
         return NextResponse.json({ 
             success: true, 
             operation, 
             logicwareId,
+            statusPush,
             message: 'Synchronized in Logicware Hub.'
         });
 

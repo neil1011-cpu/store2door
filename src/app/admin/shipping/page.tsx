@@ -202,7 +202,7 @@ export default function ShippingPage() {
 
         toast({ 
             title: "Hub Synchronized", 
-            description: `Shipment record ${data.operation === 'create' ? 'created' : 'updated'} in Hub.` 
+            description: `Shipment record ${data.operation === 'create' ? 'created' : 'updated'} in Hub.${data.statusPush ? ' ' + data.statusPush : ''}` 
         });
         fetchData(true); 
     } catch (err: any) {
