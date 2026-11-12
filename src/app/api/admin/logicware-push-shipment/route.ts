@@ -62,7 +62,7 @@ export async function POST(request: Request) {
                         shipperId = hubShipper.id;
                     }
                 }
-            } catch (err) {
+            } catch (err: unknown) {
                 // Email not found or Hub error - move to list iteration
             }
 
@@ -82,8 +82,9 @@ export async function POST(request: Request) {
                         itemsProcessed++;
                         if (itemsProcessed >= 5000) break; // Cap at 50 pages * 100
                     }
-                } catch (iterErr) {
-                    console.warn('[LOGICWARE_PUSH] Hub iteration interrupted:', iterErr);
+                } catch (iterErr: unknown) {
+                    const msg = iterErr instanceof Error ? iterErr.message : String(iterErr);
+                    console.warn(`[LOGICWARE_PUSH] Hub iteration interrupted: ${msg}`);
                 }
 
                 if (foundIds.length === 1) {
@@ -128,12 +129,14 @@ export async function POST(request: Request) {
 
         const mapToHubStatus = (localStatus: string): PackageStatus | null => {
             const s = (localStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
-            if (s.includes('delivered')) return 'Delivered';
-            if (s.includes('out for delivery')) return 'OutForDelivery';
-            if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'ReadyForPickup';
-            if (s.includes('in transit') || s.includes('transit')) return 'InTransit';
-            if (s.includes('received') || s.includes('processing') || s.includes('processed')) return 'ReceivedAtWarehouse';
-            if (s === 'pre-alert') return 'PreAlert';
+            // Specific string matches in priority order
+            if (s === 'pre alert') return 'PreAlert';
+            if (s === 'processing' || s === 'processed') return 'Processing';
+            if (s.includes('received')) return 'ReceivedAtWarehouse';
+            if (s === 'out for delivery') return 'OutForDelivery';
+            if (s === 'delivered' || s === 'picked up') return 'Delivered';
+            if (s === 'ready for pickup' || s === 'ready for pick up') return 'ReadyForPickup';
+            if (s.includes('transit')) return 'InTransit';
             return null;
         };
 
@@ -141,12 +144,28 @@ export async function POST(request: Request) {
         
         if (targetHubStatus) {
             try {
-                await client.packages.update(logicwareId, { 
-                    status: targetHubStatus,
-                    weightLbs: parseFloat(local.weight_lbs) || 0
-                });
-            } catch (updateErr: any) {
-                console.error(`[LOGICWARE_PUSH] Hub state transition failed for ${tracking}: ${updateErr.message}`);
+                // 1. Fetch current status from Hub to check for downgrades
+                const hubPkg = await client.packages.get(logicwareId);
+                const currentHubStatus = hubPkg.status;
+                
+                const HUB_STATUS_ORDER: PackageStatus[] = [
+                    'PreAlert', 'ReceivedAtWarehouse', 'Processing', 'ReadyToShip', 
+                    'Shipped', 'InTransit', 'AtCustoms', 'AtHeadOffice', 
+                    'AtLocalOffice', 'ReadyForPickup', 'OutForDelivery', 'Delivered'
+                ];
+
+                const currentIndex = HUB_STATUS_ORDER.indexOf(currentHubStatus);
+                const targetIndex = HUB_STATUS_ORDER.indexOf(targetHubStatus);
+
+                // 2. Only update if the target status is higher in the chain
+                if (currentIndex !== -1 && targetIndex > currentIndex) {
+                    await client.packages.update(logicwareId, { 
+                        status: targetHubStatus
+                    });
+                }
+            } catch (updateErr: unknown) {
+                const msg = updateErr instanceof Error ? updateErr.message : String(updateErr);
+                console.error(`[LOGICWARE_PUSH] Hub state transition check failed for ${tracking}: ${msg}`);
             }
         }
 
@@ -157,8 +176,9 @@ export async function POST(request: Request) {
             message: 'Synchronized in Logicware Hub.'
         });
 
-    } catch (err: any) {
-        console.error('[LOGICWARE_PUSH] FATAL:', err.message);
-        return NextResponse.json({ message: err.message }, { status: 500 });
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('[LOGICWARE_PUSH] FATAL:', msg);
+        return NextResponse.json({ message: msg }, { status: 500 });
     }
 }
