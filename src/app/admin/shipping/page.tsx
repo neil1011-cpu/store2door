@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 
 const SHIPMENT_STATUSES = [
-  'Received',
+  'Received in Florida Warehouse',
   'Processing',
   'In transit',
   'Out for delivery',

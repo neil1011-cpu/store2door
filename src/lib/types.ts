@@ -35,7 +35,7 @@ export type UserProfile = {
 export type ShipmentStatus = 
   | 'Pending' 
   | 'Pre-Alert' 
-  | 'Received'
+  | 'Received in Florida Warehouse'
   | 'Processing' 
   | 'In transit' 
   | 'Out for delivery' 
