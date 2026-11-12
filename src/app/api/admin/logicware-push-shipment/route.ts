@@ -157,11 +157,17 @@ export async function POST(request: Request) {
                 const currentIndex = HUB_STATUS_ORDER.indexOf(currentHubStatus);
                 const targetIndex = HUB_STATUS_ORDER.indexOf(targetHubStatus);
 
+                const willUpdate = currentIndex !== -1 && targetIndex > currentIndex;
+
+                // Debug: Verify status transition logic
+                console.log(`[LOGICWARE_STATUS] Check: Tracking=${tracking}, Local=${local.status}, Target=${targetHubStatus}, Hub=${currentHubStatus}, WillUpdate=${willUpdate}`);
+
                 // 2. Only update if the target status is higher in the chain
-                if (currentIndex !== -1 && targetIndex > currentIndex) {
+                if (willUpdate) {
                     await client.packages.update(logicwareId, { 
                         status: targetHubStatus
                     });
+                    console.log(`[LOGICWARE_STATUS] status update sent for ${tracking}`);
                 }
             } catch (updateErr: unknown) {
                 const msg = updateErr instanceof Error ? updateErr.message : String(updateErr);
