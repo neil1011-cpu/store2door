@@ -64,6 +64,7 @@ export type Shipment = {
   manifest_id?: string;
   created_at: any;
   updated_at: any;
+  logicware_status?: string | null;
 };
 
 export type ManifestStatus = 'Open' | 'Closed' | 'Scheduled' | 'Departed' | 'Arrived';

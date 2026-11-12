@@ -213,7 +213,8 @@ export async function POST(request: Request) {
                 contents: finalContents,
                 weight_lbs: finalWeight,
                 status: status,
-                logicware_id: logicwareId
+                logicware_id: logicwareId,
+                logicware_status: rawStatus
             }, { onConflict: 'tracking_number' });
             
             if (upsertErr) {

@@ -424,7 +424,16 @@ export default function ShippingPage() {
                                   </div>
                                 </div>
                             </TableCell>
-                            <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge></TableCell>
+                            <TableCell>
+                                <div className="flex flex-col gap-1 items-start">
+                                    <Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge>
+                                    {s.logicware_status && (
+                                        <span className="text-[7px] text-muted-foreground font-bold uppercase tracking-widest opacity-40 px-1 italic">
+                                            Hub: {s.logicware_status}
+                                        </span>
+                                    )}
+                                </div>
+                            </TableCell>
                             <TableCell className="text-xs font-bold uppercase">{s.weight_lbs ? `${s.weight_lbs} LBS` : '—'}</TableCell>
                             <TableCell className="text-[10px] font-medium opacity-60">{new Date(s.created_at).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right pr-6">
