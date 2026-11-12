@@ -126,30 +126,34 @@ export async function POST(request: Request) {
             await adminClient.from(table).update({ logicware_id: logicwareId }).eq('id', local.id);
         }
 
-        const mapToHubStatus = (localStatus: string): PackageStatus => {
+        const mapToHubStatus = (localStatus: string): PackageStatus | null => {
             const s = (localStatus || '').toLowerCase().replace(/[_-]/g, ' ').trim();
             if (s.includes('delivered')) return 'Delivered';
             if (s.includes('out for delivery')) return 'OutForDelivery';
             if (s.includes('ready for pickup') || s.includes('ready for pick up')) return 'ReadyForPickup';
             if (s.includes('in transit') || s.includes('transit')) return 'InTransit';
             if (s.includes('received') || s.includes('processing') || s.includes('processed')) return 'ReceivedAtWarehouse';
-            return 'PreAlert';
+            if (s === 'pre-alert') return 'PreAlert';
+            return null;
         };
 
         const targetHubStatus = mapToHubStatus(local.status);
         
-        if (targetHubStatus !== 'PreAlert') {
-            await client.packages.update(logicwareId, { 
-                status: targetHubStatus,
-                weightLbs: parseFloat(local.weight_lbs) || 0
-            });
+        if (targetHubStatus) {
+            try {
+                await client.packages.update(logicwareId, { 
+                    status: targetHubStatus,
+                    weightLbs: parseFloat(local.weight_lbs) || 0
+                });
+            } catch (updateErr: any) {
+                console.error(`[LOGICWARE_PUSH] Hub state transition failed for ${tracking}: ${updateErr.message}`);
+            }
         }
 
         return NextResponse.json({ 
             success: true, 
             operation, 
             logicwareId,
-            statusSync: targetHubStatus,
             message: 'Synchronized in Logicware Hub.'
         });
 
