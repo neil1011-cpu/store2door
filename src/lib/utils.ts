@@ -92,6 +92,7 @@ export const STATUS_PRIORITY: Record<string, number> = {
     'Pending': 0,
     'Pre-alert': 0,
     'Processed': 1,
+    'Received': 2,
     'Received in Florida Warehouse': 2,
     'Processing': 2,
     'In transit': 3,
