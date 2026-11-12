@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getLogicwareClient } from '@/lib/logicware';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import type { PackageStatus } from '@logicware.app/connect-sdk';
+import { mapLogicwareStatus } from '@/lib/utils';
 
 export async function POST(request: Request) {
     const supabase = await createClient();
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
                         shipperId = hubShipper.id;
                     }
                 }
-            } catch (err: unknown) {
+            } catch (err) {
                 // Email not found or Hub error - move to list iteration
             }
 
@@ -82,9 +83,8 @@ export async function POST(request: Request) {
                         itemsProcessed++;
                         if (itemsProcessed >= 5000) break; // Cap at 50 pages * 100
                     }
-                } catch (iterErr: unknown) {
-                    const msg = iterErr instanceof Error ? iterErr.message : String(iterErr);
-                    console.warn(`[LOGICWARE_PUSH] Hub iteration interrupted: ${msg}`);
+                } catch (iterErr) {
+                    console.warn('[LOGICWARE_PUSH] Hub iteration interrupted:', iterErr);
                 }
 
                 if (foundIds.length === 1) {
@@ -148,6 +148,10 @@ export async function POST(request: Request) {
                 const hubPkg = await client.packages.get(logicwareId);
                 const currentHubStatus = hubPkg.status;
                 
+                // Convert Hub status to local terminology for semantic comparison
+                const currentMappedStatus = mapLogicwareStatus(currentHubStatus);
+                const isSemanticallyEqual = currentMappedStatus.toLowerCase() === local.status.toLowerCase();
+
                 const HUB_STATUS_ORDER: PackageStatus[] = [
                     'PreAlert', 'ReceivedAtWarehouse', 'Processing', 'ReadyToShip', 
                     'Shipped', 'InTransit', 'AtCustoms', 'AtHeadOffice', 
@@ -157,12 +161,12 @@ export async function POST(request: Request) {
                 const currentIndex = HUB_STATUS_ORDER.indexOf(currentHubStatus);
                 const targetIndex = HUB_STATUS_ORDER.indexOf(targetHubStatus);
 
-                const willUpdate = currentIndex !== -1 && targetIndex > currentIndex;
+                const willUpdate = !isSemanticallyEqual && currentIndex !== -1 && targetIndex > currentIndex;
 
                 // Debug: Verify status transition logic
-                console.log(`[LOGICWARE_STATUS] Check: Tracking=${tracking}, Local=${local.status}, Target=${targetHubStatus}, Hub=${currentHubStatus}, WillUpdate=${willUpdate}`);
+                console.log(`[LOGICWARE_STATUS] Check: Tracking=${tracking}, Local=${local.status}, Target=${targetHubStatus}, Hub=${currentHubStatus}, MappedHub=${currentMappedStatus}, WillUpdate=${willUpdate}`);
 
-                // 2. Only update if the target status is higher in the chain
+                // 2. Only update if the target status is higher in the chain and semantically different
                 if (willUpdate) {
                     await client.packages.update(logicwareId, { 
                         status: targetHubStatus
