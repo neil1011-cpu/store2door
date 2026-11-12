@@ -33,7 +33,7 @@ export async function POST(request: Request) {
             .maybeSingle();
 
         if (localErr) throw new Error(`Registry query failed: ${localErr.message}`);
-        if (!local) throw new Error(`Local record ${shipmentId} not found.`);
+        if (!local) throw new Error(`Local record ${shipmentId} not found in ${table}.`);
 
         const client = await getLogicwareClient();
         if (!client) throw new Error('Logicware Hub configuration missing.');
