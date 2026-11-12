@@ -80,6 +80,7 @@ export default function PreAlertsPage() {
 
             const external = data.shipments || [];
             let importedCount = 0;
+            let unmatchedCount = 0;
 
             for (const s of external) {
                 const status = (s.status?.name || s.status || '').toString().toLowerCase();
@@ -100,15 +101,20 @@ export default function PreAlertsPage() {
                     continue;
                 }
 
-                const hubNumeric = rawMailbox.replace(/[^0-9]/g, '');
-                const profile = latestUsers.find(u => {
-                    const uMailbox = (u.mailbox_number || '').toUpperCase().trim();
-                    const uMailboxBase = uMailbox.split('-')[0].trim();
-                    const uNumeric = uMailboxBase.replace(/[^0-9]/g, '');
-                    return uMailbox === rawMailbox || (hubNumeric !== '' && uNumeric === hubNumeric);
+                const normalizedHubMailbox = rawMailbox.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+                if (normalizedHubMailbox === '') {
+                    unmatchedCount++;
+                    continue;
+                }
+
+                const matches = latestUsers.filter(u => {
+                    const normalizedLocal = (u.mailbox_number || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                    return normalizedLocal === normalizedHubMailbox;
                 });
 
-                if (profile) {
+                if (matches.length === 1) {
+                    const profile = matches[0];
                     await supabase.from('pre_alerts').insert({
                         profile_id: profile.id,
                         tracking_number: tracking,
@@ -118,10 +124,15 @@ export default function PreAlertsPage() {
                         logicware_id: logicwareId
                     });
                     importedCount++;
+                } else {
+                    unmatchedCount++;
                 }
             }
 
-            toast({ title: "Viewing Feed Updated", description: `Captured ${importedCount} incoming records for viewing.` });
+            toast({ 
+                title: "Viewing Feed Updated", 
+                description: `Captured ${importedCount} incoming records. ${unmatchedCount} items unmatched.` 
+            });
             fetchData();
         } catch (err: any) {
             toast({ title: "Sync Error", description: err.message, variant: "destructive" });
