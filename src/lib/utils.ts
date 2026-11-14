@@ -52,13 +52,14 @@ export function shouldShowPrice(status: string | undefined): boolean {
 
 /**
  * Robustly determines the site origin for redirects.
+ * PRIORITIZES NEXT_PUBLIC_SITE_URL if defined in the environment.
  */
 export function getSiteOrigin(request?: Request): string {
-    if (typeof window !== 'undefined') {
-        return window.location.origin;
-    }
     if (process.env.NEXT_PUBLIC_SITE_URL) {
         return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+    }
+    if (typeof window !== 'undefined') {
+        return window.location.origin;
     }
     if (request) {
         const host = request.headers.get('x-forwarded-host') || request.headers.get('host');

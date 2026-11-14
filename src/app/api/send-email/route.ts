@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendAppEmail, EmailConfig } from '@/lib/integrations/email-service';
+import { getSiteOrigin } from '@/lib/utils';
 
 /**
  * @fileOverview Production Email Dispatcher.
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
             .maybeSingle();
         
         const config = configDoc?.config_value as EmailConfig;
+        const origin = getSiteOrigin(request);
 
         // 2. Automated Compliance Footer (GDPR/CASL/CAN-SPAM)
         const complianceFooter = `
@@ -35,7 +37,7 @@ This email is intended for ${recipientName || to}.
 You are receiving this because you have an active account or inquiry with FromStore2Door.
 
 To unsubscribe or manage your communication preferences, please sign in to your dashboard at: 
-${process.env.NEXT_PUBLIC_SITE_URL || 'https://fromstore2door.com'}/account/profile
+${origin}/account/profile
 `;
 
         const finalBody = `${emailBody}\n\n${complianceFooter}`;
@@ -66,8 +68,9 @@ ${process.env.NEXT_PUBLIC_SITE_URL || 'https://fromstore2door.com'}/account/prof
 
         return NextResponse.json({ success: true, message: 'Correspondence dispatched.' });
 
-    } catch (error: any) {
-        console.error('[SMTP DISPATCH ERROR]:', error.message);
-        return NextResponse.json({ message: error.message }, { status: 500 });
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown dispatch error';
+        console.error('[SMTP DISPATCH ERROR]:', message);
+        return NextResponse.json({ message }, { status: 500 });
     }
 }

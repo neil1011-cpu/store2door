@@ -1,18 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSiteOrigin } from '@/lib/utils'
 
 /**
  * @fileOverview Universal PKCE Callback Handler.
  * Exchanges the authorization code for a session and redirects to the password update interface.
  */
 export async function GET(request: Request) {
-  const { searchParams, origin: requestOrigin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
-  
-  // AUTH_FIX: Correctly determine origin from headers to prevent localhost redirection in proxied production environments.
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
-  const protocol = request.headers.get('x-forwarded-proto') || 'https'
-  const origin = host ? `${protocol}://${host}` : requestOrigin
+  const origin = getSiteOrigin(request)
 
   if (code) {
     const supabase = await createClient()
