@@ -3,6 +3,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { mapLogicwareStatus, STATUS_PRIORITY } from '@/lib/utils';
 import { getLogicwareClient } from '@/lib/logicware';
+import { triggerStatusNotification } from '@/lib/notifications';
 
 /**
  * @fileOverview Hardened Logicware Inbound Webhook.
@@ -225,9 +226,24 @@ export async function POST(request: Request) {
             if (existingPreAlert) {
                 await adminClient.from('pre_alerts').update({ status: 'Processed' }).eq('tracking_number', trackingId);
             }
+
+            // 6. AUTOMATED NOTIFICATIONS: Trigger email on critical status changes
+            // Fetches the profile data required for the email template
+            const { data: profile } = await adminClient.from('profiles').select('full_name, email').eq('id', targetProfileId).maybeSingle();
+            
+            if (profile?.email) {
+                // Non-blocking trigger: Handled via safe try/catch inside the utility
+                triggerStatusNotification({
+                    recipientEmail: profile.email,
+                    recipientName: profile.full_name,
+                    trackingNumber: trackingId,
+                    status: status,
+                    oldStatus: existingShipment?.status || null
+                });
+            }
         }
 
-        // 6. AUDIT LOG
+        // 7. AUDIT LOG
         await adminClient.from('system_logs').insert({
             log_type: 'webhook_processed',
             description: `Sync: ${event} for ${trackingId}. Status: ${status}`,
