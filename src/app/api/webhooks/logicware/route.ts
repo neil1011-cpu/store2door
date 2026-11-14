@@ -232,14 +232,25 @@ export async function POST(request: Request) {
             const { data: profile } = await adminClient.from('profiles').select('full_name, email').eq('id', targetProfileId).maybeSingle();
             
             if (profile?.email) {
-                // Non-blocking trigger: Handled via safe try/catch inside the utility
-                triggerStatusNotification({
-                    recipientEmail: profile.email,
-                    recipientName: profile.full_name,
-                    trackingNumber: trackingId,
-                    status: status,
-                    oldStatus: existingShipment?.status || null
-                });
+                try {
+                    // Await trigger with 5-second race to ensure completion on Cloud Run
+                    const result = await Promise.race([
+                        triggerStatusNotification({
+                            recipientEmail: profile.email,
+                            recipientName: profile.full_name,
+                            trackingNumber: trackingId,
+                            status: status,
+                            oldStatus: existingShipment?.status || null
+                        }),
+                        new Promise((resolve) => setTimeout(() => resolve('timeout'), 5000))
+                    ]);
+                    if (result === 'timeout') {
+                        console.warn(`[WEBHOOK] Email notification timed out for ${trackingId}`);
+                    }
+                } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    console.warn(`[WEBHOOK] Email notification failed for ${trackingId}: ${msg}`);
+                }
             }
         }
 
