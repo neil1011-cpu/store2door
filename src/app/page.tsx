@@ -34,29 +34,7 @@ export default function HomePage() {
       <main>
         <section className={styles.hero}>
           <div className={styles.wrap}>
-            {/* Visual Column - Now on the Left */}
-            <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-[3rem] blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
-                <div className="relative flex flex-col">
-                    <div className="overflow-hidden rounded-[2.5rem] shadow-2xl border-4 border-background aspect-[16/10] relative z-0">
-                        <Image 
-                            src={placeholderImages.heroVisual.src} 
-                            alt={placeholderImages.heroVisual.alt} 
-                            fill 
-                            className="object-cover"
-                            priority
-                            data-ai-hint={placeholderImages.heroVisual.hint}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                    </div>
-                    <div className="md:-mt-24 md:mr-12 md:self-end z-10 transform transition-transform group-hover:-translate-y-2 duration-500">
-                        <TrackingCard />
-                    </div>
-                </div>
-            </div>
-
-            {/* Text Column - Now on the Right */}
-            <div className="md:pl-6">
+            <div>
               <p className={styles.tag}>Shipping to Jamaica from Florida</p>
               <h1>From the store to your door, <em>hassle free.</em></h1>
               <p>Sign up for a free USA shipping address, shop any online store, and we will get your packages home by air or sea.</p>
@@ -65,6 +43,7 @@ export default function HomePage() {
                 <a className={`${styles.btn} ${styles.btnGhost}`} href="#services">See our services</a>
               </div>
             </div>
+            <TrackingCard />
           </div>
         </section>
 
