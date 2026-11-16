@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -26,6 +25,18 @@ const initialPricingTiers: PricingTier[] = [
     { weight: 8, price: 3900 },
     { weight: 9, price: 4350 },
     { weight: 10, price: 4850 },
+    { weight: 11, price: 5300 },
+    { weight: 12, price: 5750 },
+    { weight: 13, price: 6200 },
+    { weight: 14, price: 6650 },
+    { weight: 15, price: 7100 },
+    { weight: 16, price: 7550 },
+    { weight: 17, price: 8000 },
+    { weight: 18, price: 8450 },
+    { weight: 19, price: 8900 },
+    { weight: 20, price: 9350 },
+    { weight: 21, price: 9800 },
+    { weight: 22, price: 10250 },
     { weight: 23, price: 9900 },
     { weight: 24, price: 10200 },
     { weight: 25, price: 10500 },

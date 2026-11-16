@@ -11,8 +11,10 @@ export function cn(...inputs: ClassValue[]) {
 export const pricingTiers: Record<number, number> = {
     1: 750, 2: 1200, 3: 1650, 4: 2100, 5: 2550,
     6: 3000, 7: 3450, 8: 3900, 9: 4350, 10: 4850,
-    23: 9900, 24: 10200, 25: 10500, 26: 10850, 
-    27: 11200, 28: 11550, 29: 11900, 30: 12250
+    11: 5300, 12: 5750, 13: 6200, 14: 6650, 15: 7100,
+    16: 7550, 17: 8000, 18: 8450, 19: 8900, 20: 9350,
+    21: 9800, 22: 10250, 23: 9900, 24: 10200, 25: 10500, 
+    26: 10850, 27: 11200, 28: 11550, 29: 11900, 30: 12250
 };
 
 /**
@@ -25,7 +27,7 @@ export function calculateShippingCost(weight: number): number {
     // 1. Check exact tiers
     if (roundedWeight in pricingTiers) return pricingTiers[roundedWeight];
     
-    // 2. 11-22 lbs bracket
+    // 2. 11-22 lbs bracket (Maintained as fallback, but keys now exist in map)
     if (roundedWeight > 10 && roundedWeight < 23) {
         return 4850 + (roundedWeight - 10) * 450;
     }
