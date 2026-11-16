@@ -1,3 +1,4 @@
+
 .landing {
   --bg: #ffffff;
   --bg2: #e9fafa;
@@ -141,7 +142,9 @@
 
 .hero {
   padding: 72px 0 88px;
-  background: radial-gradient(900px 420px at 80% 0, #00c2c744, transparent), var(--bg);
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bg);
 }
 
 .hero .wrap {
@@ -149,6 +152,8 @@
   grid-template-columns: 1.05fr .95fr;
   gap: 48px;
   align-items: center;
+  position: relative;
+  z-index: 2;
 }
 
 .hero h1 {
@@ -168,6 +173,35 @@
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.heroBg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.heroImg {
+  object-fit: cover;
+  object-position: 70% 35%;
+}
+
+.heroOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(255, 255, 255, 0.45) 45%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+@media (max-width: 768px) {
+  .heroOverlay {
+    background: rgba(255, 255, 255, 0.88);
+  }
 }
 
 .track {
@@ -503,39 +537,5 @@
   }
   .section {
     padding: 60px 0;
-  }
-}
-/* Hero background photo */
-.hero {
-  position: relative;
-  overflow: hidden;
-}
-.heroBg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-.heroImg {
-  object-fit: cover;
-  object-position: 50% 30%;
-}
-.heroOverlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(255, 255, 255, 0.75) 50%,
-    rgba(255, 255, 255, 0.35) 100%
-  );
-}
-.hero .wrap {
-  position: relative;
-  z-index: 2;
-}
-@media (max-width: 768px) {
-  .heroOverlay {
-    background: rgba(255, 255, 255, 0.88);
   }
 }

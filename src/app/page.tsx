@@ -32,6 +32,17 @@ export default function HomePage() {
 
       <main>
         <section className={styles.hero}>
+          <div className={styles.heroBg}>
+            <Image 
+              src="/images/hero.jpg" 
+              alt="" 
+              fill 
+              priority 
+              sizes="100vw" 
+              className={styles.heroImg} 
+            />
+          </div>
+          <div className={styles.heroOverlay} />
           <div className={styles.wrap}>
             <div>
               <p className={styles.tag}>Shipping to Jamaica from Florida</p>
