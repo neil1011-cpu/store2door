@@ -1,8 +1,8 @@
-
 import Link from 'next/link';
 import Image from 'next/image';
 import styles from './landing.module.css';
 import { Header, TrackingCard } from '@/components/landing-client';
+import placeholderImages from '@/app/lib/placeholder-images.json';
 
 const SIGNIN_HREF = '/signin';
 const SIGNUP_HREF = '/signup';
@@ -42,7 +42,27 @@ export default function HomePage() {
                 <a className={`${styles.btn} ${styles.btnGhost}`} href="#services">See our services</a>
               </div>
             </div>
-            <TrackingCard />
+            
+            {/* Enhanced Visual Column */}
+            <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-[3rem] blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative flex flex-col">
+                    <div className="overflow-hidden rounded-[2.5rem] shadow-2xl border-4 border-background aspect-[16/10] relative z-0">
+                        <Image 
+                            src={placeholderImages.heroVisual.src} 
+                            alt={placeholderImages.heroVisual.alt} 
+                            fill 
+                            className="object-cover"
+                            priority
+                            data-ai-hint={placeholderImages.heroVisual.hint}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                    </div>
+                    <div className="md:-mt-24 md:ml-12 z-10 transform transition-transform group-hover:-translate-y-2 duration-500">
+                        <TrackingCard />
+                    </div>
+                </div>
+            </div>
           </div>
         </section>
 
