@@ -195,18 +195,73 @@
   z-index: 1;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.8) 0%,
-    rgba(255, 255, 255, 0.45) 45%,
-    rgba(255, 255, 255, 0) 100%
+    rgba(255, 255, 255, 0.93) 0%,
+    rgba(255, 255, 255, 0.85) 40%,
+    rgba(255, 255, 255, 0.35) 75%,
+    rgba(255, 255, 255, 0.1) 100%
   );
 }
 
-@media (max-width: 768px) {
-  .heroOverlay {
-    background: rgba(255, 255, 255, 0.88);
+:global(.dark) .heroOverlay {
+  background: linear-gradient(
+    90deg,
+    rgba(2, 6, 23, 0.92) 0%,
+    rgba(2, 6, 23, 0.85) 40%,
+    rgba(2, 6, 23, 0.4) 75%,
+    rgba(2, 6, 23, 0.15) 100%
+  );
+}
+
+@media (max-width: 860px) {
+  .hero .wrap, .grid, .three, .fg {
+    grid-template-columns: 1fr;
   }
+  .hero .wrap {
+    gap: 48px;
+  }
+  .journey {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .journey::before {
+    display: none;
+  }
+  .badges {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .menuBtn {
+    display: block;
+  }
+  .nav ul {
+    display: none;
+    position: absolute;
+    top: 68px;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background: var(--bg);
+    padding: 20px;
+    border-bottom: 1px solid var(--line);
+    align-items: flex-start;
+    z-index: 100;
+  }
+  .nav ul.open {
+    display: flex;
+  }
+  .section {
+    padding: 60px 0;
+  }
+}
+
+@media (max-width: 768px) {
   .heroBg {
     left: 0;
+  }
+  .heroOverlay {
+    background: rgba(255, 255, 255, 0.9);
+  }
+  :global(.dark) .heroOverlay {
+    background: rgba(2, 6, 23, 0.9);
   }
 }
 
@@ -503,47 +558,6 @@
   padding-top: 20px;
   text-align: center;
   font-size: .85rem;
-}
-
-@media (max-width: 860px) {
-  .hero .wrap, .grid, .three, .fg {
-    grid-template-columns: 1fr;
-  }
-  .hero .wrap {
-    gap: 48px;
-  }
-  .journey {
-    grid-template-columns: 1fr;
-    gap: 28px;
-  }
-  .journey::before {
-    display: none;
-  }
-  .badges {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .menuBtn {
-    display: block;
-  }
-  .nav ul {
-    display: none;
-    position: absolute;
-    top: 68px;
-    left: 0;
-    right: 0;
-    flex-direction: column;
-    background: var(--bg);
-    padding: 20px;
-    border-bottom: 1px solid var(--line);
-    align-items: flex-start;
-    z-index: 100;
-  }
-  .nav ul.open {
-    display: flex;
-  }
-  .section {
-    padding: 60px 0;
-  }
 }
 
 .landing{min-height:100vh}
