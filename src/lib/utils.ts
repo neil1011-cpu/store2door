@@ -5,8 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export type ShippingRates = {
+    tiers: Record<string, number>;
+    base_rate_30lb: number;
+    increment_above_30lb: number;
+};
+
 /**
- * Official Shipping Pricing Tiers (JMD)
+ * Official Shipping Pricing Tiers (JMD) - Default Fallback
  */
 export const pricingTiers: Record<number, number> = {
     1: 750, 2: 1200, 3: 1650, 4: 2100, 5: 2550,
@@ -19,26 +25,27 @@ export const pricingTiers: Record<number, number> = {
 
 /**
  * Calculates the shipping cost based on weight (lbs).
+ * Supports optional dynamic rates from the database registry.
  */
-export function calculateShippingCost(weight: number): number {
+export function calculateShippingCost(weight: number, customRates?: ShippingRates | null): number {
     if (!weight || weight <= 0) return 0;
     const roundedWeight = Math.ceil(weight);
     
-    // 1. Check exact tiers
-    if (roundedWeight in pricingTiers) return pricingTiers[roundedWeight];
+    const activeTiers = customRates?.tiers || pricingTiers;
+    const base30 = customRates?.base_rate_30lb ?? pricingTiers[30];
+    const increment = customRates?.increment_above_30lb ?? 400;
+
+    // 1. Check mapped tiers (1-30)
+    if (roundedWeight.toString() in activeTiers) return Number(activeTiers[roundedWeight.toString()]);
+    if (roundedWeight in activeTiers) return Number((activeTiers as any)[roundedWeight]);
     
-    // 2. 11-22 lbs bracket (Maintained as fallback, but keys now exist in map)
-    if (roundedWeight > 10 && roundedWeight < 23) {
-        return 4850 + (roundedWeight - 10) * 450;
-    }
-    
-    // 3. 31+ lbs bracket
+    // 2. 31+ lbs bracket
     if (roundedWeight > 30) {
-        return 12250 + (roundedWeight - 30) * 400;
+        return base30 + (roundedWeight - 30) * increment;
     }
     
     // Fallback to highest known tier or baseline
-    return 12250;
+    return base30;
 }
 
 /**
