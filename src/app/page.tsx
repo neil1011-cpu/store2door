@@ -1,9 +1,9 @@
-
 import Link from 'next/link';
 import Image from 'next/image';
 import styles from './landing.module.css';
 import { Header, TrackingCard } from '@/components/landing-client';
 import placeholderImages from '@/app/lib/placeholder-images.json';
+import { cn } from '@/lib/utils';
 
 const SIGNIN_HREF = '/signin';
 const SIGNUP_HREF = '/signup';
@@ -32,8 +32,23 @@ export default function HomePage() {
       />
 
       <main>
-        <section className={styles.hero}>
-          <div className={styles.wrap}>
+        <section className={cn(styles.hero, "relative overflow-hidden")}>
+          {/* Background Image Layer */}
+          <div className="absolute inset-0 -z-10">
+            <Image
+              src="/images/hero.jpg"
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-[50%_30%]"
+            />
+            {/* Readability Gradient Overlays */}
+            {/* Stronger overlay on mobile, softer transition on desktop */}
+            <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/90 to-white/85 md:from-white/95 md:via-white/75 md:to-white/30 dark:from-background/95 dark:via-background/90 dark:to-background/85 md:dark:from-background/95 md:dark:via-background/75 md:dark:to-background/30" />
+          </div>
+
+          <div className={cn(styles.wrap, "relative z-10")}>
             <div>
               <p className={styles.tag}>Shipping to Jamaica from Florida</p>
               <h1>From the store to your door, <em>hassle free.</em></h1>

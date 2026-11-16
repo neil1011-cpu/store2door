@@ -141,7 +141,7 @@
 
 .hero {
   padding: 72px 0 88px;
-  background: radial-gradient(900px 420px at 80% 0, #00c2c744, transparent), var(--bg);
+  background-color: var(--bg);
 }
 
 .hero .wrap {
@@ -171,12 +171,17 @@
 }
 
 .track {
-  background: var(--card);
+  background-color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 24px;
   box-shadow: 0 24px 60px rgba(0, 100, 110, .18);
   overflow: visible;
+}
+
+:global(.dark) .track {
+  background-color: rgba(30, 41, 59, 0.9);
 }
 
 .track .top {
