@@ -505,3 +505,37 @@
     padding: 60px 0;
   }
 }
+/* Hero background photo */
+.hero {
+  position: relative;
+  overflow: hidden;
+}
+.heroBg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.heroImg {
+  object-fit: cover;
+  object-position: 50% 30%;
+}
+.heroOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(255, 255, 255, 0.35) 100%
+  );
+}
+.hero .wrap {
+  position: relative;
+  z-index: 2;
+}
+@media (max-width: 768px) {
+  .heroOverlay {
+    background: rgba(255, 255, 255, 0.88);
+  }
+}
