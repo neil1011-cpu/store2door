@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+    --font-sora: 'Sora Variable', sans-serif;
+    --font-dm-sans: 'DM Sans Variable', sans-serif;
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
