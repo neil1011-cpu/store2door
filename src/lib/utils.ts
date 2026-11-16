@@ -36,7 +36,7 @@ export function calculateShippingCost(weight: number, customRates?: ShippingRate
     const increment = customRates?.increment_above_30lb ?? 400;
 
     // 1. Check mapped tiers (1-30)
-    if (roundedWeight.toString() in activeTiers) return Number(activeTiers[roundedWeight.toString()]);
+    if (roundedWeight.toString() in activeTiers) return Number((activeTiers as any)[roundedWeight.toString()]);
     if (roundedWeight in activeTiers) return Number((activeTiers as any)[roundedWeight]);
     
     // 2. 31+ lbs bracket
