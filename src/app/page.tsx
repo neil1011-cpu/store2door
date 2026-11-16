@@ -32,7 +32,7 @@ export default function HomePage() {
       />
 
       <main>
-        <section className={cn(styles.hero, "relative overflow-hidden")}>
+        <section className={cn(styles.section, styles.hero, "relative overflow-hidden min-h-[600px] flex items-center")}>
           {/* Background Image Layer */}
           <div className="absolute inset-0 -z-10">
             <Image
@@ -44,21 +44,28 @@ export default function HomePage() {
               className="object-cover object-[50%_30%]"
             />
             {/* Readability Gradient Overlays */}
-            {/* Stronger overlay on mobile, softer transition on desktop */}
             <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/90 to-white/85 md:from-white/95 md:via-white/75 md:to-white/30 dark:from-background/95 dark:via-background/90 dark:to-background/85 md:dark:from-background/95 md:dark:via-background/75 md:dark:to-background/30" />
           </div>
 
-          <div className={cn(styles.wrap, "relative z-10")}>
-            <div>
-              <p className={styles.tag}>Shipping to Jamaica from Florida</p>
-              <h1>From the store to your door, <em>hassle free.</em></h1>
-              <p>Sign up for a free USA shipping address, shop any online store, and we will get your packages home by air or sea.</p>
-              <div className={styles.cta}>
-                <Link className={styles.btn} href={SIGNUP_HREF}>Sign up for free</Link>
-                <a className={`${styles.btn} ${styles.btnGhost}`} href="#services">See our services</a>
+          <div className={cn(styles.wrap, "relative z-10 w-full")}>
+            <div className={styles.heroGrid}>
+              <div className="space-y-6">
+                <p className={styles.tag}>Shipping to Jamaica from Florida</p>
+                <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter leading-[0.9]">
+                  From the store to your door, <em>hassle free.</em>
+                </h1>
+                <p className="text-lg text-muted-foreground max-w-md">
+                  Sign up for a free USA shipping address, shop any online store, and we will get your packages home by air or sea.
+                </p>
+                <div className={styles.cta}>
+                  <Link className={styles.btn} href={SIGNUP_HREF}>Sign up for free</Link>
+                  <a className={`${styles.btn} ${styles.btnGhost}`} href="#services">See our services</a>
+                </div>
+              </div>
+              <div className="flex justify-center lg:justify-end mt-12 lg:mt-0">
+                <TrackingCard />
               </div>
             </div>
-            <TrackingCard />
           </div>
         </section>
 

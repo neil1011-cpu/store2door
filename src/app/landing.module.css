@@ -140,20 +140,22 @@
 }
 
 .hero {
-  padding: 72px 0 88px;
-  background-color: var(--bg);
+  padding: 0;
+  background-color: transparent;
 }
 
-.hero .wrap {
+.heroGrid {
   display: grid;
-  grid-template-columns: 1.05fr .95fr;
-  gap: 48px;
+  grid-template-columns: 1fr;
   align-items: center;
+  gap: 2rem;
 }
 
-.hero h1 {
-  font-size: clamp(2.2rem, 5.6vw, 3.8rem);
-  margin: 10px 0 18px;
+@media (min-width: 1024px) {
+  .heroGrid {
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 4rem;
+  }
 }
 
 .hero h1 em {
@@ -178,10 +180,12 @@
   padding: 24px;
   box-shadow: 0 24px 60px rgba(0, 100, 110, .18);
   overflow: visible;
+  width: 100%;
+  max-width: 450px;
 }
 
 :global(.dark) .track {
-  background-color: rgba(30, 41, 59, 0.9);
+  background-color: rgba(30, 41, 59, 0.8);
 }
 
 .track .top {
@@ -471,11 +475,11 @@
 }
 
 @media (max-width: 860px) {
-  .hero .wrap, .grid, .three, .fg {
+  .heroGrid {
     grid-template-columns: 1fr;
   }
-  .hero .wrap {
-    gap: 48px;
+  .hero .wrap, .grid, .three, .fg {
+    grid-template-columns: 1fr;
   }
   .journey {
     grid-template-columns: 1fr;
