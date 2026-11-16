@@ -1,3 +1,4 @@
+
 {
   "homeHero": {
     "src": "https://picsum.photos/seed/rocketship-logistics/1920/1080",
@@ -24,27 +25,32 @@
     "alt": "Customer receiving a package",
     "hint": "happy customer"
   },
-  "landing": {
-    "air": {
-      "src": "https://picsum.photos/seed/air/800/600",
-      "alt": "Air freight plane",
-      "hint": "cargo aircraft"
+  "contactMap": {
+    "src": "https://picsum.photos/seed/map/800/600",
+    "alt": "Map showing the location of the business",
+    "hint": "street map"
+  },
+  "invoices": {
+    "inv1": {
+      "src": "https://picsum.photos/seed/inv1/800/1100",
+      "alt": "Invoice for shipment JM456",
+      "hint": "invoice document"
     },
-    "sea": {
-      "src": "https://picsum.photos/seed/sea/800/600",
-      "alt": "Cargo ship",
-      "hint": "container ship"
+    "inv2": {
+      "src": "https://picsum.photos/seed/inv2/800/1100",
+      "alt": "Invoice for shipment JM789",
+      "hint": "invoice document"
     },
-    "shop": {
-      "src": "https://picsum.photos/seed/shop/800/600",
-      "alt": "Shopping packages",
-      "hint": "shopping parcel"
-    },
-    "search": {
-      "src": "https://picsum.photos/seed/search/800/600",
-      "alt": "Product searching",
-      "hint": "finding products"
+    "inv3": {
+      "src": "https://picsum.photos/seed/inv3/800/1100",
+      "alt": "Invoice for shipment JM101",
+      "hint": "invoice document"
     }
+  },
+  "generatedInvoice": {
+    "src": "https://picsum.photos/seed/geninv/800/1100",
+    "alt": "Generated customer invoice",
+    "hint": "invoice document"
   },
   "avatars": {
     "supportAgent": {
