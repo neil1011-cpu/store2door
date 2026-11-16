@@ -34,17 +34,7 @@ export default function HomePage() {
       <main>
         <section className={styles.hero}>
           <div className={styles.wrap}>
-            <div>
-              <p className={styles.tag}>Shipping to Jamaica from Florida</p>
-              <h1>From the store to your door, <em>hassle free.</em></h1>
-              <p>Sign up for a free USA shipping address, shop any online store, and we will get your packages home by air or sea.</p>
-              <div className={styles.cta}>
-                <Link className={styles.btn} href={SIGNUP_HREF}>Sign up for free</Link>
-                <a className={`${styles.btn} ${styles.btnGhost}`} href="#services">See our services</a>
-              </div>
-            </div>
-            
-            {/* Enhanced Visual Column */}
+            {/* Visual Column - Now on the Left */}
             <div className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-[3rem] blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
                 <div className="relative flex flex-col">
@@ -59,17 +49,28 @@ export default function HomePage() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                     </div>
-                    <div className="md:-mt-24 md:ml-12 z-10 transform transition-transform group-hover:-translate-y-2 duration-500">
+                    <div className="md:-mt-24 md:mr-12 md:self-end z-10 transform transition-transform group-hover:-translate-y-2 duration-500">
                         <TrackingCard />
                     </div>
                 </div>
+            </div>
+
+            {/* Text Column - Now on the Right */}
+            <div className="md:pl-6">
+              <p className={styles.tag}>Shipping to Jamaica from Florida</p>
+              <h1>From the store to your door, <em>hassle free.</em></h1>
+              <p>Sign up for a free USA shipping address, shop any online store, and we will get your packages home by air or sea.</p>
+              <div className={styles.cta}>
+                <Link className={styles.btn} href={SIGNUP_HREF}>Sign up for free</Link>
+                <a className={`${styles.btn} ${styles.btnGhost}`} href="#services">See our services</a>
+              </div>
             </div>
           </div>
         </section>
 
         <div className={styles.badges}>
-          <div><b>Fast shipping</b><span>Weekly air freight</span></div>
-          <div><b>Secure process</b><span>Checked before delivery</span></div>
+          <div><b>Fast shipping</b><span>5 flights weekly</span></div>
+          <div><b>Secure process</b><span>Verified at hub</span></div>
           <div><b>Customer support</b><span>Dedicated helpline</span></div>
           <div><b>Top rated</b><span>Loved by our customers</span></div>
         </div>
@@ -81,7 +82,7 @@ export default function HomePage() {
               <h2>Follow your package from the store to your door</h2>
             </div>
             <div className={styles.journey}>
-              <div className={styles.stop}><i>1</i><h3>Package received</h3><p>We receive and process your orders at our warehouse facility.</p></div>
+              <div className={styles.stop}><i>1</i><h3>Package received</h3><p>We receive and process your orders at our Florida warehouse.</p></div>
               <div className={styles.stop}><i>2</i><h3>In transit</h3><p>Your items are securely transported by air or sea freight.</p></div>
               <div className={styles.stop}><i>3</i><h3>Quality check</h3><p>We verify all items for condition and accuracy before delivery.</p></div>
               <div className={styles.stop}><i>4</i><h3>Delivery</h3><p>Your packages arrive at your door or wait for you to pick up.</p></div>
@@ -98,22 +99,30 @@ export default function HomePage() {
             </div>
             <div className={styles.grid}>
               <article className={styles.svc}>
-                <Image src="/images/air-freight.jpg" alt="Air Freight" width={500} height={300} loading="lazy" />
+                <div className="relative h-[200px] w-full overflow-hidden">
+                    <Image src={placeholderImages.serviceAir.src} alt={placeholderImages.serviceAir.alt} fill className="object-cover" data-ai-hint={placeholderImages.serviceAir.hint} />
+                </div>
                 <div><small>Weekly shipping</small><h3>Air freight</h3><p>Fast, efficient transit on our regular weekly schedule for your small to medium size packages.</p>
-                  <ul><li>Weekly shipping schedule</li><li>Fast and efficient transit</li><li>Ideal for small to medium packages</li></ul></div>
+                  <ul><li>5 weekly flights</li><li>Fast and efficient transit</li><li>Ideal for small to medium packages</li></ul></div>
               </article>
               <article className={styles.svc}>
-                <Image src="/images/sea-freight.jpg" alt="Sea Freight" width={500} height={300} loading="lazy" />
+                <div className="relative h-[200px] w-full overflow-hidden">
+                    <Image src={placeholderImages.serviceSea.src} alt={placeholderImages.serviceSea.alt} fill className="object-cover" data-ai-hint={placeholderImages.serviceSea.hint} />
+                </div>
                 <div><small>Commercial and personal</small><h3>Sea freight</h3><p>Courier and logistics solutions by sea, from the store straight to your door.</p>
-                  <ul><li>Commercial and personal shipping</li><li>Complete logistics solutions</li><li>Store to door delivery</li></ul></div>
+                  <ul><li>Bulk and large items</li><li>Complete logistics solutions</li><li>Store to door delivery</li></ul></div>
               </article>
               <article className={styles.svc}>
-                <Image src="/images/credit-card-service.jpg" alt="Credit Card Service" width={500} height={300} loading="lazy" />
+                <div className="relative h-[200px] w-full overflow-hidden">
+                    <Image src="https://picsum.photos/seed/cc/800/600" alt="Credit Card Service" fill className="object-cover" data-ai-hint="credit card" />
+                </div>
                 <div><small>Shop online anywhere</small><h3>Credit card service</h3><p>No personal credit card needed? Use ours to make your online purchases with ease.</p>
                   <ul><li>No personal credit card needed</li><li>Shop at any online store</li><li>Secure payment handling</li></ul></div>
               </article>
               <article className={styles.svc}>
-                <Image src="/images/product-search.jpg" alt="Search Assistance" width={500} height={300} loading="lazy" />
+                <div className="relative h-[200px] w-full overflow-hidden">
+                    <Image src="https://picsum.photos/seed/search/800/600" alt="Search Assistance" fill className="object-cover" data-ai-hint="searching online" />
+                </div>
                 <div><small>Best price guarantee</small><h3>Product search assistance</h3><p>We help you find the right product at the right price from top retailers.</p>
                   <ul><li>Expert product research</li><li>Best price comparisons</li><li>Personalized shopping assistance</li></ul></div>
               </article>
@@ -129,7 +138,7 @@ export default function HomePage() {
               <p>Shipping from sign-up to pickup, without the hassle.</p>
             </div>
             <div className={styles.three}>
-              <div><b>1</b><h3>Sign up</h3><p>Register and receive your USA shipping address free of cost instantly.</p><Link href={SIGNUP_HREF}>Get started</Link></div>
+              <div><b>1</b><h3>Sign up</h3><p>Register and receive your USA shipping address free of cost instantly.</p><Link href={SIGNUP_HREF} className="font-bold text-primary hover:underline">Get started</Link></div>
               <div><b>2</b><h3>Shop online</h3><p>Shop at any of your favourite stores. We collect and prepare your items for shipping.</p></div>
               <div><b>3</b><h3>Pick up</h3><p>Get notified about your package status, then request delivery or pick up in store.</p></div>
             </div>
