@@ -17,6 +17,7 @@ import { useSupabase } from '@/components/supabase-provider';
 import { cn, calculateShippingCost } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { generateCustomsForm, type GenerateCustomsFormOutput } from '@/ai/flows/generate-customs-form';
+import { triggerStatusNotification } from '@/lib/notifications';
 
 const PRE_ALERT_STATUSES = ['Pending', 'Processed', 'Cancelled'];
 
@@ -38,7 +39,7 @@ export default function PreAlertsPage() {
         if (!silent) setIsLoading(true);
         try {
             const [paRes, usersRes] = await Promise.all([
-                supabase.from('pre_alerts').select('*, profiles(full_name, mailbox_number)').order('submission_date', { ascending: false }),
+                supabase.from('pre_alerts').select('*, profiles(full_name, email, mailbox_number)').order('submission_date', { ascending: false }),
                 supabase.from('profiles').select('*').order('full_name', { ascending: true })
             ]);
 
@@ -203,16 +204,19 @@ export default function PreAlertsPage() {
 
     const handleProcessIntake = async (alert: any, verifiedWeight: number, calculatedCost: number) => {
         try {
+            const targetStatus = 'Received in Florida Warehouse';
+            
             const { data: shipment, error: shipError } = await supabase.from('shipments').insert({
                 profile_id: alert.profile_id,
                 tracking_number: alert.tracking_number,
                 contents: alert.contents,
                 weight_lbs: verifiedWeight,
                 total_cost_jmd: calculatedCost,
-                status: 'Processed',
+                status: targetStatus,
                 payment_status: 'Unpaid',
                 invoice_url: alert.invoice_url,
-                logicware_id: alert.logicware_id
+                logicware_id: alert.logicware_id,
+                received_at: new Date().toISOString()
             }).select().single();
 
             if (shipError) throw shipError;
@@ -232,11 +236,23 @@ export default function PreAlertsPage() {
             });
             await supabase.from('pre_alerts').update({ status: 'Processed' }).eq('id', alert.id);
 
+            // Notify Hub
             fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ shipmentId: shipment.id })
             }).catch(e => console.warn('[SYNC_WARN]', e));
+
+            // Trigger Email Notification
+            if (alert.profiles?.email) {
+                triggerStatusNotification({
+                    recipientEmail: alert.profiles.email,
+                    recipientName: alert.profiles.full_name,
+                    trackingNumber: alert.tracking_number,
+                    status: targetStatus,
+                    oldStatus: 'Pending'
+                }).catch(e => console.error("[INTAKE_NOTIFY_ERROR]", e));
+            }
 
             toast({ title: "Shipment Created" });
             fetchData();

@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn, calculateShippingCost, calculateCustomsDuty, CUSTOMS_RATES, type CustomsCategory } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
+import { triggerStatusNotification } from '@/lib/notifications';
 
 const SHIPMENT_STATUSES = [
   'Received in Florida Warehouse',
@@ -53,7 +54,7 @@ export default function ShippingPage() {
     if (!silent) setIsLoading(true);
     try {
       const [shipRes, usersRes] = await Promise.all([
-        supabase.from('shipments').select('*, profiles:profile_id(full_name, mailbox_number)').order('created_at', { ascending: false }),
+        supabase.from('shipments').select('*, profiles:profile_id(full_name, email, mailbox_number)').order('created_at', { ascending: false }),
         supabase.from('profiles').select('*').order('full_name', { ascending: true })
       ]);
       if (shipRes.error) throw shipRes.error;
@@ -111,15 +112,29 @@ export default function ShippingPage() {
     setIsBulkProcessing(true);
     try {
         const ids = Array.from(selectedIds);
+        const selectedShipments = shipments.filter(s => ids.includes(s.id));
+        
         const { error } = await supabase.from('shipments').update({ status: newStatus }).in('id', ids);
         if (error) throw error;
 
-        for (const id of ids) {
+        for (const ship of selectedShipments) {
+            // Push to Logicware
             fetch('/api/admin/logicware-push-shipment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shipmentId: id })
+                body: JSON.stringify({ shipmentId: ship.id })
             }).catch(e => console.warn('[BULK_SYNC_WARN]', e));
+
+            // Trigger Email Notification
+            if (ship.profiles?.email) {
+                triggerStatusNotification({
+                    recipientEmail: ship.profiles.email,
+                    recipientName: ship.profiles.full_name,
+                    trackingNumber: ship.tracking_number,
+                    status: newStatus,
+                    oldStatus: ship.status
+                }).catch(e => console.error("[BULK_NOTIFY_ERROR]", e));
+            }
         }
 
         toast({ title: "Bulk Status Updated", description: `${ids.length} records transitioned to ${newStatus}.` });
@@ -261,14 +276,28 @@ export default function ShippingPage() {
 
   const handleStatusUpdate = async (shipmentId: string, newStatus: string) => {
     try {
+      const currentShipment = shipments.find(s => s.id === shipmentId);
+      
       const { error } = await supabase.from('shipments').update({ status: newStatus }).eq('id', shipmentId);
       if (error) throw error;
       
+      // Push to Logicware
       fetch('/api/admin/logicware-push-shipment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ shipmentId })
       }).catch(err => console.warn('[LOGICWARE_SYNC_WARN]', err));
+
+      // Trigger Email Notification
+      if (currentShipment?.profiles?.email) {
+          triggerStatusNotification({
+              recipientEmail: currentShipment.profiles.email,
+              recipientName: currentShipment.profiles.full_name,
+              trackingNumber: currentShipment.tracking_number,
+              status: newStatus,
+              oldStatus: currentShipment.status
+          }).catch(e => console.error("[NOTIFY_ERROR]", e));
+      }
 
       toast({ title: "Status Updated" });
       fetchData(true);

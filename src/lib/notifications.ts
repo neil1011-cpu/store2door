@@ -51,9 +51,14 @@ export async function triggerStatusNotification(input: NotificationInput): Promi
             return;
         }
 
-        // 4. Construct Content (Strictly no pricing/amounts)
-        const subject = `Package Update: ${trackingNumber}`;
-        const body = `Hi ${recipientName},\n\nYour package with tracking number ${trackingNumber} has been updated to the following status:\n\n${status}\n\nYou can view more details by signing into your dashboard.\n\nThank you for choosing FromStore2Door.`;
+        // 4. Construct Content
+        const subject = status === 'Received in Florida Warehouse' 
+            ? `Package Received: ${trackingNumber}` 
+            : `Package Ready for Pickup: ${trackingNumber}`;
+
+        const body = status === 'Received in Florida Warehouse'
+            ? `Hi ${recipientName},\n\nGood news! Your package (${trackingNumber}) has been received at our Florida warehouse and is now being processed for export.\n\nYou will receive another update once it arrives in Jamaica and is ready for collection.\n\nThank you for choosing FromStore2Door.`
+            : `Hi ${recipientName},\n\nYour package (${trackingNumber}) is now ready for pickup at our Jamaica branch!\n\nPlease visit us during our operating hours to collect your items.\n\nThank you for choosing FromStore2Door.`;
 
         // 5. Dispatch
         await sendAppEmail(config, recipientEmail, subject, body);
