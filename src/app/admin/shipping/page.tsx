@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History, RefreshCcw, User } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History, RefreshCcw, User, Calculator, Gavel, DollarSign } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { cn, calculateShippingCost } from '@/lib/utils';
+import { cn, calculateShippingCost, calculateCustomsDuty, CUSTOMS_RATES, type CustomsCategory } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -392,8 +392,8 @@ export default function ShippingPage() {
                     <TableHead className="text-[10px] font-black uppercase">Shipper/Customer</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
-                    <TableHead className="w-[120px]"></TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-right">Landed Cost (JMD)</TableHead>
+                    <TableHead className="w-[150px]"></TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -404,82 +404,94 @@ export default function ShippingPage() {
                         </TableCell>
                     </TableRow>
                 ) : (
-                    filtered.map(s => (
-                        <TableRow key={s.id} className={cn("h-20 hover:bg-primary/5 transition-colors", selectedIds.has(s.id) && "bg-primary/10")}>
-                            <TableCell className="pl-6">
-                                <Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} />
-                            </TableCell>
-                            <TableCell>
-                                <p className="font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</p>
-                                <p className="text-[9px] font-bold opacity-40 uppercase truncate max-w-[150px]">{s.contents || 'No Description'}</p>
-                            </TableCell>
-                            <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <div className="bg-muted p-1.5 rounded-lg">
-                                    <User className="h-3 w-3 text-muted-foreground" />
-                                  </div>
-                                  <div>
-                                    <p className="font-bold text-xs uppercase italic">{s.profiles?.full_name || 'N/A'}</p>
-                                    <p className="text-[9px] font-mono opacity-60 uppercase">{s.profiles?.mailbox_number}</p>
-                                  </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div className="flex flex-col gap-1 items-start">
-                                    <Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge>
-                                    {s.logicware_status && (
-                                        <span className="text-[7px] text-muted-foreground font-bold uppercase tracking-widest opacity-40 px-1 italic">
-                                            Hub: {s.logicware_status}
-                                        </span>
-                                    )}
-                                </div>
-                            </TableCell>
-                            <TableCell className="text-xs font-bold uppercase">{s.weight_lbs ? `${s.weight_lbs} LBS` : '—'}</TableCell>
-                            <TableCell className="text-[10px] font-medium opacity-60">{new Date(s.created_at).toLocaleDateString()}</TableCell>
-                            <TableCell className="text-right pr-6">
-                            <div className="flex justify-end gap-2">
-                                <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    onClick={() => handleSyncShipment(s.id)}
-                                    disabled={syncingShipmentId === s.id}
-                                    className="hover:bg-blue-50 text-blue-600"
-                                    title="Sync to Logicware"
-                                >
-                                    {syncingShipmentId === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                                </Button>
-                                <StatusUpdateDialog 
-                                shipment={s} 
-                                onUpdate={(newStatus) => handleStatusUpdate(s.id, newStatus)} 
-                                />
-                                <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive">
-                                    <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle className="font-black uppercase italic">Purge Shipment Record?</AlertDialogTitle>
-                                    <AlertDialogDescription className="text-[10px] font-bold uppercase">
-                                        This will permanently remove <strong>{s.tracking_number}</strong> from the active ledger.
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel className="font-black uppercase h-12 border-2">Abort</AlertDialogCancel>
-                                    <AlertDialogAction 
-                                        onClick={() => handleDeleteShipment(s.id)}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg"
+                    filtered.map(s => {
+                        const freight = Number(s.total_cost_jmd) || calculateShippingCost(Number(s.weight_lbs) || 0);
+                        const duty = Number(s.duty_jmd) || 0;
+                        const grandTotal = freight + duty;
+
+                        return (
+                            <TableRow key={s.id} className={cn("h-20 hover:bg-primary/5 transition-colors", selectedIds.has(s.id) && "bg-primary/10")}>
+                                <TableCell className="pl-6">
+                                    <Checkbox checked={selectedIds.has(s.id)} onCheckedChange={() => toggleSelect(s.id)} />
+                                </TableCell>
+                                <TableCell>
+                                    <p className="font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</p>
+                                    <p className="text-[9px] font-bold opacity-40 uppercase truncate max-w-[150px]">{s.contents || 'No Description'}</p>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <div className="bg-muted p-1.5 rounded-lg">
+                                        <User className="h-3 w-3 text-muted-foreground" />
+                                      </div>
+                                      <div>
+                                        <p className="font-bold text-xs uppercase italic">{s.profiles?.full_name || 'N/A'}</p>
+                                        <p className="text-[9px] font-mono opacity-60 uppercase">{s.profiles?.mailbox_number}</p>
+                                      </div>
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex flex-col gap-1 items-start">
+                                        <Badge variant="outline" className="text-[9px] font-black uppercase italic border-2">{s.status}</Badge>
+                                        {s.logicware_status && (
+                                            <span className="text-[7px] text-muted-foreground font-bold uppercase tracking-widest opacity-40 px-1 italic">
+                                                Hub: {s.logicware_status}
+                                            </span>
+                                        )}
+                                    </div>
+                                </TableCell>
+                                <TableCell className="text-xs font-bold uppercase">{s.weight_lbs ? `${s.weight_lbs} LBS` : '—'}</TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex flex-col items-end">
+                                        <p className="text-sm font-black italic tracking-tighter text-primary">JMD ${grandTotal.toLocaleString()}</p>
+                                        {duty > 0 && <p className="text-[8px] font-bold uppercase opacity-40">Inc. ${duty.toLocaleString()} Duty</p>}
+                                    </div>
+                                </TableCell>
+                                <TableCell className="text-right pr-6">
+                                <div className="flex justify-end gap-1">
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        onClick={() => handleSyncShipment(s.id)}
+                                        disabled={syncingShipmentId === s.id}
+                                        className="hover:bg-blue-50 text-blue-600 h-8 w-8"
+                                        title="Sync to Logicware"
                                     >
-                                        Authorize Purge
-                                    </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                                </AlertDialog>
-                            </div>
-                            </TableCell>
-                        </TableRow>
-                    ))
+                                        {syncingShipmentId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                                    </Button>
+                                    <ShipmentCustomsDialog shipment={s} onUpdate={() => fetchData(true)} />
+                                    <StatusUpdateDialog 
+                                    shipment={s} 
+                                    onUpdate={(newStatus) => handleStatusUpdate(s.id, newStatus)} 
+                                    />
+                                    <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="hover:bg-destructive/5 text-muted-foreground hover:text-destructive h-8 w-8">
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle className="font-black uppercase italic">Purge Shipment Record?</AlertDialogTitle>
+                                        <AlertDialogDescription className="text-[10px] font-bold uppercase">
+                                            This will permanently remove <strong>{s.tracking_number}</strong> from the active ledger.
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel className="font-black uppercase h-12 border-2">Abort</AlertDialogCancel>
+                                        <AlertDialogAction 
+                                            onClick={() => handleDeleteShipment(s.id)}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-black uppercase h-12 shadow-lg"
+                                        >
+                                            Authorize Purge
+                                        </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
+                                </TableCell>
+                            </TableRow>
+                        );
+                    })
                 )}
                 {filtered.length === 0 && !isLoading && (
                     <TableRow>
@@ -494,6 +506,119 @@ export default function ShippingPage() {
       </Card>
     </div>
   );
+}
+
+function ShipmentCustomsDialog({ shipment, onUpdate }: { shipment: any, onUpdate: () => void }) {
+    const { supabase } = useSupabase();
+    const { toast } = useToast();
+    const [open, setOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    
+    const [category, setCategory] = useState<CustomsCategory>((shipment.customs_category as CustomsCategory) || 'GENERAL');
+    const [itemValue, setItemValue] = useState(shipment.customs_value_usd?.toString() || '');
+    const [calculatedDuty, setCalculatedDuty] = useState(shipment.duty_jmd || 0);
+
+    const freight = Number(shipment.total_cost_jmd) || calculateShippingCost(shipment.weight_lbs);
+
+    const handleCalculate = useCallback(() => {
+        const val = parseFloat(itemValue) || 0;
+        const result = calculateCustomsDuty({
+            category,
+            customsValueUsd: val,
+            shippingJmd: freight
+        });
+        setCalculatedDuty(result.totalDutyJmd);
+    }, [itemValue, category, freight]);
+
+    useEffect(() => {
+        if (open) handleCalculate();
+    }, [itemValue, category, open, handleCalculate]);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const { error } = await supabase
+                .from('shipments')
+                .update({
+                    customs_category: category,
+                    customs_value_usd: parseFloat(itemValue) || 0,
+                    duty_jmd: calculatedDuty
+                })
+                .eq('id', shipment.id);
+            
+            if (error) throw error;
+            toast({ title: "Customs Registry Updated" });
+            setOpen(false);
+            onUpdate();
+        } catch (err: any) {
+            toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className={cn("h-8 w-8", calculatedDuty > 0 ? "text-indigo-600 hover:bg-indigo-50" : "text-muted-foreground hover:bg-primary/5")} title="Customs Duty">
+                    <Gavel className="h-3.5 w-3.5" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md rounded-3xl border-4">
+                <DialogHeader>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3">
+                        <Gavel className="h-6 w-6 text-indigo-500" /> JCA Registry Entry
+                    </DialogTitle>
+                    <DialogDescription className="font-bold text-[9px] uppercase tracking-widest">Tracking: {shipment.tracking_number}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                    <div className="space-y-4">
+                        <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase opacity-60">JCA Category</Label>
+                            <Select onValueChange={(v: CustomsCategory) => setCategory(v)} defaultValue={category}>
+                                <SelectTrigger className="h-11 border-2"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="GENERAL">General Goods (20%)</SelectItem>
+                                    <SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem>
+                                    <SelectItem value="CELL_PHONES">Cell Phones (20%)</SelectItem>
+                                    <SelectItem value="AUTO_PARTS">Auto Parts (30%)</SelectItem>
+                                    <SelectItem value="COSMETICS">Cosmetics (20%)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase opacity-60">Item Value (USD)</Label>
+                            <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500" />
+                                <Input type="number" value={itemValue} onChange={e => setItemValue(e.target.value)} className="h-11 pl-10 text-lg font-bold border-2" placeholder="0.00" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/20 border-2 border-dashed border-indigo-200 space-y-4">
+                        <div className="flex justify-between items-center text-xs font-bold uppercase opacity-60">
+                            <span>Freight (Fixed)</span>
+                            <span>JMD ${freight.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs font-black uppercase text-indigo-700">Calculated Duty</span>
+                            <span className="text-xl font-black italic text-indigo-800 tracking-tighter">+ JMD ${calculatedDuty.toLocaleString()}</span>
+                        </div>
+                        <div className="pt-3 border-t-2 border-indigo-100 flex justify-between items-center">
+                            <span className="text-sm font-black uppercase tracking-tighter">Grand Total</span>
+                            <span className="text-2xl font-black italic text-indigo-700 tracking-tighter">JMD ${(freight + calculatedDuty).toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+                    <Button onClick={handleSave} disabled={isSaving} className="flex-1 h-12 font-black uppercase italic shadow-xl bg-indigo-600 hover:bg-indigo-500">
+                        {isSaving ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} Save Customs
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 function StatusUpdateDialog({ shipment, onUpdate }: { shipment: any, onUpdate: (status: string) => Promise<void> }) {
@@ -511,8 +636,8 @@ function StatusUpdateDialog({ shipment, onUpdate }: { shipment: any, onUpdate: (
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="hover:bg-primary/5">
-          <History className="h-4 w-4 text-primary" />
+        <Button variant="ghost" size="icon" className="hover:bg-primary/5 h-8 w-8">
+          <History className="h-3.5 w-3.5 text-primary" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
