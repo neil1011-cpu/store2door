@@ -239,7 +239,7 @@ export function PackagesTab({ profileId }: { profileId: string }) {
                 const displayCost = Number(pkg.total_cost_jmd) || (Number(pkg.weight_lbs) > 0 ? calculateShippingCost(Number(pkg.weight_lbs)) : calculateShippingCost(0));
                 
                 return (
-                  <TableRow key={pkg.id} className="h-20 hover:bg-primary/5 transition-colors">
+                  <TableRow key={pkg.id} className="h-24 hover:bg-primary/5 transition-colors">
                     <TableCell className="pl-6">
                       <div className="flex flex-col">
                         <p className="font-mono font-black text-primary text-sm tracking-tighter">{pkg.tracking_number}</p>
@@ -247,11 +247,17 @@ export function PackagesTab({ profileId }: { profileId: string }) {
                           <p className="text-[10px] uppercase font-bold opacity-60 truncate max-w-[150px]">{pkg.contents || 'No Description'}</p>
                           {pkg.weight_lbs > 0 && <span className="text-[9px] font-bold text-muted-foreground bg-muted px-1.5 rounded">{pkg.weight_lbs} LBS</span>}
                         </div>
-                        {/* Package Timeline Dates */}
-                        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 opacity-40 text-[8px] font-bold uppercase tracking-tighter italic">
-                           {(pkg.submission_date || pkg.created_at) && <span>Reported: {new Date(pkg.submission_date || pkg.created_at).toLocaleDateString()}</span>}
-                           {pkg.received_at && <span>Received: {new Date(pkg.received_at).toLocaleDateString()}</span>}
-                           {pkg.picked_up_at && <span>Picked up: {new Date(pkg.picked_up_at).toLocaleDateString()}</span>}
+                        {/* Package Timeline Dates (Enhanced Visibility) */}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] font-bold uppercase tracking-wide italic border-t pt-1 border-dashed">
+                           {(pkg.submission_date || pkg.created_at) && (
+                               <span className="text-muted-foreground/70">Reported: {new Date(pkg.submission_date || pkg.created_at).toLocaleDateString()}</span>
+                           )}
+                           {pkg.received_at && (
+                               <span className="text-primary/80">Received: {new Date(pkg.received_at).toLocaleDateString()}</span>
+                           )}
+                           {pkg.picked_up_at && (
+                               <span className="text-green-600 dark:text-green-400">Picked up: {new Date(pkg.picked_up_at).toLocaleDateString()}</span>
+                           )}
                         </div>
                       </div>
                     </TableCell>
