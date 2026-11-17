@@ -273,10 +273,10 @@
 
 @media (min-width: 1025px) {
   .track {
-    transform: translateX(40px);
+    transform: translateX(80px);
   }
   .hero .wrap > div:first-child {
-    transform: translateX(-40px);
+    transform: translateX(-60px);
   }
 }
 
@@ -297,13 +297,7 @@
 
 .steps li {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--bg2);
-  color: var(--mut);
-  transition: .3s;
+  align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: var(--bg2); color: var(--mut); transition: .3s;
 }
 
 .steps li::before {
