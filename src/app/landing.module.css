@@ -250,17 +250,14 @@
   .section {
     padding: 60px 0;
   }
-}
-
-@media (max-width: 768px) {
-  .heroBg {
-    left: 0;
-  }
   .heroOverlay {
     background: rgba(255, 255, 255, 0.9);
   }
   :global(.dark) .heroOverlay {
     background: rgba(2, 6, 23, 0.9);
+  }
+  .heroBg {
+    left: 0;
   }
 }
 
@@ -278,41 +275,9 @@
   .track {
     transform: translateX(40px);
   }
-}
-
-.track .top {
-  display: flex;
-  justify-content: space-between;
-  font-size: .85rem;
-  color: var(--mut);
-  margin-bottom: 18px;
-}
-
-.route {
-  position: relative;
-  height: 90px;
-  margin: 8px 0 26px;
-  overflow: visible;
-}
-
-.dot {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 34px;
-  height: 34px;
-  margin: -17px 0 0 -17px;
-  border-radius: 50%;
-  background: var(--acc);
-  display: grid;
-  place-items: center;
-  font-size: 17px;
-  animation: fly 9s linear infinite;
-  offset-path: path('M20 70 Q 150 40 300 60 T 580 50');
-}
-
-@keyframes fly {
-  to { offset-distance: 100%; }
+  .hero .wrap > div:first-child {
+    transform: translateX(-40px);
+  }
 }
 
 .pts {
