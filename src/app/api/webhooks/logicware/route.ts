@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { mapLogicwareStatus, STATUS_PRIORITY } from '@/lib/utils';
+import { mapLogicwareStatus, STATUS_PRIORITY, calculateShippingCost } from '@/lib/utils';
 import { getLogicwareClient } from '@/lib/logicware';
 import { triggerStatusNotification } from '@/lib/notifications';
 
@@ -239,13 +239,17 @@ export async function POST(request: Request) {
             
             if (profile?.email) {
                 try {
+                    const freight = Number(existingShipment?.total_cost_jmd) || calculateShippingCost(weight);
+                    const duty = Number(existingShipment?.duty_jmd) || 0;
+
                     const result = await Promise.race([
                         triggerStatusNotification({
                             recipientEmail: profile.email,
                             recipientName: profile.full_name,
                             trackingNumber: trackingId,
                             status: status,
-                            oldStatus: existingShipment?.status || null
+                            oldStatus: existingShipment?.status || null,
+                            totalCost: freight + duty
                         }),
                         new Promise((resolve) => setTimeout(() => resolve('timeout'), 5000))
                     ]);

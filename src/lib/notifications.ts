@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendAppEmail, type EmailConfig } from '@/lib/integrations/email-service';
+import { getSiteOrigin } from '@/lib/utils';
 
 /**
  * @fileOverview Automated Notification Engine.
@@ -19,6 +20,7 @@ interface NotificationInput {
     trackingNumber: string;
     status: string;
     oldStatus: string | null;
+    totalCost?: number;
 }
 
 /**
@@ -26,7 +28,7 @@ interface NotificationInput {
  * Ensures notifications are only sent for critical transitions and strictly once per state.
  */
 export async function triggerStatusNotification(input: NotificationInput): Promise<void> {
-    const { recipientEmail, recipientName, trackingNumber, status, oldStatus } = input;
+    const { recipientEmail, recipientName, trackingNumber, status, oldStatus, totalCost } = input;
 
     // 1. Logic Gate: Only notify for specific app statuses
     if (!NOTIFIABLE_STATUSES.includes(status)) return;
@@ -51,14 +53,16 @@ export async function triggerStatusNotification(input: NotificationInput): Promi
             return;
         }
 
+        const origin = getSiteOrigin();
+
         // 4. Construct Content
         const subject = status === 'Received in Florida Warehouse' 
             ? `Package Received: ${trackingNumber}` 
             : `Package Ready for Pickup: ${trackingNumber}`;
 
         const body = status === 'Received in Florida Warehouse'
-            ? `Hi ${recipientName},\n\nGood news! Your package (${trackingNumber}) has been received at our Florida warehouse and is now being processed for export.\n\nYou will receive another update once it arrives in Jamaica and is ready for collection.\n\nThank you for choosing FromStore2Door.`
-            : `Hi ${recipientName},\n\nYour package (${trackingNumber}) is now ready for pickup at our Jamaica branch!\n\nPlease visit us during our operating hours to collect your items.\n\nThank you for choosing FromStore2Door.`;
+            ? `Hi ${recipientName},\n\nGood news! Your package (${trackingNumber}) has been received at our Florida warehouse and is now being processed for export.\n\nYou will receive another update once it arrives in Jamaica and is ready for collection.\n\nWe recommend signing into your account to track your package and view your full shipping history: ${origin}/signin\n\nThank you for choosing FromStore2Door.`
+            : `Hi ${recipientName},\n\nYour package (${trackingNumber}) is now ready for pickup at our Jamaica branch!\n\nTotal Due: JMD $${totalCost?.toLocaleString() ?? 'TBD'}\n\nPlease visit us during our operating hours to collect your items.\n\nWe recommend signing into your account to view your full package history and invoices: ${origin}/signin\n\nThank you for choosing FromStore2Door.`;
 
         // 5. Dispatch
         await sendAppEmail(config, recipientEmail, subject, body);
@@ -67,7 +71,7 @@ export async function triggerStatusNotification(input: NotificationInput): Promi
         await adminClient.from('system_logs').insert({
             log_type: 'automated_notification',
             description: `Status alert dispatched to ${recipientEmail} for ${trackingNumber} (${status})`,
-            metadata: { trackingNumber, status, recipientEmail }
+            metadata: { trackingNumber, status, recipientEmail, totalCost }
         });
 
     } catch (error: unknown) {

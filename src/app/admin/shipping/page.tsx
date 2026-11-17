@@ -127,12 +127,15 @@ export default function ShippingPage() {
 
             // Trigger Email Notification
             if (ship.profiles?.email) {
+                const freight = Number(ship.total_cost_jmd) || calculateShippingCost(Number(ship.weight_lbs) || 0);
+                const duty = Number(ship.duty_jmd) || 0;
                 triggerStatusNotification({
                     recipientEmail: ship.profiles.email,
                     recipientName: ship.profiles.full_name,
                     trackingNumber: ship.tracking_number,
                     status: newStatus,
-                    oldStatus: ship.status
+                    oldStatus: ship.status,
+                    totalCost: freight + duty
                 }).catch(e => console.error("[BULK_NOTIFY_ERROR]", e));
             }
         }
@@ -290,12 +293,15 @@ export default function ShippingPage() {
 
       // Trigger Email Notification
       if (currentShipment?.profiles?.email) {
+          const freight = Number(currentShipment.total_cost_jmd) || calculateShippingCost(currentShipment.weight_lbs);
+          const duty = Number(currentShipment.duty_jmd) || 0;
           triggerStatusNotification({
               recipientEmail: currentShipment.profiles.email,
               recipientName: currentShipment.profiles.full_name,
               trackingNumber: currentShipment.tracking_number,
               status: newStatus,
-              oldStatus: currentShipment.status
+              oldStatus: currentShipment.status,
+              totalCost: freight + duty
           }).catch(e => console.error("[NOTIFY_ERROR]", e));
       }
 

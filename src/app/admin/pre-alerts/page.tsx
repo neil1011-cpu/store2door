@@ -250,7 +250,8 @@ export default function PreAlertsPage() {
                     recipientName: alert.profiles.full_name,
                     trackingNumber: alert.tracking_number,
                     status: targetStatus,
-                    oldStatus: 'Pending'
+                    oldStatus: 'Pending',
+                    totalCost: calculatedCost
                 }).catch(e => console.error("[INTAKE_NOTIFY_ERROR]", e));
             }
 
