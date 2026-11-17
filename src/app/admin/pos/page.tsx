@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabase } from '@/components/supabase-provider';
-import { cn, calculateShippingCost, shouldShowPrice } from '@/lib/utils';
+import { cn, calculateShippingCost, calculateCustomsDuty, CUSTOMS_RATES, type CustomsCategory, DE_MINIMIS_THRESHOLD } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
     Dialog, 
@@ -57,26 +57,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-
-const CUSTOMS_RATES = {
-  GENERAL: { duty: 0.20 },
-  LAPTOPS_TABLETS: { duty: 0 },
-  COMPUTERS: { duty: 0 },
-  CELL_PHONES: { duty: 0.20 },
-  CLOTHING: { duty: 0.20 },
-  SHOES: { duty: 0.20 },
-  AUTO_PARTS: { duty: 0.30 },
-  COSMETICS: { duty: 0.20 },
-  BOOKS: { duty: 0 },
-  ELECTRONICS_OTHER: { duty: 0.20 },
-};
-
-const USD_TO_JMD_RATE = 156; 
-const DE_MINIMIS_THRESHOLD = 100;
-const INSURANCE_RATE = 0.015;
-const SCF_RATE = 0.003;
-
-type Category = keyof typeof CUSTOMS_RATES;
 
 export default function POSPage() {
     const { toast } = useToast();
@@ -513,7 +493,7 @@ export default function POSPage() {
                             )}
                         </CardContent>
                         <CardFooter className="pb-8 md:pb-10 pt-4 px-6 md:px-8">
-                            <Button onClick={() => setIsCheckoutOpen(true)} disabled={selectedInvoices.size === 0 || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < calculatedSelectedTotal))} className="w-full h-16 md:h-20 text-lg md:text-2xl font-black italic uppercase shadow-2xl rounded-xl md:rounded-2xl"><ShoppingCart className="h-5 w-5 md:h-6 md:w-6 mr-2 md:mr-3" /> Process Checkout</Button>
+                            <Button onClick={() => setIsCheckoutOpen(true)} disabled={selectedInvoices.size === 0 || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < calculatedSelectedTotal))} className="w-full h-16 md:h-20 text-lg md:text-2xl font-black italic uppercase shadow-2xl rounded-xl md:rounded-[2rem]"><ShoppingCart className="h-5 w-5 md:h-6 md:w-6 mr-2 md:mr-3" /> Process Checkout</Button>
                         </CardFooter>
                     </Card>
                 </div>
@@ -559,25 +539,20 @@ export default function POSPage() {
 function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipment: any, onApply: (amt: number) => void, currentDuty: number, disabled: boolean }) {
     const [open, setOpen] = useState(false);
     const [itemValue, setItemValue] = useState('');
-    const [category, setCategory] = useState<Category>('GENERAL');
+    const [category, setCategory] = useState<CustomsCategory>('GENERAL');
     const [calculatedDuty, setCalculatedDuty] = useState(0);
 
     const handleCalculate = useCallback(() => {
         const val = parseFloat(itemValue) || 0;
-        if (val <= DE_MINIMIS_THRESHOLD) {
-            setCalculatedDuty(0);
-            return;
-        }
-
-        const insurance = val * INSURANCE_RATE;
-        const shippingUsd = (Number(shipment.total_cost_jmd) || calculateShippingCost(shipment.weight_lbs)) / USD_TO_JMD_RATE;
-        const cif = val + insurance + shippingUsd;
-        const rates = CUSTOMS_RATES[category];
-        const importDuty = cif * rates.duty;
-        const scf = cif * SCF_RATE;
-        const getCAF = (v: number) => v <= 500 ? 2500 : v <= 1000 ? 5000 : v <= 2500 ? 10000 : v <= 5000 ? 20000 : 40000;
-        const totalDutyJmd = (importDuty + scf) * USD_TO_JMD_RATE + getCAF(val);
-        setCalculatedDuty(Math.ceil(totalDutyJmd));
+        const shippingJmd = Number(shipment.total_cost_jmd) || calculateShippingCost(shipment.weight_lbs);
+        
+        const result = calculateCustomsDuty({
+            category,
+            customsValueUsd: val,
+            shippingJmd
+        });
+        
+        setCalculatedDuty(result.totalDutyJmd);
     }, [itemValue, category, shipment]);
 
     useEffect(() => { if (open) handleCalculate(); }, [itemValue, category, open, handleCalculate]);
@@ -607,7 +582,19 @@ function POSCustomsDialog({ shipment, onApply, currentDuty, disabled }: { shipme
                                 <Input type="number" value={itemValue} onChange={e => setItemValue(e.target.value)} className="h-12 pl-10 text-lg font-black border-2" placeholder="0.00" />
                             </div>
                         </div>
-                        <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-60">JCA Tariff Category</Label><Select onValueChange={(v: Category) => setCategory(v)} defaultValue={category}><SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="GENERAL">General Goods (20%)</SelectItem><SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem><SelectItem value="CELL_PHONES">Cell Phones (20%)</SelectItem><SelectItem value="AUTO_PARTS">Auto Parts (30%)</SelectItem><SelectItem value="COSMETICS">Cosmetics (20%)</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase opacity-60">JCA Tariff Category</Label>
+                            <Select onValueChange={(v: CustomsCategory) => setCategory(v)} defaultValue={category}>
+                                <SelectTrigger className="h-12 border-2"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="GENERAL">General Goods (20%)</SelectItem>
+                                    <SelectItem value="LAPTOPS_TABLETS">Laptops & Tablets (0%)</SelectItem>
+                                    <SelectItem value="CELL_PHONES">Cell Phones (20%)</SelectItem>
+                                    <SelectItem value="AUTO_PARTS">Auto Parts (30%)</SelectItem>
+                                    <SelectItem value="COSMETICS">Cosmetics (20%)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                     <div className="p-6 rounded-2xl bg-indigo-50 dark:bg-indigo-950/20 border-2 border-dashed border-indigo-200 dark:border-indigo-900 text-center"><p className="text-[8px] font-black uppercase opacity-40 mb-2">Landed Duty Estimate (JMD)</p><p className="text-3xl md:text-4xl font-black italic tracking-tighter text-indigo-700 dark:text-indigo-400">JMD $ {calculatedDuty.toLocaleString()}</p></div>
                 </div>

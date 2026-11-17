@@ -24,6 +24,29 @@ export const pricingTiers: Record<number, number> = {
 };
 
 /**
+ * Official Jamaica Customs Rates & Constants
+ */
+export const CUSTOMS_RATES = {
+  GENERAL: { duty: 0.20 },
+  LAPTOPS_TABLETS: { duty: 0 },
+  COMPUTERS: { duty: 0 },
+  CELL_PHONES: { duty: 0.20 },
+  CLOTHING: { duty: 0.20 },
+  SHOES: { duty: 0.20 },
+  AUTO_PARTS: { duty: 0.30 },
+  COSMETICS: { duty: 0.20 },
+  BOOKS: { duty: 0 },
+  ELECTRONICS_OTHER: { duty: 0.20 },
+};
+
+export type CustomsCategory = keyof typeof CUSTOMS_RATES;
+
+export const USD_TO_JMD_RATE = 156; 
+export const DE_MINIMIS_THRESHOLD = 100;
+export const INSURANCE_RATE = 0.015;
+export const SCF_RATE = 0.003;
+
+/**
  * Calculates the shipping cost based on weight (lbs).
  * Supports optional dynamic rates from the database registry.
  */
@@ -46,6 +69,55 @@ export function calculateShippingCost(weight: number, customRates?: ShippingRate
     
     // Fallback to highest known tier or baseline
     return base30;
+}
+
+/**
+ * Calculates Jamaica Customs Duty based on item value and category.
+ */
+export function calculateCustomsDuty({ 
+  category, 
+  customsValueUsd, 
+  shippingJmd 
+}: { 
+  category: CustomsCategory; 
+  customsValueUsd: number; 
+  shippingJmd: number;
+}) {
+    if (customsValueUsd <= DE_MINIMIS_THRESHOLD) {
+        return {
+            importDuty: 0,
+            scf: 0,
+            caf: 0,
+            totalDutyJmd: 0
+        };
+    }
+
+    const insurance = customsValueUsd * INSURANCE_RATE;
+    const shippingUsd = shippingJmd / USD_TO_JMD_RATE;
+    const cif = customsValueUsd + insurance + shippingUsd;
+    
+    const rates = CUSTOMS_RATES[category];
+    const importDuty = cif * rates.duty;
+    const scf = cif * SCF_RATE;
+    
+    const getCAF = (val: number) => {
+        if (val <= 500) return 2500;
+        if (val <= 1000) return 5000;
+        if (val <= 2500) return 10000;
+        if (val <= 5000) return 20000;
+        return 40000;
+    };
+    
+    const cafJmd = getCAF(customsValueUsd);
+    const totalDutyJmd = Math.ceil((importDuty + scf) * USD_TO_JMD_RATE + cafJmd);
+
+    return {
+        importDuty,
+        scf,
+        caf: cafJmd / USD_TO_JMD_RATE, // Returning in USD to match pattern if needed
+        cafJmd,
+        totalDutyJmd
+    };
 }
 
 /**
