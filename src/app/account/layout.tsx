@@ -56,19 +56,21 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
                 setProfile(profileData);
 
                 const { data: shipmentsData, error: shipError } = await supabase.from('shipments')
-                    .select('tracking_number, status, total_cost_jmd, payment_status, weight_lbs')
+                    .select('tracking_number, status, total_cost_jmd, payment_status, weight_lbs, duty_jmd')
                     .eq('profile_id', user.id);
 
                 if (shipError) throw shipError;
 
-                // STRICT STANDING LOGIC: Unpaid and Ready for Pickup only
+                // STRICT STANDING LOGIC: Unpaid and Ready for Pickup only. 
+                // Sums Freight (total_cost_jmd) + Customs Duty (duty_jmd)
                 const totalReady = (shipmentsData || [])
                     .filter(s => {
                         return shouldShowPrice(s.status) && s.payment_status === 'Unpaid';
                     })
                     .reduce((acc, curr) => {
-                        const cost = Number(curr.total_cost_jmd) || calculateShippingCost(Number(curr.weight_lbs) || 0);
-                        return acc + cost;
+                        const freight = Number(curr.total_cost_jmd) || calculateShippingCost(Number(curr.weight_lbs) || 0);
+                        const duty = Number(curr.duty_jmd || 0);
+                        return acc + freight + duty;
                     }, 0);
 
                 setTotalToBePaid(totalReady);
