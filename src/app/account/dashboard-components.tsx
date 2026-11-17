@@ -236,7 +236,9 @@ export function PackagesTab({ profileId }: { profileId: string }) {
               {isLoading ? (
                 <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
               ) : packages.map((pkg) => {
-                const displayCost = Number(pkg.total_cost_jmd) || (Number(pkg.weight_lbs) > 0 ? calculateShippingCost(Number(pkg.weight_lbs)) : calculateShippingCost(0));
+                const freight = Number(pkg.total_cost_jmd) || (Number(pkg.weight_lbs) > 0 ? calculateShippingCost(Number(pkg.weight_lbs)) : calculateShippingCost(0));
+                const duty = Number(pkg.duty_jmd || 0);
+                const displayCost = freight + duty;
                 
                 return (
                   <TableRow key={pkg.id} className="h-24 hover:bg-primary/5 transition-colors">
@@ -275,7 +277,10 @@ export function PackagesTab({ profileId }: { profileId: string }) {
                     </TableCell>
                     <TableCell className="text-right pr-6 font-black italic tracking-tighter text-lg">
                       {shouldShowPrice(pkg.status) ? (
-                        `JMD $${displayCost.toLocaleString()}`
+                        <div className="flex flex-col items-end">
+                            <span>JMD ${displayCost.toLocaleString()}</span>
+                            {duty > 0 && <span className="text-[8px] uppercase font-bold opacity-40 leading-none">Inc. Customs Duty</span>}
+                        </div>
                       ) : (
                         <span className="text-[8px] opacity-40 uppercase tracking-widest font-black">Updating...</span>
                       )}

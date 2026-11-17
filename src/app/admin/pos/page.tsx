@@ -126,9 +126,18 @@ export default function POSPage() {
             
             setUserInvoices(shipmentsData || []);
             
-            // STRICT ACCOUNT STANDING
+            // PRE-FILL SAVED DUTIES: Load persisted duty_jmd values into manualDuties state
+            const initialDuties: Record<string, number> = {};
+            (shipmentsData || []).forEach(s => {
+                if (s.duty_jmd) initialDuties[s.id] = Number(s.duty_jmd);
+            });
+            setManualDuties(initialDuties);
+            
+            // STRICT ACCOUNT STANDING: Includes freight + any pre-calculated duty
             const totalReady = (shipmentsData || []).reduce((sum, inv) => {
-                return sum + (Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0));
+                const freight = Number(inv.total_cost_jmd) || calculateShippingCost(Number(inv.weight_lbs) || 0);
+                const duty = Number(inv.duty_jmd || 0);
+                return sum + freight + duty;
             }, 0);
             
             setAccountStanding(totalReady);

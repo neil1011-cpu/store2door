@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History, RefreshCcw, User, Calculator, Gavel, DollarSign } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History, RefreshCcw, User, Calculator, Gavel, DollarSign, AlertCircle } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -341,16 +341,11 @@ export default function ShippingPage() {
                             <DialogHeader>
                                 <DialogTitle className="uppercase italic text-center font-black">Transition {selectedIds.size} Parcels</DialogTitle>
                             </DialogHeader>
-                            <div className="py-6 space-y-4">
-                                <Label className="text-[10px] font-bold uppercase opacity-60">New Target Status</Label>
-                                <Select onValueChange={handleBulkStatusUpdate}>
-                                    <SelectTrigger className="h-14 text-lg font-black border-2"><SelectValue placeholder="Select new state" /></SelectTrigger>
-                                    <SelectContent>
-                                        {SHIPMENT_STATUSES.map(st => <SelectItem key={st} value={st} className="font-bold uppercase text-xs">{st}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <DialogFooter><DialogClose asChild><Button variant="outline" className="w-full">Cancel</Button></DialogClose></DialogFooter>
+                            <BulkStatusUpdateContent 
+                                count={selectedIds.size} 
+                                onConfirm={handleBulkStatusUpdate} 
+                                isProcessing={isBulkProcessing} 
+                            />
                         </DialogContent>
                     </Dialog>
                     <Dialog open={isManifestOpen} onOpenChange={setIsManifestOpen}>
@@ -654,13 +649,28 @@ function StatusUpdateDialog({ shipment, onUpdate }: { shipment: any, onUpdate: (
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(shipment.status);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [requiresConfirmation, setRequiresConfirmation] = useState(false);
+
+  const isTransitioningToReady = status === 'Ready for pick up';
 
   const handleConfirm = async () => {
+    if (isTransitioningToReady && !requiresConfirmation) {
+        setRequiresConfirmation(true);
+        return;
+    }
     setIsUpdating(true);
     await onUpdate(status);
     setIsUpdating(false);
+    setRequiresConfirmation(false);
     setOpen(false);
   };
+
+  useEffect(() => {
+      if (!open) {
+          setRequiresConfirmation(false);
+          setStatus(shipment.status);
+      }
+  }, [open, shipment.status]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -673,35 +683,102 @@ function StatusUpdateDialog({ shipment, onUpdate }: { shipment: any, onUpdate: (
         <DialogHeader>
           <DialogTitle className="uppercase italic tracking-tighter text-2xl text-center">Package Transit State</DialogTitle>
         </DialogHeader>
+        
         <div className="py-6 space-y-4">
-          <div className="space-y-1">
-            <Label className="text-[10px] font-bold uppercase opacity-60">New Status Stage</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="h-14 text-lg font-black border-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SHIPMENT_STATUSES.map(st => (
-                  <SelectItem key={st} value={st} className="font-bold uppercase text-xs">{st}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!requiresConfirmation ? (
+              <div className="space-y-1">
+                <Label className="text-[10px] font-bold uppercase opacity-60">New Status Stage</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger className="h-14 text-lg font-black border-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SHIPMENT_STATUSES.map(st => (
+                      <SelectItem key={st} value={st} className="font-bold uppercase text-xs">{st}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+          ) : (
+              <div className="p-4 rounded-xl bg-orange-50 border-2 border-dashed border-orange-200 space-y-4 animate-in fade-in zoom-in-95">
+                <div className="flex items-center gap-3 text-orange-700">
+                    <AlertCircle className="h-6 w-6" />
+                    <h3 className="font-black uppercase italic tracking-tight">Audit Verification</h3>
+                </div>
+                <p className="text-xs font-bold text-orange-800 leading-relaxed uppercase">
+                    You are marking this item as **Ready for Pickup**. Please ensure all customs duties have been reviewed and applied to the registry.
+                </p>
+              </div>
+          )}
         </div>
+
         <DialogFooter className="gap-2">
-          <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+          {requiresConfirmation ? (
+              <Button variant="outline" onClick={() => setRequiresConfirmation(false)} className="h-12 font-bold uppercase w-full">Back</Button>
+          ) : (
+              <DialogClose asChild><Button variant="outline" className="h-12 font-bold uppercase w-full">Cancel</Button></DialogClose>
+          )}
           <Button 
             onClick={handleConfirm} 
-            disabled={isUpdating || status === shipment.status} 
-            className="flex-1 h-12 font-black uppercase italic shadow-xl"
+            disabled={isUpdating || (!requiresConfirmation && status === shipment.status)} 
+            className={cn("flex-1 h-12 font-black uppercase italic shadow-xl", isTransitioningToReady && "bg-orange-600 hover:bg-orange-500")}
           >
             {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />} 
-            Update State
+            {requiresConfirmation ? "Confirm & Finalize" : "Update State"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+function BulkStatusUpdateContent({ count, onConfirm, isProcessing }: { count: number, onConfirm: (status: string) => Promise<void>, isProcessing: boolean }) {
+    const [status, setStatus] = useState('');
+    const [requiresConfirmation, setRequiresConfirmation] = useState(false);
+
+    const isTransitioningToReady = status === 'Ready for pick up';
+
+    const handleAction = () => {
+        if (isTransitioningToReady && !requiresConfirmation) {
+            setRequiresConfirmation(true);
+            return;
+        }
+        onConfirm(status);
+    };
+
+    return (
+        <div className="py-6 space-y-6">
+            {!requiresConfirmation ? (
+                <div className="space-y-1">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">New Target Status for {count} Items</Label>
+                    <Select value={status} onValueChange={setStatus}>
+                        <SelectTrigger className="h-14 text-lg font-black border-2"><SelectValue placeholder="Select new state" /></SelectTrigger>
+                        <SelectContent>
+                            {SHIPMENT_STATUSES.map(st => <SelectItem key={st} value={st} className="font-bold uppercase text-xs">{st}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+            ) : (
+                <div className="p-4 rounded-xl bg-orange-50 border-2 border-dashed border-orange-200 space-y-4 animate-in fade-in zoom-in-95">
+                    <div className="flex items-center gap-3 text-orange-700">
+                        <AlertCircle className="h-6 w-6" />
+                        <h3 className="font-black uppercase italic tracking-tight">Bulk Audit Alert</h3>
+                    </div>
+                    <p className="text-xs font-bold text-orange-800 leading-relaxed uppercase">
+                        You are transitioning **{count} packages** to Ready for Pickup. Confirm that customs duties for ALL selected items are accurately recorded.
+                    </p>
+                </div>
+            )}
+
+            <DialogFooter className="gap-2">
+                {requiresConfirmation && <Button variant="outline" onClick={() => setRequiresConfirmation(false)} className="h-12 font-bold uppercase w-full">Back</Button>}
+                <Button onClick={handleAction} disabled={isProcessing || !status} className={cn("w-full h-12 font-black uppercase italic shadow-xl", isTransitioningToReady && "bg-orange-600")}>
+                    {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                    {requiresConfirmation ? "Confirm Bulk Readiness" : "Execute Transition"}
+                </Button>
+            </DialogFooter>
+        </div>
+    );
 }
 
 function ManualShipmentForm({ users, onSubmit, isSubmitting }: { users: any[], onSubmit: (data: any) => void, isSubmitting: boolean }) {
