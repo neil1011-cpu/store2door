@@ -45,7 +45,7 @@ export function UserHeader() {
 
   return (
     <header className={cn(
-        "fixed top-0 z-50 w-full transition-all duration-500 h-20 flex items-center",
+        "fixed top-0 z-50 w-full transition-all duration-500 h-16 flex items-center",
         scrolled || !isHomepage 
             ? "bg-background/95 backdrop-blur-md border-b" 
             : "bg-transparent border-transparent"
