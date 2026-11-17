@@ -208,7 +208,7 @@ export async function POST(request: Request) {
                 return NextResponse.json({ message: 'Registry write error' }, { status: 500 });
             }
         } else {
-            const { error: upsertErr } = await adminClient.from('shipments').upsert({
+            const upsertData: any = {
                 profile_id: targetProfileId,
                 tracking_number: trackingId,
                 contents: finalContents,
@@ -216,7 +216,14 @@ export async function POST(request: Request) {
                 status: status,
                 logicware_id: logicwareId,
                 logicware_status: rawStatus
-            }, { onConflict: 'tracking_number' });
+            };
+
+            // Set received_at if transitioning to warehouse status for the first time
+            if (status === 'Received in Florida Warehouse' && !existingShipment?.received_at) {
+                upsertData.received_at = new Date().toISOString();
+            }
+
+            const { error: upsertErr } = await adminClient.from('shipments').upsert(upsertData, { onConflict: 'tracking_number' });
             
             if (upsertErr) {
                 console.error(`[WEBHOOK:${requestId}] Shipment update failure:`, upsertErr.message, upsertErr.code, upsertErr.details);
@@ -228,12 +235,10 @@ export async function POST(request: Request) {
             }
 
             // 6. AUTOMATED NOTIFICATIONS: Trigger email on critical status changes
-            // Fetches the profile data required for the email template
             const { data: profile } = await adminClient.from('profiles').select('full_name, email').eq('id', targetProfileId).maybeSingle();
             
             if (profile?.email) {
                 try {
-                    // Await trigger with 5-second race to ensure completion on Cloud Run
                     const result = await Promise.race([
                         triggerStatusNotification({
                             recipientEmail: profile.email,

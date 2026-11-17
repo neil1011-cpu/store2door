@@ -247,6 +247,12 @@ export function PackagesTab({ profileId }: { profileId: string }) {
                           <p className="text-[10px] uppercase font-bold opacity-60 truncate max-w-[150px]">{pkg.contents || 'No Description'}</p>
                           {pkg.weight_lbs > 0 && <span className="text-[9px] font-bold text-muted-foreground bg-muted px-1.5 rounded">{pkg.weight_lbs} LBS</span>}
                         </div>
+                        {/* Package Timeline Dates */}
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 opacity-40 text-[8px] font-bold uppercase tracking-tighter italic">
+                           {(pkg.submission_date || pkg.created_at) && <span>Reported: {new Date(pkg.submission_date || pkg.created_at).toLocaleDateString()}</span>}
+                           {pkg.received_at && <span>Received: {new Date(pkg.received_at).toLocaleDateString()}</span>}
+                           {pkg.picked_up_at && <span>Picked up: {new Date(pkg.picked_up_at).toLocaleDateString()}</span>}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell><Badge variant={getStatusVariant(pkg.status)} className="text-[8px] font-black uppercase italic tracking-widest border-2">{pkg.status}</Badge></TableCell>

@@ -185,12 +185,13 @@ export default function POSPage() {
             const totalToSettle = calculatedSelectedTotal;
             const trackingNumbers = itemsToSnap.map(s => s.tracking_number).filter(Boolean);
 
-            // Update status to Delivered and mark as Paid
+            // Update status to Delivered and mark as Paid with pickup timestamp
             const { error: shipError } = await supabase
                 .from('shipments')
                 .update({ 
                     status: 'Delivered', 
-                    payment_status: 'Paid'
+                    payment_status: 'Paid',
+                    picked_up_at: new Date().toISOString()
                 })
                 .in('id', Array.from(selectedInvoices));
 
