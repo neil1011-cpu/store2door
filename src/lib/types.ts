@@ -65,6 +65,9 @@ export type Shipment = {
   created_at: any;
   updated_at: any;
   logicware_status?: string | null;
+  customs_category?: string;
+  customs_value_usd?: number;
+  duty_jmd?: number;
 };
 
 export type ManifestStatus = 'Open' | 'Closed' | 'Scheduled' | 'Departed' | 'Arrived';
