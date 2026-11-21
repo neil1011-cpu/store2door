@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History, RefreshCcw, User, Calculator, Gavel, DollarSign, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, Zap, RefreshCw, Package, PlusCircle, CheckCircle2, ListChecks, FileSpreadsheet, Trash2, History, RefreshCcw, User, Calculator, Gavel, DollarSign, AlertCircle, Calendar } from 'lucide-react';
 import { useSupabase } from '@/components/supabase-provider';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -419,6 +419,7 @@ export default function ShippingPage() {
                         <Checkbox checked={selectedIds.size === filtered.length && filtered.length > 0} onCheckedChange={toggleSelectAll} />
                     </TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Tracking ID</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Shipper/Customer</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Weight</TableHead>
@@ -429,7 +430,7 @@ export default function ShippingPage() {
             <TableBody>
                 {isLoading && filtered.length === 0 ? (
                     <TableRow>
-                        <TableCell colSpan={7} className="text-center py-20">
+                        <TableCell colSpan={8} className="text-center py-20">
                             <Loader2 className="animate-spin h-10 w-10 mx-auto text-primary" />
                         </TableCell>
                     </TableRow>
@@ -447,6 +448,12 @@ export default function ShippingPage() {
                                 <TableCell>
                                     <p className="font-mono font-black text-primary uppercase text-sm">{s.tracking_number}</p>
                                     <p className="text-[9px] font-bold opacity-40 uppercase truncate max-w-[150px]">{s.contents || 'No Description'}</p>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex flex-col">
+                                        <p className="text-[10px] font-black uppercase">{new Date(s.created_at).toLocaleDateString()}</p>
+                                        <p className="text-[8px] font-bold opacity-40">{new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                    </div>
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-2">
@@ -525,7 +532,7 @@ export default function ShippingPage() {
                 )}
                 {filtered.length === 0 && !isLoading && (
                     <TableRow>
-                        <TableCell colSpan={7} className="h-64 text-center text-muted-foreground italic opacity-30">
+                        <TableCell colSpan={8} className="h-64 text-center text-muted-foreground italic opacity-30">
                             No active shipments match your search.
                         </TableCell>
                     </TableRow>
